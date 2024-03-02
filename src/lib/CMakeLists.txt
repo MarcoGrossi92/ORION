@@ -1,0 +1,5 @@
+file(GLOB LIBSRC *.f90)
+add_library(ORION ${LIBSRC})
+if(UNIX AND NOT APPLE)
+  target_link_libraries(ORION ${TECIO})
+endif()
