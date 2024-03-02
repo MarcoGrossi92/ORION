@@ -1,12 +1,11 @@
-!< Pure Fortran (2003+) library to write and read data conforming the VTK standard
-module Lib_VTK_IO
-!-----------------------------------------------------------------------------------------------------------------------------------
-!< Pure Fortran (2003+) library to write and read data conforming the VTK standard
-!<{!README-Lib_VTK_IO.md!}
-!<
-!<### ChangeLog
-!<
-!<{!ChangeLog-Lib_VTK_IO.md!}
+!> @ingroup Library
+!> @{
+!> @defgroup Lib_VTKLibrary Lib_VTK
+!> @}
+
+!> Pure Fortran (2003+) library to write and read data conforming the VTK standard
+!> @ingroup Lib_TecplotLibrary
+module Lib_VTK
 !-----------------------------------------------------------------------------------------------------------------------------------
 USE IR_Precision                                                                ! Integers and reals precision definition.
 USE Lib_Base64                                                                  ! Base64 encoding/decoding procedures.
@@ -65,29 +64,29 @@ public:: read_variables_name
 
 !-----------------------------------------------------------------------------------------------------------------------------------
 interface VTK_FLD_XML
-  !< Procedure for saving field data (global auxiliary data, eg time, step number, dataset name, etc).
-  !<
-  !< VTK_FLD_XML is an interface to 7 different functions, there are 2 functions for real field data, 4 functions for integer one
-  !< and one function for open and close field data tag.
-  !< VTK_FLD_XML must be called after VTK_INI_XML and before VTK_GEO_XML. It must always called three times at least:
-  !<
-  !< 1. for opening the FieldData tag;
-  !< 2. for saving at least one FieldData entry;
-  !< 3. for closing the FieldData tag.
-  !<
-  !< Example of usage:
-  !<
-  !<```fortran
-  !<...
-  !<real(R8P)::    time
-  !<integer(I4P):: step
-  !<...
-  !<E_IO=VTK_FLD_XML(fld_action='open')
-  !<E_IO=VTK_FLD_XML(fld=time,fname='TIME')
-  !<E_IO=VTK_FLD_XML(fld=step,fname='CYCLE')
-  !<E_IO=VTK_FLD_XML(fld_action='close')
-  !<...
-  !<```
+  !> Procedure for saving field data (global auxiliary data, eg time, step number, dataset name, etc).
+  !>
+  !> VTK_FLD_XML is an interface to 7 different functions, there are 2 functions for real field data, 4 functions for integer one
+  !> and one function for open and close field data tag.
+  !> VTK_FLD_XML must be called after VTK_INI_XML and before VTK_GEO_XML. It must always called three times at least:
+  !>
+  !> 1. for opening the FieldData tag;
+  !> 2. for saving at least one FieldData entry;
+  !> 3. for closing the FieldData tag.
+  !>
+  !> Example of usage:
+  !>
+  !>```fortran
+  !>...
+  !>real(R8P)::    time
+  !>integer(I4P):: step
+  !>...
+  !>E_IO=VTK_FLD_XML(fld_action='open')
+  !>E_IO=VTK_FLD_XML(fld=time,fname='TIME')
+  !>E_IO=VTK_FLD_XML(fld=step,fname='CYCLE')
+  !>E_IO=VTK_FLD_XML(fld_action='close')
+  !>...
+  !>```
   module procedure VTK_FLD_XML_OC, & ! open/close field data tag
                    VTK_FLD_XML_R8, & ! real(R8P)    scalar
                    VTK_FLD_XML_R4, & ! real(R4P)    scalar
@@ -97,59 +96,59 @@ interface VTK_FLD_XML
                    VTK_FLD_XML_I1    ! integer(I1P) scalar
 endinterface
 interface VTK_GEO_XML
-  !< Procedure for saving mesh with different topologies in VTK-XML standard.
-  !<
-  !< VTK_GEO_XML is an interface to 15 different functions; there are 2 functions for each of 3 topologies supported and a function
-  !< for closing XML pieces: one function for mesh coordinates with R8P precision and one for mesh coordinates with R4P precision.
-  !< 1D/3D-rank arrays and packed API for any kinds
-  !<
-  !<- For StructuredGrid there are 4 functions for each real kinds:
-  !<    - inputs are 1D-rank arrays: X[1:NN],Y[1:NN],Z[1:NN];
-  !<    - inputs are 3D-rank arrays: X[nx1:nx2,ny1:ny2,nz1:nz2],Y[nx1:nx2,ny1:ny2,nz1:nz2],Z[nx1:nx2,ny1:ny2,nz1:nz2];
-  !<    - input is 1D-rank array (packed API): XYZ[1:3,1:NN];
-  !<    - input is 3D-rank array (packed API): XYZ[1:3,nx1:nx2,ny1:ny2,nz1:nz2].
-  !<- For UnStructuredGrid there are 2 functions for each real kinds:
-  !<    - inputs are 1D arrays: X[1:NN],Y[1:NN],Z[1:NN];
-  !<    - input is 1D array (packed API): XYZ[1:3,1:NN].
-  !<
-  !< VTK_GEO_XML must be called after VTK_INI_XML. It saves the mesh geometry. The inputs that must be passed
-  !< change depending on the topologies chosen. Not all VTK topologies have been implemented (*polydata* topologies are absent).
-  !<
-  !< @note The XML standard is more powerful than legacy. XML file can contain more than 1 mesh with its
-  !< associated variables. Thus there is the necessity to close each *pieces* that compose the data-set saved in the
-  !< XML file. The VTK_GEO_XML called in the *close piece* format is used just to close the
-  !< current piece before saving another piece or closing the file.
-  !<
-  !<### Examples of usage
-  !<
-  !<#### Structured grid calling
-  !<```fortran
-  !< integer(I4P):: nx1,nx2,ny1,ny2,nz1,nz2,NN
-  !< real(R8P)::    X(1:NN),Y(1:NN),Z(1:NN)
-  !< ...
-  !< E_IO=VTK_GEO_XML(nx1,nx2,ny1,ny2,nz1,nz2,Nn,X,Y,Z)
-  !<```
-  !<
-  !<#### Rectilinear grid calling
-  !<```fortran
-  !< integer(I4P):: nx1,nx2,ny1,ny2,nz1,nz2
-  !< real(R8P)::    X(nx1:nx2),Y(ny1:ny2),Z(nz1:nz2)
-  !< ...
-  !< E_IO=VTK_GEO_XML(nx1,nx2,ny1,ny2,nz1,nz2,X,Y,Z)
-  !<```
-  !<
-  !<#### Unstructured grid calling
-  !<```fortran
-  !< integer(I4P):: Nn,Nc
-  !< real(R8P)::    X(1:Nn),Y(1:Nn),Z(1:Nn)
-  !< ...
-  !< E_IO=VTK_GEO_XML(Nn,Nc,X,Y,Z)
-  !<```
-  !<
-  !<#### Closing piece calling
-  !<```fortran
-  !< E_IO=VTK_GEO_XML()
-  !<```
+  !> Procedure for saving mesh with different topologies in VTK-XML standard.
+  !>
+  !> VTK_GEO_XML is an interface to 15 different functions; there are 2 functions for each of 3 topologies supported and a function
+  !> for closing XML pieces: one function for mesh coordinates with R8P precision and one for mesh coordinates with R4P precision.
+  !> 1D/3D-rank arrays and packed API for any kinds
+  !>
+  !>- For StructuredGrid there are 4 functions for each real kinds:
+  !>    - inputs are 1D-rank arrays: X[1:NN],Y[1:NN],Z[1:NN];
+  !>    - inputs are 3D-rank arrays: X[nx1:nx2,ny1:ny2,nz1:nz2],Y[nx1:nx2,ny1:ny2,nz1:nz2],Z[nx1:nx2,ny1:ny2,nz1:nz2];
+  !>    - input is 1D-rank array (packed API): XYZ[1:3,1:NN];
+  !>    - input is 3D-rank array (packed API): XYZ[1:3,nx1:nx2,ny1:ny2,nz1:nz2].
+  !>- For UnStructuredGrid there are 2 functions for each real kinds:
+  !>    - inputs are 1D arrays: X[1:NN],Y[1:NN],Z[1:NN];
+  !>    - input is 1D array (packed API): XYZ[1:3,1:NN].
+  !>
+  !> VTK_GEO_XML must be called after VTK_INI_XML. It saves the mesh geometry. The inputs that must be passed
+  !> change depending on the topologies chosen. Not all VTK topologies have been implemented (*polydata* topologies are absent).
+  !>
+  !> @note The XML standard is more powerful than legacy. XML file can contain more than 1 mesh with its
+  !> associated variables. Thus there is the necessity to close each *pieces* that compose the data-set saved in the
+  !> XML file. The VTK_GEO_XML called in the *close piece* format is used just to close the
+  !> current piece before saving another piece or closing the file.
+  !>
+  !>### Examples of usage
+  !>
+  !>#### Structured grid calling
+  !>```fortran
+  !> integer(I4P):: nx1,nx2,ny1,ny2,nz1,nz2,NN
+  !> real(R8P)::    X(1:NN),Y(1:NN),Z(1:NN)
+  !> ...
+  !> E_IO=VTK_GEO_XML(nx1,nx2,ny1,ny2,nz1,nz2,Nn,X,Y,Z)
+  !>```
+  !>
+  !>#### Rectilinear grid calling
+  !>```fortran
+  !> integer(I4P):: nx1,nx2,ny1,ny2,nz1,nz2
+  !> real(R8P)::    X(nx1:nx2),Y(ny1:ny2),Z(nz1:nz2)
+  !> ...
+  !> E_IO=VTK_GEO_XML(nx1,nx2,ny1,ny2,nz1,nz2,X,Y,Z)
+  !>```
+  !>
+  !>#### Unstructured grid calling
+  !>```fortran
+  !> integer(I4P):: Nn,Nc
+  !> real(R8P)::    X(1:Nn),Y(1:Nn),Z(1:Nn)
+  !> ...
+  !> E_IO=VTK_GEO_XML(Nn,Nc,X,Y,Z)
+  !>```
+  !>
+  !>#### Closing piece calling
+  !>```fortran
+  !> E_IO=VTK_GEO_XML()
+  !>```
   module procedure VTK_GEO_XML_STRG_1DA_R8, VTK_GEO_XML_STRG_3DA_R8,  & ! real(R8P) StructuredGrid, 1D/3D Arrays
                    VTK_GEO_XML_STRG_1DAP_R8,VTK_GEO_XML_STRG_3DAP_R8, & ! real(R8P) StructuredGrid, 1D/3D Arrays packed API
                    VTK_GEO_XML_STRG_1DA_R4, VTK_GEO_XML_STRG_3DA_R4,  & ! real(R4P) StructuredGrid, 1D/3D Arrays
@@ -161,46 +160,46 @@ interface VTK_GEO_XML
                    VTK_GEO_XML_CLOSEP                                   ! closing tag "Piece" function
 endinterface
 interface VTK_VAR_XML
-  !< Procedure for saving data variable(s) in VTK-XML standard.
-  !<
-  !< VTK_VAR_XML is an interface to 36 different functions, there are 6 functions for scalar variables, 6 functions for vectorial
-  !< variables and 6 functions for 3D(or higher) vectorial variables: for all of types the precision can be R8P, R4P, I8P, I4P, I2P
-  !< and I1P. This function saves the data variables related (cell-centered or node-centered) to geometric mesh.
-  !< 1D/3D-rank arrays and packed API for any kinds
-  !< The inputs arrays can be passed as 1D-rank or 3D-rank and the vectorial variables can be component-separated (one for each of
-  !< the 3 components) or packed into one multidimensional array:
-  !<
-  !<- scalar input:
-  !<    - input is 1D-rank array: var[1:NC_NN];
-  !<    - input is 3D-rank array: var[nx1:nx2,ny1:ny2,nz1:nz2];
-  !<- vectorial inputs:
-  !<    - inputs are 1D-rank arrays: varX[1:NC_NN],varY[1:NC_NN],varZ[1:NC_NN];
-  !<    - inputs are 3D-rank arrays: varX[nx1:nx2,ny1:ny2,nz1:nz2],varY[nx1:nx2,ny1:ny2,nz1:nz2],varX[nx1:nx2,ny1:ny2,nz1:nz2];
-  !<- 3D(or higher) vectorial inputs:
-  !<    - input is 1D-rank (packed API): var[1:N_COL,1:NC_NN];
-  !<    - input is 3D-rank (packed API): var[1:N_COL,nx1:nx2,ny1:ny2,nz1:nz2].
-  !<
-  !< @note Note that the inputs that must be passed change depending on the data variables type.
-  !<
-  !<### Examples of usage
-  !<
-  !<#### Scalar data calling
-  !<```fortran
-  !< integer(I4P):: NN
-  !< real(R8P)::    var(1:NN)
-  !< ...
-  !< E_IO=VTK_VAR_XML(NN,'Sca',var)
-  !< ...
-  !<```
-  !<
-  !<#### Vectorial data calling
-  !<```fortran
-  !< integer(I4P):: NN
-  !< real(R8P)::    varX(1:NN),varY(1:NN),varZ(1:NN),
-  !< ...
-  !< E_IO=VTK_VAR_XML(NN,'Vec',varX,varY,varZ)
-  !< ...
-  !<```
+  !> Procedure for saving data variable(s) in VTK-XML standard.
+  !>
+  !> VTK_VAR_XML is an interface to 36 different functions, there are 6 functions for scalar variables, 6 functions for vectorial
+  !> variables and 6 functions for 3D(or higher) vectorial variables: for all of types the precision can be R8P, R4P, I8P, I4P, I2P
+  !> and I1P. This function saves the data variables related (cell-centered or node-centered) to geometric mesh.
+  !> 1D/3D-rank arrays and packed API for any kinds
+  !> The inputs arrays can be passed as 1D-rank or 3D-rank and the vectorial variables can be component-separated (one for each of
+  !> the 3 components) or packed into one multidimensional array:
+  !>
+  !>- scalar input:
+  !>    - input is 1D-rank array: var[1:NC_NN];
+  !>    - input is 3D-rank array: var[nx1:nx2,ny1:ny2,nz1:nz2];
+  !>- vectorial inputs:
+  !>    - inputs are 1D-rank arrays: varX[1:NC_NN],varY[1:NC_NN],varZ[1:NC_NN];
+  !>    - inputs are 3D-rank arrays: varX[nx1:nx2,ny1:ny2,nz1:nz2],varY[nx1:nx2,ny1:ny2,nz1:nz2],varX[nx1:nx2,ny1:ny2,nz1:nz2];
+  !>- 3D(or higher) vectorial inputs:
+  !>    - input is 1D-rank (packed API): var[1:N_COL,1:NC_NN];
+  !>    - input is 3D-rank (packed API): var[1:N_COL,nx1:nx2,ny1:ny2,nz1:nz2].
+  !>
+  !> @note Note that the inputs that must be passed change depending on the data variables type.
+  !>
+  !>### Examples of usage
+  !>
+  !>#### Scalar data calling
+  !>```fortran
+  !> integer(I4P):: NN
+  !> real(R8P)::    var(1:NN)
+  !> ...
+  !> E_IO=VTK_VAR_XML(NN,'Sca',var)
+  !> ...
+  !>```
+  !>
+  !>#### Vectorial data calling
+  !>```fortran
+  !> integer(I4P):: NN
+  !> real(R8P)::    varX(1:NN),varY(1:NN),varZ(1:NN),
+  !> ...
+  !> E_IO=VTK_VAR_XML(NN,'Vec',varX,varY,varZ)
+  !> ...
+  !>```
   module procedure VTK_VAR_XML_SCAL_1DA_R8,VTK_VAR_XML_SCAL_3DA_R8, & ! real(R8P)    scalar    1D/3D array
                    VTK_VAR_XML_SCAL_1DA_R4,VTK_VAR_XML_SCAL_3DA_R4, & ! real(R4P)    scalar    1D/3D array
                    VTK_VAR_XML_SCAL_1DA_I8,VTK_VAR_XML_SCAL_3DA_I8, & ! integer(I8P) scalar    1D/3D array
@@ -221,72 +220,72 @@ interface VTK_VAR_XML
                    VTK_VAR_XML_LIST_1DA_I1,VTK_VAR_XML_LIST_3DA_I1    ! integer(I1P) list      1D/3D array
 endinterface
 interface VTM_WRF_XML
-  !< Procedure for saving the list of VTK-XML wrapped files by a mutliblock VTM file.
-  !<
-  !< VTK_WRF_XML is an interface to 2 different functions, one for files list passed as an array and one for files list passed
-  !< a single string. If a single string is used, the delimiter of each file can be customized, while the default values is '&'.
-  !<### Examples of usage
-  !<
-  !<#### Example with array files list: 3 files block with default delimiter
-  !<```fortran
-  !< E_IO = VTK_WRF_XML(flist=['file_1.vts','file_2.vts','file_3.vtu'])
-  !<```
-  !<#### Example with single string files list: 3 files block with default delimiter
-  !<```fortran
-  !< E_IO = VTK_WRF_XML(flist='file_1.vts&file_2.vts&file_3.vtu')
-  !<```
-  !<#### Example with single string files list: 2 files block with custom delimiter (!!)
-  !<```fortran
-  !< E_IO = VTK_WRF_XML(flist='file_1.vts!!file_2.vts',delimiter='!!')
-  !<```
+  !> Procedure for saving the list of VTK-XML wrapped files by a mutliblock VTM file.
+  !>
+  !> VTK_WRF_XML is an interface to 2 different functions, one for files list passed as an array and one for files list passed
+  !> a single string. If a single string is used, the delimiter of each file can be customized, while the default values is '&'.
+  !>### Examples of usage
+  !>
+  !>#### Example with array files list: 3 files block with default delimiter
+  !>```fortran
+  !> E_IO = VTK_WRF_XML(flist=['file_1.vts','file_2.vts','file_3.vtu'])
+  !>```
+  !>#### Example with single string files list: 3 files block with default delimiter
+  !>```fortran
+  !> E_IO = VTK_WRF_XML(flist='file_1.vts&file_2.vts&file_3.vtu')
+  !>```
+  !>#### Example with single string files list: 2 files block with custom delimiter (!!)
+  !>```fortran
+  !> E_IO = VTK_WRF_XML(flist='file_1.vts!!file_2.vts',delimiter='!!')
+  !>```
   module procedure VTM_WRF_XML_array,VTM_WRF_XML_string
 endinterface
 interface VTK_GEO
-  !< Procedure for saving mesh with different topologies in VTK-legacy standard.
-  !<
-  !< VTK_GEO is an interface to 16 different functions, there are 2 functions for each of 4 different topologies actually supported:
-  !< one function for mesh coordinates with R8P precision and one for mesh coordinates with R4P precision.
-  !<
-  !< @note This function must be called after VTK_INI. It saves the mesh geometry. The inputs that must be passed change depending
-  !< on the topologies chosen. Not all VTK topologies have been implemented (*polydata* topologies are absent).
-  !<
-  !<### Examples of usage
-  !<
-  !<#### Structured points calling
-  !<```fortran
-  !< integer(I4P):: Nx,Ny,Nz
-  !< real(I8P)::    X0,Y0,Z0,Dx,Dy,Dz
-  !< ...
-  !< E_IO=VTK_GEO(Nx,Ny,Nz,X0,Y0,Z0,Dx,Dy,Dz)
-  !< ...
-  !<```
-  !<
-  !<#### Structured grid calling
-  !<```fortran
-  !< integer(I4P):: Nx,Ny,Nz,Nnodes
-  !< real(R8P)::    X(1:Nnodes),Y(1:Nnodes),Z(1:Nnodes)
-  !< ...
-  !< E_IO=VTK_GEO(Nx,Ny,Nz,Nnodes,X,Y,Z)
-  !< ...
-  !<```
-  !<
-  !<#### Rectilinear grid calling
-  !<```fortran
-  !< integer(I4P):: Nx,Ny,Nz
-  !< real(R8P)::    X(1:Nx),Y(1:Ny),Z(1:Nz)
-  !< ...
-  !< E_IO=VTK_GEO(Nx,Ny,Nz,X,Y,Z)
-  !< ...
-  !<```
-  !<
-  !<#### Unstructured grid calling
-  !<```fortran
-  !< integer(I4P):: NN
-  !< real(R4P)::    X(1:NN),Y(1:NN),Z(1:NN)
-  !< ...
-  !< E_IO=VTK_GEO(NN,X,Y,Z)
-  !< ...
-  !<```
+  !> Procedure for saving mesh with different topologies in VTK-legacy standard.
+  !>
+  !> VTK_GEO is an interface to 16 different functions, there are 2 functions for each of 4 different topologies actually supported:
+  !> one function for mesh coordinates with R8P precision and one for mesh coordinates with R4P precision.
+  !>
+  !> @note This function must be called after VTK_INI. It saves the mesh geometry. The inputs that must be passed change depending
+  !> on the topologies chosen. Not all VTK topologies have been implemented (*polydata* topologies are absent).
+  !>
+  !>### Examples of usage
+  !>
+  !>#### Structured points calling
+  !>```fortran
+  !> integer(I4P):: Nx,Ny,Nz
+  !> real(I8P)::    X0,Y0,Z0,Dx,Dy,Dz
+  !> ...
+  !> E_IO=VTK_GEO(Nx,Ny,Nz,X0,Y0,Z0,Dx,Dy,Dz)
+  !> ...
+  !>```
+  !>
+  !>#### Structured grid calling
+  !>```fortran
+  !> integer(I4P):: Nx,Ny,Nz,Nnodes
+  !> real(R8P)::    X(1:Nnodes),Y(1:Nnodes),Z(1:Nnodes)
+  !> ...
+  !> E_IO=VTK_GEO(Nx,Ny,Nz,Nnodes,X,Y,Z)
+  !> ...
+  !>```
+  !>
+  !>#### Rectilinear grid calling
+  !>```fortran
+  !> integer(I4P):: Nx,Ny,Nz
+  !> real(R8P)::    X(1:Nx),Y(1:Ny),Z(1:Nz)
+  !> ...
+  !> E_IO=VTK_GEO(Nx,Ny,Nz,X,Y,Z)
+  !> ...
+  !>```
+  !>
+  !>#### Unstructured grid calling
+  !>```fortran
+  !> integer(I4P):: NN
+  !> real(R4P)::    X(1:NN),Y(1:NN),Z(1:NN)
+  !> ...
+  !> E_IO=VTK_GEO(NN,X,Y,Z)
+  !> ...
+  !>```
   module procedure VTK_GEO_UNST_R8,VTK_GEO_UNST_P_R8,         & ! real(R8P) UNSTRUCTURED_GRID, standard and packed API
                    VTK_GEO_UNST_R4,VTK_GEO_UNST_P_R4,         & ! real(R4P) UNSTRUCTURED_GRID, standard and packed API
                    VTK_GEO_STRP_R8,                           & ! real(R8P) STRUCTURED_POINTS
@@ -299,33 +298,33 @@ interface VTK_GEO
                    VTK_GEO_RECT_R4                              ! real(R4P) RECTILINEAR_GRID
 endinterface
 interface VTK_VAR
-  !< Procedure for saving data variable(s) in VTK-legacy standard.
-  !<
-  !< VTK_VAR is an interface to 8 different functions, there are 3 functions for scalar variables, 3 functions for vectorial
-  !< variables and 2 functions texture variables: scalar and vectorial data can be R8P, R4P and I4P data while texture variables can
-  !< be only R8P or R4P. This function saves the data variables related to geometric mesh.
-  !< @note The inputs that must be passed change depending on the data
-  !< variables type.
-  !<
-  !<### Examples of usage
-  !<
-  !<#### Scalar data calling
-  !<```fortran
-  !< integer(I4P):: NN
-  !< real(R4P)::    var(1:NN)
-  !< ...
-  !< E_IO=VTK_VAR(NN,'Sca',var)
-  !< ...
-  !<```
-  !<
-  !<#### Vectorial data calling
-  !<```fortran
-  !< integer(I4P):: NN
-  !< real(R4P)::    varX(1:NN),varY(1:NN),varZ(1:NN)
-  !< ...
-  !< E_IO=VTK_VAR('vect',NN,'Vec',varX,varY,varZ)
-  !< ...
-  !<```
+  !> Procedure for saving data variable(s) in VTK-legacy standard.
+  !>
+  !> VTK_VAR is an interface to 8 different functions, there are 3 functions for scalar variables, 3 functions for vectorial
+  !> variables and 2 functions texture variables: scalar and vectorial data can be R8P, R4P and I4P data while texture variables can
+  !> be only R8P or R4P. This function saves the data variables related to geometric mesh.
+  !> @note The inputs that must be passed change depending on the data
+  !> variables type.
+  !>
+  !>### Examples of usage
+  !>
+  !>#### Scalar data calling
+  !>```fortran
+  !> integer(I4P):: NN
+  !> real(R4P)::    var(1:NN)
+  !> ...
+  !> E_IO=VTK_VAR(NN,'Sca',var)
+  !> ...
+  !>```
+  !>
+  !>#### Vectorial data calling
+  !>```fortran
+  !> integer(I4P):: NN
+  !> real(R4P)::    varX(1:NN),varY(1:NN),varZ(1:NN)
+  !> ...
+  !> E_IO=VTK_VAR('vect',NN,'Vec',varX,varY,varZ)
+  !> ...
+  !>```
   module procedure VTK_VAR_SCAL_R8, & ! real(R8P)    scalar
                    VTK_VAR_SCAL_R4, & ! real(R4P)    scalar
                    VTK_VAR_SCAL_I4, & ! integer(I4P) scalar
@@ -336,30 +335,30 @@ interface VTK_VAR
                    VTK_VAR_TEXT_R4    ! real(R4P)    vectorial (texture)
 endinterface
 interface VTK_GEO_XML_READ
-  !< Procedure for reading mesh with different topologies in VTK-XML standard.
-  !<
-  !< VTK_GEO_XML_READ is an interface to 15 different functions; there are 2 functions for each of 3 topologies supported and a function
-  !< for closing XML pieces: one function for mesh coordinates with R8P (Ok!) precision and one for mesh coordinates with R4P (Not tested!) precision.
-  !< 1D/3D-rank arrays and packed API for ascii and raw data, binary is not implemented yet!
-  !<
-  !<- For StructuredGrid there are 4 functions for each real kinds:
-  !<    - inputs are 1D-rank arrays: X[1:NN],Y[1:NN],Z[1:NN]; (Not tested!)
-  !<    - inputs are 3D-rank arrays: X[nx1:nx2,ny1:ny2,nz1:nz2],Y[nx1:nx2,ny1:ny2,nz1:nz2],Z[nx1:nx2,ny1:ny2,nz1:nz2]; (Not tested!)
-  !<    - input is 1D-rank array (packed API): XYZ[1:3,1:NN]; (Not tested!)
-  !<    - input is 3D-rank array (packed API): XYZ[1:3,nx1:nx2,ny1:ny2,nz1:nz2]. (Not tested!)
-  !<- For UnStructuredGrid there are 2 functions for each real kinds:
-  !<    - inputs are 1D arrays: X[1:NN],Y[1:NN],Z[1:NN]; (Ok!)
-  !<    - input is 1D array (packed API): XYZ[1:3,1:NN]. (Not tested!)
-  !<
-  !< VTK_GEO_XML_READ must be called after VTK_INI_XML_READ. It reads the mesh geometry. The inputs that must be passed
-  !< change depending on the topologies chosen. Not all VTK topologies have been implemented (*polydata* topologies are absent).
-  !<
-  !< @note The XML standard is more powerful than legacy. XML file can contain more than 1 mesh with its
-  !< associated variables. Thus there is the necessity to close each *pieces* that compose the data-set saved in the
-  !< XML file. The VTK_GEO_XML_READ uses the *close piece* format is used just to close the
-  !< current piece before saving another piece or closing the file.
-  !<
-  !<### Examples of usage
+  !> Procedure for reading mesh with different topologies in VTK-XML standard.
+  !>
+  !> VTK_GEO_XML_READ is an interface to 15 different functions; there are 2 functions for each of 3 topologies supported and a function
+  !> for closing XML pieces: one function for mesh coordinates with R8P (Ok!) precision and one for mesh coordinates with R4P (Not tested!) precision.
+  !> 1D/3D-rank arrays and packed API for ascii and raw data, binary is not implemented yet!
+  !>
+  !>- For StructuredGrid there are 4 functions for each real kinds:
+  !>    - inputs are 1D-rank arrays: X[1:NN],Y[1:NN],Z[1:NN]; (Not tested!)
+  !>    - inputs are 3D-rank arrays: X[nx1:nx2,ny1:ny2,nz1:nz2],Y[nx1:nx2,ny1:ny2,nz1:nz2],Z[nx1:nx2,ny1:ny2,nz1:nz2]; (Not tested!)
+  !>    - input is 1D-rank array (packed API): XYZ[1:3,1:NN]; (Not tested!)
+  !>    - input is 3D-rank array (packed API): XYZ[1:3,nx1:nx2,ny1:ny2,nz1:nz2]. (Not tested!)
+  !>- For UnStructuredGrid there are 2 functions for each real kinds:
+  !>    - inputs are 1D arrays: X[1:NN],Y[1:NN],Z[1:NN]; (Ok!)
+  !>    - input is 1D array (packed API): XYZ[1:3,1:NN]. (Not tested!)
+  !>
+  !> VTK_GEO_XML_READ must be called after VTK_INI_XML_READ. It reads the mesh geometry. The inputs that must be passed
+  !> change depending on the topologies chosen. Not all VTK topologies have been implemented (*polydata* topologies are absent).
+  !>
+  !> @note The XML standard is more powerful than legacy. XML file can contain more than 1 mesh with its
+  !> associated variables. Thus there is the necessity to close each *pieces* that compose the data-set saved in the
+  !> XML file. The VTK_GEO_XML_READ uses the *close piece* format is used just to close the
+  !> current piece before saving another piece or closing the file.
+  !>
+  !>### Examples of usage
 
   module procedure &
                    VTK_GEO_XML_STRG_1DA_R8_READ, VTK_GEO_XML_STRG_3DA_R8_READ, &! real(R8P) StructuredGrid, 1D/3D Arrays
@@ -372,19 +371,19 @@ interface VTK_GEO_XML_READ
                    VTK_GEO_XML_UNST_R4_READ,VTK_GEO_XML_UNST_PACK_R8_READ       ! real(R4P) UnstructuredGrid, standard and packed API
 endinterface
 interface PVD_DAT_XML
-  !< Procedure for saving data variable(s) in VTK-XML standard.
-  !<
-  !< PVD_DAT_XML is an interface to 6 different functions, depending on the datatype of the timestep
-  !<
-  !<### Examples of usage
-  !<
-  !<#### Calling PVD_DAT_XML
-  !<```fortran
-  !< integer(I4P):: timestep
-  !< ...
-  !< E_IO=PVD_DAT_XML('file.vtu,timestep)
-  !< ...
-  !<```
+  !> Procedure for saving data variable(s) in VTK-XML standard.
+  !>
+  !> PVD_DAT_XML is an interface to 6 different functions, depending on the datatype of the timestep
+  !>
+  !>### Examples of usage
+  !>
+  !>#### Calling PVD_DAT_XML
+  !>```fortran
+  !> integer(I4P):: timestep
+  !> ...
+  !> E_IO=PVD_DAT_XML('file.vtu,timestep)
+  !> ...
+  !>```
   module procedure PVD_DAT_XML_R8,PVD_DAT_XML_R4, & ! real timestep
                    PVD_DAT_XML_I8,PVD_DAT_XML_I4, & ! integer (I8 and I4) timestep
                    PVD_DAT_XML_I2,PVD_DAT_XML_I1    ! integer (I2 and I1) timestep
@@ -392,26 +391,26 @@ interface PVD_DAT_XML
 endinterface
 
 interface VTK_VAR_XML_READ
-  !< Procedure for reading data variable(s) in VTK-XML standard.
-  !<
-  !< VTK_VAR_XML is an interface to 36 different functions, there are 6 functions for scalar variables, 6 functions for vectorial
-  !< variables and 6 functions for 3D(or higher) vectorial variables: for all of types the precision can be R8P, R4P, I8P, I4P, I2P
-  !< and I1P. This function saves the data variables related (cell-centered or node-centered) to geometric mesh.
-  !< 1D/3D-rank arrays and packed API for any kinds
-  !< The output arrays can be passed as 1D-rank or 3D-rank and the vectorial variables can be component-separated (one for each of
-  !< the 3 components) or packed into one multidimensional array:
-  !<
-  !<- scalar output:
-  !<    - output is 1D-rank array: var[1:NC_NN];
-  !<    - output is 3D-rank array: var[nx1:nx2,ny1:ny2,nz1:nz2];
-  !<- vectorial output:
-  !<    - output are 1D-rank arrays: varX[1:NC_NN],varY[1:NC_NN],varZ[1:NC_NN];
-  !<    - output are 3D-rank arrays: varX[nx1:nx2,ny1:ny2,nz1:nz2],varY[nx1:nx2,ny1:ny2,nz1:nz2],varX[nx1:nx2,ny1:ny2,nz1:nz2];
-  !<- 3D(or higher) vectorial inputs:
-  !<    - output is 1D-rank (packed API): var[1:N_COL,1:NC_NN];
-  !<    - output is 3D-rank (packed API): var[1:N_COL,nx1:nx2,ny1:ny2,nz1:nz2].
-  !<
-  !< @note Note that the output that must be passed change depending on the data variables type.
+  !> Procedure for reading data variable(s) in VTK-XML standard.
+  !>
+  !> VTK_VAR_XML is an interface to 36 different functions, there are 6 functions for scalar variables, 6 functions for vectorial
+  !> variables and 6 functions for 3D(or higher) vectorial variables: for all of types the precision can be R8P, R4P, I8P, I4P, I2P
+  !> and I1P. This function saves the data variables related (cell-centered or node-centered) to geometric mesh.
+  !> 1D/3D-rank arrays and packed API for any kinds
+  !> The output arrays can be passed as 1D-rank or 3D-rank and the vectorial variables can be component-separated (one for each of
+  !> the 3 components) or packed into one multidimensional array:
+  !>
+  !>- scalar output:
+  !>    - output is 1D-rank array: var[1:NC_NN];
+  !>    - output is 3D-rank array: var[nx1:nx2,ny1:ny2,nz1:nz2];
+  !>- vectorial output:
+  !>    - output are 1D-rank arrays: varX[1:NC_NN],varY[1:NC_NN],varZ[1:NC_NN];
+  !>    - output are 3D-rank arrays: varX[nx1:nx2,ny1:ny2,nz1:nz2],varY[nx1:nx2,ny1:ny2,nz1:nz2],varX[nx1:nx2,ny1:ny2,nz1:nz2];
+  !>- 3D(or higher) vectorial inputs:
+  !>    - output is 1D-rank (packed API): var[1:N_COL,1:NC_NN];
+  !>    - output is 3D-rank (packed API): var[1:N_COL,nx1:nx2,ny1:ny2,nz1:nz2].
+  !>
+  !> @note Note that the output that must be passed change depending on the data variables type.
   module procedure VTK_VAR_XML_SCAL_1DA_R8_READ,VTK_VAR_XML_SCAL_3DA_R8_READ, & ! real(R8P)    scalar    1D/3D array
                    VTK_VAR_XML_SCAL_1DA_R4_READ,VTK_VAR_XML_SCAL_3DA_R4_READ, & ! real(R4P)    scalar    1D/3D array
                    VTK_VAR_XML_SCAL_1DA_I8_READ,VTK_VAR_XML_SCAL_3DA_I8_READ, & ! integer(I8P) scalar    1D/3D array
@@ -433,22 +432,22 @@ interface VTK_VAR_XML_READ
 endinterface
 
 interface VTK_FLD_XML_READ
-  !< Procedure for saving field data (global auxiliary data, eg time, step number, dataset name, etc).
-  !<
-  !< VTK_FLD_XML_READ is an interface to 6 different functions, there are 2 functions for real field data and 4 functions for integer.
-  !< VTK_FLD_XML_READ must be called after VTK_INI_XML_READ.
-  !<
-  !< Example of usage:
-  !<
-  !<```fortran
-  !<...
-  !<real(R8P)::    time
-  !<integer(I4P):: step
-  !<...
-  !<E_IO=VTK_FLD_XML_READ(fname='TIME',fld=time)
-  !<E_IO=VTK_FLD_XML_READ(fname='CYCLE',fld=step)
-  !<...
-  !<```
+  !> Procedure for saving field data (global auxiliary data, eg time, step number, dataset name, etc).
+  !>
+  !> VTK_FLD_XML_READ is an interface to 6 different functions, there are 2 functions for real field data and 4 functions for integer.
+  !> VTK_FLD_XML_READ must be called after VTK_INI_XML_READ.
+  !>
+  !> Example of usage:
+  !>
+  !>```fortran
+  !>...
+  !>real(R8P)::    time
+  !>integer(I4P):: step
+  !>...
+  !>E_IO=VTK_FLD_XML_READ(fname='TIME',fld=time)
+  !>E_IO=VTK_FLD_XML_READ(fname='CYCLE',fld=step)
+  !>...
+  !>```
   module procedure VTK_FLD_XML_R8_READ, & ! real(R8P)    scalar
                    VTK_FLD_XML_R4_READ, & ! real(R4P)    scalar
                    VTK_FLD_XML_I8_READ, & ! integer(I8P) scalar
@@ -462,59 +461,59 @@ endinterface
 
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! The library uses a small set of internal variables that are private (not accessible from the outside).
-integer(I4P), parameter:: maxlen  = 500      !< Max number of characters of static string.
-character(1), parameter:: end_rec = char(10) !< End-character for binary-record finalize.
-integer(I4P), parameter:: ascii   = 0        !< Ascii-output-format parameter identifier.
-integer(I4P), parameter:: binary  = 1        !< Base64-output-format parameter identifier.
-integer(I4P), parameter:: raw     = 2        !< Raw-appended-binary-output-format parameter identifier.
-integer(I4P), parameter:: bin_app = 3        !< Base64-appended-output-format parameter identifier.
+integer(I4P), parameter:: maxlen  = 500      !> Max number of characters of static string.
+character(1), parameter:: end_rec = char(10) !> End-character for binary-record finalize.
+integer(I4P), parameter:: ascii   = 0        !> Ascii-output-format parameter identifier.
+integer(I4P), parameter:: binary  = 1        !> Base64-output-format parameter identifier.
+integer(I4P), parameter:: raw     = 2        !> Raw-appended-binary-output-format parameter identifier.
+integer(I4P), parameter:: bin_app = 3        !> Base64-appended-output-format parameter identifier.
 type:: Type_VTK_File
-  !< Derived type for handling VTK files.
-  !<
-  !< @note The OOP encapsulation allows safe use of parallel paradigms.
-  integer(I4P)::          f        = ascii !< Current output-format (initialized to ascii format).
-  character(len=maxlen):: topology = ''    !< Mesh topology.
-  integer(I4P)::          u        = 0_I4P !< Logical unit.
-  integer(I4P)::          ua       = 0_I4P !< Logical unit for raw binary XML append file.
+  !> Derived type for handling VTK files.
+  !>
+  !> @note The OOP encapsulation allows safe use of parallel paradigms.
+  integer(I4P)::          f        = ascii !> Current output-format (initialized to ascii format).
+  character(len=maxlen):: topology = ''    !> Mesh topology.
+  integer(I4P)::          u        = 0_I4P !> Logical unit.
+  integer(I4P)::          ua       = 0_I4P !> Logical unit for raw binary XML append file.
 #ifdef HUGE
-  integer(I8P)::          N_Byte   = 0_I8P !< Number of byte to be written/read.
+  integer(I8P)::          N_Byte   = 0_I8P !> Number of byte to be written/read.
 #else
-  integer(I4P)::          N_Byte   = 0_I4P !< Number of byte to be written/read.
+  integer(I4P)::          N_Byte   = 0_I4P !> Number of byte to be written/read.
 #endif
-  integer(I8P)::          ioffset  = 0_I8P !< Offset pointer.
-  integer(I4P)::          indent   = 0_I4P !< Indent pointer.
+  integer(I8P)::          ioffset  = 0_I8P !> Offset pointer.
+  integer(I4P)::          indent   = 0_I4P !> Indent pointer.
   contains
-    procedure:: byte_update !< Procedure for updating N_Byte and ioffset pointer.
+    procedure:: byte_update !> Procedure for updating N_Byte and ioffset pointer.
 endtype Type_VTK_File
-type(Type_VTK_File), allocatable:: vtk(:)       !< Global data of VTK files [1:Nvtk].
-integer(I4P)::                     Nvtk = 0_I4P !< Number of (concurrent) VTK files.
-integer(I4P)::                     f    = 0_I4P !< Current VTK file index.
+type(Type_VTK_File), allocatable:: vtk(:)       !> Global data of VTK files [1:Nvtk].
+integer(I4P)::                     Nvtk = 0_I4P !> Number of (concurrent) VTK files.
+integer(I4P)::                     f    = 0_I4P !> Current VTK file index.
 ! VTM file data:
 type:: Type_VTM_File
-  !< Derived type for handling VTM files.
-  integer(I4P):: u        = 0_I4P         !< Logical unit.
-  integer(I4P):: blk(1:2) = [0_I4P,0_I4P] !< Block indexes.
-  integer(I4P):: indent   = 0_I4P         !< Indent pointer.
+  !> Derived type for handling VTM files.
+  integer(I4P):: u        = 0_I4P         !> Logical unit.
+  integer(I4P):: blk(1:2) = [0_I4P,0_I4P] !> Block indexes.
+  integer(I4P):: indent   = 0_I4P         !> Indent pointer.
 endtype Type_VTM_File
-type(Type_VTM_File):: vtm !< Global data of VTM files.
+type(Type_VTM_File):: vtm !> Global data of VTM files.
 !> @}
 !-----------------------------------------------------------------------------------------------------------------------------------
 contains
   ! The library uses five auxiliary procedures that are private thus they cannot be called outside the library.
   function Get_Unit(Free_Unit) result(funit)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Function for getting a free logic unit.
-  !<
-  !< The users of does not know which is the logical unit: the library uses this information without boring the users. The logical
-  !< unit used is safe-free: if the program calling the library has others logical units used the libary will never use these units,
-  !< but it will choice one that is free.
+  !> Function for getting a free logic unit.
+  !>
+  !> The users of does not know which is the logical unit: the library uses this information without boring the users. The logical
+  !> unit used is safe-free: if the program calling the library has others logical units used the libary will never use these units,
+  !> but it will choice one that is free.
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
-  integer::                        funit     !< Free logic unit.
-  integer, intent(OUT), optional:: Free_Unit !< Free logic unit.
-  integer::                        n1        !< Counter.
-  integer::                        ios       !< Inquiring flag.
-  logical::                        lopen     !< Inquiring flag.
+  integer::                        funit     !> Free logic unit.
+  integer, intent(OUT), optional:: Free_Unit !> Free logic unit.
+  integer::                        n1        !> Counter.
+  integer::                        ios       !> Inquiring flag.
+  logical::                        lopen     !> Inquiring flag.
   !---------------------------------------------------------------------------------------------------------------------------------
 
   !---------------------------------------------------------------------------------------------------------------------------------
@@ -540,17 +539,17 @@ contains
 ! XLF error : "The result of an elemental function must be a nonpointer, nonallocatable scalar, and its type parameters must be constant expressions."
   function Upper_Case(string)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Function for converting lower case characters of a string to upper case ones.
-  !<
-  !< The library uses this function in order to achieve case-insensitivty: all character variables used within the libary functions
-  !< are pre-processed by Uppper_Case function before these variables are used. So the users can call the library functions without
-  !< pay attention of the case of the keywords passed to the functions: calling the function VTK_INI with the string
-  !< `E_IO = VTK_INI('Ascii',...)` is equivalent to `E_IO = VTK_INI('ASCII',...)`.
+  !> Function for converting lower case characters of a string to upper case ones.
+  !>
+  !> The library uses this function in order to achieve case-insensitivty: all character variables used within the libary functions
+  !> are pre-processed by Uppper_Case function before these variables are used. So the users can call the library functions without
+  !> pay attention of the case of the keywords passed to the functions: calling the function VTK_INI with the string
+  !> `E_IO = VTK_INI('Ascii',...)` is equivalent to `E_IO = VTK_INI('ASCII',...)`.
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
-  character(len=*), intent(IN):: string     !< String to be converted.
-  character(len=len(string))::   Upper_Case !< Converted string.
-  integer::                      n1         !< Characters counter.
+  character(len=*), intent(IN):: string     !> String to be converted.
+  character(len=len(string))::   Upper_Case !> Converted string.
+  integer::                      n1         !> Characters counter.
   !---------------------------------------------------------------------------------------------------------------------------------
 
   !---------------------------------------------------------------------------------------------------------------------------------
@@ -567,14 +566,14 @@ contains
 
   elemental subroutine byte_update(vtk,N_Byte)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Subroutine for updating N_Byte and ioffset pointer.
+  !> Subroutine for updating N_Byte and ioffset pointer.
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
-  class(Type_VTK_File), intent(INOUT):: vtk    !< Global data of VTK file.
+  class(Type_VTK_File), intent(INOUT):: vtk    !> Global data of VTK file.
 #ifdef HUGE
-  integer(I8P),         intent(IN)::    N_Byte !< Number of bytes saved.
+  integer(I8P),         intent(IN)::    N_Byte !> Number of bytes saved.
 #else
-  integer(I4P),         intent(IN)::    N_Byte !< Number of bytes saved.
+  integer(I4P),         intent(IN)::    N_Byte !> Number of bytes saved.
 #endif
   !---------------------------------------------------------------------------------------------------------------------------------
 
@@ -600,15 +599,15 @@ contains
 ! XLF error: 1516-106 (S) A pure subprogram must not contain references to procedures which are not pure.
   subroutine vtk_update(act,cf,Nvtk,vtk)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Subroutine for updating (adding and removing elements into) vtk array.
+  !> Subroutine for updating (adding and removing elements into) vtk array.
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
-  character(*),                     intent(IN)::    act        !< Action: 'ADD' one more element, 'REMOVE' current element file.
-  integer(I4P),                     intent(INOUT):: cf         !< Current file index (for concurrent files IO).
-  integer(I4P),                     intent(INOUT):: Nvtk       !< Number of (concurrent) VTK files.
-  type(Type_VTK_File), allocatable, intent(INOUT):: vtk(:)     !< VTK files data.
-  type(Type_VTK_File), allocatable               :: vtk_tmp(:) !< Temporary array of VTK files data.
-  character(len=len(act))                        :: upper_act !< Converted string.
+  character(*),                     intent(IN)::    act        !> Action: 'ADD' one more element, 'REMOVE' current element file.
+  integer(I4P),                     intent(INOUT):: cf         !> Current file index (for concurrent files IO).
+  integer(I4P),                     intent(INOUT):: Nvtk       !> Number of (concurrent) VTK files.
+  type(Type_VTK_File), allocatable, intent(INOUT):: vtk(:)     !> VTK files data.
+  type(Type_VTK_File), allocatable               :: vtk_tmp(:) !> Temporary array of VTK files data.
+  character(len=len(act))                        :: upper_act !> Converted string.
   !---------------------------------------------------------------------------------------------------------------------------------
 
   !---------------------------------------------------------------------------------------------------------------------------------
@@ -662,10 +661,10 @@ contains
 !***********************************************************************************************************************************
   function adjustlt(string) result(res)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< adjustlt: extension of adjustl to remove tab characters (char(9))
+  !> adjustlt: extension of adjustl to remove tab characters (char(9))
   !---------------------------------------------------------------------------------------------------------------------------------
-  character(len=*), intent(in) :: string !< Input String
-  character(len=len(string)) :: res      !< Output string with tab characters or blanks removed
+  character(len=*), intent(in) :: string !> Input String
+  character(len=len(string)) :: res      !> Output string with tab characters or blanks removed
   !---------------------------------------------------------------------------------------------------------------------------------
 
   !---------------------------------------------------------------------------------------------------------------------------------
@@ -680,11 +679,11 @@ contains
 
   subroutine get_int(buffer, attrib, val, E_IO, case)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< get_int: get in buffer, the value of attribute 'attrib'
+  !> get_int: get in buffer, the value of attribute 'attrib'
   !---------------------------------------------------------------------------------------------------------------------------------
-  character(len=*),           intent(IN)  :: buffer  !< String where to search the attrib
-  character(len=*),           intent(IN)  :: attrib  !< XML attribute id
-  integer(I4P),               intent(OUT) :: val     !< Returned integer value
+  character(len=*),           intent(IN)  :: buffer  !> String where to search the attrib
+  character(len=*),           intent(IN)  :: attrib  !> XML attribute id
+  integer(I4P),               intent(OUT) :: val     !> Returned integer value
   integer(I4P),     optional, intent(OUT) :: E_IO    
   character(len=*), optional, intent(IN)  :: case
   integer :: pos, po2, ios
@@ -713,11 +712,11 @@ contains
  
   subroutine get_char(buffer, attrib, val, E_IO, case)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< get_char: get in buffer, the value of attribute 'attrib'
+  !> get_char: get in buffer, the value of attribute 'attrib'
   !---------------------------------------------------------------------------------------------------------------------------------
-  character(len=*),              intent(IN)  :: buffer !< String where to search the attrib
-  character(len=*),              intent(IN)  :: attrib !< XML attribute id
-  character(len=:), allocatable, intent(OUT) :: val    !< Returned string value
+  character(len=*),              intent(IN)  :: buffer !> String where to search the attrib
+  character(len=*),              intent(IN)  :: attrib !> XML attribute id
+  character(len=:), allocatable, intent(OUT) :: val    !> Returned string value
   integer(I4P)    , optional,    intent(OUT) :: E_IO
   character(len=*), optional,    intent(IN)  :: case
   integer :: pos, po2, ios
@@ -749,13 +748,13 @@ contains
 
   function read_record(buffer, from, cf) result(E_IO)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< read_record: read characters in the unit 'vtk(rf)%u' from position 'from' to read string 'buffer'
-  !< The read action stops when finding a EOR character (char(10))
+  !> read_record: read characters in the unit 'vtk(rf)%u' from position 'from' to read string 'buffer'
+  !> The read action stops when finding a EOR character (char(10))
   !---------------------------------------------------------------------------------------------------------------------------------
-  character(len=:), allocatable, intent(OUT) :: buffer   !< String containing the next record
-  integer(I4P),     optional,    intent(IN)  :: from     !< Offset
-  integer(I4P),     optional,    intent(IN)  :: cf       !< Current file index (for concurrent files IO).
-  integer(I4P)                               :: rf       !< Real file index.
+  character(len=:), allocatable, intent(OUT) :: buffer   !> String containing the next record
+  integer(I4P),     optional,    intent(IN)  :: from     !> Offset
+  integer(I4P),     optional,    intent(IN)  :: cf       !> Current file index (for concurrent files IO).
+  integer(I4P)                               :: rf       !> Real file index.
   integer(i4P)                               :: E_IO
   character                                  :: c
   integer                                    :: n, p
@@ -788,17 +787,17 @@ contains
 
   function move(inside, to_find, repeat, upper, cf, buffer) result(E_IO)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< move: advance in VTK file inside the mark 'inside', until find the mark 'to_find', 'repeat' times
+  !> move: advance in VTK file inside the mark 'inside', until find the mark 'to_find', 'repeat' times
   !---------------------------------------------------------------------------------------------------------------------------------
-  character(len=*),              intent(IN)  :: inside     !< XML element where to search 'to_find'
-  character(len=*), optional,    intent(IN)  :: to_find    !< Searched XML element
-  integer,          optional,    intent(IN)  :: repeat     !< Number of repetitions
-  integer(I4P),     optional,    intent(IN)  :: cf         !< Current file index (for concurrent files IO).
-  logical,          optional,    intent(IN)  :: upper      !< True if return buffer in upper case
-  character(len=:), allocatable, intent(OUT) :: buffer     !< String 
-  character(len=:), allocatable              :: buff       !< Auxiliary buffer
-  integer(I4P)                               :: rf         !< Real file index
-  logical                                    :: up         !< Readl upper case logical
+  character(len=*),              intent(IN)  :: inside     !> XML element where to search 'to_find'
+  character(len=*), optional,    intent(IN)  :: to_find    !> Searched XML element
+  integer,          optional,    intent(IN)  :: repeat     !> Number of repetitions
+  integer(I4P),     optional,    intent(IN)  :: cf         !> Current file index (for concurrent files IO).
+  logical,          optional,    intent(IN)  :: upper      !> True if return buffer in upper case
+  character(len=:), allocatable, intent(OUT) :: buffer     !> String 
+  character(len=:), allocatable              :: buff       !> Auxiliary buffer
+  integer(I4P)                               :: rf         !> Real file index
+  logical                                    :: up         !> Readl upper case logical
   integer(I4P)                               :: E_IO 
   integer(I4P)                               :: n
   !---------------------------------------------------------------------------------------------------------------------------------
@@ -837,19 +836,19 @@ contains
 
   function search(from, inside, to_find, with_attribute, of_value, cf, buffer, content) result(E_IO)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< search: search in VTK file from position 'pos' inside the mark 'inside', until find the mark 'to_find', eventually, having 
-  !< attribute 'with_attribute' matching the value 'of_value'
+  !> search: search in VTK file from position 'pos' inside the mark 'inside', until find the mark 'to_find', eventually, having 
+  !> attribute 'with_attribute' matching the value 'of_value'
   !---------------------------------------------------------------------------------------------------------------------------------
-  integer(I4P),     optional,    intent(IN)    :: from           !< Offset. Start point
-  character(len=*),              intent(IN)    :: inside         !< XML element where to search 'to_find'
-  character(len=*),              intent(IN)    :: to_find        !< Searched XML element
-  character(len=*),              intent(IN)    :: with_attribute !< XML attribute id
-  character(len=*),              intent(IN)    :: of_value       !< Attribute value
-  integer(I4P),     optional,    intent(IN)    :: cf             !< Current file index (for concurrent files IO).
-  character(len=:), allocatable, intent(INOUT) :: buffer         !< String 
-  character(len=:), allocatable, intent(OUT), optional :: content!< String with the content inside 'to_find' element
-  integer(I4P)                                 :: rf             !< Real file index
-  integer(I4P)                                 :: E_IO           !< Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done
+  integer(I4P),     optional,    intent(IN)    :: from           !> Offset. Start point
+  character(len=*),              intent(IN)    :: inside         !> XML element where to search 'to_find'
+  character(len=*),              intent(IN)    :: to_find        !> Searched XML element
+  character(len=*),              intent(IN)    :: with_attribute !> XML attribute id
+  character(len=*),              intent(IN)    :: of_value       !> Attribute value
+  integer(I4P),     optional,    intent(IN)    :: cf             !> Current file index (for concurrent files IO).
+  character(len=:), allocatable, intent(INOUT) :: buffer         !> String 
+  character(len=:), allocatable, intent(OUT), optional :: content!> String with the content inside 'to_find' element
+  integer(I4P)                                 :: rf             !> Real file index
+  integer(I4P)                                 :: E_IO           !> Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done
   character(len=:), allocatable                :: strng
   integer(I4P)                                 :: pos
   integer(I4P)                                 :: p1,p2,p3
@@ -907,11 +906,11 @@ contains
 
   subroutine read_variables_name(filename,varname)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< look for and read variables name
+  !> look for and read variables name
   !---------------------------------------------------------------------------------------------------------------------------------
-  character(*), intent(IN)                     :: filename   !< File name.
-  character(256), allocatable, intent(OUT)     :: varname(:) !< String with the variables name
-  integer(I4P)                                 :: E_IO       !< Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done
+  character(*), intent(IN)                     :: filename   !> File name.
+  character(256), allocatable, intent(OUT)     :: varname(:) !> String with the variables name
+  integer(I4P)                                 :: E_IO       !> Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done
   integer(I4P) :: unitfile, n
   integer(I4P) :: start_pos, end_pos
   character(256) :: line
@@ -944,48 +943,48 @@ contains
   ! VTK functions
   function VTK_INI_XML(output_format,filename,mesh_topology,cf,nx1,nx2,ny1,ny2,nz1,nz2) result(E_IO)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Procedure for initializing VTK-XML file.
-  !<
-  !< The XML standard is more powerful than legacy one. It is flexible but on the other hand is (but not so more using this library
-  !< ...) complex than legacy standard. The output of XML functions is a well-formated valid XML file, at least for the
-  !< ascii, binary and binary appended formats (in the raw-binary format the library uses raw-binary-appended format that is not a
-  !< valid XML file).
-  !< Note that the XML functions have the same name of legacy functions with the suffix *XML*.
-  !< @note This function must be the first to be called.
-  !<
-  !< Supported output formats are (the passed specifier value is case insensitive):
-  !<- ASCII: data are saved in ASCII format;
-  !<- BINARY: data are saved in base64 encoded format;
-  !<- RAW: data are saved in raw-binary format in the appended tag of the XML file;
-  !<- BINARY-APPENDED: data are saved in base64 encoded format in the appended tag of the XML file.
-  !< Supported topologies are:
-  !<- RectilinearGrid;
-  !<- StructuredGrid;
-  !<- UnstructuredGrid.
-  !<### Example of usage
-  !<```fortran
-  !< integer(I4P):: nx1,nx2,ny1,ny2,nz1,nz2
-  !< ...
-  !< E_IO = VTK_INI_XML('BINARY','XML_RECT_BINARY.vtr','RectilinearGrid',nx1=nx1,nx2=nx2,ny1=ny1,ny2=ny2,nz1=nz1,nz2=nz2)
-  !< ...
-  !<```
-  !< Note that the file extension is necessary in the file name. The XML standard has different extensions for each
-  !< different topologies (e.g. *vtr* for rectilinear topology). See the VTK-standard file for more information.
+  !> Procedure for initializing VTK-XML file.
+  !>
+  !> The XML standard is more powerful than legacy one. It is flexible but on the other hand is (but not so more using this library
+  !> ...) complex than legacy standard. The output of XML functions is a well-formated valid XML file, at least for the
+  !> ascii, binary and binary appended formats (in the raw-binary format the library uses raw-binary-appended format that is not a
+  !> valid XML file).
+  !> Note that the XML functions have the same name of legacy functions with the suffix *XML*.
+  !> @note This function must be the first to be called.
+  !>
+  !> Supported output formats are (the passed specifier value is case insensitive):
+  !>- ASCII: data are saved in ASCII format;
+  !>- BINARY: data are saved in base64 encoded format;
+  !>- RAW: data are saved in raw-binary format in the appended tag of the XML file;
+  !>- BINARY-APPENDED: data are saved in base64 encoded format in the appended tag of the XML file.
+  !> Supported topologies are:
+  !>- RectilinearGrid;
+  !>- StructuredGrid;
+  !>- UnstructuredGrid.
+  !>### Example of usage
+  !>```fortran
+  !> integer(I4P):: nx1,nx2,ny1,ny2,nz1,nz2
+  !> ...
+  !> E_IO = VTK_INI_XML('BINARY','XML_RECT_BINARY.vtr','RectilinearGrid',nx1=nx1,nx2=nx2,ny1=ny1,ny2=ny2,nz1=nz1,nz2=nz2)
+  !> ...
+  !>```
+  !> Note that the file extension is necessary in the file name. The XML standard has different extensions for each
+  !> different topologies (e.g. *vtr* for rectilinear topology). See the VTK-standard file for more information.
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
-  character(*), intent(IN)::            output_format !< Output format: ASCII, BINARY, RAW or BINARY-APPENDED.
-  character(*), intent(IN)::            filename      !< File name.
-  character(*), intent(IN)::            mesh_topology !< Mesh topology.
-  integer(I4P), intent(OUT), optional:: cf            !< Current file index (for concurrent files IO).
-  integer(I4P), intent(IN),  optional:: nx1           !< Initial node of x axis.
-  integer(I4P), intent(IN),  optional:: nx2           !< Final node of x axis.
-  integer(I4P), intent(IN),  optional:: ny1           !< Initial node of y axis.
-  integer(I4P), intent(IN),  optional:: ny2           !< Final node of y axis.
-  integer(I4P), intent(IN),  optional:: nz1           !< Initial node of z axis.
-  integer(I4P), intent(IN),  optional:: nz2           !< Final node of z axis.
-  integer(I4P)::                        E_IO          !< Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
-  character(len=maxlen)::               s_buffer      !< Buffer string.
-  integer(I4P)::                        rf            !< Real file index.
+  character(*), intent(IN)::            output_format !> Output format: ASCII, BINARY, RAW or BINARY-APPENDED.
+  character(*), intent(IN)::            filename      !> File name.
+  character(*), intent(IN)::            mesh_topology !> Mesh topology.
+  integer(I4P), intent(OUT), optional:: cf            !> Current file index (for concurrent files IO).
+  integer(I4P), intent(IN),  optional:: nx1           !> Initial node of x axis.
+  integer(I4P), intent(IN),  optional:: nx2           !> Final node of x axis.
+  integer(I4P), intent(IN),  optional:: ny1           !> Initial node of y axis.
+  integer(I4P), intent(IN),  optional:: ny2           !> Final node of y axis.
+  integer(I4P), intent(IN),  optional:: nz1           !> Initial node of z axis.
+  integer(I4P), intent(IN),  optional:: nz2           !> Final node of z axis.
+  integer(I4P)::                        E_IO          !> Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
+  character(len=maxlen)::               s_buffer      !> Buffer string.
+  integer(I4P)::                        rf            !> Real file index.
   !---------------------------------------------------------------------------------------------------------------------------------
 
   !---------------------------------------------------------------------------------------------------------------------------------
@@ -1074,13 +1073,13 @@ contains
 
   function VTK_FLD_XML_OC(fld_action,cf) result(E_IO)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Function for open/close field data tag.
+  !> Function for open/close field data tag.
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
-  character(*), intent(IN)::           fld_action !< Field data tag action: OPEN or CLOSE tag.
-  integer(I4P), intent(IN), optional:: cf         !< Current file index (for concurrent files IO).
-  integer(I4P)::                       E_IO       !< Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
-  integer(I4P)::                       rf         !< Real file index.
+  character(*), intent(IN)::           fld_action !> Field data tag action: OPEN or CLOSE tag.
+  integer(I4P), intent(IN), optional:: cf         !> Current file index (for concurrent files IO).
+  integer(I4P)::                       E_IO       !> Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
+  integer(I4P)::                       rf         !> Real file index.
   !---------------------------------------------------------------------------------------------------------------------------------
 
   !---------------------------------------------------------------------------------------------------------------------------------
@@ -1111,17 +1110,17 @@ contains
 
   function VTK_FLD_XML_R8(fld,fname,cf) result(E_IO)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Function for saving field data (global auxiliary data, e.g. time, step number, data set name...) (R8P).
+  !> Function for saving field data (global auxiliary data, e.g. time, step number, data set name...) (R8P).
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
-  real(R8P),    intent(IN)::           fld      !< Field data value.
-  character(*), intent(IN)::           fname    !< Field data name.
-  integer(I4P), intent(IN), optional:: cf       !< Current file index (for concurrent files IO).
-  integer(I4P)::                       E_IO     !< Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
-  character(len=maxlen)::              s_buffer !< Buffer string.
-  integer(I1P), allocatable::          fldp(:)  !< Packed field data.
-  character(len=:), allocatable::      fld64    !< Field data encoded in base64.
-  integer(I4P)::                       rf       !< Real file index.
+  real(R8P),    intent(IN)::           fld      !> Field data value.
+  character(*), intent(IN)::           fname    !> Field data name.
+  integer(I4P), intent(IN), optional:: cf       !> Current file index (for concurrent files IO).
+  integer(I4P)::                       E_IO     !> Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
+  character(len=maxlen)::              s_buffer !> Buffer string.
+  integer(I1P), allocatable::          fldp(:)  !> Packed field data.
+  character(len=:), allocatable::      fld64    !> Field data encoded in base64.
+  integer(I4P)::                       rf       !> Real file index.
   !---------------------------------------------------------------------------------------------------------------------------------
 
   !---------------------------------------------------------------------------------------------------------------------------------
@@ -1156,17 +1155,17 @@ contains
 
   function VTK_FLD_XML_R4(fld,fname,cf) result(E_IO)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Function for saving field data (global auxiliary data, e.g. time, step number, data set name...) (R4P).
+  !> Function for saving field data (global auxiliary data, e.g. time, step number, data set name...) (R4P).
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
-  real(R4P),    intent(IN)::           fld      !< Field data value.
-  character(*), intent(IN)::           fname    !< Field data name.
-  integer(I4P), intent(IN), optional:: cf       !< Current file index (for concurrent files IO).
-  integer(I4P)::                       E_IO     !< Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
-  character(len=maxlen)::              s_buffer !< Buffer string.
-  integer(I1P), allocatable::          fldp(:)  !< Packed field data.
-  character(len=:), allocatable::      fld64    !< Field data encoded in base64.
-  integer(I4P)::                       rf       !< Real file index.
+  real(R4P),    intent(IN)::           fld      !> Field data value.
+  character(*), intent(IN)::           fname    !> Field data name.
+  integer(I4P), intent(IN), optional:: cf       !> Current file index (for concurrent files IO).
+  integer(I4P)::                       E_IO     !> Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
+  character(len=maxlen)::              s_buffer !> Buffer string.
+  integer(I1P), allocatable::          fldp(:)  !> Packed field data.
+  character(len=:), allocatable::      fld64    !> Field data encoded in base64.
+  integer(I4P)::                       rf       !> Real file index.
   !---------------------------------------------------------------------------------------------------------------------------------
 
   !---------------------------------------------------------------------------------------------------------------------------------
@@ -1201,17 +1200,17 @@ contains
 
   function VTK_FLD_XML_I8(fld,fname,cf) result(E_IO)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Function for saving field data (global auxiliary data, e.g. time, step number, data set name...) (I8P).
+  !> Function for saving field data (global auxiliary data, e.g. time, step number, data set name...) (I8P).
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
-  integer(I8P), intent(IN)::           fld      !< Field data value.
-  character(*), intent(IN)::           fname    !< Field data name.
-  integer(I4P), intent(IN), optional:: cf       !< Current file index (for concurrent files IO).
-  integer(I4P)::                       E_IO     !< Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
-  character(len=maxlen)::              s_buffer !< Buffer string.
-  integer(I1P), allocatable::          fldp(:)  !< Packed field data.
-  character(len=:), allocatable::      fld64    !< Field data encoded in base64.
-  integer(I4P)::                       rf       !< Real file index.
+  integer(I8P), intent(IN)::           fld      !> Field data value.
+  character(*), intent(IN)::           fname    !> Field data name.
+  integer(I4P), intent(IN), optional:: cf       !> Current file index (for concurrent files IO).
+  integer(I4P)::                       E_IO     !> Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
+  character(len=maxlen)::              s_buffer !> Buffer string.
+  integer(I1P), allocatable::          fldp(:)  !> Packed field data.
+  character(len=:), allocatable::      fld64    !> Field data encoded in base64.
+  integer(I4P)::                       rf       !> Real file index.
   !---------------------------------------------------------------------------------------------------------------------------------
 
   !---------------------------------------------------------------------------------------------------------------------------------
@@ -1246,18 +1245,18 @@ contains
 
   function VTK_FLD_XML_I4(fld,fname,cf) result(E_IO)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Function for saving field data (global auxiliary data, e.g. time, step number, data set name...) (I4P).
+  !> Function for saving field data (global auxiliary data, e.g. time, step number, data set name...) (I4P).
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
-  integer(I4P), intent(IN)::           fld      !< Field data value.
-  character(*), intent(IN)::           fname    !< Field data name.
-  integer(I4P), intent(IN), optional:: cf       !< Current file index (for concurrent files IO).
-  integer(I4P)::                       E_IO     !< Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
-  character(len=maxlen)::              s_buffer !< Buffer string.
-  integer(I1P), allocatable::          fldp(:)  !< Packed field data.
-  character(len=:), allocatable::      fld64    !< Field data encoded in base64.
-  integer(I4P)::                       rf       !< Real file index.
-  integer(I8P)::                       Nfldp    !< Dimension of fldp, packed data.
+  integer(I4P), intent(IN)::           fld      !> Field data value.
+  character(*), intent(IN)::           fname    !> Field data name.
+  integer(I4P), intent(IN), optional:: cf       !> Current file index (for concurrent files IO).
+  integer(I4P)::                       E_IO     !> Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
+  character(len=maxlen)::              s_buffer !> Buffer string.
+  integer(I1P), allocatable::          fldp(:)  !> Packed field data.
+  character(len=:), allocatable::      fld64    !> Field data encoded in base64.
+  integer(I4P)::                       rf       !> Real file index.
+  integer(I8P)::                       Nfldp    !> Dimension of fldp, packed data.
   !---------------------------------------------------------------------------------------------------------------------------------
 
   !---------------------------------------------------------------------------------------------------------------------------------
@@ -1293,17 +1292,17 @@ contains
 
   function VTK_FLD_XML_I2(fld,fname,cf) result(E_IO)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Function for saving field data (global auxiliary data, e.g. time, step number, data set name...) (I2P).
+  !> Function for saving field data (global auxiliary data, e.g. time, step number, data set name...) (I2P).
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
-  integer(I2P), intent(IN)::           fld      !< Field data value.
-  character(*), intent(IN)::           fname    !< Field data name.
-  integer(I4P), intent(IN), optional:: cf       !< Current file index (for concurrent files IO).
-  integer(I4P)::                       E_IO     !< Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
-  character(len=maxlen)::              s_buffer !< Buffer string.
-  integer(I1P), allocatable::          fldp(:)  !< Packed field data.
-  character(len=:), allocatable::      fld64    !< Field data encoded in base64.
-  integer(I4P)::                       rf       !< Real file index.
+  integer(I2P), intent(IN)::           fld      !> Field data value.
+  character(*), intent(IN)::           fname    !> Field data name.
+  integer(I4P), intent(IN), optional:: cf       !> Current file index (for concurrent files IO).
+  integer(I4P)::                       E_IO     !> Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
+  character(len=maxlen)::              s_buffer !> Buffer string.
+  integer(I1P), allocatable::          fldp(:)  !> Packed field data.
+  character(len=:), allocatable::      fld64    !> Field data encoded in base64.
+  integer(I4P)::                       rf       !> Real file index.
   !---------------------------------------------------------------------------------------------------------------------------------
 
   !---------------------------------------------------------------------------------------------------------------------------------
@@ -1338,17 +1337,17 @@ contains
 
   function VTK_FLD_XML_I1(fld,fname,cf) result(E_IO)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Function for saving field data (global auxiliary data, e.g. time, step number, data set name...) (I1P).
+  !> Function for saving field data (global auxiliary data, e.g. time, step number, data set name...) (I1P).
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
-  integer(I1P), intent(IN)::           fld      !< Field data value.
-  character(*), intent(IN)::           fname    !< Field data name.
-  integer(I4P), intent(IN), optional:: cf       !< Current file index (for concurrent files IO).
-  integer(I4P)::                       E_IO     !< Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
-  character(len=maxlen)::              s_buffer !< Buffer string.
-  integer(I1P), allocatable::          fldp(:)  !< Packed field data.
-  character(len=:), allocatable::      fld64    !< Field data encoded in base64.
-  integer(I4P)::                       rf       !< Real file index.
+  integer(I1P), intent(IN)::           fld      !> Field data value.
+  character(*), intent(IN)::           fname    !> Field data name.
+  integer(I4P), intent(IN), optional:: cf       !> Current file index (for concurrent files IO).
+  integer(I4P)::                       E_IO     !> Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
+  character(len=maxlen)::              s_buffer !> Buffer string.
+  integer(I1P), allocatable::          fldp(:)  !> Packed field data.
+  character(len=:), allocatable::      fld64    !> Field data encoded in base64.
+  integer(I4P)::                       rf       !> Real file index.
   !---------------------------------------------------------------------------------------------------------------------------------
 
   !---------------------------------------------------------------------------------------------------------------------------------
@@ -1383,26 +1382,26 @@ contains
 
   function VTK_GEO_XML_STRG_1DA_R8(nx1,nx2,ny1,ny2,nz1,nz2,NN,X,Y,Z,cf) result(E_IO)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Function for saving mesh with \b StructuredGrid topology (R8P, 1D Arrays).
+  !> Function for saving mesh with \b StructuredGrid topology (R8P, 1D Arrays).
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
-  integer(I4P), intent(IN)::           nx1      !< Initial node of x axis.
-  integer(I4P), intent(IN)::           nx2      !< Final node of x axis.
-  integer(I4P), intent(IN)::           ny1      !< Initial node of y axis.
-  integer(I4P), intent(IN)::           ny2      !< Final node of y axis.
-  integer(I4P), intent(IN)::           nz1      !< Initial node of z axis.
-  integer(I4P), intent(IN)::           nz2      !< Final node of z axis.
-  integer(I4P), intent(IN)::           NN       !< Number of all nodes.
-  real(R8P),    intent(IN)::           X(1:)    !< X coordinates [1:NN].
-  real(R8P),    intent(IN)::           Y(1:)    !< Y coordinates [1:NN].
-  real(R8P),    intent(IN)::           Z(1:)    !< Z coordinates [1:NN].
-  integer(I4P), intent(IN), optional:: cf       !< Current file index (for concurrent files IO).
-  integer(I4P)::                       E_IO     !< Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
-  integer(I1P), allocatable::          XYZp(:)  !< Packed coordinates data.
-  character(len=:), allocatable::      XYZ64    !< X, Y, Z coordinates encoded in base64.
-  character(len=maxlen)::              s_buffer !< Buffer string.
-  integer(I4P)::                       rf       !< Real file index.
-  integer(I4P)::                       n1       !< Counter.
+  integer(I4P), intent(IN)::           nx1      !> Initial node of x axis.
+  integer(I4P), intent(IN)::           nx2      !> Final node of x axis.
+  integer(I4P), intent(IN)::           ny1      !> Initial node of y axis.
+  integer(I4P), intent(IN)::           ny2      !> Final node of y axis.
+  integer(I4P), intent(IN)::           nz1      !> Initial node of z axis.
+  integer(I4P), intent(IN)::           nz2      !> Final node of z axis.
+  integer(I4P), intent(IN)::           NN       !> Number of all nodes.
+  real(R8P),    intent(IN)::           X(1:)    !> X coordinates [1:NN].
+  real(R8P),    intent(IN)::           Y(1:)    !> Y coordinates [1:NN].
+  real(R8P),    intent(IN)::           Z(1:)    !> Z coordinates [1:NN].
+  integer(I4P), intent(IN), optional:: cf       !> Current file index (for concurrent files IO).
+  integer(I4P)::                       E_IO     !> Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
+  integer(I1P), allocatable::          XYZp(:)  !> Packed coordinates data.
+  character(len=:), allocatable::      XYZ64    !> X, Y, Z coordinates encoded in base64.
+  character(len=maxlen)::              s_buffer !> Buffer string.
+  integer(I4P)::                       rf       !> Real file index.
+  integer(I4P)::                       n1       !> Counter.
   !---------------------------------------------------------------------------------------------------------------------------------
 
   !---------------------------------------------------------------------------------------------------------------------------------
@@ -1459,26 +1458,26 @@ contains
 
   function VTK_GEO_XML_STRG_3DA_R8(nx1,nx2,ny1,ny2,nz1,nz2,NN,X,Y,Z,cf) result(E_IO)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Function for saving mesh with \b StructuredGrid topology (R8P, 3D Arrays).
+  !> Function for saving mesh with \b StructuredGrid topology (R8P, 3D Arrays).
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
-  integer(I4P), intent(IN)::           nx1               !< Initial node of x axis.
-  integer(I4P), intent(IN)::           nx2               !< Final node of x axis.
-  integer(I4P), intent(IN)::           ny1               !< Initial node of y axis.
-  integer(I4P), intent(IN)::           ny2               !< Final node of y axis.
-  integer(I4P), intent(IN)::           nz1               !< Initial node of z axis.
-  integer(I4P), intent(IN)::           nz2               !< Final node of z axis.
-  integer(I4P), intent(IN)::           NN                !< Number of all nodes.
-  real(R8P),    intent(IN)::           X(nx1:,ny1:,nz1:) !< X coordinates [nx1:nx2,ny1:ny2,nz1:nz2].
-  real(R8P),    intent(IN)::           Y(nx1:,ny1:,nz1:) !< Y coordinates [nx1:nx2,ny1:ny2,nz1:nz2].
-  real(R8P),    intent(IN)::           Z(nx1:,ny1:,nz1:) !< Z coordinates [nx1:nx2,ny1:ny2,nz1:nz2].
-  integer(I4P), intent(IN), optional:: cf                !< Current file index (for concurrent files IO).
-  integer(I4P)::                       E_IO              !< Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
-  integer(I1P), allocatable::          XYZp(:)           !< Packed coordinates data.
-  character(len=:), allocatable::      XYZ64             !< X, Y, Z coordinates encoded in base64.
-  character(len=maxlen)::              s_buffer          !< Buffer string.
-  integer(I4P)::                       rf                !< Real file index.
-  integer(I4P)::                       nx,ny,nz          !< Counters.
+  integer(I4P), intent(IN)::           nx1               !> Initial node of x axis.
+  integer(I4P), intent(IN)::           nx2               !> Final node of x axis.
+  integer(I4P), intent(IN)::           ny1               !> Initial node of y axis.
+  integer(I4P), intent(IN)::           ny2               !> Final node of y axis.
+  integer(I4P), intent(IN)::           nz1               !> Initial node of z axis.
+  integer(I4P), intent(IN)::           nz2               !> Final node of z axis.
+  integer(I4P), intent(IN)::           NN                !> Number of all nodes.
+  real(R8P),    intent(IN)::           X(nx1:,ny1:,nz1:) !> X coordinates [nx1:nx2,ny1:ny2,nz1:nz2].
+  real(R8P),    intent(IN)::           Y(nx1:,ny1:,nz1:) !> Y coordinates [nx1:nx2,ny1:ny2,nz1:nz2].
+  real(R8P),    intent(IN)::           Z(nx1:,ny1:,nz1:) !> Z coordinates [nx1:nx2,ny1:ny2,nz1:nz2].
+  integer(I4P), intent(IN), optional:: cf                !> Current file index (for concurrent files IO).
+  integer(I4P)::                       E_IO              !> Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
+  integer(I1P), allocatable::          XYZp(:)           !> Packed coordinates data.
+  character(len=:), allocatable::      XYZ64             !> X, Y, Z coordinates encoded in base64.
+  character(len=maxlen)::              s_buffer          !> Buffer string.
+  integer(I4P)::                       rf                !> Real file index.
+  integer(I4P)::                       nx,ny,nz          !> Counters.
   !---------------------------------------------------------------------------------------------------------------------------------
 
   !---------------------------------------------------------------------------------------------------------------------------------
@@ -1541,24 +1540,24 @@ contains
 
   function VTK_GEO_XML_STRG_1DAP_R8(nx1,nx2,ny1,ny2,nz1,nz2,NN,XYZ,cf) result(E_IO)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Function for saving mesh with \b StructuredGrid topology (R8P, 1D Arrays, packed API).
+  !> Function for saving mesh with \b StructuredGrid topology (R8P, 1D Arrays, packed API).
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
-  integer(I4P), intent(IN)::           nx1        !< Initial node of x axis.
-  integer(I4P), intent(IN)::           nx2        !< Final node of x axis.
-  integer(I4P), intent(IN)::           ny1        !< Initial node of y axis.
-  integer(I4P), intent(IN)::           ny2        !< Final node of y axis.
-  integer(I4P), intent(IN)::           nz1        !< Initial node of z axis.
-  integer(I4P), intent(IN)::           nz2        !< Final node of z axis.
-  integer(I4P), intent(IN)::           NN         !< Number of all nodes.
-  real(R8P),    intent(IN)::           XYZ(1:,1:) !< X, Y, Z coordinates (packed API) [1:3,1:NN].
-  integer(I4P), intent(IN), optional:: cf         !< Current file index (for concurrent files IO).
-  integer(I4P)::                       E_IO       !< Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
-  integer(I1P), allocatable::          XYZp(:)    !< Packed coordinates data.
-  character(len=:), allocatable::      XYZ64      !< X, Y, Z coordinates encoded in base64.
-  character(len=maxlen)::              s_buffer   !< Buffer string.
-  integer(I4P)::                       rf         !< Real file index.
-  integer(I4P)::                       n1         !< Counter.
+  integer(I4P), intent(IN)::           nx1        !> Initial node of x axis.
+  integer(I4P), intent(IN)::           nx2        !> Final node of x axis.
+  integer(I4P), intent(IN)::           ny1        !> Initial node of y axis.
+  integer(I4P), intent(IN)::           ny2        !> Final node of y axis.
+  integer(I4P), intent(IN)::           nz1        !> Initial node of z axis.
+  integer(I4P), intent(IN)::           nz2        !> Final node of z axis.
+  integer(I4P), intent(IN)::           NN         !> Number of all nodes.
+  real(R8P),    intent(IN)::           XYZ(1:,1:) !> X, Y, Z coordinates (packed API) [1:3,1:NN].
+  integer(I4P), intent(IN), optional:: cf         !> Current file index (for concurrent files IO).
+  integer(I4P)::                       E_IO       !> Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
+  integer(I1P), allocatable::          XYZp(:)    !> Packed coordinates data.
+  character(len=:), allocatable::      XYZ64      !> X, Y, Z coordinates encoded in base64.
+  character(len=maxlen)::              s_buffer   !> Buffer string.
+  integer(I4P)::                       rf         !> Real file index.
+  integer(I4P)::                       n1         !> Counter.
   !---------------------------------------------------------------------------------------------------------------------------------
 
   !---------------------------------------------------------------------------------------------------------------------------------
@@ -1616,24 +1615,24 @@ contains
 
   function VTK_GEO_XML_STRG_3DAP_R8(nx1,nx2,ny1,ny2,nz1,nz2,NN,XYZ,cf) result(E_IO)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Function for saving mesh with \b StructuredGrid topology (R8P, 3D Arrays, packed API).
+  !> Function for saving mesh with \b StructuredGrid topology (R8P, 3D Arrays, packed API).
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
-  integer(I4P), intent(IN)::           nx1                    !< Initial node of x axis.
-  integer(I4P), intent(IN)::           nx2                    !< Final node of x axis.
-  integer(I4P), intent(IN)::           ny1                    !< Initial node of y axis.
-  integer(I4P), intent(IN)::           ny2                    !< Final node of y axis.
-  integer(I4P), intent(IN)::           nz1                    !< Initial node of z axis.
-  integer(I4P), intent(IN)::           nz2                    !< Final node of z axis.
-  integer(I4P), intent(IN)::           NN                     !< Number of all nodes.
-  real(R8P),    intent(IN)::           XYZ(1:,nx1:,ny1:,nz1:) !< X, Y, Z coordinates (packed API).
-  integer(I4P), intent(IN), optional:: cf                     !< Current file index (for concurrent files IO).
-  integer(I4P)::                       E_IO              !< Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
-  integer(I1P), allocatable::          XYZp(:)                !< Packed coordinates data.
-  character(len=:), allocatable::      XYZ64                  !< X, Y, Z coordinates encoded in base64.
-  character(len=maxlen)::              s_buffer               !< Buffer string.
-  integer(I4P)::                       rf                     !< Real file index.
-  integer(I4P)::                       nx,ny,nz               !< Counters.
+  integer(I4P), intent(IN)::           nx1                    !> Initial node of x axis.
+  integer(I4P), intent(IN)::           nx2                    !> Final node of x axis.
+  integer(I4P), intent(IN)::           ny1                    !> Initial node of y axis.
+  integer(I4P), intent(IN)::           ny2                    !> Final node of y axis.
+  integer(I4P), intent(IN)::           nz1                    !> Initial node of z axis.
+  integer(I4P), intent(IN)::           nz2                    !> Final node of z axis.
+  integer(I4P), intent(IN)::           NN                     !> Number of all nodes.
+  real(R8P),    intent(IN)::           XYZ(1:,nx1:,ny1:,nz1:) !> X, Y, Z coordinates (packed API).
+  integer(I4P), intent(IN), optional:: cf                     !> Current file index (for concurrent files IO).
+  integer(I4P)::                       E_IO              !> Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
+  integer(I1P), allocatable::          XYZp(:)                !> Packed coordinates data.
+  character(len=:), allocatable::      XYZ64                  !> X, Y, Z coordinates encoded in base64.
+  character(len=maxlen)::              s_buffer               !> Buffer string.
+  integer(I4P)::                       rf                     !> Real file index.
+  integer(I4P)::                       nx,ny,nz               !> Counters.
   !---------------------------------------------------------------------------------------------------------------------------------
 
   !---------------------------------------------------------------------------------------------------------------------------------
@@ -1695,26 +1694,26 @@ contains
 
   function VTK_GEO_XML_STRG_1DA_R4(nx1,nx2,ny1,ny2,nz1,nz2,NN,X,Y,Z,cf) result(E_IO)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Function for saving mesh with \b StructuredGrid topology (R4P, 1D Arrays).
+  !> Function for saving mesh with \b StructuredGrid topology (R4P, 1D Arrays).
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
-  integer(I4P), intent(IN)::           nx1      !< Initial node of x axis.
-  integer(I4P), intent(IN)::           nx2      !< Final node of x axis.
-  integer(I4P), intent(IN)::           ny1      !< Initial node of y axis.
-  integer(I4P), intent(IN)::           ny2      !< Final node of y axis.
-  integer(I4P), intent(IN)::           nz1      !< Initial node of z axis.
-  integer(I4P), intent(IN)::           nz2      !< Final node of z axis.
-  integer(I4P), intent(IN)::           NN       !< Number of all nodes.
-  real(R4P),    intent(IN)::           X(1:)    !< X coordinates [1:NN].
-  real(R4P),    intent(IN)::           Y(1:)    !< Y coordinates [1:NN].
-  real(R4P),    intent(IN)::           Z(1:)    !< Z coordinates [1:NN].
-  integer(I4P), intent(IN), optional:: cf       !< Current file index (for concurrent files IO).
-  integer(I4P)::                       E_IO     !< Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
-  character(len=maxlen)::              s_buffer !< Buffer string.
-  integer(I1P), allocatable::          XYZp(:)  !< Packed data.
-  character(len=:), allocatable::      XYZ64    !< X, Y, Z coordinates encoded in base64.
-  integer(I4P)::                       rf       !< Real file index.
-  integer(I4P)::                       n1       !< Counter.
+  integer(I4P), intent(IN)::           nx1      !> Initial node of x axis.
+  integer(I4P), intent(IN)::           nx2      !> Final node of x axis.
+  integer(I4P), intent(IN)::           ny1      !> Initial node of y axis.
+  integer(I4P), intent(IN)::           ny2      !> Final node of y axis.
+  integer(I4P), intent(IN)::           nz1      !> Initial node of z axis.
+  integer(I4P), intent(IN)::           nz2      !> Final node of z axis.
+  integer(I4P), intent(IN)::           NN       !> Number of all nodes.
+  real(R4P),    intent(IN)::           X(1:)    !> X coordinates [1:NN].
+  real(R4P),    intent(IN)::           Y(1:)    !> Y coordinates [1:NN].
+  real(R4P),    intent(IN)::           Z(1:)    !> Z coordinates [1:NN].
+  integer(I4P), intent(IN), optional:: cf       !> Current file index (for concurrent files IO).
+  integer(I4P)::                       E_IO     !> Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
+  character(len=maxlen)::              s_buffer !> Buffer string.
+  integer(I1P), allocatable::          XYZp(:)  !> Packed data.
+  character(len=:), allocatable::      XYZ64    !> X, Y, Z coordinates encoded in base64.
+  integer(I4P)::                       rf       !> Real file index.
+  integer(I4P)::                       n1       !> Counter.
   !---------------------------------------------------------------------------------------------------------------------------------
 
   !---------------------------------------------------------------------------------------------------------------------------------
@@ -1771,26 +1770,26 @@ contains
 
   function VTK_GEO_XML_STRG_3DA_R4(nx1,nx2,ny1,ny2,nz1,nz2,NN,X,Y,Z,cf) result(E_IO)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Function for saving mesh with \b StructuredGrid topology (R4P, 3D Arrays).
+  !> Function for saving mesh with \b StructuredGrid topology (R4P, 3D Arrays).
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
-  integer(I4P), intent(IN)::           nx1               !< Initial node of x axis.
-  integer(I4P), intent(IN)::           nx2               !< Final node of x axis.
-  integer(I4P), intent(IN)::           ny1               !< Initial node of y axis.
-  integer(I4P), intent(IN)::           ny2               !< Final node of y axis.
-  integer(I4P), intent(IN)::           nz1               !< Initial node of z axis.
-  integer(I4P), intent(IN)::           nz2               !< Final node of z axis.
-  integer(I4P), intent(IN)::           NN                !< Number of all nodes.
-  real(R4P),    intent(IN)::           X(nx1:,ny1:,nz1:) !< X coordinates [nx1:nx2,ny1:ny2,nz1:nz2].
-  real(R4P),    intent(IN)::           Y(nx1:,ny1:,nz1:) !< Y coordinates [nx1:nx2,ny1:ny2,nz1:nz2].
-  real(R4P),    intent(IN)::           Z(nx1:,ny1:,nz1:) !< Z coordinates [nx1:nx2,ny1:ny2,nz1:nz2].
-  integer(I4P), intent(IN), optional:: cf                !< Current file index (for concurrent files IO).
-  integer(I4P)::                       E_IO              !< Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
-  character(len=maxlen)::              s_buffer          !< Buffer string.
-  integer(I1P), allocatable::          XYZp(:)           !< Packed data.
-  character(len=:), allocatable::      XYZ64             !< X, Y, Z coordinates encoded in base64.
-  integer(I4P)::                       rf                !< Real file index.
-  integer(I4P)::                       nx,ny,nz          !< Counters.
+  integer(I4P), intent(IN)::           nx1               !> Initial node of x axis.
+  integer(I4P), intent(IN)::           nx2               !> Final node of x axis.
+  integer(I4P), intent(IN)::           ny1               !> Initial node of y axis.
+  integer(I4P), intent(IN)::           ny2               !> Final node of y axis.
+  integer(I4P), intent(IN)::           nz1               !> Initial node of z axis.
+  integer(I4P), intent(IN)::           nz2               !> Final node of z axis.
+  integer(I4P), intent(IN)::           NN                !> Number of all nodes.
+  real(R4P),    intent(IN)::           X(nx1:,ny1:,nz1:) !> X coordinates [nx1:nx2,ny1:ny2,nz1:nz2].
+  real(R4P),    intent(IN)::           Y(nx1:,ny1:,nz1:) !> Y coordinates [nx1:nx2,ny1:ny2,nz1:nz2].
+  real(R4P),    intent(IN)::           Z(nx1:,ny1:,nz1:) !> Z coordinates [nx1:nx2,ny1:ny2,nz1:nz2].
+  integer(I4P), intent(IN), optional:: cf                !> Current file index (for concurrent files IO).
+  integer(I4P)::                       E_IO              !> Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
+  character(len=maxlen)::              s_buffer          !> Buffer string.
+  integer(I1P), allocatable::          XYZp(:)           !> Packed data.
+  character(len=:), allocatable::      XYZ64             !> X, Y, Z coordinates encoded in base64.
+  integer(I4P)::                       rf                !> Real file index.
+  integer(I4P)::                       nx,ny,nz          !> Counters.
   !---------------------------------------------------------------------------------------------------------------------------------
 
   !---------------------------------------------------------------------------------------------------------------------------------
@@ -1853,24 +1852,24 @@ contains
 
   function VTK_GEO_XML_STRG_1DAP_R4(nx1,nx2,ny1,ny2,nz1,nz2,NN,XYZ,cf) result(E_IO)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Function for saving mesh with \b StructuredGrid topology (R4P, 1D Arrays, packed API).
+  !> Function for saving mesh with \b StructuredGrid topology (R4P, 1D Arrays, packed API).
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
-  integer(I4P), intent(IN)::           nx1        !< Initial node of x axis.
-  integer(I4P), intent(IN)::           nx2        !< Final node of x axis.
-  integer(I4P), intent(IN)::           ny1        !< Initial node of y axis.
-  integer(I4P), intent(IN)::           ny2        !< Final node of y axis.
-  integer(I4P), intent(IN)::           nz1        !< Initial node of z axis.
-  integer(I4P), intent(IN)::           nz2        !< Final node of z axis.
-  integer(I4P), intent(IN)::           NN         !< Number of all nodes.
-  real(R4P),    intent(IN)::           XYZ(1:,1:) !< X, Y, Z coordinates (packed API) [1:3,1:NN].
-  integer(I4P), intent(IN), optional:: cf         !< Current file index (for concurrent files IO).
-  integer(I4P)::                       E_IO       !< Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
-  character(len=maxlen)::              s_buffer   !< Buffer string.
-  integer(I1P), allocatable::          XYZp(:)    !< Packed data.
-  character(len=:), allocatable::      XYZ64      !< X, Y, Z coordinates encoded in base64.
-  integer(I4P)::                       rf         !< Real file index.
-  integer(I4P)::                       n1         !< Counter.
+  integer(I4P), intent(IN)::           nx1        !> Initial node of x axis.
+  integer(I4P), intent(IN)::           nx2        !> Final node of x axis.
+  integer(I4P), intent(IN)::           ny1        !> Initial node of y axis.
+  integer(I4P), intent(IN)::           ny2        !> Final node of y axis.
+  integer(I4P), intent(IN)::           nz1        !> Initial node of z axis.
+  integer(I4P), intent(IN)::           nz2        !> Final node of z axis.
+  integer(I4P), intent(IN)::           NN         !> Number of all nodes.
+  real(R4P),    intent(IN)::           XYZ(1:,1:) !> X, Y, Z coordinates (packed API) [1:3,1:NN].
+  integer(I4P), intent(IN), optional:: cf         !> Current file index (for concurrent files IO).
+  integer(I4P)::                       E_IO       !> Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
+  character(len=maxlen)::              s_buffer   !> Buffer string.
+  integer(I1P), allocatable::          XYZp(:)    !> Packed data.
+  character(len=:), allocatable::      XYZ64      !> X, Y, Z coordinates encoded in base64.
+  integer(I4P)::                       rf         !> Real file index.
+  integer(I4P)::                       n1         !> Counter.
   !---------------------------------------------------------------------------------------------------------------------------------
 
   !---------------------------------------------------------------------------------------------------------------------------------
@@ -1928,24 +1927,24 @@ contains
 
   function VTK_GEO_XML_STRG_3DAP_R4(nx1,nx2,ny1,ny2,nz1,nz2,NN,XYZ,cf) result(E_IO)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Function for saving mesh with \b StructuredGrid topology (R4P, 3D Arrays, packed API).
+  !> Function for saving mesh with \b StructuredGrid topology (R4P, 3D Arrays, packed API).
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
-  integer(I4P), intent(IN)::           nx1                    !< Initial node of x axis.
-  integer(I4P), intent(IN)::           nx2                    !< Final node of x axis.
-  integer(I4P), intent(IN)::           ny1                    !< Initial node of y axis.
-  integer(I4P), intent(IN)::           ny2                    !< Final node of y axis.
-  integer(I4P), intent(IN)::           nz1                    !< Initial node of z axis.
-  integer(I4P), intent(IN)::           nz2                    !< Final node of z axis.
-  integer(I4P), intent(IN)::           NN                     !< Number of all nodes.
-  real(R4P),    intent(IN)::           XYZ(1:,nx1:,ny1:,nz1:) !< X, Y, Z coordinates (packed API) [1:3,nx1:nx2,ny1:ny2,nz1:nz2].
-  integer(I4P), intent(IN), optional:: cf                     !< Current file index (for concurrent files IO).
-  integer(I4P)::                       E_IO             !< Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
-  character(len=maxlen)::              s_buffer               !< Buffer string.
-  integer(I1P), allocatable::          XYZp(:)                !< Packed data.
-  character(len=:), allocatable::      XYZ64                  !< X, Y, Z coordinates encoded in base64.
-  integer(I4P)::                       rf                     !< Real file index.
-  integer(I4P)::                       nx,ny,nz               !< Counters.
+  integer(I4P), intent(IN)::           nx1                    !> Initial node of x axis.
+  integer(I4P), intent(IN)::           nx2                    !> Final node of x axis.
+  integer(I4P), intent(IN)::           ny1                    !> Initial node of y axis.
+  integer(I4P), intent(IN)::           ny2                    !> Final node of y axis.
+  integer(I4P), intent(IN)::           nz1                    !> Initial node of z axis.
+  integer(I4P), intent(IN)::           nz2                    !> Final node of z axis.
+  integer(I4P), intent(IN)::           NN                     !> Number of all nodes.
+  real(R4P),    intent(IN)::           XYZ(1:,nx1:,ny1:,nz1:) !> X, Y, Z coordinates (packed API) [1:3,nx1:nx2,ny1:ny2,nz1:nz2].
+  integer(I4P), intent(IN), optional:: cf                     !> Current file index (for concurrent files IO).
+  integer(I4P)::                       E_IO             !> Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
+  character(len=maxlen)::              s_buffer               !> Buffer string.
+  integer(I1P), allocatable::          XYZp(:)                !> Packed data.
+  character(len=:), allocatable::      XYZ64                  !> X, Y, Z coordinates encoded in base64.
+  integer(I4P)::                       rf                     !> Real file index.
+  integer(I4P)::                       nx,ny,nz               !> Counters.
   !---------------------------------------------------------------------------------------------------------------------------------
 
   !---------------------------------------------------------------------------------------------------------------------------------
@@ -2007,25 +2006,25 @@ contains
 
   function VTK_GEO_XML_RECT_R8(nx1,nx2,ny1,ny2,nz1,nz2,X,Y,Z,cf) result(E_IO)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Function for saving mesh with \b RectilinearGrid topology (R8P).
+  !> Function for saving mesh with \b RectilinearGrid topology (R8P).
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
-  integer(I4P), intent(IN)::           nx1        !< Initial node of x axis.
-  integer(I4P), intent(IN)::           nx2        !< Final node of x axis.
-  integer(I4P), intent(IN)::           ny1        !< Initial node of y axis.
-  integer(I4P), intent(IN)::           ny2        !< Final node of y axis.
-  integer(I4P), intent(IN)::           nz1        !< Initial node of z axis.
-  integer(I4P), intent(IN)::           nz2        !< Final node of z axis.
-  real(R8P),    intent(IN)::           X(nx1:nx2) !< X coordinates.
-  real(R8P),    intent(IN)::           Y(ny1:ny2) !< Y coordinates.
-  real(R8P),    intent(IN)::           Z(nz1:nz2) !< Z coordinates.
-  integer(I4P), intent(IN), optional:: cf         !< Current file index (for concurrent files IO).
-  integer(I4P)::                       E_IO       !< Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
-  character(len=maxlen)::              s_buffer   !< Buffer string.
-  integer(I1P), allocatable::          XYZp(:)    !< Packed data.
-  character(len=:), allocatable::      XYZ64      !< X, Y, Z coordinates encoded in base64.
-  integer(I4P)::                       rf         !< Real file index.
-  integer(I4P)::                       n1         !< Counter.
+  integer(I4P), intent(IN)::           nx1        !> Initial node of x axis.
+  integer(I4P), intent(IN)::           nx2        !> Final node of x axis.
+  integer(I4P), intent(IN)::           ny1        !> Initial node of y axis.
+  integer(I4P), intent(IN)::           ny2        !> Final node of y axis.
+  integer(I4P), intent(IN)::           nz1        !> Initial node of z axis.
+  integer(I4P), intent(IN)::           nz2        !> Final node of z axis.
+  real(R8P),    intent(IN)::           X(nx1:nx2) !> X coordinates.
+  real(R8P),    intent(IN)::           Y(ny1:ny2) !> Y coordinates.
+  real(R8P),    intent(IN)::           Z(nz1:nz2) !> Z coordinates.
+  integer(I4P), intent(IN), optional:: cf         !> Current file index (for concurrent files IO).
+  integer(I4P)::                       E_IO       !> Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
+  character(len=maxlen)::              s_buffer   !> Buffer string.
+  integer(I1P), allocatable::          XYZp(:)    !> Packed data.
+  character(len=:), allocatable::      XYZ64      !> X, Y, Z coordinates encoded in base64.
+  integer(I4P)::                       rf         !> Real file index.
+  integer(I4P)::                       n1         !> Counter.
   !---------------------------------------------------------------------------------------------------------------------------------
 
   !---------------------------------------------------------------------------------------------------------------------------------
@@ -2110,25 +2109,25 @@ contains
 
   function VTK_GEO_XML_RECT_R4(nx1,nx2,ny1,ny2,nz1,nz2,X,Y,Z,cf) result(E_IO)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Function for saving mesh with \b RectilinearGrid topology (R4P).
+  !> Function for saving mesh with \b RectilinearGrid topology (R4P).
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
-  integer(I4P), intent(IN)::           nx1        !< Initial node of x axis.
-  integer(I4P), intent(IN)::           nx2        !< Final node of x axis.
-  integer(I4P), intent(IN)::           ny1        !< Initial node of y axis.
-  integer(I4P), intent(IN)::           ny2        !< Final node of y axis.
-  integer(I4P), intent(IN)::           nz1        !< Initial node of z axis.
-  integer(I4P), intent(IN)::           nz2        !< Final node of z axis.
-  real(R4P),    intent(IN)::           X(nx1:nx2) !< X coordinates.
-  real(R4P),    intent(IN)::           Y(ny1:ny2) !< Y coordinates.
-  real(R4P),    intent(IN)::           Z(nz1:nz2) !< Z coordinates.
-  integer(I4P), intent(IN), optional:: cf         !< Current file index (for concurrent files IO).
-  integer(I4P)::                       E_IO       !< Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
-  character(len=maxlen)::              s_buffer   !< Buffer string.
-  integer(I1P), allocatable::          XYZp(:)    !< Packed data.
-  character(len=:), allocatable::      XYZ64      !< X, Y, Z coordinates encoded in base64.
-  integer(I4P)::                       rf         !< Real file index.
-  integer(I4P)::                       n1         !< Counter.
+  integer(I4P), intent(IN)::           nx1        !> Initial node of x axis.
+  integer(I4P), intent(IN)::           nx2        !> Final node of x axis.
+  integer(I4P), intent(IN)::           ny1        !> Initial node of y axis.
+  integer(I4P), intent(IN)::           ny2        !> Final node of y axis.
+  integer(I4P), intent(IN)::           nz1        !> Initial node of z axis.
+  integer(I4P), intent(IN)::           nz2        !> Final node of z axis.
+  real(R4P),    intent(IN)::           X(nx1:nx2) !> X coordinates.
+  real(R4P),    intent(IN)::           Y(ny1:ny2) !> Y coordinates.
+  real(R4P),    intent(IN)::           Z(nz1:nz2) !> Z coordinates.
+  integer(I4P), intent(IN), optional:: cf         !> Current file index (for concurrent files IO).
+  integer(I4P)::                       E_IO       !> Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
+  character(len=maxlen)::              s_buffer   !> Buffer string.
+  integer(I1P), allocatable::          XYZp(:)    !> Packed data.
+  character(len=:), allocatable::      XYZ64      !> X, Y, Z coordinates encoded in base64.
+  integer(I4P)::                       rf         !> Real file index.
+  integer(I4P)::                       n1         !> Counter.
   !---------------------------------------------------------------------------------------------------------------------------------
 
   !---------------------------------------------------------------------------------------------------------------------------------
@@ -2213,22 +2212,22 @@ contains
 
   function VTK_GEO_XML_UNST_R8(NN,NC,X,Y,Z,cf) result(E_IO)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Function for saving mesh with \b UnstructuredGrid topology (R8P).
+  !> Function for saving mesh with \b UnstructuredGrid topology (R8P).
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
-  integer(I4P), intent(IN)::           NN       !< Number of nodes.
-  integer(I4P), intent(IN)::           NC       !< Number of cells.
-  real(R8P),    intent(IN)::           X(1:NN)  !< X coordinates.
-  real(R8P),    intent(IN)::           Y(1:NN)  !< Y coordinates.
-  real(R8P),    intent(IN)::           Z(1:NN)  !< Z coordinates.
-  integer(I4P), intent(IN), optional:: cf       !< Current file index (for concurrent files IO).
-  integer(I4P)::                       E_IO     !< Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
-  character(len=maxlen)::              s_buffer !< Buffer string.
-  real(R8P), allocatable::             XYZa(:)  !< X, Y, Z coordinates.
-  integer(I1P), allocatable::          XYZp(:)  !< Packed data.
-  character(len=:), allocatable::      XYZ64    !< X, Y, Z coordinates encoded in base64.
-  integer(I4P)::                       rf       !< Real file index.
-  integer(I4P)::                       n1       !< Counter.
+  integer(I4P), intent(IN)::           NN       !> Number of nodes.
+  integer(I4P), intent(IN)::           NC       !> Number of cells.
+  real(R8P),    intent(IN)::           X(1:NN)  !> X coordinates.
+  real(R8P),    intent(IN)::           Y(1:NN)  !> Y coordinates.
+  real(R8P),    intent(IN)::           Z(1:NN)  !> Z coordinates.
+  integer(I4P), intent(IN), optional:: cf       !> Current file index (for concurrent files IO).
+  integer(I4P)::                       E_IO     !> Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
+  character(len=maxlen)::              s_buffer !> Buffer string.
+  real(R8P), allocatable::             XYZa(:)  !> X, Y, Z coordinates.
+  integer(I1P), allocatable::          XYZp(:)  !> Packed data.
+  character(len=:), allocatable::      XYZ64    !> X, Y, Z coordinates encoded in base64.
+  integer(I4P)::                       rf       !> Real file index.
+  integer(I4P)::                       n1       !> Counter.
   !---------------------------------------------------------------------------------------------------------------------------------
 
   !---------------------------------------------------------------------------------------------------------------------------------
@@ -2283,20 +2282,20 @@ contains
 
   function VTK_GEO_XML_UNST_PACK_R8(NN,NC,XYZ,cf) result(E_IO)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Function for saving mesh with \b UnstructuredGrid topology (R8P, packed API).
+  !> Function for saving mesh with \b UnstructuredGrid topology (R8P, packed API).
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
-  integer(I4P), intent(IN)::           NN            !< Number of nodes.
-  integer(I4P), intent(IN)::           NC            !< Number of cells.
-  real(R8P),    intent(IN)::           XYZ(1:3,1:NN) !< X, Y, Z coordinates (packed API).
-  integer(I4P), intent(IN), optional:: cf            !< Current file index (for concurrent files IO).
-  integer(I4P)::                       E_IO          !< Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
-  character(len=maxlen)::              s_buffer      !< Buffer string.
-  real(R8P), allocatable::             XYZa(:)       !< X, Y, Z coordinates.
-  integer(I1P), allocatable::          XYZp(:)       !< Packed data.
-  character(len=:), allocatable::      XYZ64         !< X, Y, Z coordinates encoded in base64.
-  integer(I4P)::                       rf            !< Real file index.
-  integer(I4P)::                       n1            !< Counter.
+  integer(I4P), intent(IN)::           NN            !> Number of nodes.
+  integer(I4P), intent(IN)::           NC            !> Number of cells.
+  real(R8P),    intent(IN)::           XYZ(1:3,1:NN) !> X, Y, Z coordinates (packed API).
+  integer(I4P), intent(IN), optional:: cf            !> Current file index (for concurrent files IO).
+  integer(I4P)::                       E_IO          !> Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
+  character(len=maxlen)::              s_buffer      !> Buffer string.
+  real(R8P), allocatable::             XYZa(:)       !> X, Y, Z coordinates.
+  integer(I1P), allocatable::          XYZp(:)       !> Packed data.
+  character(len=:), allocatable::      XYZ64         !> X, Y, Z coordinates encoded in base64.
+  integer(I4P)::                       rf            !> Real file index.
+  integer(I4P)::                       n1            !> Counter.
   !---------------------------------------------------------------------------------------------------------------------------------
 
   !---------------------------------------------------------------------------------------------------------------------------------
@@ -2352,22 +2351,22 @@ contains
 
   function VTK_GEO_XML_UNST_R4(NN,NC,X,Y,Z,cf) result(E_IO)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Function for saving mesh with \b UnstructuredGrid topology (R4P).
+  !> Function for saving mesh with \b UnstructuredGrid topology (R4P).
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
-  integer(I4P), intent(IN)::           NN       !< Number of nodes.
-  integer(I4P), intent(IN)::           NC       !< Number of cells.
-  real(R4P),    intent(IN)::           X(1:NN)  !< X coordinates.
-  real(R4P),    intent(IN)::           Y(1:NN)  !< Y coordinates.
-  real(R4P),    intent(IN)::           Z(1:NN)  !< Z coordinates.
-  integer(I4P), intent(IN), optional:: cf       !< Current file index (for concurrent files IO).
-  integer(I4P)::                       E_IO     !< Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
-  character(len=maxlen)::              s_buffer !< Buffer string.
-  real(R4P), allocatable::             XYZa(:)  !< X, Y, Z coordinates.
-  integer(I1P), allocatable::          XYZp(:)  !< Packed data.
-  character(len=:), allocatable::      XYZ64    !< X, Y, Z coordinates encoded in base64.
-  integer(I4P)::                       rf       !< Real file index.
-  integer(I4P)::                       n1       !< Counter.
+  integer(I4P), intent(IN)::           NN       !> Number of nodes.
+  integer(I4P), intent(IN)::           NC       !> Number of cells.
+  real(R4P),    intent(IN)::           X(1:NN)  !> X coordinates.
+  real(R4P),    intent(IN)::           Y(1:NN)  !> Y coordinates.
+  real(R4P),    intent(IN)::           Z(1:NN)  !> Z coordinates.
+  integer(I4P), intent(IN), optional:: cf       !> Current file index (for concurrent files IO).
+  integer(I4P)::                       E_IO     !> Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
+  character(len=maxlen)::              s_buffer !> Buffer string.
+  real(R4P), allocatable::             XYZa(:)  !> X, Y, Z coordinates.
+  integer(I1P), allocatable::          XYZp(:)  !> Packed data.
+  character(len=:), allocatable::      XYZ64    !> X, Y, Z coordinates encoded in base64.
+  integer(I4P)::                       rf       !> Real file index.
+  integer(I4P)::                       n1       !> Counter.
   !---------------------------------------------------------------------------------------------------------------------------------
 
   !---------------------------------------------------------------------------------------------------------------------------------
@@ -2422,20 +2421,20 @@ contains
 
   function VTK_GEO_XML_UNST_PACK_R4(NN,NC,XYZ,cf) result(E_IO)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Function for saving mesh with \b UnstructuredGrid topology (R4P, packed API).
+  !> Function for saving mesh with \b UnstructuredGrid topology (R4P, packed API).
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
-  integer(I4P), intent(IN)::           NN            !< Number of nodes.
-  integer(I4P), intent(IN)::           NC            !< Number of cells.
-  real(R4P),    intent(IN)::           XYZ(1:3,1:NN) !< X, Y, Z coordinates (packed API).
-  integer(I4P), intent(IN), optional:: cf            !< Current file index (for concurrent files IO).
-  integer(I4P)::                       E_IO          !< Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
-  character(len=maxlen)::              s_buffer      !< Buffer string.
-  real(R4P), allocatable::             XYZa(:)       !< X, Y, Z coordinates.
-  integer(I1P), allocatable::          XYZp(:)       !< Packed data.
-  character(len=:), allocatable::      XYZ64         !< X, Y, Z coordinates encoded in base64.
-  integer(I4P)::                       rf            !< Real file index.
-  integer(I4P)::                       n1            !< Counter.
+  integer(I4P), intent(IN)::           NN            !> Number of nodes.
+  integer(I4P), intent(IN)::           NC            !> Number of cells.
+  real(R4P),    intent(IN)::           XYZ(1:3,1:NN) !> X, Y, Z coordinates (packed API).
+  integer(I4P), intent(IN), optional:: cf            !> Current file index (for concurrent files IO).
+  integer(I4P)::                       E_IO          !> Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
+  character(len=maxlen)::              s_buffer      !> Buffer string.
+  real(R4P), allocatable::             XYZa(:)       !> X, Y, Z coordinates.
+  integer(I1P), allocatable::          XYZp(:)       !> Packed data.
+  character(len=:), allocatable::      XYZ64         !> X, Y, Z coordinates encoded in base64.
+  integer(I4P)::                       rf            !> Real file index.
+  integer(I4P)::                       n1            !> Counter.
   !---------------------------------------------------------------------------------------------------------------------------------
 
   !---------------------------------------------------------------------------------------------------------------------------------
@@ -2491,12 +2490,12 @@ contains
 
   function VTK_GEO_XML_CLOSEP(cf) result(E_IO)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Function for closing mesh block data.
+  !> Function for closing mesh block data.
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
-  integer(I4P), intent(IN), optional:: cf   !< Current file index (for concurrent files IO).
-  integer(I4P)::                       E_IO !< Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
-  integer(I4P)::                       rf   !< Real file index.
+  integer(I4P), intent(IN), optional:: cf   !> Current file index (for concurrent files IO).
+  integer(I4P)::                       E_IO !> Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
+  integer(I4P)::                       rf   !> Real file index.
   !---------------------------------------------------------------------------------------------------------------------------------
 
   !---------------------------------------------------------------------------------------------------------------------------------
@@ -2518,74 +2517,74 @@ contains
 
   function VTK_CON_XML(NC,connect,offset,cell_type,idx,cf) result(E_IO)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Function for saving mesh connectivity.
-  !<
-  !< Function that **must** be used when unstructured grid is used, it saves the connectivity of the unstructured gird.
-  !< @note The vector **connect** must follow the VTK-XML standard. It is passed as *assumed-shape array*
-  !< because its dimensions is related to the mesh dimensions in a complex way. Its dimensions can be calculated by the following
-  !< equation: \(dc = \sum\limits_{i = 1}^{NC} {nvertex_i }\).
-  !< Note that this equation is different from the legacy one. The XML connectivity convention is quite different from the
-  !< legacy standard.
-  !< As an example suppose we have a mesh composed by 2 cells, one hexahedron (8 vertices) and one pyramid with
-  !< square basis (5 vertices) and suppose that the basis of pyramid is constitute by a face of the hexahedron and so the two cells
-  !< share 4 vertices. The above equation gives \(dc=8+5=13\). The connectivity vector for this mesh can be:
-  !<
-  !<##### first cell
-  !<+ connect(1)  = 0 identification flag of \(1^\circ\) vertex of first cell
-  !<+ connect(2)  = 1 identification flag of \(2^\circ\) vertex of first cell
-  !<+ connect(3)  = 2 identification flag of \(3^\circ\) vertex of first cell
-  !<+ connect(4)  = 3 identification flag of \(4^\circ\) vertex of first cell
-  !<+ connect(5)  = 4 identification flag of \(5^\circ\) vertex of first cell
-  !<+ connect(6)  = 5 identification flag of \(6^\circ\) vertex of first cell
-  !<+ connect(7)  = 6 identification flag of \(7^\circ\) vertex of first cell
-  !<+ connect(8)  = 7 identification flag of \(8^\circ\) vertex of first cell
-  !<
-  !<##### second cell
-  !<+ connect(9 ) = 0 identification flag of \(1^\circ\) vertex of second cell
-  !<+ connect(10) = 1 identification flag of \(2^\circ\) vertex of second cell
-  !<+ connect(11) = 2 identification flag of \(3^\circ\) vertex of second cell
-  !<+ connect(12) = 3 identification flag of \(4^\circ\) vertex of second cell
-  !<+ connect(13) = 8 identification flag of \(5^\circ\) vertex of second cell
-  !<
-  !< Therefore this connectivity vector convention is more simple than the legacy convention, now we must create also the
-  !< *offset* vector that contains the data now missing in the *connect* vector. The offset
-  !< vector for this mesh can be:
-  !<
-  !<##### first cell
-  !<+ offset(1) = 8  => summ of nodes of \(1^\circ\) cell
-  !<
-  !<##### second cell
-  !<+ offset(2) = 13 => summ of nodes of \(1^\circ\) and \(2^\circ\) cells
-  !<
-  !< The value of every cell-offset can be calculated by the following equation: \(offset_c=\sum\limits_{i=1}^{c}{nvertex_i}\)
-  !< where \(offset_c\) is the value of \(c^{th}\) cell and \(nvertex_i\) is the number of vertices of \(i^{th}\) cell.
-  !< The function VTK_CON_XML does not calculate the connectivity and offset vectors: it writes the connectivity and offset
-  !< vectors conforming the VTK-XML standard, but does not calculate them.
-  !< The vector variable *cell\_type* must conform the VTK-XML standard (see the file VTK-Standard at the
-  !< Kitware homepage) that is the same of the legacy standard. It contains the
-  !< *type* of each cells. For the above example this vector is:
-  !<
-  !<##### first cell
-  !<+ cell\_type(1) = 12 hexahedron type of first cell
-  !<
-  !<##### second cell
-  !<+ cell\_type(2) = 14 pyramid type of second cell
+  !> Function for saving mesh connectivity.
+  !>
+  !> Function that **must** be used when unstructured grid is used, it saves the connectivity of the unstructured gird.
+  !> @note The vector **connect** must follow the VTK-XML standard. It is passed as *assumed-shape array*
+  !> because its dimensions is related to the mesh dimensions in a complex way. Its dimensions can be calculated by the following
+  !> equation: \(dc = \sum\limits_{i = 1}^{NC} {nvertex_i }\).
+  !> Note that this equation is different from the legacy one. The XML connectivity convention is quite different from the
+  !> legacy standard.
+  !> As an example suppose we have a mesh composed by 2 cells, one hexahedron (8 vertices) and one pyramid with
+  !> square basis (5 vertices) and suppose that the basis of pyramid is constitute by a face of the hexahedron and so the two cells
+  !> share 4 vertices. The above equation gives \(dc=8+5=13\). The connectivity vector for this mesh can be:
+  !>
+  !>##### first cell
+  !>+ connect(1)  = 0 identification flag of \(1^\circ\) vertex of first cell
+  !>+ connect(2)  = 1 identification flag of \(2^\circ\) vertex of first cell
+  !>+ connect(3)  = 2 identification flag of \(3^\circ\) vertex of first cell
+  !>+ connect(4)  = 3 identification flag of \(4^\circ\) vertex of first cell
+  !>+ connect(5)  = 4 identification flag of \(5^\circ\) vertex of first cell
+  !>+ connect(6)  = 5 identification flag of \(6^\circ\) vertex of first cell
+  !>+ connect(7)  = 6 identification flag of \(7^\circ\) vertex of first cell
+  !>+ connect(8)  = 7 identification flag of \(8^\circ\) vertex of first cell
+  !>
+  !>##### second cell
+  !>+ connect(9 ) = 0 identification flag of \(1^\circ\) vertex of second cell
+  !>+ connect(10) = 1 identification flag of \(2^\circ\) vertex of second cell
+  !>+ connect(11) = 2 identification flag of \(3^\circ\) vertex of second cell
+  !>+ connect(12) = 3 identification flag of \(4^\circ\) vertex of second cell
+  !>+ connect(13) = 8 identification flag of \(5^\circ\) vertex of second cell
+  !>
+  !> Therefore this connectivity vector convention is more simple than the legacy convention, now we must create also the
+  !> *offset* vector that contains the data now missing in the *connect* vector. The offset
+  !> vector for this mesh can be:
+  !>
+  !>##### first cell
+  !>+ offset(1) = 8  => summ of nodes of \(1^\circ\) cell
+  !>
+  !>##### second cell
+  !>+ offset(2) = 13 => summ of nodes of \(1^\circ\) and \(2^\circ\) cells
+  !>
+  !> The value of every cell-offset can be calculated by the following equation: \(offset_c=\sum\limits_{i=1}^{c}{nvertex_i}\)
+  !> where \(offset_c\) is the value of \(c^{th}\) cell and \(nvertex_i\) is the number of vertices of \(i^{th}\) cell.
+  !> The function VTK_CON_XML does not calculate the connectivity and offset vectors: it writes the connectivity and offset
+  !> vectors conforming the VTK-XML standard, but does not calculate them.
+  !> The vector variable *cell\_type* must conform the VTK-XML standard (see the file VTK-Standard at the
+  !> Kitware homepage) that is the same of the legacy standard. It contains the
+  !> *type* of each cells. For the above example this vector is:
+  !>
+  !>##### first cell
+  !>+ cell\_type(1) = 12 hexahedron type of first cell
+  !>
+  !>##### second cell
+  !>+ cell\_type(2) = 14 pyramid type of second cell
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
-  integer(I4P), intent(IN)::           NC            !< Number of cells.
-  integer(I4P), intent(IN)::           connect(1:)   !< Mesh connectivity.
-  integer(I4P), intent(IN)::           offset(1:NC)  !< Cell offset.
-  integer(I1P), intent(IN)::           cell_type(1:) !< VTK cell type.
-  integer(I1P), intent(IN), optional:: idx           !< Id offset to convert Fortran (first id 1) to C (first id 0) standards.
-  integer(I4P), intent(IN), optional:: cf            !< Current file index (for concurrent files IO).
-  integer(I4P)::                       E_IO          !< Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
-  character(len=maxlen)::              s_buffer      !< Buffer string.
-  integer(I1P), allocatable::          cocp(:)       !< Packed data.
-  character(len=:), allocatable::      coc64         !< Data encoded in base64.
-  integer(I1P)::                       incr          !< Actual id offset increment.
-  integer(I4P)::                       rf            !< Real file index.
-  integer(I4P)::                       n1            !< Counter.
-  integer(I8P)::                       Ncocp         !< Dimension of cocp, packed data.
+  integer(I4P), intent(IN)::           NC            !> Number of cells.
+  integer(I4P), intent(IN)::           connect(1:)   !> Mesh connectivity.
+  integer(I4P), intent(IN)::           offset(1:NC)  !> Cell offset.
+  integer(I1P), intent(IN)::           cell_type(1:) !> VTK cell type.
+  integer(I1P), intent(IN), optional:: idx           !> Id offset to convert Fortran (first id 1) to C (first id 0) standards.
+  integer(I4P), intent(IN), optional:: cf            !> Current file index (for concurrent files IO).
+  integer(I4P)::                       E_IO          !> Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
+  character(len=maxlen)::              s_buffer      !> Buffer string.
+  integer(I1P), allocatable::          cocp(:)       !> Packed data.
+  character(len=:), allocatable::      coc64         !> Data encoded in base64.
+  integer(I1P)::                       incr          !> Actual id offset increment.
+  integer(I4P)::                       rf            !> Real file index.
+  integer(I4P)::                       n1            !> Counter.
+  integer(I8P)::                       Ncocp         !> Dimension of cocp, packed data.
   !---------------------------------------------------------------------------------------------------------------------------------
 
   !---------------------------------------------------------------------------------------------------------------------------------
@@ -2676,41 +2675,41 @@ contains
 
   function VTK_DAT_XML(var_location,var_block_action,cf) result(E_IO)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Function for initializing/finalizing the saving of data associated to the mesh.
-  !<
-  !< Function that **must** be called before saving the data related to geometric mesh, this function initializes the
-  !< saving of data variables indicating the *type* (node or cell centered) of variables that will be saved.
-  !< @note A single file can contain both cell and node centered variables. In this case the VTK_DAT_XML function must be
-  !< called two times, before saving cell-centered variables and before saving node-centered variables.
-  !<
-  !<### Examples of usage
-  !<
-  !<#### Opening node piece
-  !<```fortran
-  !< E_IO=VTK_DAT_XML('node','OPeN')
-  !<```
-  !<
-  !<#### Closing node piece
-  !<```fortran
-  !< E_IO=VTK_DAT_XML('node','CLosE')
-  !<```
-  !<
-  !<#### Opening cell piece
-  !<```fortran
-  !< E_IO=VTK_DAT_XML('cell','OPEN')
-  !<```
-  !<
-  !<#### Closing cell piece
-  !<```fortran
-  !< E_IO=VTK_DAT_XML('cell','close')
-  !<```
+  !> Function for initializing/finalizing the saving of data associated to the mesh.
+  !>
+  !> Function that **must** be called before saving the data related to geometric mesh, this function initializes the
+  !> saving of data variables indicating the *type* (node or cell centered) of variables that will be saved.
+  !> @note A single file can contain both cell and node centered variables. In this case the VTK_DAT_XML function must be
+  !> called two times, before saving cell-centered variables and before saving node-centered variables.
+  !>
+  !>### Examples of usage
+  !>
+  !>#### Opening node piece
+  !>```fortran
+  !> E_IO=VTK_DAT_XML('node','OPeN')
+  !>```
+  !>
+  !>#### Closing node piece
+  !>```fortran
+  !> E_IO=VTK_DAT_XML('node','CLosE')
+  !>```
+  !>
+  !>#### Opening cell piece
+  !>```fortran
+  !> E_IO=VTK_DAT_XML('cell','OPEN')
+  !>```
+  !>
+  !>#### Closing cell piece
+  !>```fortran
+  !> E_IO=VTK_DAT_XML('cell','close')
+  !>```
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
-  character(*), intent(IN)::           var_location     !< Location of saving variables: CELL or NODE centered.
-  character(*), intent(IN)::           var_block_action !< Variables block action: OPEN or CLOSE block.
-  integer(I4P), intent(IN), optional:: cf               !< Current file index (for concurrent files IO).
-  integer(I4P)::                       E_IO             !< Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
-  integer(I4P)::                       rf               !< Real file index.
+  character(*), intent(IN)::           var_location     !> Location of saving variables: CELL or NODE centered.
+  character(*), intent(IN)::           var_block_action !> Variables block action: OPEN or CLOSE block.
+  integer(I4P), intent(IN), optional:: cf               !> Current file index (for concurrent files IO).
+  integer(I4P)::                       E_IO             !> Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
+  integer(I4P)::                       rf               !> Real file index.
   !---------------------------------------------------------------------------------------------------------------------------------
 
   !---------------------------------------------------------------------------------------------------------------------------------
@@ -2761,19 +2760,19 @@ contains
 
   function VTK_VAR_XML_SCAL_1DA_R8(NC_NN,varname,var,cf) result(E_IO)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Function for saving field of scalar variable (R8P, 1D array).
+  !> Function for saving field of scalar variable (R8P, 1D array).
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
-  integer(I4P), intent(IN)::           NC_NN    !< Number of cells or nodes.
-  character(*), intent(IN)::           varname  !< Variable name.
-  real(R8P),    intent(IN)::           var(1:)  !< Variable to be saved [1:NC_NN].
-  integer(I4P), intent(IN), optional:: cf       !< Current file index (for concurrent files IO).
-  integer(I4P)::                       E_IO     !< Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
-  character(len=maxlen)::              s_buffer !< Buffer string.
-  integer(I1P), allocatable::          varp(:)  !< Packed data.
-  character(len=:), allocatable::      var64    !< Variable encoded in base64.
-  integer(I4P)::                       rf       !< Real file index.
-  integer(I4P)::                       n1       !< Counter.
+  integer(I4P), intent(IN)::           NC_NN    !> Number of cells or nodes.
+  character(*), intent(IN)::           varname  !> Variable name.
+  real(R8P),    intent(IN)::           var(1:)  !> Variable to be saved [1:NC_NN].
+  integer(I4P), intent(IN), optional:: cf       !> Current file index (for concurrent files IO).
+  integer(I4P)::                       E_IO     !> Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
+  character(len=maxlen)::              s_buffer !> Buffer string.
+  integer(I1P), allocatable::          varp(:)  !> Packed data.
+  character(len=:), allocatable::      var64    !> Variable encoded in base64.
+  integer(I4P)::                       rf       !> Real file index.
+  integer(I4P)::                       n1       !> Counter.
   !---------------------------------------------------------------------------------------------------------------------------------
 
   !---------------------------------------------------------------------------------------------------------------------------------
@@ -2811,19 +2810,19 @@ contains
 
   function VTK_VAR_XML_SCAL_3DA_R8(NC_NN,varname,var,cf) result(E_IO)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Function for saving field of scalar variable (R8P, 3D array).
+  !> Function for saving field of scalar variable (R8P, 3D array).
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
-  integer(I4P), intent(IN)::           NC_NN         !< Number of cells or nodes.
-  character(*), intent(IN)::           varname       !< Variable name.
-  real(R8P),    intent(IN)::           var(1:,1:,1:) !< Variable to be saved [1:Nx,1:Ny,1:Nz].
-  integer(I4P), intent(IN), optional:: cf            !< Current file index (for concurrent files IO).
-  integer(I4P)::                       E_IO          !< Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
-  character(len=maxlen)::              s_buffer      !< Buffer string.
-  integer(I1P), allocatable::          varp(:)       !< Packed data.
-  character(len=:), allocatable::      var64         !< Variable encoded in base64.
-  integer(I4P)::                       rf            !< Real file index.
-  integer(I4P)::                       nx,ny,nz      !< Counters.
+  integer(I4P), intent(IN)::           NC_NN         !> Number of cells or nodes.
+  character(*), intent(IN)::           varname       !> Variable name.
+  real(R8P),    intent(IN)::           var(1:,1:,1:) !> Variable to be saved [1:Nx,1:Ny,1:Nz].
+  integer(I4P), intent(IN), optional:: cf            !> Current file index (for concurrent files IO).
+  integer(I4P)::                       E_IO          !> Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
+  character(len=maxlen)::              s_buffer      !> Buffer string.
+  integer(I1P), allocatable::          varp(:)       !> Packed data.
+  character(len=:), allocatable::      var64         !> Variable encoded in base64.
+  integer(I4P)::                       rf            !> Real file index.
+  integer(I4P)::                       nx,ny,nz      !> Counters.
   !---------------------------------------------------------------------------------------------------------------------------------
 
   !---------------------------------------------------------------------------------------------------------------------------------
@@ -2862,19 +2861,19 @@ contains
 
   function VTK_VAR_XML_SCAL_1DA_R4(NC_NN,varname,var,cf) result(E_IO)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Function for saving field of scalar variable (R4P, 1D array).
+  !> Function for saving field of scalar variable (R4P, 1D array).
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
-  integer(I4P), intent(IN)::           NC_NN    !< Number of cells or nodes.
-  character(*), intent(IN)::           varname  !< Variable name.
-  real(R4P),    intent(IN)::           var(1:)  !< Variable to be saved [1:NC_NN].
-  integer(I4P), intent(IN), optional:: cf       !< Current file index (for concurrent files IO).
-  integer(I4P)::                       E_IO     !< Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
-  character(len=maxlen)::              s_buffer !< Buffer string.
-  integer(I1P), allocatable::          varp(:)  !< Packed data.
-  character(len=:), allocatable::      var64    !< Variable encoded in base64.
-  integer(I4P)::                       rf       !< Real file index.
-  integer(I4P)::                       n1       !< Counter.
+  integer(I4P), intent(IN)::           NC_NN    !> Number of cells or nodes.
+  character(*), intent(IN)::           varname  !> Variable name.
+  real(R4P),    intent(IN)::           var(1:)  !> Variable to be saved [1:NC_NN].
+  integer(I4P), intent(IN), optional:: cf       !> Current file index (for concurrent files IO).
+  integer(I4P)::                       E_IO     !> Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
+  character(len=maxlen)::              s_buffer !> Buffer string.
+  integer(I1P), allocatable::          varp(:)  !> Packed data.
+  character(len=:), allocatable::      var64    !> Variable encoded in base64.
+  integer(I4P)::                       rf       !> Real file index.
+  integer(I4P)::                       n1       !> Counter.
   !---------------------------------------------------------------------------------------------------------------------------------
 
   !---------------------------------------------------------------------------------------------------------------------------------
@@ -2912,19 +2911,19 @@ contains
 
   function VTK_VAR_XML_SCAL_3DA_R4(NC_NN,varname,var,cf) result(E_IO)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Function for saving field of scalar variable (R4P, 3D array).
+  !> Function for saving field of scalar variable (R4P, 3D array).
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
-  integer(I4P), intent(IN)::           NC_NN         !< Number of cells or nodes.
-  character(*), intent(IN)::           varname       !< Variable name.
-  real(R4P),    intent(IN)::           var(1:,1:,1:) !< Variable to be saved [1:Nx,1:Ny,1:Nz].
-  integer(I4P), intent(IN), optional:: cf            !< Current file index (for concurrent files IO).
-  integer(I4P)::                       E_IO          !< Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
-  character(len=maxlen)::              s_buffer      !< Buffer string.
-  integer(I1P), allocatable::          varp(:)       !< Packed data.
-  character(len=:), allocatable::      var64         !< Variable encoded in base64.
-  integer(I4P)::                       rf            !< Real file index.
-  integer(I4P)::                       nx,ny,nz      !< Counters.
+  integer(I4P), intent(IN)::           NC_NN         !> Number of cells or nodes.
+  character(*), intent(IN)::           varname       !> Variable name.
+  real(R4P),    intent(IN)::           var(1:,1:,1:) !> Variable to be saved [1:Nx,1:Ny,1:Nz].
+  integer(I4P), intent(IN), optional:: cf            !> Current file index (for concurrent files IO).
+  integer(I4P)::                       E_IO          !> Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
+  character(len=maxlen)::              s_buffer      !> Buffer string.
+  integer(I1P), allocatable::          varp(:)       !> Packed data.
+  character(len=:), allocatable::      var64         !> Variable encoded in base64.
+  integer(I4P)::                       rf            !> Real file index.
+  integer(I4P)::                       nx,ny,nz      !> Counters.
   !---------------------------------------------------------------------------------------------------------------------------------
 
   !---------------------------------------------------------------------------------------------------------------------------------
@@ -2963,19 +2962,19 @@ contains
 
   function VTK_VAR_XML_SCAL_1DA_I8(NC_NN,varname,var,cf) result(E_IO)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Function for saving field of scalar variable (I8P, 1D array).
+  !> Function for saving field of scalar variable (I8P, 1D array).
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
-  integer(I4P), intent(IN)::           NC_NN    !< Number of cells or nodes.
-  character(*), intent(IN)::           varname  !< Variable name.
-  integer(I8P), intent(IN)::           var(1:)  !< Variable to be saved [1:NC_NN].
-  integer(I4P), intent(IN), optional:: cf       !< Current file index (for concurrent files IO).
-  integer(I4P)::                       E_IO     !< Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
-  character(len=maxlen)::              s_buffer !< Buffer string.
-  integer(I1P), allocatable::          varp(:)  !< Packed data.
-  character(len=:), allocatable::      var64    !< Variable encoded in base64.
-  integer(I4P)::                       rf       !< Real file index.
-  integer(I4P)::                       n1       !< Counter.
+  integer(I4P), intent(IN)::           NC_NN    !> Number of cells or nodes.
+  character(*), intent(IN)::           varname  !> Variable name.
+  integer(I8P), intent(IN)::           var(1:)  !> Variable to be saved [1:NC_NN].
+  integer(I4P), intent(IN), optional:: cf       !> Current file index (for concurrent files IO).
+  integer(I4P)::                       E_IO     !> Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
+  character(len=maxlen)::              s_buffer !> Buffer string.
+  integer(I1P), allocatable::          varp(:)  !> Packed data.
+  character(len=:), allocatable::      var64    !> Variable encoded in base64.
+  integer(I4P)::                       rf       !> Real file index.
+  integer(I4P)::                       n1       !> Counter.
   !---------------------------------------------------------------------------------------------------------------------------------
 
   !---------------------------------------------------------------------------------------------------------------------------------
@@ -3013,19 +3012,19 @@ contains
 
   function VTK_VAR_XML_SCAL_3DA_I8(NC_NN,varname,var,cf) result(E_IO)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Function for saving field of scalar variable (I8P, 3D array).
+  !> Function for saving field of scalar variable (I8P, 3D array).
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
-  integer(I4P), intent(IN)::           NC_NN         !< Number of cells or nodes.
-  character(*), intent(IN)::           varname       !< Variable name.
-  integer(I8P), intent(IN)::           var(1:,1:,1:) !< Variable to be saved [1:Nx,1:Ny,1:Nz].
-  integer(I4P), intent(IN), optional:: cf            !< Current file index (for concurrent files IO).
-  integer(I4P)::                       E_IO          !< Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
-  character(len=maxlen)::              s_buffer      !< Buffer string.
-  integer(I1P), allocatable::          varp(:)       !< Packed data.
-  character(len=:), allocatable::      var64         !< Variable encoded in base64.
-  integer(I4P)::                       rf            !< Real file index.
-  integer(I4P)::                       nx,ny,nz      !< Counters.
+  integer(I4P), intent(IN)::           NC_NN         !> Number of cells or nodes.
+  character(*), intent(IN)::           varname       !> Variable name.
+  integer(I8P), intent(IN)::           var(1:,1:,1:) !> Variable to be saved [1:Nx,1:Ny,1:Nz].
+  integer(I4P), intent(IN), optional:: cf            !> Current file index (for concurrent files IO).
+  integer(I4P)::                       E_IO          !> Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
+  character(len=maxlen)::              s_buffer      !> Buffer string.
+  integer(I1P), allocatable::          varp(:)       !> Packed data.
+  character(len=:), allocatable::      var64         !> Variable encoded in base64.
+  integer(I4P)::                       rf            !> Real file index.
+  integer(I4P)::                       nx,ny,nz      !> Counters.
   !---------------------------------------------------------------------------------------------------------------------------------
 
   !---------------------------------------------------------------------------------------------------------------------------------
@@ -3064,20 +3063,20 @@ contains
 
   function VTK_VAR_XML_SCAL_1DA_I4(NC_NN,varname,var,cf) result(E_IO)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Function for saving field of scalar variable (I4P, 1D array).
+  !> Function for saving field of scalar variable (I4P, 1D array).
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
-  integer(I4P), intent(IN)::           NC_NN    !< Number of cells or nodes.
-  character(*), intent(IN)::           varname  !< Variable name.
-  integer(I4P), intent(IN)::           var(1:)  !< Variable to be saved [1:NC_NN].
-  integer(I4P), intent(IN), optional:: cf       !< Current file index (for concurrent files IO).
-  integer(I4P)::                       E_IO     !< Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
-  character(len=maxlen)::              s_buffer !< Buffer string.
-  integer(I1P), allocatable::          varp(:)  !< Packed data.
-  character(len=:), allocatable::      var64    !< Variable encoded in base64.
-  integer(I4P)::                       rf       !< Real file index.
-  integer(I4P)::                       n1       !< Counter.
-  integer(I8P)::                       Nvarp    !< Dimension of varp, packed data.
+  integer(I4P), intent(IN)::           NC_NN    !> Number of cells or nodes.
+  character(*), intent(IN)::           varname  !> Variable name.
+  integer(I4P), intent(IN)::           var(1:)  !> Variable to be saved [1:NC_NN].
+  integer(I4P), intent(IN), optional:: cf       !> Current file index (for concurrent files IO).
+  integer(I4P)::                       E_IO     !> Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
+  character(len=maxlen)::              s_buffer !> Buffer string.
+  integer(I1P), allocatable::          varp(:)  !> Packed data.
+  character(len=:), allocatable::      var64    !> Variable encoded in base64.
+  integer(I4P)::                       rf       !> Real file index.
+  integer(I4P)::                       n1       !> Counter.
+  integer(I8P)::                       Nvarp    !> Dimension of varp, packed data.
   !---------------------------------------------------------------------------------------------------------------------------------
 
   !---------------------------------------------------------------------------------------------------------------------------------
@@ -3116,20 +3115,20 @@ contains
 
   function VTK_VAR_XML_SCAL_3DA_I4(NC_NN,varname,var,cf) result(E_IO)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Function for saving field of scalar variable (I4P, 3D array).
+  !> Function for saving field of scalar variable (I4P, 3D array).
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
-  integer(I4P), intent(IN)::           NC_NN         !< Number of cells or nodes.
-  character(*), intent(IN)::           varname       !< Variable name.
-  integer(I4P), intent(IN)::           var(1:,1:,1:) !< Variable to be saved [1:Nx,1:Ny,1:Nz].
-  integer(I4P), intent(IN), optional:: cf            !< Current file index (for concurrent files IO).
-  integer(I4P)::                       E_IO          !< Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
-  character(len=maxlen)::              s_buffer      !< Buffer string.
-  integer(I1P), allocatable::          varp(:)       !< Packed data.
-  character(len=:), allocatable::      var64         !< Variable encoded in base64.
-  integer(I4P)::                       rf            !< Real file index.
-  integer(I4P)::                       nx,ny,nz      !< Counters.
-  integer(I8P)::                       Nvarp         !< Dimension of varp, packed data.
+  integer(I4P), intent(IN)::           NC_NN         !> Number of cells or nodes.
+  character(*), intent(IN)::           varname       !> Variable name.
+  integer(I4P), intent(IN)::           var(1:,1:,1:) !> Variable to be saved [1:Nx,1:Ny,1:Nz].
+  integer(I4P), intent(IN), optional:: cf            !> Current file index (for concurrent files IO).
+  integer(I4P)::                       E_IO          !> Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
+  character(len=maxlen)::              s_buffer      !> Buffer string.
+  integer(I1P), allocatable::          varp(:)       !> Packed data.
+  character(len=:), allocatable::      var64         !> Variable encoded in base64.
+  integer(I4P)::                       rf            !> Real file index.
+  integer(I4P)::                       nx,ny,nz      !> Counters.
+  integer(I8P)::                       Nvarp         !> Dimension of varp, packed data.
   !---------------------------------------------------------------------------------------------------------------------------------
 
   !---------------------------------------------------------------------------------------------------------------------------------
@@ -3170,19 +3169,19 @@ contains
 
   function VTK_VAR_XML_SCAL_1DA_I2(NC_NN,varname,var,cf) result(E_IO)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Function for saving field of scalar variable (I2P, 1D array).
+  !> Function for saving field of scalar variable (I2P, 1D array).
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
-  integer(I4P), intent(IN)::           NC_NN    !< Number of cells or nodes.
-  character(*), intent(IN)::           varname  !< Variable name.
-  integer(I2P), intent(IN)::           var(1:)  !< Variable to be saved [1:NC_NN].
-  integer(I4P), intent(IN), optional:: cf       !< Current file index (for concurrent files IO).
-  integer(I4P)::                       E_IO     !< Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
-  character(len=maxlen)::              s_buffer !< Buffer string.
-  integer(I1P), allocatable::          varp(:)  !< Packed data.
-  character(len=:), allocatable::      var64    !< Variable encoded in base64.
-  integer(I4P)::                       rf       !< Real file index.
-  integer(I4P)::                       n1       !< Counter.
+  integer(I4P), intent(IN)::           NC_NN    !> Number of cells or nodes.
+  character(*), intent(IN)::           varname  !> Variable name.
+  integer(I2P), intent(IN)::           var(1:)  !> Variable to be saved [1:NC_NN].
+  integer(I4P), intent(IN), optional:: cf       !> Current file index (for concurrent files IO).
+  integer(I4P)::                       E_IO     !> Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
+  character(len=maxlen)::              s_buffer !> Buffer string.
+  integer(I1P), allocatable::          varp(:)  !> Packed data.
+  character(len=:), allocatable::      var64    !> Variable encoded in base64.
+  integer(I4P)::                       rf       !> Real file index.
+  integer(I4P)::                       n1       !> Counter.
   !---------------------------------------------------------------------------------------------------------------------------------
 
   !---------------------------------------------------------------------------------------------------------------------------------
@@ -3220,19 +3219,19 @@ contains
 
   function VTK_VAR_XML_SCAL_3DA_I2(NC_NN,varname,var,cf) result(E_IO)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Function for saving field of scalar variable (I2P, 3D array).
+  !> Function for saving field of scalar variable (I2P, 3D array).
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
-  integer(I4P), intent(IN)::           NC_NN         !< Number of cells or nodes.
-  character(*), intent(IN)::           varname       !< Variable name.
-  integer(I2P), intent(IN)::           var(1:,1:,1:) !< Variable to be saved [1:Nx,1:Ny,1:Nz].
-  integer(I4P), intent(IN), optional:: cf            !< Current file index (for concurrent files IO).
-  integer(I4P)::                       E_IO          !< Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
-  character(len=maxlen)::              s_buffer      !< Buffer string.
-  integer(I1P), allocatable::          varp(:)       !< Packed data.
-  character(len=:), allocatable::      var64         !< Variable encoded in base64.
-  integer(I4P)::                       rf            !< Real file index.
-  integer(I4P)::                       nx,ny,nz      !< Counters.
+  integer(I4P), intent(IN)::           NC_NN         !> Number of cells or nodes.
+  character(*), intent(IN)::           varname       !> Variable name.
+  integer(I2P), intent(IN)::           var(1:,1:,1:) !> Variable to be saved [1:Nx,1:Ny,1:Nz].
+  integer(I4P), intent(IN), optional:: cf            !> Current file index (for concurrent files IO).
+  integer(I4P)::                       E_IO          !> Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
+  character(len=maxlen)::              s_buffer      !> Buffer string.
+  integer(I1P), allocatable::          varp(:)       !> Packed data.
+  character(len=:), allocatable::      var64         !> Variable encoded in base64.
+  integer(I4P)::                       rf            !> Real file index.
+  integer(I4P)::                       nx,ny,nz      !> Counters.
   !---------------------------------------------------------------------------------------------------------------------------------
 
   !---------------------------------------------------------------------------------------------------------------------------------
@@ -3271,19 +3270,19 @@ contains
 
   function VTK_VAR_XML_SCAL_1DA_I1(NC_NN,varname,var,cf) result(E_IO)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Function for saving field of scalar variable (I1P, 1D array).
+  !> Function for saving field of scalar variable (I1P, 1D array).
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
-  integer(I4P), intent(IN)::           NC_NN    !< Number of cells or nodes.
-  character(*), intent(IN)::           varname  !< Variable name.
-  integer(I1P), intent(IN)::           var(1:)  !< Variable to be saved [1:NC_NN].
-  integer(I4P), intent(IN), optional:: cf       !< Current file index (for concurrent files IO).
-  integer(I4P)::                       E_IO     !< Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
-  character(len=maxlen)::              s_buffer !< Buffer string.
-  integer(I1P), allocatable::          varp(:)  !< Packed data.
-  character(len=:), allocatable::      var64    !< Variable encoded in base64.
-  integer(I4P)::                       rf       !< Real file index.
-  integer(I4P)::                       n1       !< Counter.
+  integer(I4P), intent(IN)::           NC_NN    !> Number of cells or nodes.
+  character(*), intent(IN)::           varname  !> Variable name.
+  integer(I1P), intent(IN)::           var(1:)  !> Variable to be saved [1:NC_NN].
+  integer(I4P), intent(IN), optional:: cf       !> Current file index (for concurrent files IO).
+  integer(I4P)::                       E_IO     !> Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
+  character(len=maxlen)::              s_buffer !> Buffer string.
+  integer(I1P), allocatable::          varp(:)  !> Packed data.
+  character(len=:), allocatable::      var64    !> Variable encoded in base64.
+  integer(I4P)::                       rf       !> Real file index.
+  integer(I4P)::                       n1       !> Counter.
   !---------------------------------------------------------------------------------------------------------------------------------
 
   !---------------------------------------------------------------------------------------------------------------------------------
@@ -3320,19 +3319,19 @@ contains
 
   function VTK_VAR_XML_SCAL_3DA_I1(NC_NN,varname,var,cf) result(E_IO)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Function for saving field of scalar variable (I1P, 3D array).
+  !> Function for saving field of scalar variable (I1P, 3D array).
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
-  integer(I4P), intent(IN)::           NC_NN         !< Number of cells or nodes.
-  character(*), intent(IN)::           varname       !< Variable name.
-  integer(I1P), intent(IN)::           var(1:,1:,1:) !< Variable to be saved [1:Nx,1:ny,1:Nz].
-  integer(I4P), intent(IN), optional:: cf            !< Current file index (for concurrent files IO).
-  integer(I4P)::                       E_IO          !< Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
-  character(len=maxlen)::              s_buffer      !< Buffer string.
-  integer(I1P), allocatable::          varp(:)       !< Packed data.
-  character(len=:), allocatable::      var64         !< Variable encoded in base64.
-  integer(I4P)::                       rf            !< Real file index.
-  integer(I4P)::                       nx,ny,nz      !< Counters.
+  integer(I4P), intent(IN)::           NC_NN         !> Number of cells or nodes.
+  character(*), intent(IN)::           varname       !> Variable name.
+  integer(I1P), intent(IN)::           var(1:,1:,1:) !> Variable to be saved [1:Nx,1:ny,1:Nz].
+  integer(I4P), intent(IN), optional:: cf            !> Current file index (for concurrent files IO).
+  integer(I4P)::                       E_IO          !> Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
+  character(len=maxlen)::              s_buffer      !> Buffer string.
+  integer(I1P), allocatable::          varp(:)       !> Packed data.
+  character(len=:), allocatable::      var64         !> Variable encoded in base64.
+  integer(I4P)::                       rf            !> Real file index.
+  integer(I4P)::                       nx,ny,nz      !> Counters.
   !---------------------------------------------------------------------------------------------------------------------------------
 
   !---------------------------------------------------------------------------------------------------------------------------------
@@ -3370,22 +3369,22 @@ contains
 
   function VTK_VAR_XML_VECT_1DA_R8(NC_NN,varname,varX,varY,varZ,cf) result(E_IO)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Function for saving field of vectorial variable (R8P, 1D arrays).
+  !> Function for saving field of vectorial variable (R8P, 1D arrays).
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
-  integer(I4P), intent(IN)::           NC_NN    !< Number of cells or nodes.
-  character(*), intent(IN)::           varname  !< Variable name.
-  real(R8P),    intent(IN)::           varX(1:) !< X component [1:NC_NN].
-  real(R8P),    intent(IN)::           varY(1:) !< Y component [1:NC_NN].
-  real(R8P),    intent(IN)::           varZ(1:) !< Z component [1:NC_NN].
-  integer(I4P), intent(IN), optional:: cf       !< Current file index (for concurrent files IO).
-  integer(I4P)::                       E_IO     !< Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
-  character(len=maxlen)::              s_buffer !< Buffer string.
-  real(R8P),    allocatable::          var(:)   !< X, Y, Z component.
-  integer(I1P), allocatable::          varp(:)  !< Packed data.
-  character(len=:), allocatable::      var64    !< Variable encoded in base64.
-  integer(I4P)::                       rf       !< Real file index.
-  integer(I4P)::                       n1       !< Counter.
+  integer(I4P), intent(IN)::           NC_NN    !> Number of cells or nodes.
+  character(*), intent(IN)::           varname  !> Variable name.
+  real(R8P),    intent(IN)::           varX(1:) !> X component [1:NC_NN].
+  real(R8P),    intent(IN)::           varY(1:) !> Y component [1:NC_NN].
+  real(R8P),    intent(IN)::           varZ(1:) !> Z component [1:NC_NN].
+  integer(I4P), intent(IN), optional:: cf       !> Current file index (for concurrent files IO).
+  integer(I4P)::                       E_IO     !> Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
+  character(len=maxlen)::              s_buffer !> Buffer string.
+  real(R8P),    allocatable::          var(:)   !> X, Y, Z component.
+  integer(I1P), allocatable::          varp(:)  !> Packed data.
+  character(len=:), allocatable::      var64    !> Variable encoded in base64.
+  integer(I4P)::                       rf       !> Real file index.
+  integer(I4P)::                       n1       !> Counter.
   !---------------------------------------------------------------------------------------------------------------------------------
 
   !---------------------------------------------------------------------------------------------------------------------------------
@@ -3429,22 +3428,22 @@ contains
 
   function VTK_VAR_XML_VECT_3DA_R8(NC_NN,varname,varX,varY,varZ,cf) result(E_IO)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Function for saving field of vectorial variable (R8P, 3D arrays).
+  !> Function for saving field of vectorial variable (R8P, 3D arrays).
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
-  integer(I4P), intent(IN)::           NC_NN          !< Number of cells or nodes.
-  character(*), intent(IN)::           varname        !< Variable name.
-  real(R8P),    intent(IN)::           varX(1:,1:,1:) !< X component [1:Nx,1:Ny,1:Nz].
-  real(R8P),    intent(IN)::           varY(1:,1:,1:) !< Y component [1:Nx,1:Ny,1:Nz].
-  real(R8P),    intent(IN)::           varZ(1:,1:,1:) !< Z component [1:Nx,1:Ny,1:Nz].
-  integer(I4P), intent(IN), optional:: cf             !< Current file index (for concurrent files IO).
-  integer(I4P)::                       E_IO           !< Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
-  character(len=maxlen)::              s_buffer       !< Buffer string.
-  real(R8P),    allocatable::          var(:)         !< X, Y, Z component.
-  integer(I1P), allocatable::          varp(:)        !< Packed data.
-  character(len=:), allocatable::      var64          !< Variable encoded in base64.
-  integer(I4P)::                       rf             !< Real file index.
-  integer(I4P)::                       nx,ny,nz,n1    !< Counters.
+  integer(I4P), intent(IN)::           NC_NN          !> Number of cells or nodes.
+  character(*), intent(IN)::           varname        !> Variable name.
+  real(R8P),    intent(IN)::           varX(1:,1:,1:) !> X component [1:Nx,1:Ny,1:Nz].
+  real(R8P),    intent(IN)::           varY(1:,1:,1:) !> Y component [1:Nx,1:Ny,1:Nz].
+  real(R8P),    intent(IN)::           varZ(1:,1:,1:) !> Z component [1:Nx,1:Ny,1:Nz].
+  integer(I4P), intent(IN), optional:: cf             !> Current file index (for concurrent files IO).
+  integer(I4P)::                       E_IO           !> Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
+  character(len=maxlen)::              s_buffer       !> Buffer string.
+  real(R8P),    allocatable::          var(:)         !> X, Y, Z component.
+  integer(I1P), allocatable::          varp(:)        !> Packed data.
+  character(len=:), allocatable::      var64          !> Variable encoded in base64.
+  integer(I4P)::                       rf             !> Real file index.
+  integer(I4P)::                       nx,ny,nz,n1    !> Counters.
   !---------------------------------------------------------------------------------------------------------------------------------
 
   !---------------------------------------------------------------------------------------------------------------------------------
@@ -3491,22 +3490,22 @@ contains
 
   function VTK_VAR_XML_VECT_1DA_R4(NC_NN,varname,varX,varY,varZ,cf) result(E_IO)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Function for saving field of vectorial variable (R4P, 1D arrays).
+  !> Function for saving field of vectorial variable (R4P, 1D arrays).
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
-  integer(I4P), intent(IN)::           NC_NN    !< Number of cells or nodes.
-  character(*), intent(IN)::           varname  !< Variable name.
-  real(R4P),    intent(IN)::           varX(1:) !< X component [1:NC_NN].
-  real(R4P),    intent(IN)::           varY(1:) !< Y component [1:NC_NN].
-  real(R4P),    intent(IN)::           varZ(1:) !< Z component [1:NC_NN].
-  integer(I4P), intent(IN), optional:: cf       !< Current file index (for concurrent files IO).
-  integer(I4P)::                       E_IO     !< Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
-  character(len=maxlen)::              s_buffer !< Buffer string.
-  real(R4P),    allocatable::          var(:)   !< X, Y, Z component.
-  integer(I1P), allocatable::          varp(:)  !< Packed data.
-  character(len=:), allocatable::      var64    !< Variable encoded in base64.
-  integer(I4P)::                       rf       !< Real file index.
-  integer(I4P)::                       n1       !< Counter.
+  integer(I4P), intent(IN)::           NC_NN    !> Number of cells or nodes.
+  character(*), intent(IN)::           varname  !> Variable name.
+  real(R4P),    intent(IN)::           varX(1:) !> X component [1:NC_NN].
+  real(R4P),    intent(IN)::           varY(1:) !> Y component [1:NC_NN].
+  real(R4P),    intent(IN)::           varZ(1:) !> Z component [1:NC_NN].
+  integer(I4P), intent(IN), optional:: cf       !> Current file index (for concurrent files IO).
+  integer(I4P)::                       E_IO     !> Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
+  character(len=maxlen)::              s_buffer !> Buffer string.
+  real(R4P),    allocatable::          var(:)   !> X, Y, Z component.
+  integer(I1P), allocatable::          varp(:)  !> Packed data.
+  character(len=:), allocatable::      var64    !> Variable encoded in base64.
+  integer(I4P)::                       rf       !> Real file index.
+  integer(I4P)::                       n1       !> Counter.
   !---------------------------------------------------------------------------------------------------------------------------------
 
   !---------------------------------------------------------------------------------------------------------------------------------
@@ -3550,22 +3549,22 @@ contains
 
   function VTK_VAR_XML_VECT_3DA_R4(NC_NN,varname,varX,varY,varZ,cf) result(E_IO)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Function for saving field of vectorial variable (R4P, 3D arrays).
+  !> Function for saving field of vectorial variable (R4P, 3D arrays).
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
-  integer(I4P), intent(IN)::           NC_NN          !< Number of cells or nodes.
-  character(*), intent(IN)::           varname        !< Variable name.
-  real(R4P),    intent(IN)::           varX(1:,1:,1:) !< X component [1:Nx,1:Ny,1:Nz].
-  real(R4P),    intent(IN)::           varY(1:,1:,1:) !< Y component [1:Nx,1:Ny,1:Nz].
-  real(R4P),    intent(IN)::           varZ(1:,1:,1:) !< Z component [1:Nx,1:Ny,1:Nz].
-  integer(I4P), intent(IN), optional:: cf             !< Current file index (for concurrent files IO).
-  integer(I4P)::                       E_IO           !< Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
-  character(len=maxlen)::              s_buffer       !< Buffer string.
-  real(R4P),    allocatable::          var(:)         !< X, Y, Z component.
-  integer(I1P), allocatable::          varp(:)        !< Packed data.
-  character(len=:), allocatable::      var64          !< Variable encoded in base64.
-  integer(I4P)::                       rf             !< Real file index.
-  integer(I4P)::                       nx,ny,nz,n1    !< Counters.
+  integer(I4P), intent(IN)::           NC_NN          !> Number of cells or nodes.
+  character(*), intent(IN)::           varname        !> Variable name.
+  real(R4P),    intent(IN)::           varX(1:,1:,1:) !> X component [1:Nx,1:Ny,1:Nz].
+  real(R4P),    intent(IN)::           varY(1:,1:,1:) !> Y component [1:Nx,1:Ny,1:Nz].
+  real(R4P),    intent(IN)::           varZ(1:,1:,1:) !> Z component [1:Nx,1:Ny,1:Nz].
+  integer(I4P), intent(IN), optional:: cf             !> Current file index (for concurrent files IO).
+  integer(I4P)::                       E_IO           !> Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
+  character(len=maxlen)::              s_buffer       !> Buffer string.
+  real(R4P),    allocatable::          var(:)         !> X, Y, Z component.
+  integer(I1P), allocatable::          varp(:)        !> Packed data.
+  character(len=:), allocatable::      var64          !> Variable encoded in base64.
+  integer(I4P)::                       rf             !> Real file index.
+  integer(I4P)::                       nx,ny,nz,n1    !> Counters.
   !---------------------------------------------------------------------------------------------------------------------------------
 
   !---------------------------------------------------------------------------------------------------------------------------------
@@ -3612,22 +3611,22 @@ contains
 
   function VTK_VAR_XML_VECT_1DA_I8(NC_NN,varname,varX,varY,varZ,cf) result(E_IO)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Function for saving field of vectorial variable (I8P, 1D arrays).
+  !> Function for saving field of vectorial variable (I8P, 1D arrays).
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
-  integer(I4P), intent(IN)::           NC_NN    !< Number of cells or nodes.
-  character(*), intent(IN)::           varname  !< Variable name.
-  integer(I8P), intent(IN)::           varX(1:) !< X component [1:NC_NN].
-  integer(I8P), intent(IN)::           varY(1:) !< Y component [1:NC_NN].
-  integer(I8P), intent(IN)::           varZ(1:) !< Z component [1:NC_NN].
-  integer(I4P), intent(IN), optional:: cf       !< Current file index (for concurrent files IO).
-  integer(I4P)::                       E_IO     !< Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
-  character(len=maxlen)::              s_buffer !< Buffer string.
-  integer(I8P), allocatable::          var(:)   !< X, Y, Z component.
-  integer(I1P), allocatable::          varp(:)  !< Packed data.
-  character(len=:), allocatable::      var64    !< Variable encoded in base64.
-  integer(I4P)::                       rf       !< Real file index.
-  integer(I4P)::                       n1       !< Counter.
+  integer(I4P), intent(IN)::           NC_NN    !> Number of cells or nodes.
+  character(*), intent(IN)::           varname  !> Variable name.
+  integer(I8P), intent(IN)::           varX(1:) !> X component [1:NC_NN].
+  integer(I8P), intent(IN)::           varY(1:) !> Y component [1:NC_NN].
+  integer(I8P), intent(IN)::           varZ(1:) !> Z component [1:NC_NN].
+  integer(I4P), intent(IN), optional:: cf       !> Current file index (for concurrent files IO).
+  integer(I4P)::                       E_IO     !> Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
+  character(len=maxlen)::              s_buffer !> Buffer string.
+  integer(I8P), allocatable::          var(:)   !> X, Y, Z component.
+  integer(I1P), allocatable::          varp(:)  !> Packed data.
+  character(len=:), allocatable::      var64    !> Variable encoded in base64.
+  integer(I4P)::                       rf       !> Real file index.
+  integer(I4P)::                       n1       !> Counter.
   !---------------------------------------------------------------------------------------------------------------------------------
 
   !---------------------------------------------------------------------------------------------------------------------------------
@@ -3671,22 +3670,22 @@ contains
 
   function VTK_VAR_XML_VECT_3DA_I8(NC_NN,varname,varX,varY,varZ,cf) result(E_IO)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Function for saving field of vectorial variable (I8P, 3D arrays).
+  !> Function for saving field of vectorial variable (I8P, 3D arrays).
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
-  integer(I4P), intent(IN)::           NC_NN          !< Number of cells or nodes.
-  character(*), intent(IN)::           varname        !< Variable name.
-  integer(I8P), intent(IN)::           varX(1:,1:,1:) !< X component [1:Nx,1:Ny,1:Nz].
-  integer(I8P), intent(IN)::           varY(1:,1:,1:) !< Y component [1:Nx,1:Ny,1:Nz].
-  integer(I8P), intent(IN)::           varZ(1:,1:,1:) !< Z component [1:Nx,1:Ny,1:Nz].
-  integer(I4P), intent(IN), optional:: cf             !< Current file index (for concurrent files IO).
-  integer(I4P)::                       E_IO           !< Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
-  character(len=maxlen)::              s_buffer       !< Buffer string.
-  integer(I8P), allocatable::          var(:)         !< X, Y, Z component.
-  integer(I1P), allocatable::          varp(:)        !< Packed data.
-  character(len=:), allocatable::      var64          !< Variable encoded in base64.
-  integer(I4P)::                       rf             !< Real file index.
-  integer(I4P)::                       nx,ny,nz,n1    !< Counters.
+  integer(I4P), intent(IN)::           NC_NN          !> Number of cells or nodes.
+  character(*), intent(IN)::           varname        !> Variable name.
+  integer(I8P), intent(IN)::           varX(1:,1:,1:) !> X component [1:Nx,1:Ny,1:Nz].
+  integer(I8P), intent(IN)::           varY(1:,1:,1:) !> Y component [1:Nx,1:Ny,1:Nz].
+  integer(I8P), intent(IN)::           varZ(1:,1:,1:) !> Z component [1:Nx,1:Ny,1:Nz].
+  integer(I4P), intent(IN), optional:: cf             !> Current file index (for concurrent files IO).
+  integer(I4P)::                       E_IO           !> Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
+  character(len=maxlen)::              s_buffer       !> Buffer string.
+  integer(I8P), allocatable::          var(:)         !> X, Y, Z component.
+  integer(I1P), allocatable::          varp(:)        !> Packed data.
+  character(len=:), allocatable::      var64          !> Variable encoded in base64.
+  integer(I4P)::                       rf             !> Real file index.
+  integer(I4P)::                       nx,ny,nz,n1    !> Counters.
   !---------------------------------------------------------------------------------------------------------------------------------
 
   !---------------------------------------------------------------------------------------------------------------------------------
@@ -3733,23 +3732,23 @@ contains
 
   function VTK_VAR_XML_VECT_1DA_I4(NC_NN,varname,varX,varY,varZ,cf) result(E_IO)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Function for saving field of vectorial variable (I4P, 1D arrays).
+  !> Function for saving field of vectorial variable (I4P, 1D arrays).
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
-  integer(I4P), intent(IN)::           NC_NN    !< Number of cells or nodes.
-  character(*), intent(IN)::           varname  !< Variable name.
-  integer(I4P), intent(IN)::           varX(1:) !< X component [1:NC_NN].
-  integer(I4P), intent(IN)::           varY(1:) !< Y component [1:NC_NN].
-  integer(I4P), intent(IN)::           varZ(1:) !< Z component [1:NC_NN].
-  integer(I4P), intent(IN), optional:: cf       !< Current file index (for concurrent files IO).
-  integer(I4P)::                       E_IO     !< Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
-  character(len=maxlen)::              s_buffer !< Buffer string.
-  integer(I4P), allocatable::          var(:)   !< X, Y, Z component.
-  integer(I1P), allocatable::          varp(:)  !< Packed data.
-  character(len=:), allocatable::      var64    !< Variable encoded in base64.
-  integer(I4P)::                       rf       !< Real file index.
-  integer(I4P)::                       n1       !< Counter.
-  integer(I8P)::                       Nvarp    !< Dimension of varp, packed data.
+  integer(I4P), intent(IN)::           NC_NN    !> Number of cells or nodes.
+  character(*), intent(IN)::           varname  !> Variable name.
+  integer(I4P), intent(IN)::           varX(1:) !> X component [1:NC_NN].
+  integer(I4P), intent(IN)::           varY(1:) !> Y component [1:NC_NN].
+  integer(I4P), intent(IN)::           varZ(1:) !> Z component [1:NC_NN].
+  integer(I4P), intent(IN), optional:: cf       !> Current file index (for concurrent files IO).
+  integer(I4P)::                       E_IO     !> Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
+  character(len=maxlen)::              s_buffer !> Buffer string.
+  integer(I4P), allocatable::          var(:)   !> X, Y, Z component.
+  integer(I1P), allocatable::          varp(:)  !> Packed data.
+  character(len=:), allocatable::      var64    !> Variable encoded in base64.
+  integer(I4P)::                       rf       !> Real file index.
+  integer(I4P)::                       n1       !> Counter.
+  integer(I8P)::                       Nvarp    !> Dimension of varp, packed data.
   !---------------------------------------------------------------------------------------------------------------------------------
 
   !---------------------------------------------------------------------------------------------------------------------------------
@@ -3795,23 +3794,23 @@ contains
 
   function VTK_VAR_XML_VECT_3DA_I4(NC_NN,varname,varX,varY,varZ,cf) result(E_IO)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Function for saving field of vectorial variable (I4P, 3D arrays).
+  !> Function for saving field of vectorial variable (I4P, 3D arrays).
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
-  integer(I4P), intent(IN)::           NC_NN          !< Number of cells or nodes.
-  character(*), intent(IN)::           varname        !< Variable name.
-  integer(I4P), intent(IN)::           varX(1:,1:,1:) !< X component [1:Nx,1:Ny,1:Nz].
-  integer(I4P), intent(IN)::           varY(1:,1:,1:) !< Y component [1:Nx,1:Ny,1:Nz].
-  integer(I4P), intent(IN)::           varZ(1:,1:,1:) !< Z component [1:Nx,1:Ny,1:Nz].
-  integer(I4P), intent(IN), optional:: cf             !< Current file index (for concurrent files IO).
-  integer(I4P)::                       E_IO           !< Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
-  character(len=maxlen)::              s_buffer       !< Buffer string.
-  integer(I4P), allocatable::          var(:)         !< X, Y, Z component.
-  integer(I1P), allocatable::          varp(:)        !< Packed data.
-  character(len=:), allocatable::      var64          !< Variable encoded in base64.
-  integer(I4P)::                       rf             !< Real file index.
-  integer(I4P)::                       nx,ny,nz,n1    !< Counters.
-  integer(I8P)::                       Nvarp          !< Dimension of varp, packed data.
+  integer(I4P), intent(IN)::           NC_NN          !> Number of cells or nodes.
+  character(*), intent(IN)::           varname        !> Variable name.
+  integer(I4P), intent(IN)::           varX(1:,1:,1:) !> X component [1:Nx,1:Ny,1:Nz].
+  integer(I4P), intent(IN)::           varY(1:,1:,1:) !> Y component [1:Nx,1:Ny,1:Nz].
+  integer(I4P), intent(IN)::           varZ(1:,1:,1:) !> Z component [1:Nx,1:Ny,1:Nz].
+  integer(I4P), intent(IN), optional:: cf             !> Current file index (for concurrent files IO).
+  integer(I4P)::                       E_IO           !> Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
+  character(len=maxlen)::              s_buffer       !> Buffer string.
+  integer(I4P), allocatable::          var(:)         !> X, Y, Z component.
+  integer(I1P), allocatable::          varp(:)        !> Packed data.
+  character(len=:), allocatable::      var64          !> Variable encoded in base64.
+  integer(I4P)::                       rf             !> Real file index.
+  integer(I4P)::                       nx,ny,nz,n1    !> Counters.
+  integer(I8P)::                       Nvarp          !> Dimension of varp, packed data.
   !---------------------------------------------------------------------------------------------------------------------------------
 
   !---------------------------------------------------------------------------------------------------------------------------------
@@ -3860,22 +3859,22 @@ contains
 
   function VTK_VAR_XML_VECT_1DA_I2(NC_NN,varname,varX,varY,varZ,cf) result(E_IO)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Function for saving field of vectorial variable (I2P, 1D arrays).
+  !> Function for saving field of vectorial variable (I2P, 1D arrays).
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
-  integer(I4P), intent(IN)::           NC_NN    !< Number of cells or nodes.
-  character(*), intent(IN)::           varname  !< Variable name.
-  integer(I2P), intent(IN)::           varX(1:) !< X component [1:NC_NN].
-  integer(I2P), intent(IN)::           varY(1:) !< Y component [1:NC_NN].
-  integer(I2P), intent(IN)::           varZ(1:) !< Z component [1:NC_NN].
-  integer(I4P), intent(IN), optional:: cf       !< Current file index (for concurrent files IO).
-  integer(I4P)::                       E_IO     !< Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
-  character(len=maxlen)::              s_buffer !< Buffer string.
-  integer(I2P), allocatable::          var(:)   !< X, Y, Z component.
-  integer(I1P), allocatable::          varp(:)  !< Packed data.
-  character(len=:), allocatable::      var64    !< Variable encoded in base64.
-  integer(I4P)::                       rf       !< Real file index.
-  integer(I4P)::                       n1       !< Counter.
+  integer(I4P), intent(IN)::           NC_NN    !> Number of cells or nodes.
+  character(*), intent(IN)::           varname  !> Variable name.
+  integer(I2P), intent(IN)::           varX(1:) !> X component [1:NC_NN].
+  integer(I2P), intent(IN)::           varY(1:) !> Y component [1:NC_NN].
+  integer(I2P), intent(IN)::           varZ(1:) !> Z component [1:NC_NN].
+  integer(I4P), intent(IN), optional:: cf       !> Current file index (for concurrent files IO).
+  integer(I4P)::                       E_IO     !> Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
+  character(len=maxlen)::              s_buffer !> Buffer string.
+  integer(I2P), allocatable::          var(:)   !> X, Y, Z component.
+  integer(I1P), allocatable::          varp(:)  !> Packed data.
+  character(len=:), allocatable::      var64    !> Variable encoded in base64.
+  integer(I4P)::                       rf       !> Real file index.
+  integer(I4P)::                       n1       !> Counter.
   !---------------------------------------------------------------------------------------------------------------------------------
 
   !---------------------------------------------------------------------------------------------------------------------------------
@@ -3919,22 +3918,22 @@ contains
 
   function VTK_VAR_XML_VECT_3DA_I2(NC_NN,varname,varX,varY,varZ,cf) result(E_IO)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Function for saving field of vectorial variable (I2P, 3D arrays).
+  !> Function for saving field of vectorial variable (I2P, 3D arrays).
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
-  integer(I4P), intent(IN)::           NC_NN          !< Number of cells or nodes.
-  character(*), intent(IN)::           varname        !< Variable name.
-  integer(I2P), intent(IN)::           varX(1:,1:,1:) !< X component [1:Nx,1:Ny,1:Nz].
-  integer(I2P), intent(IN)::           varY(1:,1:,1:) !< Y component [1:Nx,1:Ny,1:Nz].
-  integer(I2P), intent(IN)::           varZ(1:,1:,1:) !< Z component [1:Nx,1:Ny,1:Nz].
-  integer(I4P), intent(IN), optional:: cf             !< Current file index (for concurrent files IO).
-  integer(I4P)::                       E_IO           !< Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
-  character(len=maxlen)::              s_buffer       !< Buffer string.
-  integer(I2P), allocatable::          var(:)         !< X, Y, Z component.
-  integer(I1P), allocatable::          varp(:)        !< Packed data.
-  character(len=:), allocatable::      var64          !< Variable encoded in base64.
-  integer(I4P)::                       rf             !< Real file index.
-  integer(I4P)::                       nx,ny,nz,n1    !< Counters.
+  integer(I4P), intent(IN)::           NC_NN          !> Number of cells or nodes.
+  character(*), intent(IN)::           varname        !> Variable name.
+  integer(I2P), intent(IN)::           varX(1:,1:,1:) !> X component [1:Nx,1:Ny,1:Nz].
+  integer(I2P), intent(IN)::           varY(1:,1:,1:) !> Y component [1:Nx,1:Ny,1:Nz].
+  integer(I2P), intent(IN)::           varZ(1:,1:,1:) !> Z component [1:Nx,1:Ny,1:Nz].
+  integer(I4P), intent(IN), optional:: cf             !> Current file index (for concurrent files IO).
+  integer(I4P)::                       E_IO           !> Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
+  character(len=maxlen)::              s_buffer       !> Buffer string.
+  integer(I2P), allocatable::          var(:)         !> X, Y, Z component.
+  integer(I1P), allocatable::          varp(:)        !> Packed data.
+  character(len=:), allocatable::      var64          !> Variable encoded in base64.
+  integer(I4P)::                       rf             !> Real file index.
+  integer(I4P)::                       nx,ny,nz,n1    !> Counters.
   !---------------------------------------------------------------------------------------------------------------------------------
 
   !---------------------------------------------------------------------------------------------------------------------------------
@@ -3981,22 +3980,22 @@ contains
 
   function VTK_VAR_XML_VECT_1DA_I1(NC_NN,varname,varX,varY,varZ,cf) result(E_IO)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Function for saving field of vectorial variable (I1P, 1D arrays).
+  !> Function for saving field of vectorial variable (I1P, 1D arrays).
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
-  integer(I4P), intent(IN)::           NC_NN    !< Number of cells or nodes.
-  character(*), intent(IN)::           varname  !< Variable name.
-  integer(I1P), intent(IN)::           varX(1:) !< X component [1:NC_NN].
-  integer(I1P), intent(IN)::           varY(1:) !< Y component [1:NC_NN].
-  integer(I1P), intent(IN)::           varZ(1:) !< Z component [1:NC_NN].
-  integer(I4P), intent(IN), optional:: cf       !< Current file index (for concurrent files IO).
-  integer(I4P)::                       E_IO     !< Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
-  character(len=maxlen)::              s_buffer !< Buffer string.
-  integer(I1P), allocatable::          var(:)   !< X, Y, Z component.
-  integer(I1P), allocatable::          varp(:)  !< Packed data.
-  character(len=:), allocatable::      var64    !< Variable encoded in base64.
-  integer(I4P)::                       rf       !< Real file index.
-  integer(I4P)::                       n1       !< Counter.
+  integer(I4P), intent(IN)::           NC_NN    !> Number of cells or nodes.
+  character(*), intent(IN)::           varname  !> Variable name.
+  integer(I1P), intent(IN)::           varX(1:) !> X component [1:NC_NN].
+  integer(I1P), intent(IN)::           varY(1:) !> Y component [1:NC_NN].
+  integer(I1P), intent(IN)::           varZ(1:) !> Z component [1:NC_NN].
+  integer(I4P), intent(IN), optional:: cf       !> Current file index (for concurrent files IO).
+  integer(I4P)::                       E_IO     !> Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
+  character(len=maxlen)::              s_buffer !> Buffer string.
+  integer(I1P), allocatable::          var(:)   !> X, Y, Z component.
+  integer(I1P), allocatable::          varp(:)  !> Packed data.
+  character(len=:), allocatable::      var64    !> Variable encoded in base64.
+  integer(I4P)::                       rf       !> Real file index.
+  integer(I4P)::                       n1       !> Counter.
   !---------------------------------------------------------------------------------------------------------------------------------
 
   !---------------------------------------------------------------------------------------------------------------------------------
@@ -4040,22 +4039,22 @@ contains
 
   function VTK_VAR_XML_VECT_3DA_I1(NC_NN,varname,varX,varY,varZ,cf) result(E_IO)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Function for saving field of vectorial variable (I1P, 3D arrays).
+  !> Function for saving field of vectorial variable (I1P, 3D arrays).
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
-  integer(I4P), intent(IN)::           NC_NN          !< Number of cells or nodes.
-  character(*), intent(IN)::           varname        !< Variable name.
-  integer(I1P), intent(IN)::           varX(1:,1:,1:) !< X component [1:Nx,1:Ny,1:Nz].
-  integer(I1P), intent(IN)::           varY(1:,1:,1:) !< Y component [1:Nx,1:Ny,1:Nz].
-  integer(I1P), intent(IN)::           varZ(1:,1:,1:) !< Z component [1:Nx,1:Ny,1:Nz].
-  integer(I4P), intent(IN), optional:: cf             !< Current file index (for concurrent files IO).
-  integer(I4P)::                       E_IO           !< Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
-  character(len=maxlen)::              s_buffer       !< Buffer string.
-  integer(I1P), allocatable::          var(:)         !< X, Y, Z component.
-  integer(I1P), allocatable::          varp(:)        !< Packed data.
-  character(len=:), allocatable::      var64          !< Variable encoded in base64.
-  integer(I4P)::                       rf             !< Real file index.
-  integer(I4P)::                       nx,ny,nz,n1    !< Counters.
+  integer(I4P), intent(IN)::           NC_NN          !> Number of cells or nodes.
+  character(*), intent(IN)::           varname        !> Variable name.
+  integer(I1P), intent(IN)::           varX(1:,1:,1:) !> X component [1:Nx,1:Ny,1:Nz].
+  integer(I1P), intent(IN)::           varY(1:,1:,1:) !> Y component [1:Nx,1:Ny,1:Nz].
+  integer(I1P), intent(IN)::           varZ(1:,1:,1:) !> Z component [1:Nx,1:Ny,1:Nz].
+  integer(I4P), intent(IN), optional:: cf             !> Current file index (for concurrent files IO).
+  integer(I4P)::                       E_IO           !> Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
+  character(len=maxlen)::              s_buffer       !> Buffer string.
+  integer(I1P), allocatable::          var(:)         !> X, Y, Z component.
+  integer(I1P), allocatable::          varp(:)        !> Packed data.
+  character(len=:), allocatable::      var64          !> Variable encoded in base64.
+  integer(I4P)::                       rf             !> Real file index.
+  integer(I4P)::                       nx,ny,nz,n1    !> Counters.
   !---------------------------------------------------------------------------------------------------------------------------------
 
   !---------------------------------------------------------------------------------------------------------------------------------
@@ -4102,20 +4101,20 @@ contains
 
   function VTK_VAR_XML_LIST_1DA_R8(NC_NN,N_COL,varname,var,cf) result(E_IO)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Function for saving field of list variable (R8P, 1D array).
+  !> Function for saving field of list variable (R8P, 1D array).
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
-  integer(I4P), intent(IN)::           NC_NN      !< Number of cells or nodes.
-  integer(I4P), intent(IN)::           N_COL      !< Number of columns.
-  character(*), intent(IN)::           varname    !< Variable name.
-  real(R8P),    intent(IN)::           var(1:,1:) !< Components [1:N_COL,1:NC_NN].
-  integer(I4P), intent(IN), optional:: cf         !< Current file index (for concurrent files IO).
-  integer(I4P)::                       E_IO       !< Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
-  character(len=maxlen)::              s_buffer   !< Buffer string.
-  integer(I1P), allocatable::          varp(:)    !< Packed data.
-  character(len=:), allocatable::      var64      !< Variable encoded in base64.
-  integer(I4P)::                       rf         !< Real file index.
-  integer(I4P)::                       n1,n2      !< Counters.
+  integer(I4P), intent(IN)::           NC_NN      !> Number of cells or nodes.
+  integer(I4P), intent(IN)::           N_COL      !> Number of columns.
+  character(*), intent(IN)::           varname    !> Variable name.
+  real(R8P),    intent(IN)::           var(1:,1:) !> Components [1:N_COL,1:NC_NN].
+  integer(I4P), intent(IN), optional:: cf         !> Current file index (for concurrent files IO).
+  integer(I4P)::                       E_IO       !> Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
+  character(len=maxlen)::              s_buffer   !> Buffer string.
+  integer(I1P), allocatable::          varp(:)    !> Packed data.
+  character(len=:), allocatable::      var64      !> Variable encoded in base64.
+  integer(I4P)::                       rf         !> Real file index.
+  integer(I4P)::                       n1,n2      !> Counters.
   !---------------------------------------------------------------------------------------------------------------------------------
 
   !---------------------------------------------------------------------------------------------------------------------------------
@@ -4156,20 +4155,20 @@ contains
 
   function VTK_VAR_XML_LIST_3DA_R8(NC_NN,N_COL,varname,var,cf) result(E_IO)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Function for saving field of list variable (R8P, 3D array).
+  !> Function for saving field of list variable (R8P, 3D array).
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
-  integer(I4P), intent(IN)::           NC_NN            !< Number of cells or nodes.
-  integer(I4P), intent(IN)::           N_COL            !< Number of columns.
-  character(*), intent(IN)::           varname          !< Variable name.
-  real(R8P),    intent(IN)::           var(1:,1:,1:,1:) !< Components [1:N_COL,1:Nx,1:Ny,1:Nz].
-  integer(I4P), intent(IN), optional:: cf               !< Current file index (for concurrent files IO).
-  integer(I4P)::                       E_IO             !< Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
-  character(len=maxlen)::              s_buffer         !< Buffer string.
-  integer(I1P), allocatable::          varp(:)          !< Packed data.
-  character(len=:), allocatable::      var64            !< Variable encoded in base64.
-  integer(I4P)::                       rf               !< Real file index.
-  integer(I4P)::                       nx,ny,nz,n1      !< Counters.
+  integer(I4P), intent(IN)::           NC_NN            !> Number of cells or nodes.
+  integer(I4P), intent(IN)::           N_COL            !> Number of columns.
+  character(*), intent(IN)::           varname          !> Variable name.
+  real(R8P),    intent(IN)::           var(1:,1:,1:,1:) !> Components [1:N_COL,1:Nx,1:Ny,1:Nz].
+  integer(I4P), intent(IN), optional:: cf               !> Current file index (for concurrent files IO).
+  integer(I4P)::                       E_IO             !> Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
+  character(len=maxlen)::              s_buffer         !> Buffer string.
+  integer(I1P), allocatable::          varp(:)          !> Packed data.
+  character(len=:), allocatable::      var64            !> Variable encoded in base64.
+  integer(I4P)::                       rf               !> Real file index.
+  integer(I4P)::                       nx,ny,nz,n1      !> Counters.
   !---------------------------------------------------------------------------------------------------------------------------------
 
   !---------------------------------------------------------------------------------------------------------------------------------
@@ -4210,20 +4209,20 @@ contains
 
   function VTK_VAR_XML_LIST_1DA_R4(NC_NN,N_COL,varname,var,cf) result(E_IO)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Function for saving field of list variable (R4P, 1D array).
+  !> Function for saving field of list variable (R4P, 1D array).
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
-  integer(I4P), intent(IN)::           NC_NN      !< Number of cells or nodes.
-  integer(I4P), intent(IN)::           N_COL      !< Number of columns.
-  character(*), intent(IN)::           varname    !< Variable name.
-  real(R4P),    intent(IN)::           var(1:,1:) !< Components [1:N_COL,1:NC_NN].
-  integer(I4P), intent(IN), optional:: cf         !< Current file index (for concurrent files IO).
-  integer(I4P)::                       E_IO       !< Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
-  character(len=maxlen)::              s_buffer   !< Buffer string.
-  integer(I1P), allocatable::          varp(:)    !< Packed data.
-  character(len=:), allocatable::      var64      !< Variable encoded in base64.
-  integer(I4P)::                       rf         !< Real file index.
-  integer(I4P)::                       n1,n2      !< Counters.
+  integer(I4P), intent(IN)::           NC_NN      !> Number of cells or nodes.
+  integer(I4P), intent(IN)::           N_COL      !> Number of columns.
+  character(*), intent(IN)::           varname    !> Variable name.
+  real(R4P),    intent(IN)::           var(1:,1:) !> Components [1:N_COL,1:NC_NN].
+  integer(I4P), intent(IN), optional:: cf         !> Current file index (for concurrent files IO).
+  integer(I4P)::                       E_IO       !> Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
+  character(len=maxlen)::              s_buffer   !> Buffer string.
+  integer(I1P), allocatable::          varp(:)    !> Packed data.
+  character(len=:), allocatable::      var64      !> Variable encoded in base64.
+  integer(I4P)::                       rf         !> Real file index.
+  integer(I4P)::                       n1,n2      !> Counters.
   !---------------------------------------------------------------------------------------------------------------------------------
 
   !---------------------------------------------------------------------------------------------------------------------------------
@@ -4264,20 +4263,20 @@ contains
 
   function VTK_VAR_XML_LIST_3DA_R4(NC_NN,N_COL,varname,var,cf) result(E_IO)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Function for saving field of list variable (R4P, 3D array).
+  !> Function for saving field of list variable (R4P, 3D array).
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
-  integer(I4P), intent(IN)::           NC_NN            !< Number of cells or nodes.
-  integer(I4P), intent(IN)::           N_COL            !< Number of columns.
-  character(*), intent(IN)::           varname          !< Variable name.
-  real(R4P),    intent(IN)::           var(1:,1:,1:,1:) !< Components [1:N_COL,1:Nx,1:Ny,1:Nz].
-  integer(I4P), intent(IN), optional:: cf               !< Current file index (for concurrent files IO).
-  integer(I4P)::                       E_IO             !< Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
-  character(len=maxlen)::              s_buffer         !< Buffer string.
-  integer(I1P), allocatable::          varp(:)          !< Packed data.
-  character(len=:), allocatable::      var64            !< Variable encoded in base64.
-  integer(I4P)::                       rf               !< Real file index.
-  integer(I4P)::                       nx,ny,nz,n1      !< Counters.
+  integer(I4P), intent(IN)::           NC_NN            !> Number of cells or nodes.
+  integer(I4P), intent(IN)::           N_COL            !> Number of columns.
+  character(*), intent(IN)::           varname          !> Variable name.
+  real(R4P),    intent(IN)::           var(1:,1:,1:,1:) !> Components [1:N_COL,1:Nx,1:Ny,1:Nz].
+  integer(I4P), intent(IN), optional:: cf               !> Current file index (for concurrent files IO).
+  integer(I4P)::                       E_IO             !> Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
+  character(len=maxlen)::              s_buffer         !> Buffer string.
+  integer(I1P), allocatable::          varp(:)          !> Packed data.
+  character(len=:), allocatable::      var64            !> Variable encoded in base64.
+  integer(I4P)::                       rf               !> Real file index.
+  integer(I4P)::                       nx,ny,nz,n1      !> Counters.
   !---------------------------------------------------------------------------------------------------------------------------------
 
   !---------------------------------------------------------------------------------------------------------------------------------
@@ -4318,20 +4317,20 @@ contains
 
   function VTK_VAR_XML_LIST_1DA_I8(NC_NN,N_COL,varname,var,cf) result(E_IO)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Function for saving field of list variable (I8P, 1D array).
+  !> Function for saving field of list variable (I8P, 1D array).
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
-  integer(I4P), intent(IN)::           NC_NN      !< Number of cells or nodes.
-  integer(I4P), intent(IN)::           N_COL      !< Number of columns.
-  character(*), intent(IN)::           varname    !< Variable name.
-  integer(I8P), intent(IN)::           var(1:,1:) !< Components [1:N_COL,1:NC_NN].
-  integer(I4P), intent(IN), optional:: cf         !< Current file index (for concurrent files IO).
-  integer(I4P)::                       E_IO       !< Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
-  character(len=maxlen)::              s_buffer   !< Buffer string.
-  integer(I1P), allocatable::          varp(:)    !< Packed data.
-  character(len=:), allocatable::      var64      !< Variable encoded in base64.
-  integer(I4P)::                       rf         !< Real file index.
-  integer(I4P)::                       n1,n2      !< Counters.
+  integer(I4P), intent(IN)::           NC_NN      !> Number of cells or nodes.
+  integer(I4P), intent(IN)::           N_COL      !> Number of columns.
+  character(*), intent(IN)::           varname    !> Variable name.
+  integer(I8P), intent(IN)::           var(1:,1:) !> Components [1:N_COL,1:NC_NN].
+  integer(I4P), intent(IN), optional:: cf         !> Current file index (for concurrent files IO).
+  integer(I4P)::                       E_IO       !> Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
+  character(len=maxlen)::              s_buffer   !> Buffer string.
+  integer(I1P), allocatable::          varp(:)    !> Packed data.
+  character(len=:), allocatable::      var64      !> Variable encoded in base64.
+  integer(I4P)::                       rf         !> Real file index.
+  integer(I4P)::                       n1,n2      !> Counters.
   !---------------------------------------------------------------------------------------------------------------------------------
 
   !---------------------------------------------------------------------------------------------------------------------------------
@@ -4372,20 +4371,20 @@ contains
 
   function VTK_VAR_XML_LIST_3DA_I8(NC_NN,N_COL,varname,var,cf) result(E_IO)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Function for saving field of list variable (I8P, 3D array).
+  !> Function for saving field of list variable (I8P, 3D array).
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
-  integer(I4P), intent(IN)::           NC_NN            !< Number of cells or nodes.
-  integer(I4P), intent(IN)::           N_COL            !< Number of columns.
-  character(*), intent(IN)::           varname          !< Variable name.
-  integer(I8P), intent(IN)::           var(1:,1:,1:,1:) !< Components [1:N_COL,1:Nx,1:Ny,1:Nz].
-  integer(I4P), intent(IN), optional:: cf               !< Current file index (for concurrent files IO).
-  integer(I4P)::                       E_IO             !< Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
-  character(len=maxlen)::              s_buffer         !< Buffer string.
-  integer(I1P), allocatable::          varp(:)          !< Packed data.
-  character(len=:), allocatable::      var64            !< Variable encoded in base64.
-  integer(I4P)::                       rf               !< Real file index.
-  integer(I4P)::                       nx,ny,nz,n1      !< Counters.
+  integer(I4P), intent(IN)::           NC_NN            !> Number of cells or nodes.
+  integer(I4P), intent(IN)::           N_COL            !> Number of columns.
+  character(*), intent(IN)::           varname          !> Variable name.
+  integer(I8P), intent(IN)::           var(1:,1:,1:,1:) !> Components [1:N_COL,1:Nx,1:Ny,1:Nz].
+  integer(I4P), intent(IN), optional:: cf               !> Current file index (for concurrent files IO).
+  integer(I4P)::                       E_IO             !> Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
+  character(len=maxlen)::              s_buffer         !> Buffer string.
+  integer(I1P), allocatable::          varp(:)          !> Packed data.
+  character(len=:), allocatable::      var64            !> Variable encoded in base64.
+  integer(I4P)::                       rf               !> Real file index.
+  integer(I4P)::                       nx,ny,nz,n1      !> Counters.
   !---------------------------------------------------------------------------------------------------------------------------------
 
   !---------------------------------------------------------------------------------------------------------------------------------
@@ -4426,21 +4425,21 @@ contains
 
   function VTK_VAR_XML_LIST_1DA_I4(NC_NN,N_COL,varname,var,cf) result(E_IO)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Function for saving field of list variable (I4P, 1D array).
+  !> Function for saving field of list variable (I4P, 1D array).
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
-  integer(I4P), intent(IN)::           NC_NN      !< Number of cells or nodes.
-  integer(I4P), intent(IN)::           N_COL      !< Number of columns.
-  character(*), intent(IN)::           varname    !< Variable name.
-  integer(I4P), intent(IN)::           var(1:,1:) !< Components [1:N_COL,1:NC_NN].
-  integer(I4P), intent(IN), optional:: cf         !< Current file index (for concurrent files IO).
-  integer(I4P)::                       E_IO       !< Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
-  character(len=maxlen)::              s_buffer   !< Buffer string.
-  integer(I1P), allocatable::          varp(:)    !< Packed data.
-  character(len=:), allocatable::      var64      !< Variable encoded in base64.
-  integer(I4P)::                       rf         !< Real file index.
-  integer(I4P)::                       n1,n2      !< Counters.
-  integer(I8P)::                       Nvarp      !< Dimension of varp, packed data.
+  integer(I4P), intent(IN)::           NC_NN      !> Number of cells or nodes.
+  integer(I4P), intent(IN)::           N_COL      !> Number of columns.
+  character(*), intent(IN)::           varname    !> Variable name.
+  integer(I4P), intent(IN)::           var(1:,1:) !> Components [1:N_COL,1:NC_NN].
+  integer(I4P), intent(IN), optional:: cf         !> Current file index (for concurrent files IO).
+  integer(I4P)::                       E_IO       !> Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
+  character(len=maxlen)::              s_buffer   !> Buffer string.
+  integer(I1P), allocatable::          varp(:)    !> Packed data.
+  character(len=:), allocatable::      var64      !> Variable encoded in base64.
+  integer(I4P)::                       rf         !> Real file index.
+  integer(I4P)::                       n1,n2      !> Counters.
+  integer(I8P)::                       Nvarp      !> Dimension of varp, packed data.
   !---------------------------------------------------------------------------------------------------------------------------------
 
   !---------------------------------------------------------------------------------------------------------------------------------
@@ -4483,21 +4482,21 @@ contains
 
   function VTK_VAR_XML_LIST_3DA_I4(NC_NN,N_COL,varname,var,cf) result(E_IO)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Function for saving field of list variable (I4P, 3D array).
+  !> Function for saving field of list variable (I4P, 3D array).
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
-  integer(I4P), intent(IN)::           NC_NN            !< Number of cells or nodes.
-  integer(I4P), intent(IN)::           N_COL            !< Number of columns.
-  character(*), intent(IN)::           varname          !< Variable name.
-  integer(I4P), intent(IN)::           var(1:,1:,1:,1:) !< Components [1:N_COL,1:Nx,1:Ny,1:Nz].
-  integer(I4P), intent(IN), optional:: cf               !< Current file index (for concurrent files IO).
-  integer(I4P)::                       E_IO             !< Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
-  character(len=maxlen)::              s_buffer         !< Buffer string.
-  integer(I1P), allocatable::          varp(:)          !< Packed data.
-  character(len=:), allocatable::      var64            !< Variable encoded in base64.
-  integer(I4P)::                       rf               !< Real file index.
-  integer(I4P)::                       nx,ny,nz,n1      !< Counters.
-  integer(I8P)::                       Nvarp            !< Dimension of varp, packed data.
+  integer(I4P), intent(IN)::           NC_NN            !> Number of cells or nodes.
+  integer(I4P), intent(IN)::           N_COL            !> Number of columns.
+  character(*), intent(IN)::           varname          !> Variable name.
+  integer(I4P), intent(IN)::           var(1:,1:,1:,1:) !> Components [1:N_COL,1:Nx,1:Ny,1:Nz].
+  integer(I4P), intent(IN), optional:: cf               !> Current file index (for concurrent files IO).
+  integer(I4P)::                       E_IO             !> Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
+  character(len=maxlen)::              s_buffer         !> Buffer string.
+  integer(I1P), allocatable::          varp(:)          !> Packed data.
+  character(len=:), allocatable::      var64            !> Variable encoded in base64.
+  integer(I4P)::                       rf               !> Real file index.
+  integer(I4P)::                       nx,ny,nz,n1      !> Counters.
+  integer(I8P)::                       Nvarp            !> Dimension of varp, packed data.
   !---------------------------------------------------------------------------------------------------------------------------------
 
   !---------------------------------------------------------------------------------------------------------------------------------
@@ -4540,20 +4539,20 @@ contains
 
   function VTK_VAR_XML_LIST_1DA_I2(NC_NN,N_COL,varname,var,cf) result(E_IO)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Function for saving field of list variable (I2P, 1D array).
+  !> Function for saving field of list variable (I2P, 1D array).
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
-  integer(I4P), intent(IN)::           NC_NN      !< Number of cells or nodes.
-  integer(I4P), intent(IN)::           N_COL      !< Number of columns.
-  character(*), intent(IN)::           varname    !< Variable name.
-  integer(I2P), intent(IN)::           var(1:,1:) !< Components [1:N_COL,1:NC_NN].
-  integer(I4P), intent(IN), optional:: cf         !< Current file index (for concurrent files IO).
-  integer(I4P)::                       E_IO       !< Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
-  character(len=maxlen)::              s_buffer   !< Buffer string.
-  integer(I1P), allocatable::          varp(:)    !< Packed data.
-  character(len=:), allocatable::      var64      !< Variable encoded in base64.
-  integer(I4P)::                       rf         !< Real file index.
-  integer(I4P)::                       n1,n2      !< Counters.
+  integer(I4P), intent(IN)::           NC_NN      !> Number of cells or nodes.
+  integer(I4P), intent(IN)::           N_COL      !> Number of columns.
+  character(*), intent(IN)::           varname    !> Variable name.
+  integer(I2P), intent(IN)::           var(1:,1:) !> Components [1:N_COL,1:NC_NN].
+  integer(I4P), intent(IN), optional:: cf         !> Current file index (for concurrent files IO).
+  integer(I4P)::                       E_IO       !> Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
+  character(len=maxlen)::              s_buffer   !> Buffer string.
+  integer(I1P), allocatable::          varp(:)    !> Packed data.
+  character(len=:), allocatable::      var64      !> Variable encoded in base64.
+  integer(I4P)::                       rf         !> Real file index.
+  integer(I4P)::                       n1,n2      !> Counters.
   !---------------------------------------------------------------------------------------------------------------------------------
 
   !---------------------------------------------------------------------------------------------------------------------------------
@@ -4594,20 +4593,20 @@ contains
 
   function VTK_VAR_XML_LIST_3DA_I2(NC_NN,N_COL,varname,var,cf) result(E_IO)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Function for saving field of list variable (I2P, 3D array).
+  !> Function for saving field of list variable (I2P, 3D array).
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
-  integer(I4P), intent(IN)::           NC_NN            !< Number of cells or nodes.
-  integer(I4P), intent(IN)::           N_COL            !< Number of columns.
-  character(*), intent(IN)::           varname          !< Variable name.
-  integer(I2P), intent(IN)::           var(1:,1:,1:,1:) !< Components [1:N_COL,1:Nx,1:Ny,1:Nz].
-  integer(I4P), intent(IN), optional:: cf               !< Current file index (for concurrent files IO).
-  integer(I4P)::                       E_IO             !< Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
-  character(len=maxlen)::              s_buffer         !< Buffer string.
-  integer(I1P), allocatable::          varp(:)          !< Packed data.
-  character(len=:), allocatable::      var64            !< Variable encoded in base64.
-  integer(I4P)::                       rf               !< Real file index.
-  integer(I4P)::                       nx,ny,nz,n1      !< Counters.
+  integer(I4P), intent(IN)::           NC_NN            !> Number of cells or nodes.
+  integer(I4P), intent(IN)::           N_COL            !> Number of columns.
+  character(*), intent(IN)::           varname          !> Variable name.
+  integer(I2P), intent(IN)::           var(1:,1:,1:,1:) !> Components [1:N_COL,1:Nx,1:Ny,1:Nz].
+  integer(I4P), intent(IN), optional:: cf               !> Current file index (for concurrent files IO).
+  integer(I4P)::                       E_IO             !> Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
+  character(len=maxlen)::              s_buffer         !> Buffer string.
+  integer(I1P), allocatable::          varp(:)          !> Packed data.
+  character(len=:), allocatable::      var64            !> Variable encoded in base64.
+  integer(I4P)::                       rf               !> Real file index.
+  integer(I4P)::                       nx,ny,nz,n1      !> Counters.
   !---------------------------------------------------------------------------------------------------------------------------------
 
   !---------------------------------------------------------------------------------------------------------------------------------
@@ -4648,20 +4647,20 @@ contains
 
   function VTK_VAR_XML_LIST_1DA_I1(NC_NN,N_COL,varname,var,cf) result(E_IO)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Function for saving field of list variable (I1P, 1D array).
+  !> Function for saving field of list variable (I1P, 1D array).
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
-  integer(I4P), intent(IN)::           NC_NN      !< Number of cells or nodes.
-  integer(I4P), intent(IN)::           N_COL      !< Number of columns.
-  character(*), intent(IN)::           varname    !< Variable name.
-  integer(I1P), intent(IN)::           var(1:,1:) !< Components [1:N_COL,1:NC_NN].
-  integer(I4P), intent(IN), optional:: cf         !< Current file index (for concurrent files IO).
-  integer(I4P)::                       E_IO       !< Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
-  character(len=maxlen)::              s_buffer   !< Buffer string.
-  integer(I1P), allocatable::          varp(:)    !< Packed data.
-  character(len=:), allocatable::      var64      !< Variable encoded in base64.
-  integer(I4P)::                       rf         !< Real file index.
-  integer(I4P)::                       n1,n2      !< Counters.
+  integer(I4P), intent(IN)::           NC_NN      !> Number of cells or nodes.
+  integer(I4P), intent(IN)::           N_COL      !> Number of columns.
+  character(*), intent(IN)::           varname    !> Variable name.
+  integer(I1P), intent(IN)::           var(1:,1:) !> Components [1:N_COL,1:NC_NN].
+  integer(I4P), intent(IN), optional:: cf         !> Current file index (for concurrent files IO).
+  integer(I4P)::                       E_IO       !> Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
+  character(len=maxlen)::              s_buffer   !> Buffer string.
+  integer(I1P), allocatable::          varp(:)    !> Packed data.
+  character(len=:), allocatable::      var64      !> Variable encoded in base64.
+  integer(I4P)::                       rf         !> Real file index.
+  integer(I4P)::                       n1,n2      !> Counters.
   !---------------------------------------------------------------------------------------------------------------------------------
 
   !---------------------------------------------------------------------------------------------------------------------------------
@@ -4702,20 +4701,20 @@ contains
 
   function VTK_VAR_XML_LIST_3DA_I1(NC_NN,N_COL,varname,var,cf) result(E_IO)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Function for saving field of list variable (I1P, 3D array).
+  !> Function for saving field of list variable (I1P, 3D array).
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
-  integer(I4P), intent(IN)::           NC_NN            !< Number of cells or nodes.
-  integer(I4P), intent(IN)::           N_COL            !< Number of columns.
-  character(*), intent(IN)::           varname          !< Variable name.
-  integer(I1P), intent(IN)::           var(1:,1:,1:,1:) !< Components [1:N_COL,1:Nx,1:Ny,1:Nz].
-  integer(I4P), intent(IN), optional:: cf               !< Current file index (for concurrent files IO).
-  integer(I4P)::                       E_IO             !< Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
-  character(len=maxlen)::              s_buffer         !< Buffer string.
-  integer(I1P), allocatable::          varp(:)          !< Packed data.
-  character(len=:), allocatable::      var64            !< Variable encoded in base64.
-  integer(I4P)::                       rf               !< Real file index.
-  integer(I4P)::                       nx,ny,nz,n1      !< Counters.
+  integer(I4P), intent(IN)::           NC_NN            !> Number of cells or nodes.
+  integer(I4P), intent(IN)::           N_COL            !> Number of columns.
+  character(*), intent(IN)::           varname          !> Variable name.
+  integer(I1P), intent(IN)::           var(1:,1:,1:,1:) !> Components [1:N_COL,1:Nx,1:Ny,1:Nz].
+  integer(I4P), intent(IN), optional:: cf               !> Current file index (for concurrent files IO).
+  integer(I4P)::                       E_IO             !> Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
+  character(len=maxlen)::              s_buffer         !> Buffer string.
+  integer(I1P), allocatable::          varp(:)          !> Packed data.
+  character(len=:), allocatable::      var64            !> Variable encoded in base64.
+  integer(I4P)::                       rf               !> Real file index.
+  integer(I4P)::                       nx,ny,nz,n1      !> Counters.
   !---------------------------------------------------------------------------------------------------------------------------------
 
   !---------------------------------------------------------------------------------------------------------------------------------
@@ -4756,33 +4755,33 @@ contains
 
   function VTK_END_XML(cf) result(E_IO)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Function for finalizing the VTK-XML file.
-  !<
-  !<### Usage
-  !<```fortran
-  !< E_IO = VTK_END_XML()
-  !<```
+  !> Function for finalizing the VTK-XML file.
+  !>
+  !>### Usage
+  !>```fortran
+  !> E_IO = VTK_END_XML()
+  !>```
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
-  integer(I4P), intent(INOUT), optional:: cf       !< Current file index (for concurrent files IO).
-  integer(I4P)::                          E_IO     !< Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
-  character(2)::                          var_type !< Varable type = R8,R4,I8,I4,I2,I1.
-  real(R8P),        allocatable::         v_R8(:)  !< R8 vector for IO in AppendData.
-  real(R4P),        allocatable::         v_R4(:)  !< R4 vector for IO in AppendData.
-  integer(I8P),     allocatable::         v_I8(:)  !< I8 vector for IO in AppendData.
-  integer(I4P),     allocatable::         v_I4(:)  !< I4 vector for IO in AppendData.
-  integer(I2P),     allocatable::         v_I2(:)  !< I2 vector for IO in AppendData.
-  integer(I1P),     allocatable::         v_I1(:)  !< I1 vector for IO in AppendData.
-  integer(I1P),     allocatable::         varp(:)  !< Packed data.
-  character(len=:), allocatable::         var64    !< Variable encoded in base64.
-  integer(I4P)::                          rf       !< Real file index.
-  integer(I8P)::                          Nvarp    !< Dimension of varp, packed data.
+  integer(I4P), intent(INOUT), optional:: cf       !> Current file index (for concurrent files IO).
+  integer(I4P)::                          E_IO     !> Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
+  character(2)::                          var_type !> Varable type = R8,R4,I8,I4,I2,I1.
+  real(R8P),        allocatable::         v_R8(:)  !> R8 vector for IO in AppendData.
+  real(R4P),        allocatable::         v_R4(:)  !> R4 vector for IO in AppendData.
+  integer(I8P),     allocatable::         v_I8(:)  !> I8 vector for IO in AppendData.
+  integer(I4P),     allocatable::         v_I4(:)  !> I4 vector for IO in AppendData.
+  integer(I2P),     allocatable::         v_I2(:)  !> I2 vector for IO in AppendData.
+  integer(I1P),     allocatable::         v_I1(:)  !> I1 vector for IO in AppendData.
+  integer(I1P),     allocatable::         varp(:)  !> Packed data.
+  character(len=:), allocatable::         var64    !> Variable encoded in base64.
+  integer(I4P)::                          rf       !> Real file index.
+  integer(I8P)::                          Nvarp    !> Dimension of varp, packed data.
 #ifdef HUGE
-  integer(I8P)::                          N_v      !< Vector dimension.
-  integer(I8P)::                          n1       !< Counter.
+  integer(I8P)::                          N_v      !> Vector dimension.
+  integer(I8P)::                          n1       !> Counter.
 #else
-  integer(I4P)::                          N_v      !< Vector dimension.
-  integer(I4P)::                          n1       !< Counter.
+  integer(I4P)::                          N_v      !> Vector dimension.
+  integer(I4P)::                          n1       !> Counter.
 #endif
   !---------------------------------------------------------------------------------------------------------------------------------
 
@@ -4906,12 +4905,12 @@ contains
 
   function VTM_INI_XML(filename) result(E_IO)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Function for initializing a VTM (VTK Multiblocks) XML file that is a wrapper to a set of VTK-XML files.
+  !> Function for initializing a VTM (VTK Multiblocks) XML file that is a wrapper to a set of VTK-XML files.
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
-  character(*), intent(IN):: filename !< File name of output VTM file.
-  integer(I4P)::             E_IO     !< Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
-  character(len=maxlen)::    s_buffer !< Buffer string.
+  character(*), intent(IN):: filename !> File name of output VTM file.
+  integer(I4P)::             E_IO     !> Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
+  character(len=maxlen)::    s_buffer !> Buffer string.
   !---------------------------------------------------------------------------------------------------------------------------------
 
   !---------------------------------------------------------------------------------------------------------------------------------
@@ -4934,12 +4933,12 @@ contains
 
   function VTM_BLK_XML(block_action,name) result(E_IO)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Function for opening or closing a block level of a VTM file.
+  !> Function for opening or closing a block level of a VTM file.
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
-  character(*),           intent(IN):: block_action !< Block action: OPEN or CLOSE block.
-  character(*), optional, intent(IN):: name         !< Block name.
-  integer(I4P)::                       E_IO         !< Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
+  character(*),           intent(IN):: block_action !> Block action: OPEN or CLOSE block.
+  character(*), optional, intent(IN):: name         !> Block name.
+  integer(I4P)::                       E_IO         !> Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
   !---------------------------------------------------------------------------------------------------------------------------------
 
   !---------------------------------------------------------------------------------------------------------------------------------
@@ -4966,26 +4965,26 @@ contains
 
   function VTM_WRF_XML_array(nlist,flist) result(E_IO)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Function for saving the list of VTK-XML wrapped files by the actual block of the mutliblock VTM file.
-  !<
-  !< @note the list is passed as an array.
-  !<
-  !<#### Example of usage: 3 files blocks
-  !<```fortran
-  !< E_IO = VTK_WRF_XML(flist=['file_1.vts','file_2.vts','file_3.vtu'])
-  !<```
-  !<
-  !<#### Example of usage: 3 files blocks with custom name
-  !<```fortran
-  !< E_IO = VTK_WRF_XML(flist=['file_1.vts','file_2.vts','file_3.vtu'],&
-  !<                    nlist=['block-bar','block-foo','block-baz'])
-  !<```
+  !> Function for saving the list of VTK-XML wrapped files by the actual block of the mutliblock VTM file.
+  !>
+  !> @note the list is passed as an array.
+  !>
+  !>#### Example of usage: 3 files blocks
+  !>```fortran
+  !> E_IO = VTK_WRF_XML(flist=['file_1.vts','file_2.vts','file_3.vtu'])
+  !>```
+  !>
+  !>#### Example of usage: 3 files blocks with custom name
+  !>```fortran
+  !> E_IO = VTK_WRF_XML(flist=['file_1.vts','file_2.vts','file_3.vtu'],&
+  !>                    nlist=['block-bar','block-foo','block-baz'])
+  !>```
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
-  character(*), optional, intent(IN):: nlist(:) !< List names attributed to wrapped files.
-  character(*),           intent(IN):: flist(:) !< List of VTK-XML wrapped files.
-  integer(I4P)::                       E_IO     !< Input/Output inquiring flag: 0 if IO is done, > 0 if IO is not done.
-  integer(I4P)::                       f        !< File counter.
+  character(*), optional, intent(IN):: nlist(:) !> List names attributed to wrapped files.
+  character(*),           intent(IN):: flist(:) !> List of VTK-XML wrapped files.
+  integer(I4P)::                       E_IO     !> Input/Output inquiring flag: 0 if IO is done, > 0 if IO is not done.
+  integer(I4P)::                       f        !> File counter.
   !---------------------------------------------------------------------------------------------------------------------------------
 
   !---------------------------------------------------------------------------------------------------------------------------------
@@ -5009,41 +5008,41 @@ contains
 
   function VTM_WRF_XML_string(delimiter,nlist,flist) result(E_IO)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Function for saving the list of VTK-XML wrapped files by the actual block of the mutliblock VTM file.
-  !<
-  !< @note the list is passed as a single string. The delimiter of each file can be customized: default value is "&". For supporting
-  !< compiler with not varying string support the maximum delimiter length is fixed to 50.
-  !<
-  !<### Examples of usage
-  !<
-  !<#### Example: 3 files block with default delimiter
-  !<```fortran
-  !< E_IO = VTK_WRF_XML(flist='file_1.vts&file_2.vts&file_3.vtu')
-  !<```
-  !<
-  !<#### Example: 3 files block with custom name
-  !<```fortran
-  !< E_IO = VTK_WRF_XML(flist='file_1.vts&file_2.vts&file_3.vtu',&
-  !<                    nlist='foo&bar&baz')
-  !<```
-  !<
-  !<#### Example: 2 files block with custom delimiter (!!)
-  !<```fortran
-  !< E_IO = VTK_WRF_XML(flist='file_1.vts!!file_2.vts',delimiter='!!')
-  !<```
+  !> Function for saving the list of VTK-XML wrapped files by the actual block of the mutliblock VTM file.
+  !>
+  !> @note the list is passed as a single string. The delimiter of each file can be customized: default value is "&". For supporting
+  !> compiler with not varying string support the maximum delimiter length is fixed to 50.
+  !>
+  !>### Examples of usage
+  !>
+  !>#### Example: 3 files block with default delimiter
+  !>```fortran
+  !> E_IO = VTK_WRF_XML(flist='file_1.vts&file_2.vts&file_3.vtu')
+  !>```
+  !>
+  !>#### Example: 3 files block with custom name
+  !>```fortran
+  !> E_IO = VTK_WRF_XML(flist='file_1.vts&file_2.vts&file_3.vtu',&
+  !>                    nlist='foo&bar&baz')
+  !>```
+  !>
+  !>#### Example: 2 files block with custom delimiter (!!)
+  !>```fortran
+  !> E_IO = VTK_WRF_XML(flist='file_1.vts!!file_2.vts',delimiter='!!')
+  !>```
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
-  character(*), optional, intent(IN):: delimiter !< Delimiter of files into files list string.
-  character(*), optional, intent(IN):: nlist     !< List names attributed to wrapped files.
-  character(*),           intent(IN):: flist     !< List of VTK-XML wrapped files.
-  integer(I4P)::                       E_IO      !< Input/Output inquiring flag: 0 if IO is done, > 0 if IO is not done.
-  integer(I4P)::                       f         !< File counter.
-  character(50)::                      delimit   !< Delimiter value.
-  character(len(flist))::              flistd    !< Dummy files list.
-  character(len(flist))::              nlistd    !< Dummy names list.
-  character(len(flist))::              dummy(1:2)!< Dummy strings.
-  integer(I4P)::                       d_len     !< Delimiter character length.
-  integer(I4P)::                       i,n       !< Counters.
+  character(*), optional, intent(IN):: delimiter !> Delimiter of files into files list string.
+  character(*), optional, intent(IN):: nlist     !> List names attributed to wrapped files.
+  character(*),           intent(IN):: flist     !> List of VTK-XML wrapped files.
+  integer(I4P)::                       E_IO      !> Input/Output inquiring flag: 0 if IO is done, > 0 if IO is not done.
+  integer(I4P)::                       f         !> File counter.
+  character(50)::                      delimit   !> Delimiter value.
+  character(len(flist))::              flistd    !> Dummy files list.
+  character(len(flist))::              nlistd    !> Dummy names list.
+  character(len(flist))::              dummy(1:2)!> Dummy strings.
+  integer(I4P)::                       d_len     !> Delimiter character length.
+  integer(I4P)::                       i,n       !> Counters.
   !---------------------------------------------------------------------------------------------------------------------------------
 
   !---------------------------------------------------------------------------------------------------------------------------------
@@ -5096,10 +5095,10 @@ contains
 
   function VTM_END_XML() result(E_IO)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Function for finalizing the VTM-XML file.
+  !> Function for finalizing the VTM-XML file.
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
-  integer(I4P):: E_IO !< Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
+  integer(I4P):: E_IO !> Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
   !---------------------------------------------------------------------------------------------------------------------------------
 
   !---------------------------------------------------------------------------------------------------------------------------------
@@ -5114,22 +5113,22 @@ contains
 
   function PVTK_INI_XML(filename,mesh_topology,tp,cf,nx1,nx2,ny1,ny2,nz1,nz2) result(E_IO)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Function for initializing parallel (partitioned) VTK-XML file.
+  !> Function for initializing parallel (partitioned) VTK-XML file.
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
-  character(*), intent(IN)::            filename      !< File name.
-  character(*), intent(IN)::            mesh_topology !< Mesh topology.
-  character(*), intent(IN)::            tp            !< Type of geometry representation (Float32, Float64, ecc).
-  integer(I4P), intent(OUT), optional:: cf            !< Current file index (for concurrent files IO).
-  integer(I4P), intent(IN),  optional:: nx1           !< Initial node of x axis.
-  integer(I4P), intent(IN),  optional:: nx2           !< Final node of x axis.
-  integer(I4P), intent(IN),  optional:: ny1           !< Initial node of y axis.
-  integer(I4P), intent(IN),  optional:: ny2           !< Final node of y axis.
-  integer(I4P), intent(IN),  optional:: nz1           !< Initial node of z axis.
-  integer(I4P), intent(IN),  optional:: nz2           !< Final node of z axis.
-  integer(I4P)::                        E_IO          !< Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
-  character(len=maxlen)::               s_buffer      !< Buffer string.
-  integer(I4P)::                        rf            !< Real file index.
+  character(*), intent(IN)::            filename      !> File name.
+  character(*), intent(IN)::            mesh_topology !> Mesh topology.
+  character(*), intent(IN)::            tp            !> Type of geometry representation (Float32, Float64, ecc).
+  integer(I4P), intent(OUT), optional:: cf            !> Current file index (for concurrent files IO).
+  integer(I4P), intent(IN),  optional:: nx1           !> Initial node of x axis.
+  integer(I4P), intent(IN),  optional:: nx2           !> Final node of x axis.
+  integer(I4P), intent(IN),  optional:: ny1           !> Initial node of y axis.
+  integer(I4P), intent(IN),  optional:: ny2           !> Final node of y axis.
+  integer(I4P), intent(IN),  optional:: nz1           !> Initial node of z axis.
+  integer(I4P), intent(IN),  optional:: nz2           !> Final node of z axis.
+  integer(I4P)::                        E_IO          !> Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
+  character(len=maxlen)::               s_buffer      !> Buffer string.
+  integer(I4P)::                        rf            !> Real file index.
   !---------------------------------------------------------------------------------------------------------------------------------
 
   !---------------------------------------------------------------------------------------------------------------------------------
@@ -5185,20 +5184,20 @@ contains
 
   function PVTK_GEO_XML(source,cf,nx1,nx2,ny1,ny2,nz1,nz2) result(E_IO)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Function for saving piece geometry source for parallel (partitioned) VTK-XML file.
+  !> Function for saving piece geometry source for parallel (partitioned) VTK-XML file.
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
-  character(*), intent(IN)::           source   !< Source file name containing the piece data.
-  integer(I4P), intent(IN), optional:: cf       !< Current file index (for concurrent files IO).
-  integer(I4P), intent(IN), optional:: nx1      !< Initial node of x axis.
-  integer(I4P), intent(IN), optional:: nx2      !< Final node of x axis.
-  integer(I4P), intent(IN), optional:: ny1      !< Initial node of y axis.
-  integer(I4P), intent(IN), optional:: ny2      !< Final node of y axis.
-  integer(I4P), intent(IN), optional:: nz1      !< Initial node of z axis.
-  integer(I4P), intent(IN), optional:: nz2      !< Final node of z axis.
-  integer(I4P)::                       E_IO     !< Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
-  character(len=maxlen)::              s_buffer !< Buffer string.
-  integer(I4P)::                       rf       !< Real file index.
+  character(*), intent(IN)::           source   !> Source file name containing the piece data.
+  integer(I4P), intent(IN), optional:: cf       !> Current file index (for concurrent files IO).
+  integer(I4P), intent(IN), optional:: nx1      !> Initial node of x axis.
+  integer(I4P), intent(IN), optional:: nx2      !> Final node of x axis.
+  integer(I4P), intent(IN), optional:: ny1      !> Initial node of y axis.
+  integer(I4P), intent(IN), optional:: ny2      !> Final node of y axis.
+  integer(I4P), intent(IN), optional:: nz1      !> Initial node of z axis.
+  integer(I4P), intent(IN), optional:: nz2      !> Final node of z axis.
+  integer(I4P)::                       E_IO     !> Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
+  character(len=maxlen)::              s_buffer !> Buffer string.
+  integer(I4P)::                       rf       !> Real file index.
   !---------------------------------------------------------------------------------------------------------------------------------
 
   !---------------------------------------------------------------------------------------------------------------------------------
@@ -5223,17 +5222,17 @@ contains
 
   function PVTK_DAT_XML(var_location,var_block_action,cf) result(E_IO)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Function for initializing/finalizing the saving of data associated to the mesh.
-  !<
-  !< Function that **must** be called before saving the data related to geometric mesh, this function initializes the
-  !< saving of data variables indicating the *type* (node or cell centered) of variables that will be saved.
+  !> Function for initializing/finalizing the saving of data associated to the mesh.
+  !>
+  !> Function that **must** be called before saving the data related to geometric mesh, this function initializes the
+  !> saving of data variables indicating the *type* (node or cell centered) of variables that will be saved.
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
-  character(*), intent(IN)::           var_location     !< Location of saving variables: CELL or NODE centered.
-  character(*), intent(IN)::           var_block_action !< Variables block action: OPEN or CLOSE block.
-  integer(I4P), intent(IN), optional:: cf               !< Current file index (for concurrent files IO).
-  integer(I4P)::                       E_IO             !< Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
-  integer(I4P)::                       rf               !< Real file index.
+  character(*), intent(IN)::           var_location     !> Location of saving variables: CELL or NODE centered.
+  character(*), intent(IN)::           var_block_action !> Variables block action: OPEN or CLOSE block.
+  integer(I4P), intent(IN), optional:: cf               !> Current file index (for concurrent files IO).
+  integer(I4P)::                       E_IO             !> Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
+  integer(I4P)::                       rf               !> Real file index.
   !---------------------------------------------------------------------------------------------------------------------------------
 
   !---------------------------------------------------------------------------------------------------------------------------------
@@ -5264,16 +5263,16 @@ contains
 
   function PVTK_VAR_XML(varname,tp,cf,Nc) result(E_IO)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Function for saving variable associated to nodes or cells geometry.
+  !> Function for saving variable associated to nodes or cells geometry.
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
-  character(*), intent(IN)::           varname  !< Variable name.
-  character(*), intent(IN)::           tp       !< Type of data representation (Float32, Float64, ecc).
-  integer(I4P), intent(IN), optional:: cf       !< Current file index (for concurrent files IO).
-  integer(I4P), intent(IN), optional:: Nc       !< Number of components of variable.
-  integer(I4P)::                       E_IO     !< Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
-  character(len=maxlen)::              s_buffer !< Buffer string.
-  integer(I4P)::                       rf       !< Real file index.
+  character(*), intent(IN)::           varname  !> Variable name.
+  character(*), intent(IN)::           tp       !> Type of data representation (Float32, Float64, ecc).
+  integer(I4P), intent(IN), optional:: cf       !> Current file index (for concurrent files IO).
+  integer(I4P), intent(IN), optional:: Nc       !> Number of components of variable.
+  integer(I4P)::                       E_IO     !> Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
+  character(len=maxlen)::              s_buffer !> Buffer string.
+  integer(I4P)::                       rf       !> Real file index.
   !---------------------------------------------------------------------------------------------------------------------------------
 
   !---------------------------------------------------------------------------------------------------------------------------------
@@ -5295,12 +5294,12 @@ contains
 
   function PVTK_END_XML(cf) result(E_IO)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Function for finalizing the parallel (partitioned) VTK-XML file.
+  !> Function for finalizing the parallel (partitioned) VTK-XML file.
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
-  integer(I4P), intent(INOUT), optional:: cf   !< Current file index (for concurrent files IO).
-  integer(I4P)::                          E_IO !< Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
-  integer(I4P)::                          rf   !< Real file index.
+  integer(I4P), intent(INOUT), optional:: cf   !> Current file index (for concurrent files IO).
+  integer(I4P)::                          E_IO !> Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
+  integer(I4P)::                          rf   !> Real file index.
   !---------------------------------------------------------------------------------------------------------------------------------
 
   !---------------------------------------------------------------------------------------------------------------------------------
@@ -5322,23 +5321,23 @@ contains
 
   function VTK_INI(output_format,filename,title,mesh_topology,cf) result(E_IO)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Function for initializing VTK-legacy file.
-  !<
-  !< @note This function must be the first to be called.
-  !<
-  !<### Usage
-  !<```fortran
-  !< E_IO=VTK_INI('Binary','example.vtk','VTK legacy file','UNSTRUCTURED_GRID')
-  !<```
+  !> Function for initializing VTK-legacy file.
+  !>
+  !> @note This function must be the first to be called.
+  !>
+  !>### Usage
+  !>```fortran
+  !> E_IO=VTK_INI('Binary','example.vtk','VTK legacy file','UNSTRUCTURED_GRID')
+  !>```
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
-  character(*), intent(IN)::            output_format !< Output format: ASCII or RAW.
-  character(*), intent(IN)::            filename      !< Name of file.
-  character(*), intent(IN)::            title         !< Title.
-  character(*), intent(IN)::            mesh_topology !< Mesh topology.
-  integer(I4P), intent(OUT), optional:: cf            !< Current file index (for concurrent files IO).
-  integer(I4P)::                        E_IO          !< Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
-  integer(I4P)::                        rf            !< Real file index.
+  character(*), intent(IN)::            output_format !> Output format: ASCII or RAW.
+  character(*), intent(IN)::            filename      !> Name of file.
+  character(*), intent(IN)::            title         !> Title.
+  character(*), intent(IN)::            mesh_topology !> Mesh topology.
+  integer(I4P), intent(OUT), optional:: cf            !> Current file index (for concurrent files IO).
+  integer(I4P)::                        E_IO          !> Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
+  integer(I4P)::                        rf            !> Real file index.
   !---------------------------------------------------------------------------------------------------------------------------------
 
   !---------------------------------------------------------------------------------------------------------------------------------
@@ -5375,21 +5374,21 @@ contains
 
   function VTK_GEO_STRP_R8(Nx,Ny,Nz,X0,Y0,Z0,Dx,Dy,Dz,cf) result(E_IO)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Function for saving mesh with STRUCTURED_POINTS topology (R8P).
+  !> Function for saving mesh with STRUCTURED_POINTS topology (R8P).
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
-  integer(I4P), intent(IN)::           Nx   !< Number of nodes in x direction.
-  integer(I4P), intent(IN)::           Ny   !< Number of nodes in y direction.
-  integer(I4P), intent(IN)::           Nz   !< Number of nodes in z direction.
-  real(R8P),    intent(IN)::           X0   !< X coordinate of origin.
-  real(R8P),    intent(IN)::           Y0   !< Y coordinate of origin.
-  real(R8P),    intent(IN)::           Z0   !< Z coordinate of origin.
-  real(R8P),    intent(IN)::           Dx   !< Space step in x direction.
-  real(R8P),    intent(IN)::           Dy   !< Space step in y direction.
-  real(R8P),    intent(IN)::           Dz   !< Space step in z direction.
-  integer(I4P), intent(IN), optional:: cf   !< Current file index (for concurrent files IO).
-  integer(I4P)::                       E_IO !< Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
-  integer(I4P)::                       rf   !< Real file index.
+  integer(I4P), intent(IN)::           Nx   !> Number of nodes in x direction.
+  integer(I4P), intent(IN)::           Ny   !> Number of nodes in y direction.
+  integer(I4P), intent(IN)::           Nz   !> Number of nodes in z direction.
+  real(R8P),    intent(IN)::           X0   !> X coordinate of origin.
+  real(R8P),    intent(IN)::           Y0   !> Y coordinate of origin.
+  real(R8P),    intent(IN)::           Z0   !> Z coordinate of origin.
+  real(R8P),    intent(IN)::           Dx   !> Space step in x direction.
+  real(R8P),    intent(IN)::           Dy   !> Space step in y direction.
+  real(R8P),    intent(IN)::           Dz   !> Space step in z direction.
+  integer(I4P), intent(IN), optional:: cf   !> Current file index (for concurrent files IO).
+  integer(I4P)::                       E_IO !> Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
+  integer(I4P)::                       rf   !> Real file index.
   !---------------------------------------------------------------------------------------------------------------------------------
 
   !---------------------------------------------------------------------------------------------------------------------------------
@@ -5414,21 +5413,21 @@ contains
 
   function VTK_GEO_STRP_R4(Nx,Ny,Nz,X0,Y0,Z0,Dx,Dy,Dz,cf) result(E_IO)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Function for saving mesh with STRUCTURED_POINTS topology (R4P).
+  !> Function for saving mesh with STRUCTURED_POINTS topology (R4P).
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
-  integer(I4P), intent(IN)::           Nx   !< Number of nodes in x direction.
-  integer(I4P), intent(IN)::           Ny   !< Number of nodes in y direction.
-  integer(I4P), intent(IN)::           Nz   !< Number of nodes in z direction.
-  real(R4P),    intent(IN)::           X0   !< X coordinate of origin.
-  real(R4P),    intent(IN)::           Y0   !< Y coordinate of origin.
-  real(R4P),    intent(IN)::           Z0   !< Z coordinate of origin.
-  real(R4P),    intent(IN)::           Dx   !< Space step in x direction.
-  real(R4P),    intent(IN)::           Dy   !< Space step in y direction.
-  real(R4P),    intent(IN)::           Dz   !< Space step in z direction.
-  integer(I4P), intent(IN), optional:: cf   !< Current file index (for concurrent files IO).
-  integer(I4P)::                       E_IO !< Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
-  integer(I4P)::                       rf   !< Real file index.
+  integer(I4P), intent(IN)::           Nx   !> Number of nodes in x direction.
+  integer(I4P), intent(IN)::           Ny   !> Number of nodes in y direction.
+  integer(I4P), intent(IN)::           Nz   !> Number of nodes in z direction.
+  real(R4P),    intent(IN)::           X0   !> X coordinate of origin.
+  real(R4P),    intent(IN)::           Y0   !> Y coordinate of origin.
+  real(R4P),    intent(IN)::           Z0   !> Z coordinate of origin.
+  real(R4P),    intent(IN)::           Dx   !> Space step in x direction.
+  real(R4P),    intent(IN)::           Dy   !> Space step in y direction.
+  real(R4P),    intent(IN)::           Dz   !> Space step in z direction.
+  integer(I4P), intent(IN), optional:: cf   !> Current file index (for concurrent files IO).
+  integer(I4P)::                       E_IO !> Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
+  integer(I4P)::                       rf   !> Real file index.
   !---------------------------------------------------------------------------------------------------------------------------------
 
   !---------------------------------------------------------------------------------------------------------------------------------
@@ -5453,20 +5452,20 @@ contains
 
   function VTK_GEO_STRG_1DA_R8(Nx,Ny,Nz,NN,X,Y,Z,cf) result(E_IO)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Function for saving mesh with STRUCTURED_GRID topology (R8P, 1D arrays).
+  !> Function for saving mesh with STRUCTURED_GRID topology (R8P, 1D arrays).
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
-  integer(I4P), intent(IN)::           Nx       !< Number of nodes in x direction.
-  integer(I4P), intent(IN)::           Ny       !< Number of nodes in y direction.
-  integer(I4P), intent(IN)::           Nz       !< Number of nodes in z direction.
-  integer(I4P), intent(IN)::           NN       !< Number of all nodes.
-  real(R8P),    intent(IN)::           X(1:)    !< X coordinates [1:NN].
-  real(R8P),    intent(IN)::           Y(1:)    !< Y coordinates [1:NN].
-  real(R8P),    intent(IN)::           Z(1:)    !< Z coordinates [1:NN].
-  integer(I4P), intent(IN), optional:: cf       !< Current file index (for concurrent files IO).
-  integer(I4P)::                       E_IO     !< Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
-  integer(I4P)::                       rf       !< Real file index.
-  integer(I4P)::                       n1       !< Counter.
+  integer(I4P), intent(IN)::           Nx       !> Number of nodes in x direction.
+  integer(I4P), intent(IN)::           Ny       !> Number of nodes in y direction.
+  integer(I4P), intent(IN)::           Nz       !> Number of nodes in z direction.
+  integer(I4P), intent(IN)::           NN       !> Number of all nodes.
+  real(R8P),    intent(IN)::           X(1:)    !> X coordinates [1:NN].
+  real(R8P),    intent(IN)::           Y(1:)    !> Y coordinates [1:NN].
+  real(R8P),    intent(IN)::           Z(1:)    !> Z coordinates [1:NN].
+  integer(I4P), intent(IN), optional:: cf       !> Current file index (for concurrent files IO).
+  integer(I4P)::                       E_IO     !> Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
+  integer(I4P)::                       rf       !> Real file index.
+  integer(I4P)::                       n1       !> Counter.
   !---------------------------------------------------------------------------------------------------------------------------------
 
   !---------------------------------------------------------------------------------------------------------------------------------
@@ -5494,18 +5493,18 @@ contains
 
   function VTK_GEO_STRG_1DAP_R8(Nx,Ny,Nz,NN,XYZ,cf) result(E_IO)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Function for saving mesh with STRUCTURED_GRID topology (R8P, 1D arrays, packed API).
+  !> Function for saving mesh with STRUCTURED_GRID topology (R8P, 1D arrays, packed API).
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
-  integer(I4P), intent(IN)::           Nx         !< Number of nodes in x direction.
-  integer(I4P), intent(IN)::           Ny         !< Number of nodes in y direction.
-  integer(I4P), intent(IN)::           Nz         !< Number of nodes in z direction.
-  integer(I4P), intent(IN)::           NN         !< Number of all nodes.
-  real(R8P),    intent(IN)::           XYZ(1:,1:) !< X, Y and Z coordinates [1:3,1:NN].
-  integer(I4P), intent(IN), optional:: cf         !< Current file index (for concurrent files IO).
-  integer(I4P)::                       E_IO       !< Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
-  integer(I4P)::                       rf         !< Real file index.
-  integer(I4P)::                       n1         !< Counter.
+  integer(I4P), intent(IN)::           Nx         !> Number of nodes in x direction.
+  integer(I4P), intent(IN)::           Ny         !> Number of nodes in y direction.
+  integer(I4P), intent(IN)::           Nz         !> Number of nodes in z direction.
+  integer(I4P), intent(IN)::           NN         !> Number of all nodes.
+  real(R8P),    intent(IN)::           XYZ(1:,1:) !> X, Y and Z coordinates [1:3,1:NN].
+  integer(I4P), intent(IN), optional:: cf         !> Current file index (for concurrent files IO).
+  integer(I4P)::                       E_IO       !> Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
+  integer(I4P)::                       rf         !> Real file index.
+  integer(I4P)::                       n1         !> Counter.
   !---------------------------------------------------------------------------------------------------------------------------------
 
   !---------------------------------------------------------------------------------------------------------------------------------
@@ -5533,20 +5532,20 @@ contains
 
   function VTK_GEO_STRG_3DA_R8(Nx,Ny,Nz,NN,X,Y,Z,cf) result(E_IO)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Function for saving mesh with STRUCTURED_GRID topology (R8P, 3D arrays).
+  !> Function for saving mesh with STRUCTURED_GRID topology (R8P, 3D arrays).
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
-  integer(I4P), intent(IN)::           Nx          !< Number of nodes in x direction.
-  integer(I4P), intent(IN)::           Ny          !< Number of nodes in y direction.
-  integer(I4P), intent(IN)::           Nz          !< Number of nodes in z direction.
-  integer(I4P), intent(IN)::           NN          !< Number of all nodes.
-  real(R8P),    intent(IN)::           X(1:,1:,1:) !< X coordinates [1:Nx,1:Ny,1:Nz].
-  real(R8P),    intent(IN)::           Y(1:,1:,1:) !< Y coordinates [1:Nx,1:Ny,1:Nz].
-  real(R8P),    intent(IN)::           Z(1:,1:,1:) !< Z coordinates [1:Nx,1:Ny,1:Nz].
-  integer(I4P), intent(IN), optional:: cf          !< Current file index (for concurrent files IO).
-  integer(I4P)::                       E_IO        !< Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
-  integer(I4P)::                       rf          !< Real file index.
-  integer(I4P)::                       n1,n2,n3    !< Counters.
+  integer(I4P), intent(IN)::           Nx          !> Number of nodes in x direction.
+  integer(I4P), intent(IN)::           Ny          !> Number of nodes in y direction.
+  integer(I4P), intent(IN)::           Nz          !> Number of nodes in z direction.
+  integer(I4P), intent(IN)::           NN          !> Number of all nodes.
+  real(R8P),    intent(IN)::           X(1:,1:,1:) !> X coordinates [1:Nx,1:Ny,1:Nz].
+  real(R8P),    intent(IN)::           Y(1:,1:,1:) !> Y coordinates [1:Nx,1:Ny,1:Nz].
+  real(R8P),    intent(IN)::           Z(1:,1:,1:) !> Z coordinates [1:Nx,1:Ny,1:Nz].
+  integer(I4P), intent(IN), optional:: cf          !> Current file index (for concurrent files IO).
+  integer(I4P)::                       E_IO        !> Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
+  integer(I4P)::                       rf          !> Real file index.
+  integer(I4P)::                       n1,n2,n3    !> Counters.
   !---------------------------------------------------------------------------------------------------------------------------------
 
   !---------------------------------------------------------------------------------------------------------------------------------
@@ -5578,18 +5577,18 @@ contains
 
   function VTK_GEO_STRG_3DAP_R8(Nx,Ny,Nz,NN,XYZ,cf) result(E_IO)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Function for saving mesh with STRUCTURED_GRID topology (R8P, 3D arrays, packed API).
+  !> Function for saving mesh with STRUCTURED_GRID topology (R8P, 3D arrays, packed API).
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
-  integer(I4P), intent(IN)::           Nx               !< Number of nodes in x direction.
-  integer(I4P), intent(IN)::           Ny               !< Number of nodes in y direction.
-  integer(I4P), intent(IN)::           Nz               !< Number of nodes in z direction.
-  integer(I4P), intent(IN)::           NN               !< Number of all nodes.
-  real(R8P),    intent(IN)::           XYZ(1:,1:,1:,1:) !< X, Y and Z coordinates [1:3,1:Nx,1:Ny,1:Nz].
-  integer(I4P), intent(IN), optional:: cf               !< Current file index (for concurrent files IO).
-  integer(I4P)::                       E_IO             !< Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
-  integer(I4P)::                       rf               !< Real file index.
-  integer(I4P)::                       n1,n2,n3         !< Counters.
+  integer(I4P), intent(IN)::           Nx               !> Number of nodes in x direction.
+  integer(I4P), intent(IN)::           Ny               !> Number of nodes in y direction.
+  integer(I4P), intent(IN)::           Nz               !> Number of nodes in z direction.
+  integer(I4P), intent(IN)::           NN               !> Number of all nodes.
+  real(R8P),    intent(IN)::           XYZ(1:,1:,1:,1:) !> X, Y and Z coordinates [1:3,1:Nx,1:Ny,1:Nz].
+  integer(I4P), intent(IN), optional:: cf               !> Current file index (for concurrent files IO).
+  integer(I4P)::                       E_IO             !> Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
+  integer(I4P)::                       rf               !> Real file index.
+  integer(I4P)::                       n1,n2,n3         !> Counters.
   !---------------------------------------------------------------------------------------------------------------------------------
 
   !---------------------------------------------------------------------------------------------------------------------------------
@@ -5621,20 +5620,20 @@ contains
 
   function VTK_GEO_STRG_1DA_R4(Nx,Ny,Nz,NN,X,Y,Z,cf) result(E_IO)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Function for saving mesh with STRUCTURED_GRID topology (R4P, 1D arrays).
+  !> Function for saving mesh with STRUCTURED_GRID topology (R4P, 1D arrays).
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
-  integer(I4P), intent(IN)::           Nx       !< Number of nodes in x direction.
-  integer(I4P), intent(IN)::           Ny       !< Number of nodes in y direction.
-  integer(I4P), intent(IN)::           Nz       !< Number of nodes in z direction.
-  integer(I4P), intent(IN)::           NN       !< Number of all nodes.
-  real(R4P),    intent(IN)::           X(1:)    !< X coordinates [1:NN].
-  real(R4P),    intent(IN)::           Y(1:)    !< Y coordinates [1:NN].
-  real(R4P),    intent(IN)::           Z(1:)    !< Z coordinates [1:NN].
-  integer(I4P), intent(IN), optional:: cf       !< Current file index (for concurrent files IO).
-  integer(I4P)::                       E_IO     !< Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
-  integer(I4P)::                       rf       !< Real file index.
-  integer(I4P)::                       n1       !< Counter.
+  integer(I4P), intent(IN)::           Nx       !> Number of nodes in x direction.
+  integer(I4P), intent(IN)::           Ny       !> Number of nodes in y direction.
+  integer(I4P), intent(IN)::           Nz       !> Number of nodes in z direction.
+  integer(I4P), intent(IN)::           NN       !> Number of all nodes.
+  real(R4P),    intent(IN)::           X(1:)    !> X coordinates [1:NN].
+  real(R4P),    intent(IN)::           Y(1:)    !> Y coordinates [1:NN].
+  real(R4P),    intent(IN)::           Z(1:)    !> Z coordinates [1:NN].
+  integer(I4P), intent(IN), optional:: cf       !> Current file index (for concurrent files IO).
+  integer(I4P)::                       E_IO     !> Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
+  integer(I4P)::                       rf       !> Real file index.
+  integer(I4P)::                       n1       !> Counter.
   !---------------------------------------------------------------------------------------------------------------------------------
 
   !---------------------------------------------------------------------------------------------------------------------------------
@@ -5662,18 +5661,18 @@ contains
 
   function VTK_GEO_STRG_1DAP_R4(Nx,Ny,Nz,NN,XYZ,cf) result(E_IO)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Function for saving mesh with STRUCTURED_GRID topology (R4P, 1D arrays, packed API).
+  !> Function for saving mesh with STRUCTURED_GRID topology (R4P, 1D arrays, packed API).
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
-  integer(I4P), intent(IN)::           Nx         !< Number of nodes in x direction.
-  integer(I4P), intent(IN)::           Ny         !< Number of nodes in y direction.
-  integer(I4P), intent(IN)::           Nz         !< Number of nodes in z direction.
-  integer(I4P), intent(IN)::           NN         !< Number of all nodes.
-  real(R4P),    intent(IN)::           XYZ(1:,1:) !< X, Y and Z coordinates [1:3,1:NN].
-  integer(I4P), intent(IN), optional:: cf         !< Current file index (for concurrent files IO).
-  integer(I4P)::                       E_IO       !< Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
-  integer(I4P)::                       rf         !< Real file index.
-  integer(I4P)::                       n1         !< Counter.
+  integer(I4P), intent(IN)::           Nx         !> Number of nodes in x direction.
+  integer(I4P), intent(IN)::           Ny         !> Number of nodes in y direction.
+  integer(I4P), intent(IN)::           Nz         !> Number of nodes in z direction.
+  integer(I4P), intent(IN)::           NN         !> Number of all nodes.
+  real(R4P),    intent(IN)::           XYZ(1:,1:) !> X, Y and Z coordinates [1:3,1:NN].
+  integer(I4P), intent(IN), optional:: cf         !> Current file index (for concurrent files IO).
+  integer(I4P)::                       E_IO       !> Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
+  integer(I4P)::                       rf         !> Real file index.
+  integer(I4P)::                       n1         !> Counter.
   !---------------------------------------------------------------------------------------------------------------------------------
 
   !---------------------------------------------------------------------------------------------------------------------------------
@@ -5701,20 +5700,20 @@ contains
 
   function VTK_GEO_STRG_3DA_R4(Nx,Ny,Nz,NN,X,Y,Z,cf) result(E_IO)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Function for saving mesh with STRUCTURED_GRID topology (R4P, 3D arrays).
+  !> Function for saving mesh with STRUCTURED_GRID topology (R4P, 3D arrays).
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
-  integer(I4P), intent(IN)::           Nx          !< Number of nodes in x direction.
-  integer(I4P), intent(IN)::           Ny          !< Number of nodes in y direction.
-  integer(I4P), intent(IN)::           Nz          !< Number of nodes in z direction.
-  integer(I4P), intent(IN)::           NN          !< Number of all nodes.
-  real(R4P),    intent(IN)::           X(1:,1:,1:) !< X coordinates [1:Nx,1:Ny,1:Nz].
-  real(R4P),    intent(IN)::           Y(1:,1:,1:) !< Y coordinates [1:Nx,1:Ny,1:Nz].
-  real(R4P),    intent(IN)::           Z(1:,1:,1:) !< Z coordinates [1:Nx,1:Ny,1:Nz].
-  integer(I4P), intent(IN), optional:: cf          !< Current file index (for concurrent files IO).
-  integer(I4P)::                       E_IO        !< Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
-  integer(I4P)::                       rf          !< Real file index.
-  integer(I4P)::                       n1,n2,n3    !< Counters.
+  integer(I4P), intent(IN)::           Nx          !> Number of nodes in x direction.
+  integer(I4P), intent(IN)::           Ny          !> Number of nodes in y direction.
+  integer(I4P), intent(IN)::           Nz          !> Number of nodes in z direction.
+  integer(I4P), intent(IN)::           NN          !> Number of all nodes.
+  real(R4P),    intent(IN)::           X(1:,1:,1:) !> X coordinates [1:Nx,1:Ny,1:Nz].
+  real(R4P),    intent(IN)::           Y(1:,1:,1:) !> Y coordinates [1:Nx,1:Ny,1:Nz].
+  real(R4P),    intent(IN)::           Z(1:,1:,1:) !> Z coordinates [1:Nx,1:Ny,1:Nz].
+  integer(I4P), intent(IN), optional:: cf          !> Current file index (for concurrent files IO).
+  integer(I4P)::                       E_IO        !> Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
+  integer(I4P)::                       rf          !> Real file index.
+  integer(I4P)::                       n1,n2,n3    !> Counters.
   !---------------------------------------------------------------------------------------------------------------------------------
 
   !---------------------------------------------------------------------------------------------------------------------------------
@@ -5746,18 +5745,18 @@ contains
 
   function VTK_GEO_STRG_3DAP_R4(Nx,Ny,Nz,NN,XYZ,cf) result(E_IO)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Function for saving mesh with STRUCTURED_GRID topology (R4P, 3D arrays, packed API).
+  !> Function for saving mesh with STRUCTURED_GRID topology (R4P, 3D arrays, packed API).
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
-  integer(I4P), intent(IN)::           Nx               !< Number of nodes in x direction.
-  integer(I4P), intent(IN)::           Ny               !< Number of nodes in y direction.
-  integer(I4P), intent(IN)::           Nz               !< Number of nodes in z direction.
-  integer(I4P), intent(IN)::           NN               !< Number of all nodes.
-  real(R4P),    intent(IN)::           XYZ(1:,1:,1:,1:) !< X, Y and Z coordinates [1:3,1:Nx,1:Ny,1:Nz].
-  integer(I4P), intent(IN), optional:: cf               !< Current file index (for concurrent files IO).
-  integer(I4P)::                       E_IO             !< Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
-  integer(I4P)::                       rf               !< Real file index.
-  integer(I4P)::                       n1,n2,n3         !< Counters.
+  integer(I4P), intent(IN)::           Nx               !> Number of nodes in x direction.
+  integer(I4P), intent(IN)::           Ny               !> Number of nodes in y direction.
+  integer(I4P), intent(IN)::           Nz               !> Number of nodes in z direction.
+  integer(I4P), intent(IN)::           NN               !> Number of all nodes.
+  real(R4P),    intent(IN)::           XYZ(1:,1:,1:,1:) !> X, Y and Z coordinates [1:3,1:Nx,1:Ny,1:Nz].
+  integer(I4P), intent(IN), optional:: cf               !> Current file index (for concurrent files IO).
+  integer(I4P)::                       E_IO             !> Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
+  integer(I4P)::                       rf               !> Real file index.
+  integer(I4P)::                       n1,n2,n3         !> Counters.
   !---------------------------------------------------------------------------------------------------------------------------------
 
   !---------------------------------------------------------------------------------------------------------------------------------
@@ -5789,19 +5788,19 @@ contains
 
   function VTK_GEO_RECT_R8(Nx,Ny,Nz,X,Y,Z,cf) result(E_IO)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Function for saving mesh with RECTILINEAR_GRID topology (R8P).
+  !> Function for saving mesh with RECTILINEAR_GRID topology (R8P).
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
-  integer(I4P), intent(IN)::           Nx       !< Number of nodes in x direction.
-  integer(I4P), intent(IN)::           Ny       !< Number of nodes in y direction.
-  integer(I4P), intent(IN)::           Nz       !< Number of nodes in z direction.
-  real(R8P),    intent(IN)::           X(1:Nx)  !< X coordinates.
-  real(R8P),    intent(IN)::           Y(1:Ny)  !< Y coordinates.
-  real(R8P),    intent(IN)::           Z(1:Nz)  !< Z coordinates.
-  integer(I4P), intent(IN), optional:: cf       !< Current file index (for concurrent files IO).
-  integer(I4P)::                       E_IO     !< Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
-  integer(I4P)::                       rf       !< Real file index.
-  integer(I4P)::                       n1       !< Counter.
+  integer(I4P), intent(IN)::           Nx       !> Number of nodes in x direction.
+  integer(I4P), intent(IN)::           Ny       !> Number of nodes in y direction.
+  integer(I4P), intent(IN)::           Nz       !> Number of nodes in z direction.
+  real(R8P),    intent(IN)::           X(1:Nx)  !> X coordinates.
+  real(R8P),    intent(IN)::           Y(1:Ny)  !> Y coordinates.
+  real(R8P),    intent(IN)::           Z(1:Nz)  !> Z coordinates.
+  integer(I4P), intent(IN), optional:: cf       !> Current file index (for concurrent files IO).
+  integer(I4P)::                       E_IO     !> Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
+  integer(I4P)::                       rf       !> Real file index.
+  integer(I4P)::                       n1       !> Counter.
   !---------------------------------------------------------------------------------------------------------------------------------
 
   !---------------------------------------------------------------------------------------------------------------------------------
@@ -5843,19 +5842,19 @@ contains
 
   function VTK_GEO_RECT_R4(Nx,Ny,Nz,X,Y,Z,cf) result(E_IO)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Function for saving mesh with RECTILINEAR_GRID topology (R4P).
+  !> Function for saving mesh with RECTILINEAR_GRID topology (R4P).
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
-  integer(I4P), intent(IN)::           Nx       !< Number of nodes in x direction.
-  integer(I4P), intent(IN)::           Ny       !< Number of nodes in y direction.
-  integer(I4P), intent(IN)::           Nz       !< Number of nodes in z direction.
-  real(R4P),    intent(IN)::           X(1:Nx)  !< X coordinates.
-  real(R4P),    intent(IN)::           Y(1:Ny)  !< Y coordinates.
-  real(R4P),    intent(IN)::           Z(1:Nz)  !< Z coordinates.
-  integer(I4P), intent(IN), optional:: cf       !< Current file index (for concurrent files IO).
-  integer(I4P)::                       E_IO     !< Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
-  integer(I4P)::                       rf       !< Real file index.
-  integer(I4P)::                       n1       !< Counter.
+  integer(I4P), intent(IN)::           Nx       !> Number of nodes in x direction.
+  integer(I4P), intent(IN)::           Ny       !> Number of nodes in y direction.
+  integer(I4P), intent(IN)::           Nz       !> Number of nodes in z direction.
+  real(R4P),    intent(IN)::           X(1:Nx)  !> X coordinates.
+  real(R4P),    intent(IN)::           Y(1:Ny)  !> Y coordinates.
+  real(R4P),    intent(IN)::           Z(1:Nz)  !> Z coordinates.
+  integer(I4P), intent(IN), optional:: cf       !> Current file index (for concurrent files IO).
+  integer(I4P)::                       E_IO     !> Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
+  integer(I4P)::                       rf       !> Real file index.
+  integer(I4P)::                       n1       !> Counter.
   !---------------------------------------------------------------------------------------------------------------------------------
 
   !---------------------------------------------------------------------------------------------------------------------------------
@@ -5897,17 +5896,17 @@ contains
 
   function VTK_GEO_UNST_R8(NN,X,Y,Z,cf) result(E_IO)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Function for saving mesh with UNSTRUCTURED_GRID topology (R8P).
+  !> Function for saving mesh with UNSTRUCTURED_GRID topology (R8P).
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
-  integer(I4P), intent(IN)::           NN       !< Number of nodes.
-  real(R8P),    intent(IN)::           X(1:)    !< X coordinates of all nodes [1:NN].
-  real(R8P),    intent(IN)::           Y(1:)    !< Y coordinates of all nodes [1:NN].
-  real(R8P),    intent(IN)::           Z(1:)    !< Z coordinates of all nodes [1:NN].
-  integer(I4P), intent(IN), optional:: cf       !< Current file index (for concurrent files IO).
-  integer(I4P)::                       E_IO     !< Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
-  integer(I4P)::                       rf       !< Real file index.
-  integer(I4P)::                       n1       !< Counter.
+  integer(I4P), intent(IN)::           NN       !> Number of nodes.
+  real(R8P),    intent(IN)::           X(1:)    !> X coordinates of all nodes [1:NN].
+  real(R8P),    intent(IN)::           Y(1:)    !> Y coordinates of all nodes [1:NN].
+  real(R8P),    intent(IN)::           Z(1:)    !> Z coordinates of all nodes [1:NN].
+  integer(I4P), intent(IN), optional:: cf       !> Current file index (for concurrent files IO).
+  integer(I4P)::                       E_IO     !> Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
+  integer(I4P)::                       rf       !> Real file index.
+  integer(I4P)::                       n1       !> Counter.
   !---------------------------------------------------------------------------------------------------------------------------------
 
   !---------------------------------------------------------------------------------------------------------------------------------
@@ -5933,15 +5932,15 @@ contains
 
   function VTK_GEO_UNST_P_R8(NN,XYZ,cf) result(E_IO)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Function for saving mesh with UNSTRUCTURED_GRID topology (R8P, packed API).
+  !> Function for saving mesh with UNSTRUCTURED_GRID topology (R8P, packed API).
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
-  integer(I4P), intent(IN)::           NN         !< Number of nodes.
-  real(R8P),    intent(IN)::           XYZ(1:,1:) !< X, Y and Z coordinates of all nodes [1:3,1:NN].
-  integer(I4P), intent(IN), optional:: cf         !< Current file index (for concurrent files IO).
-  integer(I4P)::                       E_IO       !< Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
-  integer(I4P)::                       rf         !< Real file index.
-  integer(I4P)::                       n1         !< Counter.
+  integer(I4P), intent(IN)::           NN         !> Number of nodes.
+  real(R8P),    intent(IN)::           XYZ(1:,1:) !> X, Y and Z coordinates of all nodes [1:3,1:NN].
+  integer(I4P), intent(IN), optional:: cf         !> Current file index (for concurrent files IO).
+  integer(I4P)::                       E_IO       !> Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
+  integer(I4P)::                       rf         !> Real file index.
+  integer(I4P)::                       n1         !> Counter.
   !---------------------------------------------------------------------------------------------------------------------------------
 
   !---------------------------------------------------------------------------------------------------------------------------------
@@ -5967,17 +5966,17 @@ contains
 
   function VTK_GEO_UNST_R4(NN,X,Y,Z,cf) result(E_IO)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Function for saving mesh with UNSTRUCTURED_GRID topology (R4P).
+  !> Function for saving mesh with UNSTRUCTURED_GRID topology (R4P).
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
-  integer(I4P), intent(IN)::           NN       !< number of nodes.
-  real(R4P),    intent(IN)::           X(1:)    !< X coordinates of all nodes [1:NN].
-  real(R4P),    intent(IN)::           Y(1:)    !< Y coordinates of all nodes [1:NN].
-  real(R4P),    intent(IN)::           Z(1:)    !< Z coordinates of all nodes [1:NN].
-  integer(I4P), intent(IN), optional:: cf       !< Current file index (for concurrent files IO).
-  integer(I4P)::                       E_IO     !< Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
-  integer(I4P)::                       rf       !< Real file index.
-  integer(I4P)::                       n1       !< counter.
+  integer(I4P), intent(IN)::           NN       !> number of nodes.
+  real(R4P),    intent(IN)::           X(1:)    !> X coordinates of all nodes [1:NN].
+  real(R4P),    intent(IN)::           Y(1:)    !> Y coordinates of all nodes [1:NN].
+  real(R4P),    intent(IN)::           Z(1:)    !> Z coordinates of all nodes [1:NN].
+  integer(I4P), intent(IN), optional:: cf       !> Current file index (for concurrent files IO).
+  integer(I4P)::                       E_IO     !> Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
+  integer(I4P)::                       rf       !> Real file index.
+  integer(I4P)::                       n1       !> counter.
   !---------------------------------------------------------------------------------------------------------------------------------
 
   !---------------------------------------------------------------------------------------------------------------------------------
@@ -6003,15 +6002,15 @@ contains
 
   function VTK_GEO_UNST_P_R4(NN,XYZ,cf) result(E_IO)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Function for saving mesh with UNSTRUCTURED_GRID topology (R4P, packed API).
+  !> Function for saving mesh with UNSTRUCTURED_GRID topology (R4P, packed API).
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
-  integer(I4P), intent(IN)::           NN         !< number of nodes.
-  real(R4P),    intent(IN)::           XYZ(1:,1:) !< X, Y and Z coordinates of all nodes [1:3,1:NN].
-  integer(I4P), intent(IN), optional:: cf         !< Current file index (for concurrent files IO).
-  integer(I4P)::                       E_IO       !< Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
-  integer(I4P)::                       rf         !< Real file index.
-  integer(I4P)::                       n1         !< counter.
+  integer(I4P), intent(IN)::           NN         !> number of nodes.
+  real(R4P),    intent(IN)::           XYZ(1:,1:) !> X, Y and Z coordinates of all nodes [1:3,1:NN].
+  integer(I4P), intent(IN), optional:: cf         !> Current file index (for concurrent files IO).
+  integer(I4P)::                       E_IO       !> Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
+  integer(I4P)::                       rf         !> Real file index.
+  integer(I4P)::                       n1         !> counter.
   !---------------------------------------------------------------------------------------------------------------------------------
 
   !---------------------------------------------------------------------------------------------------------------------------------
@@ -6037,59 +6036,59 @@ contains
 
   function VTK_CON(NC,connect,cell_type,cf) result(E_IO)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Function for saving mesh connectivity.
-  !<
-  !< Function that **must** be used when unstructured grid is used, it saves the connectivity of the unstructured gird.
-  !< @note The vector **connect** must follow the VTK-legacy standard. It is passed as *assumed-shape* array
-  !< because its dimensions is related to the mesh dimensions in a complex way. Its dimensions can be calculated by the following
-  !< equation: \(dc = NC + \sum\limits_{i = 1}^{NC} {nvertex_i }\)
-  !< where \(dc\) is connectivity vector dimension and \(nvertex_i\) is the number of vertices of \(i^{th}\) cell. The VTK-
-  !< legacy standard for the mesh connectivity is quite obscure at least at first sight. It is more simple analyzing an example.
-  !< Suppose we have a mesh composed by 2 cells, one hexahedron (8 vertices) and one pyramid with square basis (5 vertices) and
-  !< suppose that the basis of pyramid is constitute by a face of the hexahedron and so the two cells share 4 vertices.
-  !< The above equation !> gives \(dc=2+8+5=15\). The connectivity vector for this mesh can be:
-  !<
-  !<##### first cell
-  !<+ connect(1)  = 8 number of vertices of first cell
-  !<+ connect(2)  = 0 identification flag of \(1^\circ\) vertex of first cell
-  !<+ connect(3)  = 1 identification flag of \(2^\circ\) vertex of first cell
-  !<+ connect(4)  = 2 identification flag of \(3^\circ\) vertex of first cell
-  !<+ connect(5)  = 3 identification flag of \(4^\circ\) vertex of first cell
-  !<+ connect(6)  = 4 identification flag of \(5^\circ\) vertex of first cell
-  !<+ connect(7)  = 5 identification flag of \(6^\circ\) vertex of first cell
-  !<+ connect(8)  = 6 identification flag of \(7^\circ\) vertex of first cell
-  !<+ connect(9)  = 7 identification flag of \(8^\circ\) vertex of first cell
-  !<
-  !<##### second cell
-  !<+ connect(10) = 5 number of vertices of first cell
-  !<+ connect(11) = 0 identification flag of \(1^\circ\) vertex of second cell
-  !<+ connect(12) = 1 identification flag of \(2^\circ\) vertex of second cell
-  !<+ connect(13) = 2 identification flag of \(3^\circ\) vertex of second cell
-  !<+ connect(14) = 3 identification flag of \(4^\circ\) vertex of second cell
-  !<+ connect(15) = 8 identification flag of \(5^\circ\) vertex of second cell
-  !<
-  !< Note that the first 4 identification flags of pyramid vertices as the same of the first 4 identification flags of
-  !< the hexahedron because the two cells share this face. It is also important to note that the identification flags start
-  !< form $0$ value: this is impose to the VTK standard. The function VTK_CON does not calculate the connectivity vector: it
-  !< writes the connectivity vector conforming the VTK standard, but does not calculate it.
-  !< The vector variable *cell\_type* must conform the VTK-legacy standard (see the file VTK-Standard at the
-  !< Kitware homepage). It contains the *type* of each cells. For the above example this vector is:
-  !<
-  !<##### first cell
-  !< cell_type(1) = 12 hexahedron type of first cell
-  !<
-  !<##### second cell
-  !< cell_type(2) = 14 pyramid type of second cell
+  !> Function for saving mesh connectivity.
+  !>
+  !> Function that **must** be used when unstructured grid is used, it saves the connectivity of the unstructured gird.
+  !> @note The vector **connect** must follow the VTK-legacy standard. It is passed as *assumed-shape* array
+  !> because its dimensions is related to the mesh dimensions in a complex way. Its dimensions can be calculated by the following
+  !> equation: \(dc = NC + \sum\limits_{i = 1}^{NC} {nvertex_i }\)
+  !> where \(dc\) is connectivity vector dimension and \(nvertex_i\) is the number of vertices of \(i^{th}\) cell. The VTK-
+  !> legacy standard for the mesh connectivity is quite obscure at least at first sight. It is more simple analyzing an example.
+  !> Suppose we have a mesh composed by 2 cells, one hexahedron (8 vertices) and one pyramid with square basis (5 vertices) and
+  !> suppose that the basis of pyramid is constitute by a face of the hexahedron and so the two cells share 4 vertices.
+  !> The above equation !> gives \(dc=2+8+5=15\). The connectivity vector for this mesh can be:
+  !>
+  !>##### first cell
+  !>+ connect(1)  = 8 number of vertices of first cell
+  !>+ connect(2)  = 0 identification flag of \(1^\circ\) vertex of first cell
+  !>+ connect(3)  = 1 identification flag of \(2^\circ\) vertex of first cell
+  !>+ connect(4)  = 2 identification flag of \(3^\circ\) vertex of first cell
+  !>+ connect(5)  = 3 identification flag of \(4^\circ\) vertex of first cell
+  !>+ connect(6)  = 4 identification flag of \(5^\circ\) vertex of first cell
+  !>+ connect(7)  = 5 identification flag of \(6^\circ\) vertex of first cell
+  !>+ connect(8)  = 6 identification flag of \(7^\circ\) vertex of first cell
+  !>+ connect(9)  = 7 identification flag of \(8^\circ\) vertex of first cell
+  !>
+  !>##### second cell
+  !>+ connect(10) = 5 number of vertices of first cell
+  !>+ connect(11) = 0 identification flag of \(1^\circ\) vertex of second cell
+  !>+ connect(12) = 1 identification flag of \(2^\circ\) vertex of second cell
+  !>+ connect(13) = 2 identification flag of \(3^\circ\) vertex of second cell
+  !>+ connect(14) = 3 identification flag of \(4^\circ\) vertex of second cell
+  !>+ connect(15) = 8 identification flag of \(5^\circ\) vertex of second cell
+  !>
+  !> Note that the first 4 identification flags of pyramid vertices as the same of the first 4 identification flags of
+  !> the hexahedron because the two cells share this face. It is also important to note that the identification flags start
+  !> form $0$ value: this is impose to the VTK standard. The function VTK_CON does not calculate the connectivity vector: it
+  !> writes the connectivity vector conforming the VTK standard, but does not calculate it.
+  !> The vector variable *cell\_type* must conform the VTK-legacy standard (see the file VTK-Standard at the
+  !> Kitware homepage). It contains the *type* of each cells. For the above example this vector is:
+  !>
+  !>##### first cell
+  !> cell_type(1) = 12 hexahedron type of first cell
+  !>
+  !>##### second cell
+  !> cell_type(2) = 14 pyramid type of second cell
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
-  integer(I4P), intent(IN)::           NC              !< Number of cells.
-  integer(I4P), intent(IN)::           connect(:)      !< Mesh connectivity.
-  integer(I4P), intent(IN)::           cell_type(1:NC) !< VTK cell type.
-  integer(I4P), intent(IN), optional:: cf              !< Current file index (for concurrent files IO).
-  integer(I4P)::                       E_IO            !< Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
-  character(len=maxlen)::              s_buffer        !< Buffer string.
-  integer(I4P)::                       ncon            !< Dimension of connectivity vector.
-  integer(I4P)::                       rf              !< Real file index.
+  integer(I4P), intent(IN)::           NC              !> Number of cells.
+  integer(I4P), intent(IN)::           connect(:)      !> Mesh connectivity.
+  integer(I4P), intent(IN)::           cell_type(1:NC) !> VTK cell type.
+  integer(I4P), intent(IN), optional:: cf              !> Current file index (for concurrent files IO).
+  integer(I4P)::                       E_IO            !> Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
+  character(len=maxlen)::              s_buffer        !> Buffer string.
+  integer(I4P)::                       ncon            !> Dimension of connectivity vector.
+  integer(I4P)::                       rf              !> Real file index.
   !---------------------------------------------------------------------------------------------------------------------------------
 
   !---------------------------------------------------------------------------------------------------------------------------------
@@ -6121,32 +6120,32 @@ contains
 
   function VTK_DAT(NC_NN,var_location,cf) result(E_IO)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Function for initializing/finalizing the saving of data associated to the mesh.
-  !<
-  !< Function that **must** be called before saving the data related to geometric mesh, this function initializes the
-  !< saving of data variables indicating the *type* (node or cell centered) of variables that will be saved.
-  !< @note A single file can contain both cell and node centered variables. In this case the VTK_DAT function must be
-  !< called two times, before saving cell-centered variables and before saving node-centered variables.
-  !<
-  !<### Examples of usage
-  !<
-  !<#### Saving node data
-  !<```fortran
-  !< E_IO=VTK_DAT_XML(50,'node')
-  !<```
-  !<
-  !<#### Saving cell data
-  !<```fortran
-  !< E_IO=VTK_DAT_XML(50,'cell')
-  !<```
+  !> Function for initializing/finalizing the saving of data associated to the mesh.
+  !>
+  !> Function that **must** be called before saving the data related to geometric mesh, this function initializes the
+  !> saving of data variables indicating the *type* (node or cell centered) of variables that will be saved.
+  !> @note A single file can contain both cell and node centered variables. In this case the VTK_DAT function must be
+  !> called two times, before saving cell-centered variables and before saving node-centered variables.
+  !>
+  !>### Examples of usage
+  !>
+  !>#### Saving node data
+  !>```fortran
+  !> E_IO=VTK_DAT_XML(50,'node')
+  !>```
+  !>
+  !>#### Saving cell data
+  !>```fortran
+  !> E_IO=VTK_DAT_XML(50,'cell')
+  !>```
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
-  integer(I4P), intent(IN)::           NC_NN        !< Number of cells or nodes of field.
-  character(*), intent(IN)::           var_location !< Location of saving variables: cell for cell-centered, node for node-centered.
-  integer(I4P), intent(IN), optional:: cf           !< Current file index (for concurrent files IO).
-  integer(I4P)::                       E_IO         !< Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
-  character(len=maxlen)::              s_buffer     !< Buffer string.
-  integer(I4P)::                       rf           !< Real file index.
+  integer(I4P), intent(IN)::           NC_NN        !> Number of cells or nodes of field.
+  character(*), intent(IN)::           var_location !> Location of saving variables: cell for cell-centered, node for node-centered.
+  integer(I4P), intent(IN), optional:: cf           !> Current file index (for concurrent files IO).
+  integer(I4P)::                       E_IO         !> Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
+  character(len=maxlen)::              s_buffer     !> Buffer string.
+  integer(I4P)::                       rf           !> Real file index.
   !---------------------------------------------------------------------------------------------------------------------------------
 
   !---------------------------------------------------------------------------------------------------------------------------------
@@ -6179,15 +6178,15 @@ contains
 
   function VTK_VAR_SCAL_R8(NC_NN,varname,var,cf) result(E_IO)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Function for saving field of scalar variable (R8P).
+  !> Function for saving field of scalar variable (R8P).
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
-  integer(I4P), intent(IN)::           NC_NN        !< Number of nodes or cells.
-  character(*), intent(IN)::           varname      !< Variable name.
-  real(R8P),    intent(IN)::           var(1:NC_NN) !< Variable to be saved.
-  integer(I4P), intent(IN), optional:: cf           !< Current file index (for concurrent files IO).
-  integer(I4P)::                       E_IO         !< Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
-  integer(I4P)::                       rf           !< Real file index.
+  integer(I4P), intent(IN)::           NC_NN        !> Number of nodes or cells.
+  character(*), intent(IN)::           varname      !> Variable name.
+  real(R8P),    intent(IN)::           var(1:NC_NN) !> Variable to be saved.
+  integer(I4P), intent(IN), optional:: cf           !> Current file index (for concurrent files IO).
+  integer(I4P)::                       E_IO         !> Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
+  integer(I4P)::                       rf           !> Real file index.
   !---------------------------------------------------------------------------------------------------------------------------------
 
   !---------------------------------------------------------------------------------------------------------------------------------
@@ -6213,15 +6212,15 @@ contains
 
   function VTK_VAR_SCAL_R4(NC_NN,varname,var,cf) result(E_IO)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Function for saving field of scalar variable (R4P).
+  !> Function for saving field of scalar variable (R4P).
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
-  integer(I4P), intent(IN)::           NC_NN        !< Number of nodes or cells.
-  character(*), intent(IN)::           varname      !< Variable name.
-  real(R4P),    intent(IN)::           var(1:NC_NN) !< Variable to be saved.
-  integer(I4P), intent(IN), optional:: cf           !< Current file index (for concurrent files IO).
-  integer(I4P)::                       E_IO         !< Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
-  integer(I4P)::                       rf           !< Real file index.
+  integer(I4P), intent(IN)::           NC_NN        !> Number of nodes or cells.
+  character(*), intent(IN)::           varname      !> Variable name.
+  real(R4P),    intent(IN)::           var(1:NC_NN) !> Variable to be saved.
+  integer(I4P), intent(IN), optional:: cf           !> Current file index (for concurrent files IO).
+  integer(I4P)::                       E_IO         !> Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
+  integer(I4P)::                       rf           !> Real file index.
   !---------------------------------------------------------------------------------------------------------------------------------
 
   !---------------------------------------------------------------------------------------------------------------------------------
@@ -6247,15 +6246,15 @@ contains
 
   function VTK_VAR_SCAL_I4(NC_NN,varname,var,cf) result(E_IO)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Function for saving field of scalar variable (I4P).
+  !> Function for saving field of scalar variable (I4P).
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
-  integer(I4P), intent(IN)::           NC_NN        !< Number of nodes or cells.
-  character(*), intent(IN)::           varname      !< Variable name.
-  integer(I4P), intent(IN)::           var(1:NC_NN) !< Variable to be saved.
-  integer(I4P), intent(IN), optional:: cf           !< Current file index (for concurrent files IO).
-  integer(I4P)::                       E_IO         !< Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
-  integer(I4P)::                       rf           !< Real file index.
+  integer(I4P), intent(IN)::           NC_NN        !> Number of nodes or cells.
+  character(*), intent(IN)::           varname      !> Variable name.
+  integer(I4P), intent(IN)::           var(1:NC_NN) !> Variable to be saved.
+  integer(I4P), intent(IN), optional:: cf           !> Current file index (for concurrent files IO).
+  integer(I4P)::                       E_IO         !> Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
+  integer(I4P)::                       rf           !> Real file index.
   !---------------------------------------------------------------------------------------------------------------------------------
 
   !---------------------------------------------------------------------------------------------------------------------------------
@@ -6281,19 +6280,19 @@ contains
 
   function VTK_VAR_VECT_R8(vec_type,NC_NN,varname,varX,varY,varZ,cf) result(E_IO)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Function for saving field of vectorial variable (R8P).
+  !> Function for saving field of vectorial variable (R8P).
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
-  character(*), intent(IN)::           vec_type      !< Vector type: vect = generic vector , norm = normal vector.
-  integer(I4P), intent(IN)::           NC_NN         !< Number of nodes or cells.
-  character(*), intent(IN)::           varname       !< Variable name.
-  real(R8P),    intent(IN)::           varX(1:NC_NN) !< X component of vector.
-  real(R8P),    intent(IN)::           varY(1:NC_NN) !< Y component of vector.
-  real(R8P),    intent(IN)::           varZ(1:NC_NN) !< Z component of vector.
-  integer(I4P), intent(IN), optional:: cf            !< Current file index (for concurrent files IO).
-  integer(I4P)::                       E_IO          !< Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
-  integer(I4P)::                       rf            !< Real file index.
-  integer(I4P)::                       n1            !< Counter.
+  character(*), intent(IN)::           vec_type      !> Vector type: vect = generic vector , norm = normal vector.
+  integer(I4P), intent(IN)::           NC_NN         !> Number of nodes or cells.
+  character(*), intent(IN)::           varname       !> Variable name.
+  real(R8P),    intent(IN)::           varX(1:NC_NN) !> X component of vector.
+  real(R8P),    intent(IN)::           varY(1:NC_NN) !> Y component of vector.
+  real(R8P),    intent(IN)::           varZ(1:NC_NN) !> Z component of vector.
+  integer(I4P), intent(IN), optional:: cf            !> Current file index (for concurrent files IO).
+  integer(I4P)::                       E_IO          !> Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
+  integer(I4P)::                       rf            !> Real file index.
+  integer(I4P)::                       n1            !> Counter.
   !---------------------------------------------------------------------------------------------------------------------------------
 
   !---------------------------------------------------------------------------------------------------------------------------------
@@ -6327,19 +6326,19 @@ contains
 
   function VTK_VAR_VECT_R4(vec_type,NC_NN,varname,varX,varY,varZ,cf) result(E_IO)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Function for saving field of vectorial variable (R4P).
+  !> Function for saving field of vectorial variable (R4P).
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
-  character(*), intent(IN)::           vec_type      !< Vector type: vect = generic vector , norm = normal vector.
-  integer(I4P), intent(IN)::           NC_NN         !< Number of nodes or cells.
-  character(*), intent(IN)::           varname       !< Variable name.
-  real(R4P),    intent(IN)::           varX(1:NC_NN) !< X component of vector.
-  real(R4P),    intent(IN)::           varY(1:NC_NN) !< Y component of vector.
-  real(R4P),    intent(IN)::           varZ(1:NC_NN) !< Z component of vector.
-  integer(I4P), intent(IN), optional:: cf            !< Current file index (for concurrent files IO).
-  integer(I4P)::                       E_IO          !< Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
-  integer(I4P)::                       rf            !< Real file index.
-  integer(I4P)::                       n1            !< Counter.
+  character(*), intent(IN)::           vec_type      !> Vector type: vect = generic vector , norm = normal vector.
+  integer(I4P), intent(IN)::           NC_NN         !> Number of nodes or cells.
+  character(*), intent(IN)::           varname       !> Variable name.
+  real(R4P),    intent(IN)::           varX(1:NC_NN) !> X component of vector.
+  real(R4P),    intent(IN)::           varY(1:NC_NN) !> Y component of vector.
+  real(R4P),    intent(IN)::           varZ(1:NC_NN) !> Z component of vector.
+  integer(I4P), intent(IN), optional:: cf            !> Current file index (for concurrent files IO).
+  integer(I4P)::                       E_IO          !> Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
+  integer(I4P)::                       rf            !> Real file index.
+  integer(I4P)::                       n1            !> Counter.
   !---------------------------------------------------------------------------------------------------------------------------------
 
   !---------------------------------------------------------------------------------------------------------------------------------
@@ -6373,18 +6372,18 @@ contains
 
   function VTK_VAR_VECT_I4(NC_NN,varname,varX,varY,varZ,cf) result(E_IO)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Function for saving field of vectorial variable (I4P).
+  !> Function for saving field of vectorial variable (I4P).
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
-  integer(I4P), intent(IN)::           NC_NN         !< Number of nodes or cells.
-  character(*), intent(IN)::           varname       !< Variable name.
-  integer(I4P), intent(IN)::           varX(1:NC_NN) !< X component of vector.
-  integer(I4P), intent(IN)::           varY(1:NC_NN) !< Y component of vector.
-  integer(I4P), intent(IN)::           varZ(1:NC_NN) !< Z component of vector.
-  integer(I4P), intent(IN), optional:: cf            !< Current file index (for concurrent files IO).
-  integer(I4P)::                       E_IO          !< Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
-  integer(I4P)::                       rf            !< Real file index.
-  integer(I4P)::                       n1            !< Counter.
+  integer(I4P), intent(IN)::           NC_NN         !> Number of nodes or cells.
+  character(*), intent(IN)::           varname       !> Variable name.
+  integer(I4P), intent(IN)::           varX(1:NC_NN) !> X component of vector.
+  integer(I4P), intent(IN)::           varY(1:NC_NN) !> Y component of vector.
+  integer(I4P), intent(IN)::           varZ(1:NC_NN) !> Z component of vector.
+  integer(I4P), intent(IN), optional:: cf            !> Current file index (for concurrent files IO).
+  integer(I4P)::                       E_IO          !> Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
+  integer(I4P)::                       rf            !> Real file index.
+  integer(I4P)::                       n1            !> Counter.
   !---------------------------------------------------------------------------------------------------------------------------------
 
   !---------------------------------------------------------------------------------------------------------------------------------
@@ -6408,18 +6407,18 @@ contains
 
   function VTK_VAR_TEXT_R8(NC_NN,dimm,varname,textCoo,cf) result(E_IO)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Function for saving texture variable (R8P).
+  !> Function for saving texture variable (R8P).
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
-  integer(I4P), intent(IN)::           NC_NN                   !< Number of nodes or cells.
-  integer(I4P), intent(IN)::           dimm                    !< Texture dimensions.
-  character(*), intent(IN)::           varname                 !< Variable name.
-  real(R8P),    intent(IN)::           textCoo(1:NC_NN,1:dimm) !< Texture.
-  integer(I4P), intent(IN), optional:: cf                      !< Current file index (for concurrent files IO).
-  integer(I4P)::                       E_IO              !< Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
-  character(len=maxlen)::              s_buffer                !< Buffer string.
-  integer(I4P)::                       rf                      !< Real file index.
-  integer(I4P)::                       n1,n2                   !< Counters.
+  integer(I4P), intent(IN)::           NC_NN                   !> Number of nodes or cells.
+  integer(I4P), intent(IN)::           dimm                    !> Texture dimensions.
+  character(*), intent(IN)::           varname                 !> Variable name.
+  real(R8P),    intent(IN)::           textCoo(1:NC_NN,1:dimm) !> Texture.
+  integer(I4P), intent(IN), optional:: cf                      !> Current file index (for concurrent files IO).
+  integer(I4P)::                       E_IO              !> Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
+  character(len=maxlen)::              s_buffer                !> Buffer string.
+  integer(I4P)::                       rf                      !> Real file index.
+  integer(I4P)::                       n1,n2                   !> Counters.
   !---------------------------------------------------------------------------------------------------------------------------------
 
   !---------------------------------------------------------------------------------------------------------------------------------
@@ -6446,18 +6445,18 @@ contains
 
   function VTK_VAR_TEXT_R4(NC_NN,dimm,varname,textCoo,cf) result(E_IO)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Function for saving texture variable (R4P).
+  !> Function for saving texture variable (R4P).
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
-  integer(I4P), intent(IN)::           NC_NN                   !< Number of nodes or cells.
-  integer(I4P), intent(IN)::           dimm                    !< Texture dimensions.
-  character(*), intent(IN)::           varname                 !< Variable name.
-  real(R4P),    intent(IN)::           textCoo(1:NC_NN,1:dimm) !< Texture.
-  integer(I4P), intent(IN), optional:: cf                      !< Current file index (for concurrent files IO).
-  integer(I4P)::                       E_IO              !< Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
-  character(len=maxlen)::              s_buffer                !< Buffer string.
-  integer(I4P)::                       rf                      !< Real file index.
-  integer(I4P)::                       n1,n2                   !< Counters.
+  integer(I4P), intent(IN)::           NC_NN                   !> Number of nodes or cells.
+  integer(I4P), intent(IN)::           dimm                    !> Texture dimensions.
+  character(*), intent(IN)::           varname                 !> Variable name.
+  real(R4P),    intent(IN)::           textCoo(1:NC_NN,1:dimm) !> Texture.
+  integer(I4P), intent(IN), optional:: cf                      !> Current file index (for concurrent files IO).
+  integer(I4P)::                       E_IO              !> Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
+  character(len=maxlen)::              s_buffer                !> Buffer string.
+  integer(I4P)::                       rf                      !> Real file index.
+  integer(I4P)::                       n1,n2                   !> Counters.
   !---------------------------------------------------------------------------------------------------------------------------------
 
   !---------------------------------------------------------------------------------------------------------------------------------
@@ -6484,17 +6483,17 @@ contains
 
   function VTK_END(cf) result(E_IO)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Function for finalizing the VTK-XML file.
-  !<
-  !<### Usage
-  !<```fortran
-  !< E_IO = VTK_END()
-  !<```
+  !> Function for finalizing the VTK-XML file.
+  !>
+  !>### Usage
+  !>```fortran
+  !> E_IO = VTK_END()
+  !>```
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
-  integer(I4P), intent(INOUT), optional:: cf   !< Current file index (for concurrent files IO).
-  integer(I4P)::                          E_IO !< Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
-  integer(I4P)::                          rf   !< Real file index.
+  integer(I4P), intent(INOUT), optional:: cf   !> Current file index (for concurrent files IO).
+  integer(I4P)::                          E_IO !> Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
+  integer(I4P)::                          rf   !> Real file index.
   !---------------------------------------------------------------------------------------------------------------------------------
 
   !---------------------------------------------------------------------------------------------------------------------------------
@@ -6514,14 +6513,14 @@ contains
 
   function PVD_INI_XML(filename,cf) result(E_IO)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Function for initializing timed PVD-XML file.
+  !> Function for initializing timed PVD-XML file.
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
-  character(*), intent(IN)           :: filename      !< File name.
-  integer(I4P), intent(OUT), optional:: cf            !< Current file index (for concurrent files IO).
-  integer(I4P)                       :: E_IO          !< Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
-  character(len=maxlen)              :: s_buffer      !< Buffer string.
-  integer(I4P)                       :: rf            !< Real file index.
+  character(*), intent(IN)           :: filename      !> File name.
+  integer(I4P), intent(OUT), optional:: cf            !> Current file index (for concurrent files IO).
+  integer(I4P)                       :: E_IO          !> Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
+  character(len=maxlen)              :: s_buffer      !> Buffer string.
+  integer(I4P)                       :: rf            !> Real file index.
   !---------------------------------------------------------------------------------------------------------------------------------
 
   !---------------------------------------------------------------------------------------------------------------------------------
@@ -6551,16 +6550,16 @@ contains
 
   function PVD_DAT_XML_R8(filename,timestep, part, cf) result(E_IO) !group, part, cf) result(E_IO)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Function for saving of PVD data associated to the sequence of VTK files
+  !> Function for saving of PVD data associated to the sequence of VTK files
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
-  character(*), intent(IN)           :: filename     !< Location of saving variables: CELL or NODE centered.
-  real(R8P),    intent(IN)           :: timestep     !< Timestep index
-  integer(I4P), intent(IN), optional :: part         !< Part index
-  integer(I4P), intent(IN), optional :: cf           !< Current file index (for concurrent files IO).
-  integer(I4P)                       :: E_IO         !< Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
-  integer(I4P)                       :: rf           !< Real file index.
-  integer(I4P)                       :: rp           !< Real part index.
+  character(*), intent(IN)           :: filename     !> Location of saving variables: CELL or NODE centered.
+  real(R8P),    intent(IN)           :: timestep     !> Timestep index
+  integer(I4P), intent(IN), optional :: part         !> Part index
+  integer(I4P), intent(IN), optional :: cf           !> Current file index (for concurrent files IO).
+  integer(I4P)                       :: E_IO         !> Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
+  integer(I4P)                       :: rf           !> Real file index.
+  integer(I4P)                       :: rp           !> Real part index.
   !---------------------------------------------------------------------------------------------------------------------------------
 
   !---------------------------------------------------------------------------------------------------------------------------------
@@ -6583,16 +6582,16 @@ contains
 
   function PVD_DAT_XML_R4(filename,timestep, part, cf) result(E_IO) !group, part, cf) result(E_IO)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Function for saving of PVD data associated to the sequence of VTK files
+  !> Function for saving of PVD data associated to the sequence of VTK files
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
-  character(*), intent(IN)           :: filename     !< Location of saving variables: CELL or NODE centered.
-  real(R4P),    intent(IN)           :: timestep     !< Timestep index
-  integer(I4P), intent(IN), optional :: part         !< Part index
-  integer(I4P), intent(IN), optional :: cf           !< Current file index (for concurrent files IO).
-  integer(I4P)                       :: E_IO         !< Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
-  integer(I4P)                       :: rf           !< Real file index.
-  integer(I4P)                       :: rp           !< Real part index.
+  character(*), intent(IN)           :: filename     !> Location of saving variables: CELL or NODE centered.
+  real(R4P),    intent(IN)           :: timestep     !> Timestep index
+  integer(I4P), intent(IN), optional :: part         !> Part index
+  integer(I4P), intent(IN), optional :: cf           !> Current file index (for concurrent files IO).
+  integer(I4P)                       :: E_IO         !> Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
+  integer(I4P)                       :: rf           !> Real file index.
+  integer(I4P)                       :: rp           !> Real part index.
   !---------------------------------------------------------------------------------------------------------------------------------
 
   !---------------------------------------------------------------------------------------------------------------------------------
@@ -6615,16 +6614,16 @@ contains
 
   function PVD_DAT_XML_I8(filename,timestep, part, cf) result(E_IO) !group, part, cf) result(E_IO)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Function for saving of PVD data associated to the sequence of VTK files
+  !> Function for saving of PVD data associated to the sequence of VTK files
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
-  character(*), intent(IN)           :: filename     !< Location of saving variables: CELL or NODE centered.
-  integer(I8P), intent(IN)           :: timestep     !< Timestep index
-  integer(I4P), intent(IN), optional :: part         !< Part index
-  integer(I4P), intent(IN), optional :: cf           !< Current file index (for concurrent files IO).
-  integer(I4P)                       :: E_IO         !< Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
-  integer(I4P)                       :: rf           !< Real file index.
-  integer(I4P)                       :: rp           !< Real part index.
+  character(*), intent(IN)           :: filename     !> Location of saving variables: CELL or NODE centered.
+  integer(I8P), intent(IN)           :: timestep     !> Timestep index
+  integer(I4P), intent(IN), optional :: part         !> Part index
+  integer(I4P), intent(IN), optional :: cf           !> Current file index (for concurrent files IO).
+  integer(I4P)                       :: E_IO         !> Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
+  integer(I4P)                       :: rf           !> Real file index.
+  integer(I4P)                       :: rp           !> Real part index.
   !---------------------------------------------------------------------------------------------------------------------------------
 
   !---------------------------------------------------------------------------------------------------------------------------------
@@ -6646,16 +6645,16 @@ contains
 
   function PVD_DAT_XML_I4(filename,timestep, part, cf) result(E_IO) !group, part, cf) result(E_IO)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Function for saving of PVD data associated to the sequence of VTK files
+  !> Function for saving of PVD data associated to the sequence of VTK files
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
-  character(*), intent(IN)           :: filename     !< Location of saving variables: CELL or NODE centered.
-  integer(I4P), intent(IN)           :: timestep     !< Timestep index
-  integer(I4P), intent(IN), optional :: part         !< Part index
-  integer(I4P), intent(IN), optional :: cf           !< Current file index (for concurrent files IO).
-  integer(I4P)                       :: E_IO         !< Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
-  integer(I4P)                       :: rf           !< Real file index.
-  integer(I4P)                       :: rp           !< Real part index.
+  character(*), intent(IN)           :: filename     !> Location of saving variables: CELL or NODE centered.
+  integer(I4P), intent(IN)           :: timestep     !> Timestep index
+  integer(I4P), intent(IN), optional :: part         !> Part index
+  integer(I4P), intent(IN), optional :: cf           !> Current file index (for concurrent files IO).
+  integer(I4P)                       :: E_IO         !> Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
+  integer(I4P)                       :: rf           !> Real file index.
+  integer(I4P)                       :: rp           !> Real part index.
   !---------------------------------------------------------------------------------------------------------------------------------
 
   !---------------------------------------------------------------------------------------------------------------------------------
@@ -6678,16 +6677,16 @@ contains
 
   function PVD_DAT_XML_I2(filename,timestep, part, cf) result(E_IO) !group, part, cf) result(E_IO)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Function for saving of PVD data associated to the sequence of VTK files
+  !> Function for saving of PVD data associated to the sequence of VTK files
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
-  character(*), intent(IN)           :: filename     !< Location of saving variables: CELL or NODE centered.
-  integer(I2P), intent(IN)           :: timestep     !< Timestep index
-  integer(I4P), intent(IN), optional :: part         !< Part index
-  integer(I4P), intent(IN), optional :: cf           !< Current file index (for concurrent files IO).
-  integer(I4P)                       :: E_IO         !< Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
-  integer(I4P)                       :: rf           !< Real file index.
-  integer(I4P)                       :: rp           !< Real part index.
+  character(*), intent(IN)           :: filename     !> Location of saving variables: CELL or NODE centered.
+  integer(I2P), intent(IN)           :: timestep     !> Timestep index
+  integer(I4P), intent(IN), optional :: part         !> Part index
+  integer(I4P), intent(IN), optional :: cf           !> Current file index (for concurrent files IO).
+  integer(I4P)                       :: E_IO         !> Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
+  integer(I4P)                       :: rf           !> Real file index.
+  integer(I4P)                       :: rp           !> Real part index.
   !---------------------------------------------------------------------------------------------------------------------------------
 
   !---------------------------------------------------------------------------------------------------------------------------------
@@ -6710,16 +6709,16 @@ contains
 
   function PVD_DAT_XML_I1(filename,timestep, part, cf) result(E_IO) !group, part, cf) result(E_IO)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Function for saving of PVD data associated to the sequence of VTK files
+  !> Function for saving of PVD data associated to the sequence of VTK files
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
-  character(*), intent(IN)           :: filename     !< Location of saving variables: CELL or NODE centered.
-  integer(I1P), intent(IN)           :: timestep     !< Timestep index
-  integer(I4P), intent(IN), optional :: part         !< Part index
-  integer(I4P), intent(IN), optional :: cf           !< Current file index (for concurrent files IO).
-  integer(I4P)                       :: E_IO         !< Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
-  integer(I4P)                       :: rf           !< Real file index.
-  integer(I4P)                       :: rp           !< Real part index.
+  character(*), intent(IN)           :: filename     !> Location of saving variables: CELL or NODE centered.
+  integer(I1P), intent(IN)           :: timestep     !> Timestep index
+  integer(I4P), intent(IN), optional :: part         !> Part index
+  integer(I4P), intent(IN), optional :: cf           !> Current file index (for concurrent files IO).
+  integer(I4P)                       :: E_IO         !> Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
+  integer(I4P)                       :: rf           !> Real file index.
+  integer(I4P)                       :: rp           !> Real part index.
   !---------------------------------------------------------------------------------------------------------------------------------
 
   !---------------------------------------------------------------------------------------------------------------------------------
@@ -6742,12 +6741,12 @@ contains
 
   function PVD_END_XML(cf) result(E_IO)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Function for finalizing the PVD-XML file.
+  !> Function for finalizing the PVD-XML file.
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
-  integer(I4P), intent(INOUT), optional:: cf   !< Current file index (for concurrent files IO).
-  integer(I4P)::                          E_IO !< Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
-  integer(I4P)::                          rf   !< Real file index.
+  integer(I4P), intent(INOUT), optional:: cf   !> Current file index (for concurrent files IO).
+  integer(I4P)::                          E_IO !> Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
+  integer(I4P)::                          rf   !> Real file index.
   !---------------------------------------------------------------------------------------------------------------------------------
 
   !---------------------------------------------------------------------------------------------------------------------------------
@@ -6776,45 +6775,45 @@ contains
 
   function VTK_INI_XML_READ(input_format,filename,mesh_topology,npieces,nx1,nx2,ny1,ny2,nz1,nz2,cf) result(E_IO)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Procedure for initializing VTK-XML file when reading.
-  !<
-  !< Supported input formats are (the passed specifier value is case insensitive):
-  !<- ASCII: data are saved in ASCII format; (Not implemented!)
-  !<- BINARY: data are saved in base64 encoded format; (Not tested!)
-  !<- RAW: data are saved in raw-binary format in the appended tag of the XML file; (Not implemented!)
-  !<- BINARY-APPENDED: data are saved in base64 encoded format in the appended tag of the XML file. (Not implemented!)
-  !< Supported topologies are:
-  !<- RectilinearGrid; (Not tested!)
-  !<- StructuredGrid; (Not tested!)
-  !<- UnstructuredGrid. (Not tested!)
-  !<### Example of usage
-  !<```fortran
-  !< integer(I4P):: nx1,nx2,ny1,ny2,nz1,nz2
-  !< ...
-  !< E_IO = VTK_INI_XML_READ('BINARY','XML_RECT_BINARY.vtr','RectilinearGrid',nx1=nx1,nx2=nx2,ny1=ny1,ny2=ny2,nz1=nz1,nz2=nz2,cf=rf)
-  !< ...
-  !<```
-  !< Note that the file extension is necessary in the file name. The XML standard has different extensions for each
-  !< different topologies (e.g. *vtr* for rectilinear topology). See the VTK-standard file for more information.
+  !> Procedure for initializing VTK-XML file when reading.
+  !>
+  !> Supported input formats are (the passed specifier value is case insensitive):
+  !>- ASCII: data are saved in ASCII format; (Not implemented!)
+  !>- BINARY: data are saved in base64 encoded format; (Not tested!)
+  !>- RAW: data are saved in raw-binary format in the appended tag of the XML file; (Not implemented!)
+  !>- BINARY-APPENDED: data are saved in base64 encoded format in the appended tag of the XML file. (Not implemented!)
+  !> Supported topologies are:
+  !>- RectilinearGrid; (Not tested!)
+  !>- StructuredGrid; (Not tested!)
+  !>- UnstructuredGrid. (Not tested!)
+  !>### Example of usage
+  !>```fortran
+  !> integer(I4P):: nx1,nx2,ny1,ny2,nz1,nz2
+  !> ...
+  !> E_IO = VTK_INI_XML_READ('BINARY','XML_RECT_BINARY.vtr','RectilinearGrid',nx1=nx1,nx2=nx2,ny1=ny1,ny2=ny2,nz1=nz1,nz2=nz2,cf=rf)
+  !> ...
+  !>```
+  !> Note that the file extension is necessary in the file name. The XML standard has different extensions for each
+  !> different topologies (e.g. *vtr* for rectilinear topology). See the VTK-standard file for more information.
   !---------------------------------------------------------------------------------------------------------------------------------
-  character(*), intent(IN)            :: input_format   !< input format: ASCII,  BINARY or RAW
-  character(*), intent(IN)            :: filename       !< file name
-  character(*), intent(IN)            :: mesh_topology  !< mesh topology
-  integer(I4P), intent(OUT), optional :: npieces        !< Number of pieces stored in the file
-  integer(I4P), intent(OUT), optional :: nx1            !< Initial node of x axis.
-  integer(I4P), intent(OUT), optional :: nx2            !< Final node of x axis.
-  integer(I4P), intent(OUT), optional :: ny1            !< Initial node of y axis.
-  integer(I4P), intent(OUT), optional :: ny2            !< Final node of y axis.
-  integer(I4P), intent(OUT), optional :: nz1            !< Initial node of z axis.
-  integer(I4P), intent(OUT), optional :: nz2            !< Final node of z axis.
-  integer(I4P), intent(OUT), optional :: cf             !< Current file index (for concurrent files IO).
-  integer(I4P)                        :: rf             !< Real file index.
-  integer(I4P)                        :: np             !< Real number of pieces.
-  character(len=:),allocatable        :: s_buffer       !< Buffer string.
-  integer(I4P)                        :: E_IO           !< Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done
+  character(*), intent(IN)            :: input_format   !> input format: ASCII,  BINARY or RAW
+  character(*), intent(IN)            :: filename       !> file name
+  character(*), intent(IN)            :: mesh_topology  !> mesh topology
+  integer(I4P), intent(OUT), optional :: npieces        !> Number of pieces stored in the file
+  integer(I4P), intent(OUT), optional :: nx1            !> Initial node of x axis.
+  integer(I4P), intent(OUT), optional :: nx2            !> Final node of x axis.
+  integer(I4P), intent(OUT), optional :: ny1            !> Initial node of y axis.
+  integer(I4P), intent(OUT), optional :: ny2            !> Final node of y axis.
+  integer(I4P), intent(OUT), optional :: nz1            !> Initial node of z axis.
+  integer(I4P), intent(OUT), optional :: nz2            !> Final node of z axis.
+  integer(I4P), intent(OUT), optional :: cf             !> Current file index (for concurrent files IO).
+  integer(I4P)                        :: rf             !> Real file index.
+  integer(I4P)                        :: np             !> Real number of pieces.
+  character(len=:),allocatable        :: s_buffer       !> Buffer string.
+  integer(I4P)                        :: E_IO           !> Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done
   character                           :: c1, c2
   character(len=:),allocatable        :: aux
-  integer(I4P), dimension(6)          :: rn             !< Real node ranges in WholeExtent [nx1,nx2,ny1,ny2,nz1,nz2]
+  integer(I4P), dimension(6)          :: rn             !> Real node ranges in WholeExtent [nx1,nx2,ny1,ny2,nz1,nz2]
   logical                             :: fexist
   !---------------------------------------------------------------------------------------------------------------------------------
 
@@ -6967,18 +6966,18 @@ contains
 
   function VTK_GEO_XML_UNST_R4_READ(NN,NC,X,Y,Z,npiece,cf) result(E_IO)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Function for reading mesh with \b UnstructuredGrid topology (R8P).
+  !> Function for reading mesh with \b UnstructuredGrid topology (R8P).
   !---------------------------------------------------------------------------------------------------------------------------------
-  integer(I4P),           intent(OUT) :: NN       !< number of nodes
-  integer(I4P),           intent(OUT) :: NC       !< number of cells
-  real(R4P), allocatable, intent(OUT) :: X(:)     !< x coordinates
-  real(R4P), allocatable, intent(OUT) :: Y(:)     !< y coordinates
-  real(R4P), allocatable, intent(OUT) :: Z(:)     !< z coordinates
-  integer(I4P), optional, intent(IN)  :: npiece   !< Number of the piece to read (by default: 1)
-  integer(I4P), optional, intent(IN)  :: cf       !< Current file index (for concurrent files IO).
-  integer(I4P)                        :: E_IO     !< Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done
-  integer(I4P)                        :: rf       !< Real file index.
-  character(len=:),allocatable        :: s_buffer !< Buffer string.
+  integer(I4P),           intent(OUT) :: NN       !> number of nodes
+  integer(I4P),           intent(OUT) :: NC       !> number of cells
+  real(R4P), allocatable, intent(OUT) :: X(:)     !> x coordinates
+  real(R4P), allocatable, intent(OUT) :: Y(:)     !> y coordinates
+  real(R4P), allocatable, intent(OUT) :: Z(:)     !> z coordinates
+  integer(I4P), optional, intent(IN)  :: npiece   !> Number of the piece to read (by default: 1)
+  integer(I4P), optional, intent(IN)  :: cf       !> Current file index (for concurrent files IO).
+  integer(I4P)                        :: E_IO     !> Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done
+  integer(I4P)                        :: rf       !> Real file index.
+  character(len=:),allocatable        :: s_buffer !> Buffer string.
   character(len=:), allocatable       :: fmt
   character(len=:), allocatable       :: type
   character(len=:), allocatable       :: data
@@ -7075,18 +7074,18 @@ contains
 
   function VTK_GEO_XML_UNST_R8_READ(NN,NC,X,Y,Z,npiece,cf) result(E_IO)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Function for reading mesh with \b UnstructuredGrid topology (R8P).
+  !> Function for reading mesh with \b UnstructuredGrid topology (R8P).
   !---------------------------------------------------------------------------------------------------------------------------------
-  integer(I4P),           intent(OUT) :: NN       !< number of nodes
-  integer(I4P),           intent(OUT) :: NC       !< number of cells
-  real(R8P), allocatable, intent(OUT) :: X(:)     !< x coordinates
-  real(R8P), allocatable, intent(OUT) :: Y(:)     !< y coordinates
-  real(R8P), allocatable, intent(OUT) :: Z(:)     !< z coordinates
-  integer(I4P), optional, intent(IN)  :: npiece   !< Number of the piece to read (by default: 1)
-  integer(I4P), optional, intent(IN)  :: cf       !< Current file index (for concurrent files IO).
-  integer(I4P)                        :: E_IO     !< Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done
-  integer(I4P)                        :: rf       !< Real file index.
-  character(len=:),allocatable        :: s_buffer !< Buffer string.
+  integer(I4P),           intent(OUT) :: NN       !> number of nodes
+  integer(I4P),           intent(OUT) :: NC       !> number of cells
+  real(R8P), allocatable, intent(OUT) :: X(:)     !> x coordinates
+  real(R8P), allocatable, intent(OUT) :: Y(:)     !> y coordinates
+  real(R8P), allocatable, intent(OUT) :: Z(:)     !> z coordinates
+  integer(I4P), optional, intent(IN)  :: npiece   !> Number of the piece to read (by default: 1)
+  integer(I4P), optional, intent(IN)  :: cf       !> Current file index (for concurrent files IO).
+  integer(I4P)                        :: E_IO     !> Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done
+  integer(I4P)                        :: rf       !> Real file index.
+  character(len=:),allocatable        :: s_buffer !> Buffer string.
   character(len=:), allocatable       :: fmt
   character(len=:), allocatable       :: type
   character(len=:), allocatable       :: data
@@ -7182,16 +7181,16 @@ contains
 
   function VTK_GEO_XML_UNST_PACK_R4_READ(NN,NC,XYZ,npiece,cf) result(E_IO)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Function for reading mesh with \b UnstructuredGrid topology (R8P).
+  !> Function for reading mesh with \b UnstructuredGrid topology (R8P).
   !---------------------------------------------------------------------------------------------------------------------------------
-  integer(I4P),           intent(OUT) :: NN       !< number of nodes
-  integer(I4P),           intent(OUT) :: NC       !< number of cells
-  real(R4P), allocatable, intent(OUT) :: XYZ(:,:)   !< Coordinates
-  integer(I4P), optional, intent(IN)  :: npiece   !< Number of the piece to read (by default: 1)
-  integer(I4P), optional, intent(IN)  :: cf       !< Current file index (for concurrent files IO).
-  integer(I4P)                        :: E_IO     !< Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done
-  integer(I4P)                        :: rf       !< Real file index.
-  character(len=:),allocatable        :: s_buffer !< Buffer string.
+  integer(I4P),           intent(OUT) :: NN       !> number of nodes
+  integer(I4P),           intent(OUT) :: NC       !> number of cells
+  real(R4P), allocatable, intent(OUT) :: XYZ(:,:)   !> Coordinates
+  integer(I4P), optional, intent(IN)  :: npiece   !> Number of the piece to read (by default: 1)
+  integer(I4P), optional, intent(IN)  :: cf       !> Current file index (for concurrent files IO).
+  integer(I4P)                        :: E_IO     !> Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done
+  integer(I4P)                        :: rf       !> Real file index.
+  character(len=:),allocatable        :: s_buffer !> Buffer string.
   character(len=:), allocatable       :: fmt
   character(len=:), allocatable       :: type
   character(len=:), allocatable       :: data
@@ -7288,16 +7287,16 @@ contains
 
   function VTK_GEO_XML_UNST_PACK_R8_READ(NN,NC,XYZ,npiece,cf) result(E_IO)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Function for reading mesh with \b UnstructuredGrid topology (R8P).
+  !> Function for reading mesh with \b UnstructuredGrid topology (R8P).
   !---------------------------------------------------------------------------------------------------------------------------------
-  integer(I4P),           intent(OUT) :: NN       !< number of nodes
-  integer(I4P),           intent(OUT) :: NC       !< number of cells
-  real(R8P), allocatable, intent(OUT) :: XYZ(:,:)   !< Coordinates
-  integer(I4P), optional, intent(IN)  :: npiece   !< Number of the piece to read (by default: 1)
-  integer(I4P), optional, intent(IN)  :: cf       !< Current file index (for concurrent files IO).
-  integer(I4P)                        :: E_IO     !< Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done
-  integer(I4P)                        :: rf       !< Real file index.
-  character(len=:),allocatable        :: s_buffer !< Buffer string.
+  integer(I4P),           intent(OUT) :: NN       !> number of nodes
+  integer(I4P),           intent(OUT) :: NC       !> number of cells
+  real(R8P), allocatable, intent(OUT) :: XYZ(:,:)   !> Coordinates
+  integer(I4P), optional, intent(IN)  :: npiece   !> Number of the piece to read (by default: 1)
+  integer(I4P), optional, intent(IN)  :: cf       !> Current file index (for concurrent files IO).
+  integer(I4P)                        :: E_IO     !> Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done
+  integer(I4P)                        :: rf       !> Real file index.
+  character(len=:),allocatable        :: s_buffer !> Buffer string.
   character(len=:), allocatable       :: fmt
   character(len=:), allocatable       :: type
   character(len=:), allocatable       :: data
@@ -7394,24 +7393,24 @@ contains
 
   function VTK_GEO_XML_STRG_1DA_R4_READ(nx1,nx2,ny1,ny2,nz1,nz2,NN,X,Y,Z,npiece,cf) result(E_IO)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Function for reading mesh with \b UnstructuredGrid topology (R8P).
+  !> Function for reading mesh with \b UnstructuredGrid topology (R8P).
   !---------------------------------------------------------------------------------------------------------------------------------
-  integer(I4P),           intent(OUT) :: nx1      !< Initial node of x axis.
-  integer(I4P),           intent(OUT) :: nx2      !< Final node of x axis.
-  integer(I4P),           intent(OUT) :: ny1      !< Initial node of y axis.
-  integer(I4P),           intent(OUT) :: ny2      !< Final node of y axis.
-  integer(I4P),           intent(OUT) :: nz1      !< Initial node of z axis.
-  integer(I4P),           intent(OUT) :: nz2      !< Final node of z axis.
-  integer(I4P),           intent(OUT) :: NN       !< Number of nodes
-  real(R4P), allocatable, intent(OUT) :: X(:)     !< x coordinates
-  real(R4P), allocatable, intent(OUT) :: Y(:)     !< y coordinates
-  real(R4P), allocatable, intent(OUT) :: Z(:)     !< z coordinates
-  integer(I4P), optional, intent(IN)  :: npiece   !< Number of the piece to read (by default: 1)
-  integer(I4P), optional, intent(IN)  :: cf       !< Current file index (for concurrent files IO).
-  integer(I4P)                        :: E_IO     !< Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done
-  integer(I4P)                        :: rf       !< Real file index.
-  character(len=:),allocatable        :: s_buffer !< Buffer string.
-  character(len=:),allocatable        :: aux      !< Auxiliary string.
+  integer(I4P),           intent(OUT) :: nx1      !> Initial node of x axis.
+  integer(I4P),           intent(OUT) :: nx2      !> Final node of x axis.
+  integer(I4P),           intent(OUT) :: ny1      !> Initial node of y axis.
+  integer(I4P),           intent(OUT) :: ny2      !> Final node of y axis.
+  integer(I4P),           intent(OUT) :: nz1      !> Initial node of z axis.
+  integer(I4P),           intent(OUT) :: nz2      !> Final node of z axis.
+  integer(I4P),           intent(OUT) :: NN       !> Number of nodes
+  real(R4P), allocatable, intent(OUT) :: X(:)     !> x coordinates
+  real(R4P), allocatable, intent(OUT) :: Y(:)     !> y coordinates
+  real(R4P), allocatable, intent(OUT) :: Z(:)     !> z coordinates
+  integer(I4P), optional, intent(IN)  :: npiece   !> Number of the piece to read (by default: 1)
+  integer(I4P), optional, intent(IN)  :: cf       !> Current file index (for concurrent files IO).
+  integer(I4P)                        :: E_IO     !> Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done
+  integer(I4P)                        :: rf       !> Real file index.
+  character(len=:),allocatable        :: s_buffer !> Buffer string.
+  character(len=:),allocatable        :: aux      !> Auxiliary string.
   character(len=:), allocatable       :: fmt
   character(len=:), allocatable       :: type
   character(len=:), allocatable       :: data
@@ -7518,24 +7517,24 @@ contains
 
   function VTK_GEO_XML_STRG_1DA_R8_READ(nx1,nx2,ny1,ny2,nz1,nz2,NN,X,Y,Z,npiece,cf) result(E_IO)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Function for reading mesh with \b UnstructuredGrid topology (R8P).
+  !> Function for reading mesh with \b UnstructuredGrid topology (R8P).
   !---------------------------------------------------------------------------------------------------------------------------------
-  integer(I4P),           intent(OUT) :: nx1      !< Initial node of x axis.
-  integer(I4P),           intent(OUT) :: nx2      !< Final node of x axis.
-  integer(I4P),           intent(OUT) :: ny1      !< Initial node of y axis.
-  integer(I4P),           intent(OUT) :: ny2      !< Final node of y axis.
-  integer(I4P),           intent(OUT) :: nz1      !< Initial node of z axis.
-  integer(I4P),           intent(OUT) :: nz2      !< Final node of z axis.
-  integer(I4P),           intent(OUT) :: NN       !< Number of nodes
-  real(R8P), allocatable, intent(OUT) :: X(:)     !< x coordinates
-  real(R8P), allocatable, intent(OUT) :: Y(:)     !< y coordinates
-  real(R8P), allocatable, intent(OUT) :: Z(:)     !< z coordinates
-  integer(I4P), optional, intent(IN)  :: npiece   !< Number of the piece to read (by default: 1)
-  integer(I4P), optional, intent(IN)  :: cf       !< Current file index (for concurrent files IO).
-  integer(I4P)                        :: E_IO     !< Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done
-  integer(I4P)                        :: rf       !< Real file index.
-  character(len=:),allocatable        :: s_buffer !< Buffer string.
-  character(len=:),allocatable        :: aux      !< Auxiliary string.
+  integer(I4P),           intent(OUT) :: nx1      !> Initial node of x axis.
+  integer(I4P),           intent(OUT) :: nx2      !> Final node of x axis.
+  integer(I4P),           intent(OUT) :: ny1      !> Initial node of y axis.
+  integer(I4P),           intent(OUT) :: ny2      !> Final node of y axis.
+  integer(I4P),           intent(OUT) :: nz1      !> Initial node of z axis.
+  integer(I4P),           intent(OUT) :: nz2      !> Final node of z axis.
+  integer(I4P),           intent(OUT) :: NN       !> Number of nodes
+  real(R8P), allocatable, intent(OUT) :: X(:)     !> x coordinates
+  real(R8P), allocatable, intent(OUT) :: Y(:)     !> y coordinates
+  real(R8P), allocatable, intent(OUT) :: Z(:)     !> z coordinates
+  integer(I4P), optional, intent(IN)  :: npiece   !> Number of the piece to read (by default: 1)
+  integer(I4P), optional, intent(IN)  :: cf       !> Current file index (for concurrent files IO).
+  integer(I4P)                        :: E_IO     !> Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done
+  integer(I4P)                        :: rf       !> Real file index.
+  character(len=:),allocatable        :: s_buffer !> Buffer string.
+  character(len=:),allocatable        :: aux      !> Auxiliary string.
   character(len=:), allocatable       :: fmt
   character(len=:), allocatable       :: type
   character(len=:), allocatable       :: data
@@ -7642,22 +7641,22 @@ contains
 
   function VTK_GEO_XML_STRG_1DAP_R4_READ(nx1,nx2,ny1,ny2,nz1,nz2,NN,XYZ,npiece,cf) result(E_IO)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Function for reading mesh with \b UnstructuredGrid topology (R8P).
+  !> Function for reading mesh with \b UnstructuredGrid topology (R8P).
   !---------------------------------------------------------------------------------------------------------------------------------
-  integer(I4P),           intent(OUT) :: nx1      !< Initial node of x axis.
-  integer(I4P),           intent(OUT) :: nx2      !< Final node of x axis.
-  integer(I4P),           intent(OUT) :: ny1      !< Initial node of y axis.
-  integer(I4P),           intent(OUT) :: ny2      !< Final node of y axis.
-  integer(I4P),           intent(OUT) :: nz1      !< Initial node of z axis.
-  integer(I4P),           intent(OUT) :: nz2      !< Final node of z axis.
-  integer(I4P),           intent(OUT) :: NN       !< Number of nodes
-  real(R4P), allocatable, intent(OUT) :: XYZ(:,:) !< x coordinates
-  integer(I4P), optional, intent(IN)  :: npiece   !< Number of the piece to read (by default: 1)
-  integer(I4P), optional, intent(IN)  :: cf       !< Current file index (for concurrent files IO).
-  integer(I4P)                        :: E_IO     !< Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done
-  integer(I4P)                        :: rf       !< Real file index.
-  character(len=:),allocatable        :: s_buffer !< Buffer string.
-  character(len=:),allocatable        :: aux      !< Auxiliary string.
+  integer(I4P),           intent(OUT) :: nx1      !> Initial node of x axis.
+  integer(I4P),           intent(OUT) :: nx2      !> Final node of x axis.
+  integer(I4P),           intent(OUT) :: ny1      !> Initial node of y axis.
+  integer(I4P),           intent(OUT) :: ny2      !> Final node of y axis.
+  integer(I4P),           intent(OUT) :: nz1      !> Initial node of z axis.
+  integer(I4P),           intent(OUT) :: nz2      !> Final node of z axis.
+  integer(I4P),           intent(OUT) :: NN       !> Number of nodes
+  real(R4P), allocatable, intent(OUT) :: XYZ(:,:) !> x coordinates
+  integer(I4P), optional, intent(IN)  :: npiece   !> Number of the piece to read (by default: 1)
+  integer(I4P), optional, intent(IN)  :: cf       !> Current file index (for concurrent files IO).
+  integer(I4P)                        :: E_IO     !> Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done
+  integer(I4P)                        :: rf       !> Real file index.
+  character(len=:),allocatable        :: s_buffer !> Buffer string.
+  character(len=:),allocatable        :: aux      !> Auxiliary string.
   character(len=:), allocatable       :: fmt
   character(len=:), allocatable       :: type
   character(len=:), allocatable       :: data
@@ -7764,22 +7763,22 @@ contains
 
   function VTK_GEO_XML_STRG_1DAP_R8_READ(nx1,nx2,ny1,ny2,nz1,nz2,NN,XYZ,npiece,cf) result(E_IO)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Function for reading mesh with \b UnstructuredGrid topology (R8P).
+  !> Function for reading mesh with \b UnstructuredGrid topology (R8P).
   !---------------------------------------------------------------------------------------------------------------------------------
-  integer(I4P),           intent(OUT) :: nx1      !< Initial node of x axis.
-  integer(I4P),           intent(OUT) :: nx2      !< Final node of x axis.
-  integer(I4P),           intent(OUT) :: ny1      !< Initial node of y axis.
-  integer(I4P),           intent(OUT) :: ny2      !< Final node of y axis.
-  integer(I4P),           intent(OUT) :: nz1      !< Initial node of z axis.
-  integer(I4P),           intent(OUT) :: nz2      !< Final node of z axis.
-  integer(I4P),           intent(OUT) :: NN       !< Number of nodes
-  real(R8P), allocatable, intent(OUT) :: XYZ(:,:)     !< x coordinates
-  integer(I4P), optional, intent(IN)  :: npiece   !< Number of the piece to read (by default: 1)
-  integer(I4P), optional, intent(IN)  :: cf       !< Current file index (for concurrent files IO).
-  integer(I4P)                        :: E_IO     !< Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done
-  integer(I4P)                        :: rf       !< Real file index.
-  character(len=:),allocatable        :: s_buffer !< Buffer string.
-  character(len=:),allocatable        :: aux      !< Auxiliary string.
+  integer(I4P),           intent(OUT) :: nx1      !> Initial node of x axis.
+  integer(I4P),           intent(OUT) :: nx2      !> Final node of x axis.
+  integer(I4P),           intent(OUT) :: ny1      !> Initial node of y axis.
+  integer(I4P),           intent(OUT) :: ny2      !> Final node of y axis.
+  integer(I4P),           intent(OUT) :: nz1      !> Initial node of z axis.
+  integer(I4P),           intent(OUT) :: nz2      !> Final node of z axis.
+  integer(I4P),           intent(OUT) :: NN       !> Number of nodes
+  real(R8P), allocatable, intent(OUT) :: XYZ(:,:)     !> x coordinates
+  integer(I4P), optional, intent(IN)  :: npiece   !> Number of the piece to read (by default: 1)
+  integer(I4P), optional, intent(IN)  :: cf       !> Current file index (for concurrent files IO).
+  integer(I4P)                        :: E_IO     !> Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done
+  integer(I4P)                        :: rf       !> Real file index.
+  character(len=:),allocatable        :: s_buffer !> Buffer string.
+  character(len=:),allocatable        :: aux      !> Auxiliary string.
   character(len=:), allocatable       :: fmt
   character(len=:), allocatable       :: type
   character(len=:), allocatable       :: data
@@ -7886,24 +7885,24 @@ contains
 
   function VTK_GEO_XML_STRG_3DA_R4_READ(nx1,nx2,ny1,ny2,nz1,nz2,NN,X,Y,Z,npiece,cf) result(E_IO)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Function for reading mesh with \b UnstructuredGrid topology (R8P).
+  !> Function for reading mesh with \b UnstructuredGrid topology (R8P).
   !---------------------------------------------------------------------------------------------------------------------------------
-  integer(I4P),           intent(OUT) :: nx1      !< Initial node of x axis.
-  integer(I4P),           intent(OUT) :: nx2      !< Final node of x axis.
-  integer(I4P),           intent(OUT) :: ny1      !< Initial node of y axis.
-  integer(I4P),           intent(OUT) :: ny2      !< Final node of y axis.
-  integer(I4P),           intent(OUT) :: nz1      !< Initial node of z axis.
-  integer(I4P),           intent(OUT) :: nz2      !< Final node of z axis.
-  integer(I4P),           intent(OUT) :: NN       !< Number of nodes
-  real(R4P), allocatable, intent(OUT) :: X(:,:,:)     !< x coordinates
-  real(R4P), allocatable, intent(OUT) :: Y(:,:,:)     !< y coordinates
-  real(R4P), allocatable, intent(OUT) :: Z(:,:,:)     !< z coordinates
-  integer(I4P), optional, intent(IN)  :: npiece   !< Number of the piece to read (by default: 1)
-  integer(I4P), optional, intent(IN)  :: cf       !< Current file index (for concurrent files IO).
-  integer(I4P)                        :: E_IO     !< Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done
-  integer(I4P)                        :: rf       !< Real file index.
-  character(len=:),allocatable        :: s_buffer !< Buffer string.
-  character(len=:),allocatable        :: aux      !< Auxiliary string.
+  integer(I4P),           intent(OUT) :: nx1      !> Initial node of x axis.
+  integer(I4P),           intent(OUT) :: nx2      !> Final node of x axis.
+  integer(I4P),           intent(OUT) :: ny1      !> Initial node of y axis.
+  integer(I4P),           intent(OUT) :: ny2      !> Final node of y axis.
+  integer(I4P),           intent(OUT) :: nz1      !> Initial node of z axis.
+  integer(I4P),           intent(OUT) :: nz2      !> Final node of z axis.
+  integer(I4P),           intent(OUT) :: NN       !> Number of nodes
+  real(R4P), allocatable, intent(OUT) :: X(:,:,:)     !> x coordinates
+  real(R4P), allocatable, intent(OUT) :: Y(:,:,:)     !> y coordinates
+  real(R4P), allocatable, intent(OUT) :: Z(:,:,:)     !> z coordinates
+  integer(I4P), optional, intent(IN)  :: npiece   !> Number of the piece to read (by default: 1)
+  integer(I4P), optional, intent(IN)  :: cf       !> Current file index (for concurrent files IO).
+  integer(I4P)                        :: E_IO     !> Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done
+  integer(I4P)                        :: rf       !> Real file index.
+  character(len=:),allocatable        :: s_buffer !> Buffer string.
+  character(len=:),allocatable        :: aux      !> Auxiliary string.
   character(len=:), allocatable       :: fmt
   character(len=:), allocatable       :: type
   character(len=:), allocatable       :: data
@@ -8013,24 +8012,24 @@ contains
 
   function VTK_GEO_XML_STRG_3DA_R8_READ(nx1,nx2,ny1,ny2,nz1,nz2,NN,X,Y,Z,npiece,cf) result(E_IO)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Function for reading mesh with \b UnstructuredGrid topology (R8P).
+  !> Function for reading mesh with \b UnstructuredGrid topology (R8P).
   !---------------------------------------------------------------------------------------------------------------------------------
-  integer(I4P),           intent(OUT) :: nx1      !< Initial node of x axis.
-  integer(I4P),           intent(OUT) :: nx2      !< Final node of x axis.
-  integer(I4P),           intent(OUT) :: ny1      !< Initial node of y axis.
-  integer(I4P),           intent(OUT) :: ny2      !< Final node of y axis.
-  integer(I4P),           intent(OUT) :: nz1      !< Initial node of z axis.
-  integer(I4P),           intent(OUT) :: nz2      !< Final node of z axis.
-  integer(I4P),           intent(OUT) :: NN       !< Number of nodes
-  real(R8P), allocatable, intent(OUT) :: X(:,:,:)     !< x coordinates
-  real(R8P), allocatable, intent(OUT) :: Y(:,:,:)     !< y coordinates
-  real(R8P), allocatable, intent(OUT) :: Z(:,:,:)     !< z coordinates
-  integer(I4P), optional, intent(IN)  :: npiece   !< Number of the piece to read (by default: 1)
-  integer(I4P), optional, intent(IN)  :: cf       !< Current file index (for concurrent files IO).
-  integer(I4P)                        :: E_IO     !< Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done
-  integer(I4P)                        :: rf       !< Real file index.
-  character(len=:),allocatable        :: s_buffer !< Buffer string.
-  character(len=:),allocatable        :: aux      !< Auxiliary string.
+  integer(I4P),           intent(OUT) :: nx1      !> Initial node of x axis.
+  integer(I4P),           intent(OUT) :: nx2      !> Final node of x axis.
+  integer(I4P),           intent(OUT) :: ny1      !> Initial node of y axis.
+  integer(I4P),           intent(OUT) :: ny2      !> Final node of y axis.
+  integer(I4P),           intent(OUT) :: nz1      !> Initial node of z axis.
+  integer(I4P),           intent(OUT) :: nz2      !> Final node of z axis.
+  integer(I4P),           intent(OUT) :: NN       !> Number of nodes
+  real(R8P), allocatable, intent(OUT) :: X(:,:,:)     !> x coordinates
+  real(R8P), allocatable, intent(OUT) :: Y(:,:,:)     !> y coordinates
+  real(R8P), allocatable, intent(OUT) :: Z(:,:,:)     !> z coordinates
+  integer(I4P), optional, intent(IN)  :: npiece   !> Number of the piece to read (by default: 1)
+  integer(I4P), optional, intent(IN)  :: cf       !> Current file index (for concurrent files IO).
+  integer(I4P)                        :: E_IO     !> Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done
+  integer(I4P)                        :: rf       !> Real file index.
+  character(len=:),allocatable        :: s_buffer !> Buffer string.
+  character(len=:),allocatable        :: aux      !> Auxiliary string.
   character(len=:), allocatable       :: fmt
   character(len=:), allocatable       :: type
   character(len=:), allocatable       :: data
@@ -8139,22 +8138,22 @@ contains
 
   function VTK_GEO_XML_STRG_3DAP_R4_READ(nx1,nx2,ny1,ny2,nz1,nz2,NN,XYZ,npiece,cf) result(E_IO)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Function for reading mesh with \b UnstructuredGrid topology (R8P).
+  !> Function for reading mesh with \b UnstructuredGrid topology (R8P).
   !---------------------------------------------------------------------------------------------------------------------------------
-  integer(I4P),           intent(OUT) :: nx1      !< Initial node of x axis.
-  integer(I4P),           intent(OUT) :: nx2      !< Final node of x axis.
-  integer(I4P),           intent(OUT) :: ny1      !< Initial node of y axis.
-  integer(I4P),           intent(OUT) :: ny2      !< Final node of y axis.
-  integer(I4P),           intent(OUT) :: nz1      !< Initial node of z axis.
-  integer(I4P),           intent(OUT) :: nz2      !< Final node of z axis.
-  integer(I4P),           intent(OUT) :: NN       !< Number of nodes
-  real(R4P), allocatable, intent(OUT) :: XYZ(:,:,:,:)     !< x coordinates
-  integer(I4P), optional, intent(IN)  :: npiece   !< Number of the piece to read (by default: 1)
-  integer(I4P), optional, intent(IN)  :: cf       !< Current file index (for concurrent files IO).
-  integer(I4P)                        :: E_IO     !< Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done
-  integer(I4P)                        :: rf       !< Real file index.
-  character(len=:),allocatable        :: s_buffer !< Buffer string.
-  character(len=:),allocatable        :: aux      !< Auxiliary string.
+  integer(I4P),           intent(OUT) :: nx1      !> Initial node of x axis.
+  integer(I4P),           intent(OUT) :: nx2      !> Final node of x axis.
+  integer(I4P),           intent(OUT) :: ny1      !> Initial node of y axis.
+  integer(I4P),           intent(OUT) :: ny2      !> Final node of y axis.
+  integer(I4P),           intent(OUT) :: nz1      !> Initial node of z axis.
+  integer(I4P),           intent(OUT) :: nz2      !> Final node of z axis.
+  integer(I4P),           intent(OUT) :: NN       !> Number of nodes
+  real(R4P), allocatable, intent(OUT) :: XYZ(:,:,:,:)     !> x coordinates
+  integer(I4P), optional, intent(IN)  :: npiece   !> Number of the piece to read (by default: 1)
+  integer(I4P), optional, intent(IN)  :: cf       !> Current file index (for concurrent files IO).
+  integer(I4P)                        :: E_IO     !> Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done
+  integer(I4P)                        :: rf       !> Real file index.
+  character(len=:),allocatable        :: s_buffer !> Buffer string.
+  character(len=:),allocatable        :: aux      !> Auxiliary string.
   character(len=:), allocatable       :: fmt
   character(len=:), allocatable       :: type
   character(len=:), allocatable       :: data
@@ -8261,22 +8260,22 @@ contains
 
   function VTK_GEO_XML_STRG_3DAP_R8_READ(nx1,nx2,ny1,ny2,nz1,nz2,NN,XYZ,npiece,cf) result(E_IO)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Function for reading mesh with \b UnstructuredGrid topology (R8P).
+  !> Function for reading mesh with \b UnstructuredGrid topology (R8P).
   !---------------------------------------------------------------------------------------------------------------------------------
-  integer(I4P),           intent(OUT) :: nx1      !< Initial node of x axis.
-  integer(I4P),           intent(OUT) :: nx2      !< Final node of x axis.
-  integer(I4P),           intent(OUT) :: ny1      !< Initial node of y axis.
-  integer(I4P),           intent(OUT) :: ny2      !< Final node of y axis.
-  integer(I4P),           intent(OUT) :: nz1      !< Initial node of z axis.
-  integer(I4P),           intent(OUT) :: nz2      !< Final node of z axis.
-  integer(I4P),           intent(OUT) :: NN       !< Number of nodes
-  real(R8P), allocatable, intent(OUT) :: XYZ(:,:,:,:)     !< x coordinates
-  integer(I4P), optional, intent(IN)  :: npiece   !< Number of the piece to read (by default: 1)
-  integer(I4P), optional, intent(IN)  :: cf       !< Current file index (for concurrent files IO).
-  integer(I4P)                        :: E_IO     !< Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done
-  integer(I4P)                        :: rf       !< Real file index.
-  character(len=:),allocatable        :: s_buffer !< Buffer string.
-  character(len=:),allocatable        :: aux      !< Auxiliary string.
+  integer(I4P),           intent(OUT) :: nx1      !> Initial node of x axis.
+  integer(I4P),           intent(OUT) :: nx2      !> Final node of x axis.
+  integer(I4P),           intent(OUT) :: ny1      !> Initial node of y axis.
+  integer(I4P),           intent(OUT) :: ny2      !> Final node of y axis.
+  integer(I4P),           intent(OUT) :: nz1      !> Initial node of z axis.
+  integer(I4P),           intent(OUT) :: nz2      !> Final node of z axis.
+  integer(I4P),           intent(OUT) :: NN       !> Number of nodes
+  real(R8P), allocatable, intent(OUT) :: XYZ(:,:,:,:)     !> x coordinates
+  integer(I4P), optional, intent(IN)  :: npiece   !> Number of the piece to read (by default: 1)
+  integer(I4P), optional, intent(IN)  :: cf       !> Current file index (for concurrent files IO).
+  integer(I4P)                        :: E_IO     !> Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done
+  integer(I4P)                        :: rf       !> Real file index.
+  character(len=:),allocatable        :: s_buffer !> Buffer string.
+  character(len=:),allocatable        :: aux      !> Auxiliary string.
   character(len=:), allocatable       :: fmt
   character(len=:), allocatable       :: type
   character(len=:), allocatable       :: data
@@ -8384,23 +8383,23 @@ contains
 
   function VTK_GEO_XML_RECT_R4_READ(nx1,nx2,ny1,ny2,nz1,nz2,X,Y,Z,npiece,cf) result(E_IO)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Function for reading mesh with \b UnstructuredGrid topology (R8P).
+  !> Function for reading mesh with \b UnstructuredGrid topology (R8P).
   !---------------------------------------------------------------------------------------------------------------------------------
-  integer(I4P),           intent(OUT) :: nx1      !< Initial node of x axis.
-  integer(I4P),           intent(OUT) :: nx2      !< Final node of x axis.
-  integer(I4P),           intent(OUT) :: ny1      !< Initial node of y axis.
-  integer(I4P),           intent(OUT) :: ny2      !< Final node of y axis.
-  integer(I4P),           intent(OUT) :: nz1      !< Initial node of z axis.
-  integer(I4P),           intent(OUT) :: nz2      !< Final node of z axis.
-  real(R4P), allocatable, intent(OUT) :: X(:)     !< x coordinates
-  real(R4P), allocatable, intent(OUT) :: Y(:)     !< y coordinates
-  real(R4P), allocatable, intent(OUT) :: Z(:)     !< z coordinates
-  integer(I4P), optional, intent(IN)  :: npiece   !< Number of the piece to read (by default: 1)
-  integer(I4P), optional, intent(IN)  :: cf       !< Current file index (for concurrent files IO).
-  integer(I4P)                        :: E_IO     !< Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done
-  integer(I4P)                        :: rf       !< Real file index.
-  character(len=:),allocatable        :: s_buffer !< Buffer string.
-  character(len=:),allocatable        :: aux      !< Auxiliary string.
+  integer(I4P),           intent(OUT) :: nx1      !> Initial node of x axis.
+  integer(I4P),           intent(OUT) :: nx2      !> Final node of x axis.
+  integer(I4P),           intent(OUT) :: ny1      !> Initial node of y axis.
+  integer(I4P),           intent(OUT) :: ny2      !> Final node of y axis.
+  integer(I4P),           intent(OUT) :: nz1      !> Initial node of z axis.
+  integer(I4P),           intent(OUT) :: nz2      !> Final node of z axis.
+  real(R4P), allocatable, intent(OUT) :: X(:)     !> x coordinates
+  real(R4P), allocatable, intent(OUT) :: Y(:)     !> y coordinates
+  real(R4P), allocatable, intent(OUT) :: Z(:)     !> z coordinates
+  integer(I4P), optional, intent(IN)  :: npiece   !> Number of the piece to read (by default: 1)
+  integer(I4P), optional, intent(IN)  :: cf       !> Current file index (for concurrent files IO).
+  integer(I4P)                        :: E_IO     !> Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done
+  integer(I4P)                        :: rf       !> Real file index.
+  character(len=:),allocatable        :: s_buffer !> Buffer string.
+  character(len=:),allocatable        :: aux      !> Auxiliary string.
   character(len=:), allocatable       :: fmt, fmtX, fmtY, fmtZ
   character(len=:), allocatable       :: type, typeX, typeY, typeZ
   character(len=:), allocatable       :: data
@@ -8581,23 +8580,23 @@ contains
 
   function VTK_GEO_XML_RECT_R8_READ(nx1,nx2,ny1,ny2,nz1,nz2,X,Y,Z,npiece,cf) result(E_IO)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Function for reading mesh with \b UnstructuredGrid topology (R8P).
+  !> Function for reading mesh with \b UnstructuredGrid topology (R8P).
   !---------------------------------------------------------------------------------------------------------------------------------
-  integer(I4P),           intent(OUT) :: nx1      !< Initial node of x axis.
-  integer(I4P),           intent(OUT) :: nx2      !< Final node of x axis.
-  integer(I4P),           intent(OUT) :: ny1      !< Initial node of y axis.
-  integer(I4P),           intent(OUT) :: ny2      !< Final node of y axis.
-  integer(I4P),           intent(OUT) :: nz1      !< Initial node of z axis.
-  integer(I4P),           intent(OUT) :: nz2      !< Final node of z axis.
-  real(R8P), allocatable, intent(OUT) :: X(:)     !< x coordinates
-  real(R8P), allocatable, intent(OUT) :: Y(:)     !< y coordinates
-  real(R8P), allocatable, intent(OUT) :: Z(:)     !< z coordinates
-  integer(I4P), optional, intent(IN)  :: npiece   !< Number of the piece to read (by default: 1)
-  integer(I4P), optional, intent(IN)  :: cf       !< Current file index (for concurrent files IO).
-  integer(I4P)                        :: E_IO     !< Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done
-  integer(I4P)                        :: rf       !< Real file index.
-  character(len=:),allocatable        :: s_buffer !< Buffer string.
-  character(len=:),allocatable        :: aux      !< Auxiliary string.
+  integer(I4P),           intent(OUT) :: nx1      !> Initial node of x axis.
+  integer(I4P),           intent(OUT) :: nx2      !> Final node of x axis.
+  integer(I4P),           intent(OUT) :: ny1      !> Initial node of y axis.
+  integer(I4P),           intent(OUT) :: ny2      !> Final node of y axis.
+  integer(I4P),           intent(OUT) :: nz1      !> Initial node of z axis.
+  integer(I4P),           intent(OUT) :: nz2      !> Final node of z axis.
+  real(R8P), allocatable, intent(OUT) :: X(:)     !> x coordinates
+  real(R8P), allocatable, intent(OUT) :: Y(:)     !> y coordinates
+  real(R8P), allocatable, intent(OUT) :: Z(:)     !> z coordinates
+  integer(I4P), optional, intent(IN)  :: npiece   !> Number of the piece to read (by default: 1)
+  integer(I4P), optional, intent(IN)  :: cf       !> Current file index (for concurrent files IO).
+  integer(I4P)                        :: E_IO     !> Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done
+  integer(I4P)                        :: rf       !> Real file index.
+  character(len=:),allocatable        :: s_buffer !> Buffer string.
+  character(len=:),allocatable        :: aux      !> Auxiliary string.
   character(len=:), allocatable       :: fmt, fmtX, fmtY, fmtZ
   character(len=:), allocatable       :: type, typeX, typeY, typeZ
   character(len=:), allocatable       :: data
@@ -8779,26 +8778,26 @@ contains
 
   function VTK_CON_XML_READ(NC,connect,offset,cell_type, npiece, cf) result(E_IO)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Function for reading mesh connectivity.
-  !<
-  !< Function that **must** be used when unstructured grid is used, it reads the connectivity of the unstructured grid.
-  !< @note The vector **connect** follows the VTK-XML standard. 
-  !<
-  !< The function VTK_CON_XML does not calculate the connectivity and offset vectors: it reads the connectivity and offset
-  !< vectors conforming the VTK-XML standard, but does not calculate them.
-  !< The vector variable *cell\_type* must conform the VTK-XML standard (see the file VTK-Standard at the
-  !< Kitware homepage) that is the same of the legacy standard. It contains the
-  !< *type* of each cells. 
+  !> Function for reading mesh connectivity.
+  !>
+  !> Function that **must** be used when unstructured grid is used, it reads the connectivity of the unstructured grid.
+  !> @note The vector **connect** follows the VTK-XML standard. 
+  !>
+  !> The function VTK_CON_XML does not calculate the connectivity and offset vectors: it reads the connectivity and offset
+  !> vectors conforming the VTK-XML standard, but does not calculate them.
+  !> The vector variable *cell\_type* must conform the VTK-XML standard (see the file VTK-Standard at the
+  !> Kitware homepage) that is the same of the legacy standard. It contains the
+  !> *type* of each cells. 
   !---------------------------------------------------------------------------------------------------------------------------------
-  integer(I4P),              intent(OUT) :: NC           !< number of cells
-  integer(I4P), allocatable, intent(OUT) :: connect(:)   !< mesh connectivity
-  integer(I4P), allocatable, intent(OUT) :: offset(:)    !< cell offset
-  integer(I1P), allocatable, intent(OUT) :: cell_type(:) !< VTK cell type
-  integer(I4P), optional,    intent(IN)  :: npiece       !< Number of the piece to read (by default: 1)
-  integer(I4P), optional,    intent(IN)  :: cf           !< Current file index (for concurrent files IO).
-  integer(I4P)                           :: E_IO         !< Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done
-  integer(I4P)                           :: rf           !< Real file index.
-  character(len=:), allocatable          :: s_buffer     !< Buffer string.
+  integer(I4P),              intent(OUT) :: NC           !> number of cells
+  integer(I4P), allocatable, intent(OUT) :: connect(:)   !> mesh connectivity
+  integer(I4P), allocatable, intent(OUT) :: offset(:)    !> cell offset
+  integer(I1P), allocatable, intent(OUT) :: cell_type(:) !> VTK cell type
+  integer(I4P), optional,    intent(IN)  :: npiece       !> Number of the piece to read (by default: 1)
+  integer(I4P), optional,    intent(IN)  :: cf           !> Current file index (for concurrent files IO).
+  integer(I4P)                           :: E_IO         !> Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done
+  integer(I4P)                           :: rf           !> Real file index.
+  character(len=:), allocatable          :: s_buffer     !> Buffer string.
   character(len=:), allocatable          :: fmt
   character(len=:), allocatable          :: type
   character(len=:), allocatable          :: data
@@ -8990,28 +8989,28 @@ end function
 !-----------------------------------------------------------------------------------------------------------------------------------
   function VTK_VAR_XML_HEADER_READ(var_loc,varname,NC_NN,NCOMP,nx1,nx2,ny1,ny2,nz1,nz2,fmt,type,data,offs,npiece,cf)  result(E_IO)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Function for reading field header information
+  !> Function for reading field header information
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
-  character(*),                  intent(IN)  :: var_loc !< location of variables: CELL for cell-centered, NODE for node-centered
-  character(*),                  intent(IN)  :: varname      !< variable name
-  integer(I4P),                  intent(OUT) :: NC_NN        !< number of cells or nodes
-  integer(I4P),                  intent(OUT) :: NCOMP        !< number of components
-  integer(I4P), optional,        intent(OUT) :: nx1          !< Initial node of x axis.
-  integer(I4P), optional,        intent(OUT) :: nx2          !< Final node of x axis.
-  integer(I4P), optional,        intent(OUT) :: ny1          !< Initial node of y axis.
-  integer(I4P), optional,        intent(OUT) :: ny2          !< Final node of y axis.
-  integer(I4P), optional,        intent(OUT) :: nz1          !< Initial node of z axis.
-  integer(I4P), optional,        intent(OUT) :: nz2          !< Final node of z axis.
-  character(len=:), allocatable, intent(OUT) :: fmt          !< VTK data format
-  character(len=:), allocatable, intent(OUT) :: type         !< VTK data type
-  character(len=:), allocatable, intent(OUT), optional :: data !< VTK data type
-  integer(I4P), optional,        intent(OUT) :: offs         !< Raw data offset.
+  character(*),                  intent(IN)  :: var_loc !> location of variables: CELL for cell-centered, NODE for node-centered
+  character(*),                  intent(IN)  :: varname      !> variable name
+  integer(I4P),                  intent(OUT) :: NC_NN        !> number of cells or nodes
+  integer(I4P),                  intent(OUT) :: NCOMP        !> number of components
+  integer(I4P), optional,        intent(OUT) :: nx1          !> Initial node of x axis.
+  integer(I4P), optional,        intent(OUT) :: nx2          !> Final node of x axis.
+  integer(I4P), optional,        intent(OUT) :: ny1          !> Initial node of y axis.
+  integer(I4P), optional,        intent(OUT) :: ny2          !> Final node of y axis.
+  integer(I4P), optional,        intent(OUT) :: nz1          !> Initial node of z axis.
+  integer(I4P), optional,        intent(OUT) :: nz2          !> Final node of z axis.
+  character(len=:), allocatable, intent(OUT) :: fmt          !> VTK data format
+  character(len=:), allocatable, intent(OUT) :: type         !> VTK data type
+  character(len=:), allocatable, intent(OUT), optional :: data !> VTK data type
+  integer(I4P), optional,        intent(OUT) :: offs         !> Raw data offset.
   integer(I4P), optional,        intent(IN)  :: npiece       ! Number of the piece to read (by default: 1)
-  integer(I4P), optional,        intent(IN)  :: cf           !< Current file index (for concurrent files IO).
+  integer(I4P), optional,        intent(IN)  :: cf           !> Current file index (for concurrent files IO).
   integer(I4P)                               :: E_IO         ! Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done
-  integer(I4P)                               :: rf           !< Real file index.
-  character(len=:), allocatable              :: s_buffer     !< Buffer string.
+  integer(I4P)                               :: rf           !> Real file index.
+  character(len=:), allocatable              :: s_buffer     !> Buffer string.
   character(len=:), allocatable              :: aux
   integer(I4P)                               :: np, pos, of
   integer(I4P)                               :: x1,x2,y1,y2,z1,z2
@@ -9081,18 +9080,18 @@ end function
 
   function VTK_VAR_XML_SCAL_1DA_R8_READ(var_location,varname,NC_NN,NCOMP,var,npiece,cf) result(E_IO)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Function for reading field of scalar variable (R8P, 1D array).
+  !> Function for reading field of scalar variable (R8P, 1D array).
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
-  character(*),           intent(IN)  :: var_location !< location of variables: CELL for cell-centered, NODE for node-centered
-  character(*),           intent(IN)  :: varname      !< variable name
-  integer(I4P),           intent(OUT) :: NC_NN        !< number of cells or nodes
-  integer(I4P),           intent(OUT) :: NCOMP        !< number of components
-  real(R8P), allocatable, intent(OUT) :: var(:)       !< variable to be saved
-  integer(I4P), optional, intent(IN)  :: npiece       !< Number of the piece to read (by default: 1)
-  integer(I4P), optional, intent(IN)  :: cf           !< Current file index (for concurrent files IO).
-  integer(I4P)                        :: E_IO         !< Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done
-  integer(I4P)                        :: rf           !< Real file index.
+  character(*),           intent(IN)  :: var_location !> location of variables: CELL for cell-centered, NODE for node-centered
+  character(*),           intent(IN)  :: varname      !> variable name
+  integer(I4P),           intent(OUT) :: NC_NN        !> number of cells or nodes
+  integer(I4P),           intent(OUT) :: NCOMP        !> number of components
+  real(R8P), allocatable, intent(OUT) :: var(:)       !> variable to be saved
+  integer(I4P), optional, intent(IN)  :: npiece       !> Number of the piece to read (by default: 1)
+  integer(I4P), optional, intent(IN)  :: cf           !> Current file index (for concurrent files IO).
+  integer(I4P)                        :: E_IO         !> Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done
+  integer(I4P)                        :: rf           !> Real file index.
   character(len=:), allocatable       :: fmt
   character(len=:), allocatable       :: type
   character(len=:), allocatable       :: data
@@ -9157,18 +9156,18 @@ end function
 
   function VTK_VAR_XML_SCAL_1DA_R4_READ(var_location,varname,NC_NN,NCOMP,var,npiece,cf) result(E_IO)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Function for reading field of scalar variable (R4P, 1D array).
+  !> Function for reading field of scalar variable (R4P, 1D array).
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
-  character(*),           intent(IN)  :: var_location !< location of variables: CELL for cell-centered, NODE for node-centered
-  character(*),           intent(IN)  :: varname      !< variable name
-  integer(I4P),           intent(OUT) :: NC_NN        !< number of cells or nodes
-  integer(I4P),           intent(OUT) :: NCOMP        !< number of components
-  real(R4P), allocatable, intent(OUT) :: var(:)       !< variable to be saved
-  integer(I4P), optional, intent(IN)  :: npiece       !< Number of the piece to read (by default: 1)
-  integer(I4P), optional, intent(IN)  :: cf           !< Current file index (for concurrent files IO).
-  integer(I4P)                        :: E_IO         !< Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done
-  integer(I4P)                        :: rf           !< Real file index.
+  character(*),           intent(IN)  :: var_location !> location of variables: CELL for cell-centered, NODE for node-centered
+  character(*),           intent(IN)  :: varname      !> variable name
+  integer(I4P),           intent(OUT) :: NC_NN        !> number of cells or nodes
+  integer(I4P),           intent(OUT) :: NCOMP        !> number of components
+  real(R4P), allocatable, intent(OUT) :: var(:)       !> variable to be saved
+  integer(I4P), optional, intent(IN)  :: npiece       !> Number of the piece to read (by default: 1)
+  integer(I4P), optional, intent(IN)  :: cf           !> Current file index (for concurrent files IO).
+  integer(I4P)                        :: E_IO         !> Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done
+  integer(I4P)                        :: rf           !> Real file index.
   character(len=:), allocatable       :: fmt
   character(len=:), allocatable       :: type
   character(len=:), allocatable       :: data
@@ -9233,18 +9232,18 @@ end function
 
   function VTK_VAR_XML_SCAL_1DA_I8_READ(var_location,varname,NC_NN,NCOMP,var,npiece,cf) result(E_IO)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Function for reading field of scalar variable (I4P, 1D array).
+  !> Function for reading field of scalar variable (I4P, 1D array).
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
-  character(*),              intent(IN)  :: var_location !< location of variables: CELL for cell-centered, NODE for node-centered
-  character(*),              intent(IN)  :: varname      !< variable name
-  integer(I4P),              intent(OUT) :: NC_NN        !< number of cells or nodes
-  integer(I4P),              intent(OUT) :: NCOMP        !< number of components
-  integer(I8P), allocatable, intent(OUT) :: var(:)       !< variable to be saved
-  integer(I4P), optional,    intent(IN)  :: npiece       !< Number of the piece to read (by default: 1)
-  integer(I4P), optional,    intent(IN)  :: cf           !< Current file index (for concurrent files IO).
-  integer(I4P)                           :: E_IO         !< Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done
-  integer(I4P)                           :: rf           !< Real file index.
+  character(*),              intent(IN)  :: var_location !> location of variables: CELL for cell-centered, NODE for node-centered
+  character(*),              intent(IN)  :: varname      !> variable name
+  integer(I4P),              intent(OUT) :: NC_NN        !> number of cells or nodes
+  integer(I4P),              intent(OUT) :: NCOMP        !> number of components
+  integer(I8P), allocatable, intent(OUT) :: var(:)       !> variable to be saved
+  integer(I4P), optional,    intent(IN)  :: npiece       !> Number of the piece to read (by default: 1)
+  integer(I4P), optional,    intent(IN)  :: cf           !> Current file index (for concurrent files IO).
+  integer(I4P)                           :: E_IO         !> Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done
+  integer(I4P)                           :: rf           !> Real file index.
   character(len=:), allocatable          :: fmt
   character(len=:), allocatable          :: type
   character(len=:), allocatable          :: data
@@ -9309,18 +9308,18 @@ end function
 
   function VTK_VAR_XML_SCAL_1DA_I4_READ(var_location,varname,NC_NN,NCOMP,var,npiece,cf) result(E_IO)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Function for reading field of scalar variable (I4P, 1D array).
+  !> Function for reading field of scalar variable (I4P, 1D array).
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
-  character(*),              intent(IN)  :: var_location !< location of variables: CELL for cell-centered, NODE for node-centered
-  character(*),              intent(IN)  :: varname      !< variable name
-  integer(I4P),              intent(OUT) :: NC_NN        !< number of cells or nodes
-  integer(I4P),              intent(OUT) :: NCOMP        !< number of components
-  integer(I4P), allocatable, intent(OUT) :: var(:)       !< variable to be saved
-  integer(I4P), optional,    intent(IN)  :: npiece       !< Number of the piece to read (by default: 1)
-  integer(I4P), optional,    intent(IN)  :: cf           !< Current file index (for concurrent files IO).
-  integer(I4P)                           :: E_IO         !< Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done
-  integer(I4P)                           :: rf           !< Real file index.
+  character(*),              intent(IN)  :: var_location !> location of variables: CELL for cell-centered, NODE for node-centered
+  character(*),              intent(IN)  :: varname      !> variable name
+  integer(I4P),              intent(OUT) :: NC_NN        !> number of cells or nodes
+  integer(I4P),              intent(OUT) :: NCOMP        !> number of components
+  integer(I4P), allocatable, intent(OUT) :: var(:)       !> variable to be saved
+  integer(I4P), optional,    intent(IN)  :: npiece       !> Number of the piece to read (by default: 1)
+  integer(I4P), optional,    intent(IN)  :: cf           !> Current file index (for concurrent files IO).
+  integer(I4P)                           :: E_IO         !> Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done
+  integer(I4P)                           :: rf           !> Real file index.
   character(len=:), allocatable          :: fmt
   character(len=:), allocatable          :: type
   character(len=:), allocatable          :: data
@@ -9385,18 +9384,18 @@ end function
 
   function VTK_VAR_XML_SCAL_1DA_I2_READ(var_location,varname,NC_NN,NCOMP,var,npiece,cf) result(E_IO)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Function for reading field of scalar variable (I2P, 1D array).
+  !> Function for reading field of scalar variable (I2P, 1D array).
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
-  character(*),              intent(IN)  :: var_location !< location of variables: CELL for cell-centered, NODE for node-centered
-  character(*),              intent(IN)  :: varname      !< variable name
-  integer(I4P),              intent(OUT) :: NC_NN        !< number of cells or nodes
-  integer(I4P),              intent(OUT) :: NCOMP        !< number of components
-  integer(I2P), allocatable, intent(OUT) :: var(:)       !< variable to be saved
-  integer(I4P), optional,    intent(IN)  :: npiece       !< Number of the piece to read (by default: 1)
-  integer(I4P), optional,    intent(IN)  :: cf           !< Current file index (for concurrent files IO).
-  integer(I4P)                           :: E_IO         !< Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done
-  integer(I4P)                           :: rf           !< Real file index.
+  character(*),              intent(IN)  :: var_location !> location of variables: CELL for cell-centered, NODE for node-centered
+  character(*),              intent(IN)  :: varname      !> variable name
+  integer(I4P),              intent(OUT) :: NC_NN        !> number of cells or nodes
+  integer(I4P),              intent(OUT) :: NCOMP        !> number of components
+  integer(I2P), allocatable, intent(OUT) :: var(:)       !> variable to be saved
+  integer(I4P), optional,    intent(IN)  :: npiece       !> Number of the piece to read (by default: 1)
+  integer(I4P), optional,    intent(IN)  :: cf           !> Current file index (for concurrent files IO).
+  integer(I4P)                           :: E_IO         !> Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done
+  integer(I4P)                           :: rf           !> Real file index.
   character(len=:), allocatable          :: fmt
   character(len=:), allocatable          :: type
   character(len=:), allocatable          :: data
@@ -9461,18 +9460,18 @@ end function
 
   function VTK_VAR_XML_SCAL_1DA_I1_READ(var_location,varname,NC_NN,NCOMP,var,npiece,cf) result(E_IO)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Function for reading field of scalar variable (I1P, 1D array).
+  !> Function for reading field of scalar variable (I1P, 1D array).
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
-  character(*),              intent(IN)  :: var_location !< location of variables: CELL for cell-centered, NODE for node-centered
-  character(*),              intent(IN)  :: varname      !< variable name
-  integer(I4P),              intent(OUT) :: NC_NN        !< number of cells or nodes
-  integer(I4P),              intent(OUT) :: NCOMP        !< number of components
-  integer(I1P), allocatable, intent(OUT) :: var(:)       !< variable to be saved
-  integer(I4P), optional,    intent(IN)  :: npiece       !< Number of the piece to read (by default: 1)
-  integer(I4P), optional,    intent(IN)  :: cf           !< Current file index (for concurrent files IO).
-  integer(I4P)                           :: E_IO         !< Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done
-  integer(I4P)                           :: rf           !< Real file index.
+  character(*),              intent(IN)  :: var_location !> location of variables: CELL for cell-centered, NODE for node-centered
+  character(*),              intent(IN)  :: varname      !> variable name
+  integer(I4P),              intent(OUT) :: NC_NN        !> number of cells or nodes
+  integer(I4P),              intent(OUT) :: NCOMP        !> number of components
+  integer(I1P), allocatable, intent(OUT) :: var(:)       !> variable to be saved
+  integer(I4P), optional,    intent(IN)  :: npiece       !> Number of the piece to read (by default: 1)
+  integer(I4P), optional,    intent(IN)  :: cf           !> Current file index (for concurrent files IO).
+  integer(I4P)                           :: E_IO         !> Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done
+  integer(I4P)                           :: rf           !> Real file index.
   character(len=:), allocatable          :: fmt
   character(len=:), allocatable          :: type
   character(len=:), allocatable          :: data
@@ -9537,20 +9536,20 @@ end function
 
   function VTK_VAR_XML_VECT_1DA_R8_READ(var_location,varname,NC_NN,NCOMP,varX,varY,varZ,npiece,cf) result(E_IO)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Function for reading field of vectorial variable (R8P, 1D array).
+  !> Function for reading field of vectorial variable (R8P, 1D array).
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
-  character(*),           intent(IN)  :: var_location !< location of variables: CELL for cell-centered, NODE for node-centered
-  character(*),           intent(IN)  :: varname      !< variable name
-  integer(I4P),           intent(OUT) :: NC_NN        !< number of cells or nodes
-  integer(I4P),           intent(OUT) :: NCOMP        !< number of components
-  real(R8P), allocatable, intent(OUT) :: varX(:)      !< variable to be saved [1:NN_NC]
-  real(R8P), allocatable, intent(OUT) :: varY(:)      !< variable to be saved [1:NN_NC]
-  real(R8P), allocatable, intent(OUT) :: varz(:)      !< variable to be saved [1:NN_NC]
-  integer(I4P), optional, intent(IN)  :: npiece       !< Number of the piece to read (by default: 1)
-  integer(I4P), optional, intent(IN)  :: cf           !< Current file index (for concurrent files IO).
-  integer(I4P)                        :: E_IO         !< Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done
-  integer(I4P)                        :: rf           !< Real file index.
+  character(*),           intent(IN)  :: var_location !> location of variables: CELL for cell-centered, NODE for node-centered
+  character(*),           intent(IN)  :: varname      !> variable name
+  integer(I4P),           intent(OUT) :: NC_NN        !> number of cells or nodes
+  integer(I4P),           intent(OUT) :: NCOMP        !> number of components
+  real(R8P), allocatable, intent(OUT) :: varX(:)      !> variable to be saved [1:NN_NC]
+  real(R8P), allocatable, intent(OUT) :: varY(:)      !> variable to be saved [1:NN_NC]
+  real(R8P), allocatable, intent(OUT) :: varz(:)      !> variable to be saved [1:NN_NC]
+  integer(I4P), optional, intent(IN)  :: npiece       !> Number of the piece to read (by default: 1)
+  integer(I4P), optional, intent(IN)  :: cf           !> Current file index (for concurrent files IO).
+  integer(I4P)                        :: E_IO         !> Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done
+  integer(I4P)                        :: rf           !> Real file index.
   character(len=:), allocatable       :: fmt
   character(len=:), allocatable       :: type
   character(len=:), allocatable       :: data
@@ -9619,20 +9618,20 @@ end function
 
   function VTK_VAR_XML_VECT_1DA_R4_READ(var_location,varname,NC_NN,NCOMP,varX,varY,varZ,npiece,cf) result(E_IO)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Function for reading field of vectorial variable (R4P, 1D array).
+  !> Function for reading field of vectorial variable (R4P, 1D array).
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
-  character(*),           intent(IN)  :: var_location !< location of variables: CELL for cell-centered, NODE for node-centered
-  character(*),           intent(IN)  :: varname      !< variable name
-  integer(I4P),           intent(OUT) :: NC_NN        !< number of cells or nodes
-  integer(I4P),           intent(OUT) :: NCOMP        !< number of components
-  real(R4P), allocatable, intent(OUT) :: varX(:)      !< variable to be saved [1:NN_NC]
-  real(R4P), allocatable, intent(OUT) :: varY(:)      !< variable to be saved [1:NN_NC]
-  real(R4P), allocatable, intent(OUT) :: varz(:)      !< variable to be saved [1:NN_NC]
-  integer(I4P), optional, intent(IN)  :: npiece       !< Number of the piece to read (by default: 1)
-  integer(I4P), optional, intent(IN)  :: cf           !< Current file index (for concurrent files IO).
-  integer(I4P)                        :: E_IO         !< Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done
-  integer(I4P)                        :: rf           !< Real file index.
+  character(*),           intent(IN)  :: var_location !> location of variables: CELL for cell-centered, NODE for node-centered
+  character(*),           intent(IN)  :: varname      !> variable name
+  integer(I4P),           intent(OUT) :: NC_NN        !> number of cells or nodes
+  integer(I4P),           intent(OUT) :: NCOMP        !> number of components
+  real(R4P), allocatable, intent(OUT) :: varX(:)      !> variable to be saved [1:NN_NC]
+  real(R4P), allocatable, intent(OUT) :: varY(:)      !> variable to be saved [1:NN_NC]
+  real(R4P), allocatable, intent(OUT) :: varz(:)      !> variable to be saved [1:NN_NC]
+  integer(I4P), optional, intent(IN)  :: npiece       !> Number of the piece to read (by default: 1)
+  integer(I4P), optional, intent(IN)  :: cf           !> Current file index (for concurrent files IO).
+  integer(I4P)                        :: E_IO         !> Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done
+  integer(I4P)                        :: rf           !> Real file index.
   character(len=:), allocatable       :: fmt
   character(len=:), allocatable       :: type
   character(len=:), allocatable       :: data
@@ -9702,20 +9701,20 @@ end function
 
   function VTK_VAR_XML_VECT_1DA_I8_READ(var_location,varname,NC_NN,NCOMP,varX,varY,varZ,npiece,cf) result(E_IO)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Function for reading field of vectorial variable (I4P, 1D array).
+  !> Function for reading field of vectorial variable (I4P, 1D array).
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
-  character(*),              intent(IN)  :: var_location !< location of variables: CELL for cell-centered, NODE for node-centered
-  character(*),              intent(IN)  :: varname      !< variable name
-  integer(I4P),              intent(OUT) :: NC_NN        !< number of cells or nodes
-  integer(I4P),              intent(OUT) :: NCOMP        !< number of components
-  integer(I8P), allocatable, intent(OUT) :: varX(:)      !< variable to be saved [1:NN_NC]
-  integer(I8P), allocatable, intent(OUT) :: varY(:)      !< variable to be saved [1:NN_NC]
-  integer(I8P), allocatable, intent(OUT) :: varz(:)      !< variable to be saved [1:NN_NC]
-  integer(I4P), optional,    intent(IN)  :: npiece       !< Number of the piece to read (by default: 1)
-  integer(I4P), optional,    intent(IN)  :: cf           !< Current file index (for concurrent files IO).
-  integer(I4P)                           :: E_IO         !< Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done
-  integer(I4P)                           :: rf           !< Real file index.
+  character(*),              intent(IN)  :: var_location !> location of variables: CELL for cell-centered, NODE for node-centered
+  character(*),              intent(IN)  :: varname      !> variable name
+  integer(I4P),              intent(OUT) :: NC_NN        !> number of cells or nodes
+  integer(I4P),              intent(OUT) :: NCOMP        !> number of components
+  integer(I8P), allocatable, intent(OUT) :: varX(:)      !> variable to be saved [1:NN_NC]
+  integer(I8P), allocatable, intent(OUT) :: varY(:)      !> variable to be saved [1:NN_NC]
+  integer(I8P), allocatable, intent(OUT) :: varz(:)      !> variable to be saved [1:NN_NC]
+  integer(I4P), optional,    intent(IN)  :: npiece       !> Number of the piece to read (by default: 1)
+  integer(I4P), optional,    intent(IN)  :: cf           !> Current file index (for concurrent files IO).
+  integer(I4P)                           :: E_IO         !> Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done
+  integer(I4P)                           :: rf           !> Real file index.
   character(len=:), allocatable          :: fmt
   character(len=:), allocatable          :: type
   character(len=:), allocatable          :: data
@@ -9784,20 +9783,20 @@ end function
 
   function VTK_VAR_XML_VECT_1DA_I4_READ(var_location,varname,NC_NN,NCOMP,varX,varY,varZ,npiece,cf) result(E_IO)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Function for reading field of vectorial variable (I4P, 1D array).
+  !> Function for reading field of vectorial variable (I4P, 1D array).
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
-  character(*),              intent(IN)  :: var_location !< location of variables: CELL for cell-centered, NODE for node-centered
-  character(*),              intent(IN)  :: varname      !< variable name
-  integer(I4P),              intent(OUT) :: NC_NN        !< number of cells or nodes
-  integer(I4P),              intent(OUT) :: NCOMP        !< number of components
-  integer(I4P), allocatable, intent(OUT) :: varX(:)      !< variable to be saved [1:NN_NC]
-  integer(I4P), allocatable, intent(OUT) :: varY(:)      !< variable to be saved [1:NN_NC]
-  integer(I4P), allocatable, intent(OUT) :: varz(:)      !< variable to be saved [1:NN_NC]
-  integer(I4P), optional,    intent(IN)  :: npiece       !< Number of the piece to read (by default: 1)
-  integer(I4P), optional,    intent(IN)  :: cf           !< Current file index (for concurrent files IO).
-  integer(I4P)                           :: E_IO         !< Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done
-  integer(I4P)                           :: rf           !< Real file index.
+  character(*),              intent(IN)  :: var_location !> location of variables: CELL for cell-centered, NODE for node-centered
+  character(*),              intent(IN)  :: varname      !> variable name
+  integer(I4P),              intent(OUT) :: NC_NN        !> number of cells or nodes
+  integer(I4P),              intent(OUT) :: NCOMP        !> number of components
+  integer(I4P), allocatable, intent(OUT) :: varX(:)      !> variable to be saved [1:NN_NC]
+  integer(I4P), allocatable, intent(OUT) :: varY(:)      !> variable to be saved [1:NN_NC]
+  integer(I4P), allocatable, intent(OUT) :: varz(:)      !> variable to be saved [1:NN_NC]
+  integer(I4P), optional,    intent(IN)  :: npiece       !> Number of the piece to read (by default: 1)
+  integer(I4P), optional,    intent(IN)  :: cf           !> Current file index (for concurrent files IO).
+  integer(I4P)                           :: E_IO         !> Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done
+  integer(I4P)                           :: rf           !> Real file index.
   character(len=:), allocatable          :: fmt
   character(len=:), allocatable          :: type
   character(len=:), allocatable          :: data
@@ -9867,20 +9866,20 @@ end function
 
   function VTK_VAR_XML_VECT_1DA_I2_READ(var_location,varname,NC_NN,NCOMP,varX,varY,varZ,npiece,cf) result(E_IO)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Function for reading field of vectorial variable (I2P, 1D array).
+  !> Function for reading field of vectorial variable (I2P, 1D array).
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
-  character(*),              intent(IN)  :: var_location !< location of variables: CELL for cell-centered, NODE for node-centered
-  character(*),              intent(IN)  :: varname      !< variable name
-  integer(I4P),              intent(OUT) :: NC_NN        !< number of cells or nodes
-  integer(I4P),              intent(OUT) :: NCOMP        !< number of components
-  integer(I2P), allocatable, intent(OUT) :: varX(:)      !< variable to be saved [1:NN_NC]
-  integer(I2P), allocatable, intent(OUT) :: varY(:)      !< variable to be saved [1:NN_NC]
-  integer(I2P), allocatable, intent(OUT) :: varZ(:)      !< variable to be saved [1:NN_NC]
-  integer(I4P), optional,    intent(IN)  :: npiece       !< Number of the piece to read (by default: 1)
-  integer(I4P), optional,    intent(IN)  :: cf           !< Current file index (for concurrent files IO).
-  integer(I4P)                           :: E_IO         !< Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done
-  integer(I4P)                           :: rf           !< Real file index.
+  character(*),              intent(IN)  :: var_location !> location of variables: CELL for cell-centered, NODE for node-centered
+  character(*),              intent(IN)  :: varname      !> variable name
+  integer(I4P),              intent(OUT) :: NC_NN        !> number of cells or nodes
+  integer(I4P),              intent(OUT) :: NCOMP        !> number of components
+  integer(I2P), allocatable, intent(OUT) :: varX(:)      !> variable to be saved [1:NN_NC]
+  integer(I2P), allocatable, intent(OUT) :: varY(:)      !> variable to be saved [1:NN_NC]
+  integer(I2P), allocatable, intent(OUT) :: varZ(:)      !> variable to be saved [1:NN_NC]
+  integer(I4P), optional,    intent(IN)  :: npiece       !> Number of the piece to read (by default: 1)
+  integer(I4P), optional,    intent(IN)  :: cf           !> Current file index (for concurrent files IO).
+  integer(I4P)                           :: E_IO         !> Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done
+  integer(I4P)                           :: rf           !> Real file index.
   character(len=:), allocatable          :: fmt
   character(len=:), allocatable          :: type
   character(len=:), allocatable          :: data
@@ -9949,20 +9948,20 @@ end function
 
   function VTK_VAR_XML_VECT_1DA_I1_READ(var_location,varname,NC_NN,NCOMP,varX,varY,varZ,npiece,cf) result(E_IO)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Function for reading field of vectorial variable (I1P, 1D array).
+  !> Function for reading field of vectorial variable (I1P, 1D array).
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
-  character(*),              intent(IN)  :: var_location !< location of variables: CELL for cell-centered, NODE for node-centered
-  character(*),              intent(IN)  :: varname      !< variable name
-  integer(I4P),              intent(OUT) :: NC_NN        !< number of cells or nodes
-  integer(I4P),              intent(OUT) :: NCOMP        !< number of components
-  integer(I1P), allocatable, intent(OUT) :: varX(:)      !< variable to be saved [1:NN_NC]
-  integer(I1P), allocatable, intent(OUT) :: varY(:)      !< variable to be saved [1:NN_NC]
-  integer(I1P), allocatable, intent(OUT) :: varZ(:)      !< variable to be saved [1:NN_NC]
-  integer(I4P), optional,    intent(IN)  :: npiece       !< Number of the piece to read (by default: 1)
-  integer(I4P), optional,    intent(IN)  :: cf           !< Current file index (for concurrent files IO).
-  integer(I4P)                           :: E_IO         !< Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done
-  integer(I4P)                           :: rf           !< Real file index.
+  character(*),              intent(IN)  :: var_location !> location of variables: CELL for cell-centered, NODE for node-centered
+  character(*),              intent(IN)  :: varname      !> variable name
+  integer(I4P),              intent(OUT) :: NC_NN        !> number of cells or nodes
+  integer(I4P),              intent(OUT) :: NCOMP        !> number of components
+  integer(I1P), allocatable, intent(OUT) :: varX(:)      !> variable to be saved [1:NN_NC]
+  integer(I1P), allocatable, intent(OUT) :: varY(:)      !> variable to be saved [1:NN_NC]
+  integer(I1P), allocatable, intent(OUT) :: varZ(:)      !> variable to be saved [1:NN_NC]
+  integer(I4P), optional,    intent(IN)  :: npiece       !> Number of the piece to read (by default: 1)
+  integer(I4P), optional,    intent(IN)  :: cf           !> Current file index (for concurrent files IO).
+  integer(I4P)                           :: E_IO         !> Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done
+  integer(I4P)                           :: rf           !> Real file index.
   character(len=:), allocatable          :: fmt
   character(len=:), allocatable          :: type
   character(len=:), allocatable          :: data
@@ -10032,18 +10031,18 @@ end function
 
   function VTK_VAR_XML_LIST_1DA_R8_READ(var_location,varname,NC_NN,NCOMP,var,npiece,cf) result(E_IO)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Function for reading field of scalar variable (R8P, 1D array).
+  !> Function for reading field of scalar variable (R8P, 1D array).
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
-  character(*),           intent(IN)  :: var_location !< location of variables: CELL for cell-centered, NODE for node-centered
-  character(*),           intent(IN)  :: varname      !< variable name
-  integer(I4P),           intent(OUT) :: NC_NN        !< number of cells or nodes
-  integer(I4P),           intent(OUT) :: NCOMP        !< number of components
-  real(R8P), allocatable, intent(OUT) :: var(:,:)     !< variable to be saved
-  integer(I4P), optional, intent(IN)  :: npiece       !< Number of the piece to read (by default: 1)
-  integer(I4P), optional, intent(IN)  :: cf           !< Current file index (for concurrent files IO).
-  integer(I4P)                        :: E_IO         !< Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done
-  integer(I4P)                        :: rf           !< Real file index.
+  character(*),           intent(IN)  :: var_location !> location of variables: CELL for cell-centered, NODE for node-centered
+  character(*),           intent(IN)  :: varname      !> variable name
+  integer(I4P),           intent(OUT) :: NC_NN        !> number of cells or nodes
+  integer(I4P),           intent(OUT) :: NCOMP        !> number of components
+  real(R8P), allocatable, intent(OUT) :: var(:,:)     !> variable to be saved
+  integer(I4P), optional, intent(IN)  :: npiece       !> Number of the piece to read (by default: 1)
+  integer(I4P), optional, intent(IN)  :: cf           !> Current file index (for concurrent files IO).
+  integer(I4P)                        :: E_IO         !> Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done
+  integer(I4P)                        :: rf           !> Real file index.
   character(len=:), allocatable       :: fmt
   character(len=:), allocatable       :: type
   character(len=:), allocatable       :: data
@@ -10110,18 +10109,18 @@ end function
 
   function VTK_VAR_XML_LIST_1DA_R4_READ(var_location,varname,NC_NN,NCOMP,var,npiece,cf) result(E_IO)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Function for reading field of scalar variable (R4P, 1D array).
+  !> Function for reading field of scalar variable (R4P, 1D array).
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
-  character(*),           intent(IN)  :: var_location !< location of variables: CELL for cell-centered, NODE for node-centered
-  character(*),           intent(IN)  :: varname      !< variable name
-  integer(I4P),           intent(OUT) :: NC_NN        !< number of cells or nodes
-  integer(I4P),           intent(OUT) :: NCOMP        !< number of components
-  real(R4P), allocatable, intent(OUT) :: var(:,:)     !< variable to be saved
-  integer(I4P), optional, intent(IN)  :: npiece       !< Number of the piece to read (by default: 1)
-  integer(I4P), optional, intent(IN)  :: cf           !< Current file index (for concurrent files IO).
-  integer(I4P)                        :: E_IO         !< Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done
-  integer(I4P)                        :: rf           !< Real file index.
+  character(*),           intent(IN)  :: var_location !> location of variables: CELL for cell-centered, NODE for node-centered
+  character(*),           intent(IN)  :: varname      !> variable name
+  integer(I4P),           intent(OUT) :: NC_NN        !> number of cells or nodes
+  integer(I4P),           intent(OUT) :: NCOMP        !> number of components
+  real(R4P), allocatable, intent(OUT) :: var(:,:)     !> variable to be saved
+  integer(I4P), optional, intent(IN)  :: npiece       !> Number of the piece to read (by default: 1)
+  integer(I4P), optional, intent(IN)  :: cf           !> Current file index (for concurrent files IO).
+  integer(I4P)                        :: E_IO         !> Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done
+  integer(I4P)                        :: rf           !> Real file index.
   character(len=:), allocatable       :: fmt
   character(len=:), allocatable       :: type
   character(len=:), allocatable       :: data
@@ -10188,18 +10187,18 @@ end function
 
   function VTK_VAR_XML_LIST_1DA_I8_READ(var_location,varname,NC_NN,NCOMP,var,npiece,cf) result(E_IO)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Function for reading field of scalar variable (I8P, 1D array).
+  !> Function for reading field of scalar variable (I8P, 1D array).
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
-  character(*),              intent(IN)  :: var_location !< location of variables: CELL for cell-centered, NODE for node-centered
-  character(*),              intent(IN)  :: varname      !< variable name
-  integer(I4P),              intent(OUT) :: NC_NN        !< number of cells or nodes
-  integer(I4P),              intent(OUT) :: NCOMP        !< number of components
-  integer(I8P), allocatable, intent(OUT) :: var(:,:)     !< variable to be saved
-  integer(I4P), optional,    intent(IN)  :: npiece       !< Number of the piece to read (by default: 1)
-  integer(I4P), optional,    intent(IN)  :: cf           !< Current file index (for concurrent files IO).
-  integer(I4P)                           :: E_IO         !< Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done
-  integer(I4P)                           :: rf           !< Real file index.
+  character(*),              intent(IN)  :: var_location !> location of variables: CELL for cell-centered, NODE for node-centered
+  character(*),              intent(IN)  :: varname      !> variable name
+  integer(I4P),              intent(OUT) :: NC_NN        !> number of cells or nodes
+  integer(I4P),              intent(OUT) :: NCOMP        !> number of components
+  integer(I8P), allocatable, intent(OUT) :: var(:,:)     !> variable to be saved
+  integer(I4P), optional,    intent(IN)  :: npiece       !> Number of the piece to read (by default: 1)
+  integer(I4P), optional,    intent(IN)  :: cf           !> Current file index (for concurrent files IO).
+  integer(I4P)                           :: E_IO         !> Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done
+  integer(I4P)                           :: rf           !> Real file index.
   character(len=:), allocatable          :: fmt
   character(len=:), allocatable          :: type
   character(len=:), allocatable          :: data
@@ -10266,18 +10265,18 @@ end function
 
   function VTK_VAR_XML_LIST_1DA_I4_READ(var_location,varname,NC_NN,NCOMP,var,npiece,cf) result(E_IO)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Function for reading field of scalar variable (I4P, 1D array).
+  !> Function for reading field of scalar variable (I4P, 1D array).
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
-  character(*),              intent(IN)  :: var_location !< location of variables: CELL for cell-centered, NODE for node-centered
-  character(*),              intent(IN)  :: varname      !< variable name
-  integer(I4P),              intent(OUT) :: NC_NN        !< number of cells or nodes
-  integer(I4P),              intent(OUT) :: NCOMP        !< number of components
-  integer(I4P), allocatable, intent(OUT) :: var(:,:)     !< variable to be saved
-  integer(I4P), optional,    intent(IN)  :: npiece       !< Number of the piece to read (by default: 1)
-  integer(I4P), optional,    intent(IN)  :: cf           !< Current file index (for concurrent files IO).
-  integer(I4P)                           :: E_IO         !< Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done
-  integer(I4P)                           :: rf           !< Real file index.
+  character(*),              intent(IN)  :: var_location !> location of variables: CELL for cell-centered, NODE for node-centered
+  character(*),              intent(IN)  :: varname      !> variable name
+  integer(I4P),              intent(OUT) :: NC_NN        !> number of cells or nodes
+  integer(I4P),              intent(OUT) :: NCOMP        !> number of components
+  integer(I4P), allocatable, intent(OUT) :: var(:,:)     !> variable to be saved
+  integer(I4P), optional,    intent(IN)  :: npiece       !> Number of the piece to read (by default: 1)
+  integer(I4P), optional,    intent(IN)  :: cf           !> Current file index (for concurrent files IO).
+  integer(I4P)                           :: E_IO         !> Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done
+  integer(I4P)                           :: rf           !> Real file index.
   character(len=:), allocatable          :: fmt
   character(len=:), allocatable          :: type
   character(len=:), allocatable          :: data
@@ -10344,18 +10343,18 @@ end function
 
   function VTK_VAR_XML_LIST_1DA_I2_READ(var_location,varname,NC_NN,NCOMP,var,npiece,cf) result(E_IO)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Function for reading field of scalar variable (I2P, 1D array).
+  !> Function for reading field of scalar variable (I2P, 1D array).
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
-  character(*),              intent(IN)  :: var_location !< location of variables: CELL for cell-centered, NODE for node-centered
-  character(*),              intent(IN)  :: varname      !< variable name
-  integer(I4P),              intent(OUT) :: NC_NN        !< number of cells or nodes
-  integer(I4P),              intent(OUT) :: NCOMP        !< number of components
-  integer(I2P), allocatable, intent(OUT) :: var(:,:)     !< variable to be saved
-  integer(I4P), optional,    intent(IN)  :: npiece       !< Number of the piece to read (by default: 1)
-  integer(I4P), optional,    intent(IN)  :: cf           !< Current file index (for concurrent files IO).
-  integer(I4P)                           :: E_IO         !< Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done
-  integer(I4P)                           :: rf           !< Real file index.
+  character(*),              intent(IN)  :: var_location !> location of variables: CELL for cell-centered, NODE for node-centered
+  character(*),              intent(IN)  :: varname      !> variable name
+  integer(I4P),              intent(OUT) :: NC_NN        !> number of cells or nodes
+  integer(I4P),              intent(OUT) :: NCOMP        !> number of components
+  integer(I2P), allocatable, intent(OUT) :: var(:,:)     !> variable to be saved
+  integer(I4P), optional,    intent(IN)  :: npiece       !> Number of the piece to read (by default: 1)
+  integer(I4P), optional,    intent(IN)  :: cf           !> Current file index (for concurrent files IO).
+  integer(I4P)                           :: E_IO         !> Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done
+  integer(I4P)                           :: rf           !> Real file index.
   character(len=:), allocatable          :: fmt
   character(len=:), allocatable          :: type
   character(len=:), allocatable          :: data
@@ -10423,18 +10422,18 @@ end function
 
   function VTK_VAR_XML_LIST_1DA_I1_READ(var_location,varname,NC_NN,NCOMP,var,npiece,cf) result(E_IO)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Function for reading field of scalar variable (I1P, 1D array).
+  !> Function for reading field of scalar variable (I1P, 1D array).
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
-  character(*),              intent(IN)  :: var_location !< location of variables: CELL for cell-centered, NODE for node-centered
-  character(*),              intent(IN)  :: varname      !< variable name
-  integer(I4P),              intent(OUT) :: NC_NN        !< number of cells or nodes
-  integer(I4P),              intent(OUT) :: NCOMP        !< number of components
-  integer(I1P), allocatable, intent(OUT) :: var(:,:)     !< variable to be saved
-  integer(I4P), optional,    intent(IN)  :: npiece       !< Number of the piece to read (by default: 1)
-  integer(I4P), optional,    intent(IN)  :: cf           !< Current file index (for concurrent files IO).
-  integer(I4P)                           :: E_IO         !< Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done
-  integer(I4P)                           :: rf           !< Real file index.
+  character(*),              intent(IN)  :: var_location !> location of variables: CELL for cell-centered, NODE for node-centered
+  character(*),              intent(IN)  :: varname      !> variable name
+  integer(I4P),              intent(OUT) :: NC_NN        !> number of cells or nodes
+  integer(I4P),              intent(OUT) :: NCOMP        !> number of components
+  integer(I1P), allocatable, intent(OUT) :: var(:,:)     !> variable to be saved
+  integer(I4P), optional,    intent(IN)  :: npiece       !> Number of the piece to read (by default: 1)
+  integer(I4P), optional,    intent(IN)  :: cf           !> Current file index (for concurrent files IO).
+  integer(I4P)                           :: E_IO         !> Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done
+  integer(I4P)                           :: rf           !> Real file index.
   character(len=:), allocatable          :: fmt
   character(len=:), allocatable          :: type
   character(len=:), allocatable          :: data
@@ -10502,18 +10501,18 @@ end function
 
   function VTK_VAR_XML_SCAL_3DA_R8_READ(var_location,varname,NC_NN,NCOMP,var,npiece,cf) result(E_IO)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Function for reading field of scalar variable (R8P, 1D array).
+  !> Function for reading field of scalar variable (R8P, 1D array).
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
-  character(*),           intent(IN)  :: var_location !< location of variables: CELL for cell-centered, NODE for node-centered
-  character(*),           intent(IN)  :: varname      !< variable name
-  integer(I4P),           intent(OUT) :: NC_NN        !< number of cells or nodes
-  integer(I4P),           intent(OUT) :: NCOMP        !< number of components
-  real(R8P), allocatable, intent(OUT) :: var(:,:,:)   !< variable to be saved
-  integer(I4P), optional, intent(IN)  :: npiece       !< Number of the piece to read (by default: 1)
-  integer(I4P), optional, intent(IN)  :: cf           !< Current file index (for concurrent files IO).
-  integer(I4P)                        :: E_IO         !< Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done
-  integer(I4P)                        :: rf           !< Real file index.
+  character(*),           intent(IN)  :: var_location !> location of variables: CELL for cell-centered, NODE for node-centered
+  character(*),           intent(IN)  :: varname      !> variable name
+  integer(I4P),           intent(OUT) :: NC_NN        !> number of cells or nodes
+  integer(I4P),           intent(OUT) :: NCOMP        !> number of components
+  real(R8P), allocatable, intent(OUT) :: var(:,:,:)   !> variable to be saved
+  integer(I4P), optional, intent(IN)  :: npiece       !> Number of the piece to read (by default: 1)
+  integer(I4P), optional, intent(IN)  :: cf           !> Current file index (for concurrent files IO).
+  integer(I4P)                        :: E_IO         !> Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done
+  integer(I4P)                        :: rf           !> Real file index.
   character(len=:), allocatable       :: fmt
   character(len=:), allocatable       :: type
   character(len=:), allocatable       :: data
@@ -10586,18 +10585,18 @@ end function
 
   function VTK_VAR_XML_SCAL_3DA_R4_READ(var_location,varname,NC_NN,NCOMP,var,npiece,cf) result(E_IO)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Function for reading field of scalar variable (R4P, 1D array).
+  !> Function for reading field of scalar variable (R4P, 1D array).
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
-  character(*),           intent(IN)  :: var_location !< location of variables: CELL for cell-centered, NODE for node-centered
-  character(*),           intent(IN)  :: varname      !< variable name
-  integer(I4P),           intent(OUT) :: NC_NN        !< number of cells or nodes
-  integer(I4P),           intent(OUT) :: NCOMP        !< number of components
-  real(R4P), allocatable, intent(OUT) :: var(:,:,:)   !< variable to be saved
-  integer(I4P), optional, intent(IN)  :: npiece       !< Number of the piece to read (by default: 1)
-  integer(I4P), optional, intent(IN)  :: cf           !< Current file index (for concurrent files IO).
-  integer(I4P)                        :: E_IO         !< Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done
-  integer(I4P)                        :: rf           !< Real file index.
+  character(*),           intent(IN)  :: var_location !> location of variables: CELL for cell-centered, NODE for node-centered
+  character(*),           intent(IN)  :: varname      !> variable name
+  integer(I4P),           intent(OUT) :: NC_NN        !> number of cells or nodes
+  integer(I4P),           intent(OUT) :: NCOMP        !> number of components
+  real(R4P), allocatable, intent(OUT) :: var(:,:,:)   !> variable to be saved
+  integer(I4P), optional, intent(IN)  :: npiece       !> Number of the piece to read (by default: 1)
+  integer(I4P), optional, intent(IN)  :: cf           !> Current file index (for concurrent files IO).
+  integer(I4P)                        :: E_IO         !> Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done
+  integer(I4P)                        :: rf           !> Real file index.
   character(len=:), allocatable       :: fmt
   character(len=:), allocatable       :: type
   character(len=:), allocatable       :: data
@@ -10670,18 +10669,18 @@ end function
 
   function VTK_VAR_XML_SCAL_3DA_I8_READ(var_location,varname,NC_NN,NCOMP,var,npiece,cf) result(E_IO)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Function for reading field of scalar variable (I8P, 1D array).
+  !> Function for reading field of scalar variable (I8P, 1D array).
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
-  character(*),              intent(IN)  :: var_location !< location of variables: CELL for cell-centered, NODE for node-centered
-  character(*),              intent(IN)  :: varname      !< variable name
-  integer(I4P),              intent(OUT) :: NC_NN        !< number of cells or nodes
-  integer(I4P),              intent(OUT) :: NCOMP        !< number of components
-  integer(I8P), allocatable, intent(OUT) :: var(:,:,:)       !< variable to be saved
-  integer(I4P), optional,    intent(IN)  :: npiece       !< Number of the piece to read (by default: 1)
-  integer(I4P), optional,    intent(IN)  :: cf           !< Current file index (for concurrent files IO).
-  integer(I4P)                           :: E_IO         !< Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done
-  integer(I4P)                           :: rf           !< Real file index.
+  character(*),              intent(IN)  :: var_location !> location of variables: CELL for cell-centered, NODE for node-centered
+  character(*),              intent(IN)  :: varname      !> variable name
+  integer(I4P),              intent(OUT) :: NC_NN        !> number of cells or nodes
+  integer(I4P),              intent(OUT) :: NCOMP        !> number of components
+  integer(I8P), allocatable, intent(OUT) :: var(:,:,:)       !> variable to be saved
+  integer(I4P), optional,    intent(IN)  :: npiece       !> Number of the piece to read (by default: 1)
+  integer(I4P), optional,    intent(IN)  :: cf           !> Current file index (for concurrent files IO).
+  integer(I4P)                           :: E_IO         !> Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done
+  integer(I4P)                           :: rf           !> Real file index.
   character(len=:), allocatable          :: fmt
   character(len=:), allocatable          :: type
   character(len=:), allocatable          :: data
@@ -10754,18 +10753,18 @@ end function
 
   function VTK_VAR_XML_SCAL_3DA_I4_READ(var_location,varname,NC_NN,NCOMP,var,npiece,cf) result(E_IO)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Function for reading field of scalar variable (I4P, 1D array).
+  !> Function for reading field of scalar variable (I4P, 1D array).
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
-  character(*),              intent(IN)  :: var_location !< location of variables: CELL for cell-centered, NODE for node-centered
-  character(*),              intent(IN)  :: varname      !< variable name
-  integer(I4P),              intent(OUT) :: NC_NN        !< number of cells or nodes
-  integer(I4P),              intent(OUT) :: NCOMP        !< number of components
-  integer(I4P), allocatable, intent(OUT) :: var(:,:,:)   !< variable to be saved
-  integer(I4P), optional,    intent(IN)  :: npiece       !< Number of the piece to read (by default: 1)
-  integer(I4P), optional,    intent(IN)  :: cf           !< Current file index (for concurrent files IO).
-  integer(I4P)                           :: E_IO         !< Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done
-  integer(I4P)                           :: rf           !< Real file index.
+  character(*),              intent(IN)  :: var_location !> location of variables: CELL for cell-centered, NODE for node-centered
+  character(*),              intent(IN)  :: varname      !> variable name
+  integer(I4P),              intent(OUT) :: NC_NN        !> number of cells or nodes
+  integer(I4P),              intent(OUT) :: NCOMP        !> number of components
+  integer(I4P), allocatable, intent(OUT) :: var(:,:,:)   !> variable to be saved
+  integer(I4P), optional,    intent(IN)  :: npiece       !> Number of the piece to read (by default: 1)
+  integer(I4P), optional,    intent(IN)  :: cf           !> Current file index (for concurrent files IO).
+  integer(I4P)                           :: E_IO         !> Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done
+  integer(I4P)                           :: rf           !> Real file index.
   character(len=:), allocatable          :: fmt
   character(len=:), allocatable          :: type
   character(len=:), allocatable          :: data
@@ -10838,18 +10837,18 @@ end function
 
   function VTK_VAR_XML_SCAL_3DA_I2_READ(var_location,varname,NC_NN,NCOMP,var,npiece,cf) result(E_IO)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Function for reading field of scalar variable (I2P, 1D array).
+  !> Function for reading field of scalar variable (I2P, 1D array).
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
-  character(*),              intent(IN)  :: var_location !< location of variables: CELL for cell-centered, NODE for node-centered
-  character(*),              intent(IN)  :: varname      !< variable name
-  integer(I4P),              intent(OUT) :: NC_NN        !< number of cells or nodes
-  integer(I4P),              intent(OUT) :: NCOMP        !< number of components
-  integer(I2P), allocatable, intent(OUT) :: var(:,:,:)       !< variable to be saved
-  integer(I4P), optional,    intent(IN)  :: npiece       !< Number of the piece to read (by default: 1)
-  integer(I4P), optional,    intent(IN)  :: cf           !< Current file index (for concurrent files IO).
-  integer(I4P)                           :: E_IO         !< Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done
-  integer(I4P)                           :: rf           !< Real file index.
+  character(*),              intent(IN)  :: var_location !> location of variables: CELL for cell-centered, NODE for node-centered
+  character(*),              intent(IN)  :: varname      !> variable name
+  integer(I4P),              intent(OUT) :: NC_NN        !> number of cells or nodes
+  integer(I4P),              intent(OUT) :: NCOMP        !> number of components
+  integer(I2P), allocatable, intent(OUT) :: var(:,:,:)       !> variable to be saved
+  integer(I4P), optional,    intent(IN)  :: npiece       !> Number of the piece to read (by default: 1)
+  integer(I4P), optional,    intent(IN)  :: cf           !> Current file index (for concurrent files IO).
+  integer(I4P)                           :: E_IO         !> Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done
+  integer(I4P)                           :: rf           !> Real file index.
   character(len=:), allocatable          :: fmt
   character(len=:), allocatable          :: type
   character(len=:), allocatable          :: data
@@ -10922,18 +10921,18 @@ end function
 
   function VTK_VAR_XML_SCAL_3DA_I1_READ(var_location,varname,NC_NN,NCOMP,var,npiece,cf) result(E_IO)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Function for reading field of scalar variable (I1P, 1D array).
+  !> Function for reading field of scalar variable (I1P, 1D array).
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
-  character(*),              intent(IN)  :: var_location !< location of variables: CELL for cell-centered, NODE for node-centered
-  character(*),              intent(IN)  :: varname      !< variable name
-  integer(I4P),              intent(OUT) :: NC_NN        !< number of cells or nodes
-  integer(I4P),              intent(OUT) :: NCOMP        !< number of components
-  integer(I1P), allocatable, intent(OUT) :: var(:,:,:)   !< variable to be saved
-  integer(I4P), optional,    intent(IN)  :: npiece       !< Number of the piece to read (by default: 1)
-  integer(I4P), optional,    intent(IN)  :: cf           !< Current file index (for concurrent files IO).
-  integer(I4P)                           :: E_IO         !< Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done
-  integer(I4P)                           :: rf           !< Real file index.
+  character(*),              intent(IN)  :: var_location !> location of variables: CELL for cell-centered, NODE for node-centered
+  character(*),              intent(IN)  :: varname      !> variable name
+  integer(I4P),              intent(OUT) :: NC_NN        !> number of cells or nodes
+  integer(I4P),              intent(OUT) :: NCOMP        !> number of components
+  integer(I1P), allocatable, intent(OUT) :: var(:,:,:)   !> variable to be saved
+  integer(I4P), optional,    intent(IN)  :: npiece       !> Number of the piece to read (by default: 1)
+  integer(I4P), optional,    intent(IN)  :: cf           !> Current file index (for concurrent files IO).
+  integer(I4P)                           :: E_IO         !> Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done
+  integer(I4P)                           :: rf           !> Real file index.
   character(len=:), allocatable          :: fmt
   character(len=:), allocatable          :: type
   character(len=:), allocatable          :: data
@@ -11006,20 +11005,20 @@ end function
 
   function VTK_VAR_XML_VECT_3DA_R8_READ(var_location,varname,NC_NN,NCOMP,varX,varY,varZ,npiece,cf) result(E_IO)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Function for reading field of scalar variable (R8P, 1D array).
+  !> Function for reading field of scalar variable (R8P, 1D array).
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
-  character(*),           intent(IN)  :: var_location !< location of variables: CELL for cell-centered, NODE for node-centered
-  character(*),           intent(IN)  :: varname      !< variable name
-  integer(I4P),           intent(OUT) :: NC_NN        !< number of cells or nodes
-  integer(I4P),           intent(OUT) :: NCOMP        !< number of components
-  real(R8P), allocatable, intent(OUT) :: varX(:,:,:)  !< variable to be saved
-  real(R8P), allocatable, intent(OUT) :: varY(:,:,:)  !< variable to be saved
-  real(R8P), allocatable, intent(OUT) :: varZ(:,:,:)  !< variable to be saved
-  integer(I4P), optional, intent(IN)  :: npiece       !< Number of the piece to read (by default: 1)
-  integer(I4P), optional, intent(IN)  :: cf           !< Current file index (for concurrent files IO).
-  integer(I4P)                        :: E_IO         !< Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done
-  integer(I4P)                        :: rf           !< Real file index.
+  character(*),           intent(IN)  :: var_location !> location of variables: CELL for cell-centered, NODE for node-centered
+  character(*),           intent(IN)  :: varname      !> variable name
+  integer(I4P),           intent(OUT) :: NC_NN        !> number of cells or nodes
+  integer(I4P),           intent(OUT) :: NCOMP        !> number of components
+  real(R8P), allocatable, intent(OUT) :: varX(:,:,:)  !> variable to be saved
+  real(R8P), allocatable, intent(OUT) :: varY(:,:,:)  !> variable to be saved
+  real(R8P), allocatable, intent(OUT) :: varZ(:,:,:)  !> variable to be saved
+  integer(I4P), optional, intent(IN)  :: npiece       !> Number of the piece to read (by default: 1)
+  integer(I4P), optional, intent(IN)  :: cf           !> Current file index (for concurrent files IO).
+  integer(I4P)                        :: E_IO         !> Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done
+  integer(I4P)                        :: rf           !> Real file index.
   character(len=:), allocatable       :: fmt
   character(len=:), allocatable       :: type
   character(len=:), allocatable       :: data
@@ -11102,20 +11101,20 @@ end function
 
   function VTK_VAR_XML_VECT_3DA_R4_READ(var_location,varname,NC_NN,NCOMP,varX,varY,varZ,npiece,cf) result(E_IO)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Function for reading field of scalar variable (R4P, 1D array).
+  !> Function for reading field of scalar variable (R4P, 1D array).
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
-  character(*),           intent(IN)  :: var_location !< location of variables: CELL for cell-centered, NODE for node-centered
-  character(*),           intent(IN)  :: varname      !< variable name
-  integer(I4P),           intent(OUT) :: NC_NN        !< number of cells or nodes
-  integer(I4P),           intent(OUT) :: NCOMP        !< number of components
-  real(R4P), allocatable, intent(OUT) :: varX(:,:,:)  !< variable to be saved
-  real(R4P), allocatable, intent(OUT) :: varY(:,:,:)  !< variable to be saved
-  real(R4P), allocatable, intent(OUT) :: varZ(:,:,:)  !< variable to be saved
-  integer(I4P), optional, intent(IN)  :: npiece       !< Number of the piece to read (by default: 1)
-  integer(I4P), optional, intent(IN)  :: cf           !< Current file index (for concurrent files IO).
-  integer(I4P)                        :: E_IO         !< Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done
-  integer(I4P)                        :: rf           !< Real file index.
+  character(*),           intent(IN)  :: var_location !> location of variables: CELL for cell-centered, NODE for node-centered
+  character(*),           intent(IN)  :: varname      !> variable name
+  integer(I4P),           intent(OUT) :: NC_NN        !> number of cells or nodes
+  integer(I4P),           intent(OUT) :: NCOMP        !> number of components
+  real(R4P), allocatable, intent(OUT) :: varX(:,:,:)  !> variable to be saved
+  real(R4P), allocatable, intent(OUT) :: varY(:,:,:)  !> variable to be saved
+  real(R4P), allocatable, intent(OUT) :: varZ(:,:,:)  !> variable to be saved
+  integer(I4P), optional, intent(IN)  :: npiece       !> Number of the piece to read (by default: 1)
+  integer(I4P), optional, intent(IN)  :: cf           !> Current file index (for concurrent files IO).
+  integer(I4P)                        :: E_IO         !> Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done
+  integer(I4P)                        :: rf           !> Real file index.
   character(len=:), allocatable       :: fmt
   character(len=:), allocatable       :: type
   character(len=:), allocatable       :: data
@@ -11198,20 +11197,20 @@ end function
 
   function VTK_VAR_XML_VECT_3DA_I8_READ(var_location,varname,NC_NN,NCOMP,varX,varY,varZ,npiece,cf) result(E_IO)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Function for reading field of scalar variable (I8P, 1D array).
+  !> Function for reading field of scalar variable (I8P, 1D array).
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
-  character(*),              intent(IN)  :: var_location !< location of variables: CELL for cell-centered, NODE for node-centered
-  character(*),              intent(IN)  :: varname      !< variable name
-  integer(I4P),              intent(OUT) :: NC_NN        !< number of cells or nodes
-  integer(I4P),              intent(OUT) :: NCOMP        !< number of components
-  integer(I8P), allocatable, intent(OUT) :: varX(:,:,:)  !< variable to be saved
-  integer(I8P), allocatable, intent(OUT) :: varY(:,:,:)  !< variable to be saved
-  integer(I8P), allocatable, intent(OUT) :: varZ(:,:,:)  !< variable to be saved
-  integer(I4P), optional,    intent(IN)  :: npiece       !< Number of the piece to read (by default: 1)
-  integer(I4P), optional,    intent(IN)  :: cf           !< Current file index (for concurrent files IO).
-  integer(I4P)                           :: E_IO         !< Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done
-  integer(I4P)                           :: rf           !< Real file index.
+  character(*),              intent(IN)  :: var_location !> location of variables: CELL for cell-centered, NODE for node-centered
+  character(*),              intent(IN)  :: varname      !> variable name
+  integer(I4P),              intent(OUT) :: NC_NN        !> number of cells or nodes
+  integer(I4P),              intent(OUT) :: NCOMP        !> number of components
+  integer(I8P), allocatable, intent(OUT) :: varX(:,:,:)  !> variable to be saved
+  integer(I8P), allocatable, intent(OUT) :: varY(:,:,:)  !> variable to be saved
+  integer(I8P), allocatable, intent(OUT) :: varZ(:,:,:)  !> variable to be saved
+  integer(I4P), optional,    intent(IN)  :: npiece       !> Number of the piece to read (by default: 1)
+  integer(I4P), optional,    intent(IN)  :: cf           !> Current file index (for concurrent files IO).
+  integer(I4P)                           :: E_IO         !> Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done
+  integer(I4P)                           :: rf           !> Real file index.
   character(len=:), allocatable          :: fmt
   character(len=:), allocatable          :: type
   character(len=:), allocatable          :: data
@@ -11293,20 +11292,20 @@ end function
 
   function VTK_VAR_XML_VECT_3DA_I4_READ(var_location,varname,NC_NN,NCOMP,varX,varY,varZ,npiece,cf) result(E_IO)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Function for reading field of scalar variable (I4P, 1D array).
+  !> Function for reading field of scalar variable (I4P, 1D array).
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
-  character(*),              intent(IN)  :: var_location !< location of variables: CELL for cell-centered, NODE for node-centered
-  character(*),              intent(IN)  :: varname      !< variable name
-  integer(I4P),              intent(OUT) :: NC_NN        !< number of cells or nodes
-  integer(I4P),              intent(OUT) :: NCOMP        !< number of components
-  integer(I4P), allocatable, intent(OUT) :: varX(:,:,:)  !< variable to be saved
-  integer(I4P), allocatable, intent(OUT) :: varY(:,:,:)  !< variable to be saved
-  integer(I4P), allocatable, intent(OUT) :: varZ(:,:,:)  !< variable to be saved
-  integer(I4P), optional,    intent(IN)  :: npiece       !< Number of the piece to read (by default: 1)
-  integer(I4P), optional,    intent(IN)  :: cf           !< Current file index (for concurrent files IO).
-  integer(I4P)                           :: E_IO         !< Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done
-  integer(I4P)                           :: rf           !< Real file index.
+  character(*),              intent(IN)  :: var_location !> location of variables: CELL for cell-centered, NODE for node-centered
+  character(*),              intent(IN)  :: varname      !> variable name
+  integer(I4P),              intent(OUT) :: NC_NN        !> number of cells or nodes
+  integer(I4P),              intent(OUT) :: NCOMP        !> number of components
+  integer(I4P), allocatable, intent(OUT) :: varX(:,:,:)  !> variable to be saved
+  integer(I4P), allocatable, intent(OUT) :: varY(:,:,:)  !> variable to be saved
+  integer(I4P), allocatable, intent(OUT) :: varZ(:,:,:)  !> variable to be saved
+  integer(I4P), optional,    intent(IN)  :: npiece       !> Number of the piece to read (by default: 1)
+  integer(I4P), optional,    intent(IN)  :: cf           !> Current file index (for concurrent files IO).
+  integer(I4P)                           :: E_IO         !> Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done
+  integer(I4P)                           :: rf           !> Real file index.
   character(len=:), allocatable          :: fmt
   character(len=:), allocatable          :: type
   character(len=:), allocatable          :: data
@@ -11389,20 +11388,20 @@ end function
 
   function VTK_VAR_XML_VECT_3DA_I2_READ(var_location,varname,NC_NN,NCOMP,varX,varY,varZ,npiece,cf) result(E_IO)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Function for reading field of scalar variable (I2P, 1D array).
+  !> Function for reading field of scalar variable (I2P, 1D array).
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
-  character(*),              intent(IN)  :: var_location !< location of variables: CELL for cell-centered, NODE for node-centered
-  character(*),              intent(IN)  :: varname      !< variable name
-  integer(I4P),              intent(OUT) :: NC_NN        !< number of cells or nodes
-  integer(I4P),              intent(OUT) :: NCOMP        !< number of components
-  integer(I2P), allocatable, intent(OUT) :: varX(:,:,:)  !< variable to be saved
-  integer(I2P), allocatable, intent(OUT) :: varY(:,:,:)  !< variable to be saved
-  integer(I2P), allocatable, intent(OUT) :: varZ(:,:,:)  !< variable to be saved
-  integer(I4P), optional,    intent(IN)  :: npiece       !< Number of the piece to read (by default: 1)
-  integer(I4P), optional,    intent(IN)  :: cf           !< Current file index (for concurrent files IO).
-  integer(I4P)                           :: E_IO         !< Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done
-  integer(I4P)                           :: rf           !< Real file index.
+  character(*),              intent(IN)  :: var_location !> location of variables: CELL for cell-centered, NODE for node-centered
+  character(*),              intent(IN)  :: varname      !> variable name
+  integer(I4P),              intent(OUT) :: NC_NN        !> number of cells or nodes
+  integer(I4P),              intent(OUT) :: NCOMP        !> number of components
+  integer(I2P), allocatable, intent(OUT) :: varX(:,:,:)  !> variable to be saved
+  integer(I2P), allocatable, intent(OUT) :: varY(:,:,:)  !> variable to be saved
+  integer(I2P), allocatable, intent(OUT) :: varZ(:,:,:)  !> variable to be saved
+  integer(I4P), optional,    intent(IN)  :: npiece       !> Number of the piece to read (by default: 1)
+  integer(I4P), optional,    intent(IN)  :: cf           !> Current file index (for concurrent files IO).
+  integer(I4P)                           :: E_IO         !> Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done
+  integer(I4P)                           :: rf           !> Real file index.
   character(len=:), allocatable          :: fmt
   character(len=:), allocatable          :: type
   character(len=:), allocatable          :: data
@@ -11485,20 +11484,20 @@ end function
 
   function VTK_VAR_XML_VECT_3DA_I1_READ(var_location,varname,NC_NN,NCOMP,varX,varY,varZ,npiece,cf) result(E_IO)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Function for reading field of scalar variable (I1P, 1D array).
+  !> Function for reading field of scalar variable (I1P, 1D array).
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
-  character(*),              intent(IN)  :: var_location !< location of variables: CELL for cell-centered, NODE for node-centered
-  character(*),              intent(IN)  :: varname      !< variable name
-  integer(I4P),              intent(OUT) :: NC_NN        !< number of cells or nodes
-  integer(I4P),              intent(OUT) :: NCOMP        !< number of components
-  integer(I1P), allocatable, intent(OUT) :: varX(:,:,:)  !< variable to be saved
-  integer(I1P), allocatable, intent(OUT) :: varY(:,:,:)  !< variable to be saved
-  integer(I1P), allocatable, intent(OUT) :: varZ(:,:,:)  !< variable to be saved
-  integer(I4P), optional,    intent(IN)  :: npiece       !< Number of the piece to read (by default: 1)
-  integer(I4P), optional,    intent(IN)  :: cf           !< Current file index (for concurrent files IO).
-  integer(I4P)                           :: E_IO         !< Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done
-  integer(I4P)                           :: rf           !< Real file index.
+  character(*),              intent(IN)  :: var_location !> location of variables: CELL for cell-centered, NODE for node-centered
+  character(*),              intent(IN)  :: varname      !> variable name
+  integer(I4P),              intent(OUT) :: NC_NN        !> number of cells or nodes
+  integer(I4P),              intent(OUT) :: NCOMP        !> number of components
+  integer(I1P), allocatable, intent(OUT) :: varX(:,:,:)  !> variable to be saved
+  integer(I1P), allocatable, intent(OUT) :: varY(:,:,:)  !> variable to be saved
+  integer(I1P), allocatable, intent(OUT) :: varZ(:,:,:)  !> variable to be saved
+  integer(I4P), optional,    intent(IN)  :: npiece       !> Number of the piece to read (by default: 1)
+  integer(I4P), optional,    intent(IN)  :: cf           !> Current file index (for concurrent files IO).
+  integer(I4P)                           :: E_IO         !> Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done
+  integer(I4P)                           :: rf           !> Real file index.
   character(len=:), allocatable          :: fmt
   character(len=:), allocatable          :: type
   character(len=:), allocatable          :: data
@@ -11581,18 +11580,18 @@ end function
 
   function VTK_VAR_XML_LIST_3DA_R8_READ(var_location,varname,NC_NN,NCOMP,var,npiece,cf) result(E_IO)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Function for reading field of scalar variable (R8P, 1D array).
+  !> Function for reading field of scalar variable (R8P, 1D array).
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
-  character(*),           intent(IN)  :: var_location !< location of variables: CELL for cell-centered, NODE for node-centered
-  character(*),           intent(IN)  :: varname      !< variable name
-  integer(I4P),           intent(OUT) :: NC_NN        !< number of cells or nodes
-  integer(I4P),           intent(OUT) :: NCOMP        !< number of components
-  real(R8P), allocatable, intent(OUT) :: var(:,:,:,:) !< variable to be saved
-  integer(I4P), optional, intent(IN)  :: npiece       !< Number of the piece to read (by default: 1)
-  integer(I4P), optional, intent(IN)  :: cf           !< Current file index (for concurrent files IO).
-  integer(I4P)                        :: E_IO         !< Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done
-  integer(I4P)                        :: rf           !< Real file index.
+  character(*),           intent(IN)  :: var_location !> location of variables: CELL for cell-centered, NODE for node-centered
+  character(*),           intent(IN)  :: varname      !> variable name
+  integer(I4P),           intent(OUT) :: NC_NN        !> number of cells or nodes
+  integer(I4P),           intent(OUT) :: NCOMP        !> number of components
+  real(R8P), allocatable, intent(OUT) :: var(:,:,:,:) !> variable to be saved
+  integer(I4P), optional, intent(IN)  :: npiece       !> Number of the piece to read (by default: 1)
+  integer(I4P), optional, intent(IN)  :: cf           !> Current file index (for concurrent files IO).
+  integer(I4P)                        :: E_IO         !> Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done
+  integer(I4P)                        :: rf           !> Real file index.
   character(len=:), allocatable       :: fmt
   character(len=:), allocatable       :: type
   character(len=:), allocatable       :: data
@@ -11667,18 +11666,18 @@ end function
 
   function VTK_VAR_XML_LIST_3DA_R4_READ(var_location,varname,NC_NN,NCOMP,var,npiece,cf) result(E_IO)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Function for reading field of scalar variable (R4P, 1D array).
+  !> Function for reading field of scalar variable (R4P, 1D array).
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
-  character(*),           intent(IN)  :: var_location !< location of variables: CELL for cell-centered, NODE for node-centered
-  character(*),           intent(IN)  :: varname      !< variable name
-  integer(I4P),           intent(OUT) :: NC_NN        !< number of cells or nodes
-  integer(I4P),           intent(OUT) :: NCOMP        !< number of components
-  real(R4P), allocatable, intent(OUT) :: var(:,:,:,:) !< variable to be saved
-  integer(I4P), optional, intent(IN)  :: npiece       !< Number of the piece to read (by default: 1)
-  integer(I4P), optional, intent(IN)  :: cf           !< Current file index (for concurrent files IO).
-  integer(I4P)                        :: E_IO         !< Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done
-  integer(I4P)                        :: rf           !< Real file index.
+  character(*),           intent(IN)  :: var_location !> location of variables: CELL for cell-centered, NODE for node-centered
+  character(*),           intent(IN)  :: varname      !> variable name
+  integer(I4P),           intent(OUT) :: NC_NN        !> number of cells or nodes
+  integer(I4P),           intent(OUT) :: NCOMP        !> number of components
+  real(R4P), allocatable, intent(OUT) :: var(:,:,:,:) !> variable to be saved
+  integer(I4P), optional, intent(IN)  :: npiece       !> Number of the piece to read (by default: 1)
+  integer(I4P), optional, intent(IN)  :: cf           !> Current file index (for concurrent files IO).
+  integer(I4P)                        :: E_IO         !> Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done
+  integer(I4P)                        :: rf           !> Real file index.
   character(len=:), allocatable       :: fmt
   character(len=:), allocatable       :: type
   character(len=:), allocatable       :: data
@@ -11753,18 +11752,18 @@ end function
 
   function VTK_VAR_XML_LIST_3DA_I8_READ(var_location,varname,NC_NN,NCOMP,var,npiece,cf) result(E_IO)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Function for reading field of scalar variable (I8P, 1D array).
+  !> Function for reading field of scalar variable (I8P, 1D array).
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
-  character(*),              intent(IN)  :: var_location !< location of variables: CELL for cell-centered, NODE for node-centered
-  character(*),              intent(IN)  :: varname      !< variable name
-  integer(I4P),              intent(OUT) :: NC_NN        !< number of cells or nodes
-  integer(I4P),              intent(OUT) :: NCOMP        !< number of components
-  integer(I8P), allocatable, intent(OUT) :: var(:,:,:,:) !< variable to be saved
-  integer(I4P), optional,    intent(IN)  :: npiece       !< Number of the piece to read (by default: 1)
-  integer(I4P), optional,    intent(IN)  :: cf           !< Current file index (for concurrent files IO).
-  integer(I4P)                           :: E_IO         !< Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done
-  integer(I4P)                           :: rf           !< Real file index.
+  character(*),              intent(IN)  :: var_location !> location of variables: CELL for cell-centered, NODE for node-centered
+  character(*),              intent(IN)  :: varname      !> variable name
+  integer(I4P),              intent(OUT) :: NC_NN        !> number of cells or nodes
+  integer(I4P),              intent(OUT) :: NCOMP        !> number of components
+  integer(I8P), allocatable, intent(OUT) :: var(:,:,:,:) !> variable to be saved
+  integer(I4P), optional,    intent(IN)  :: npiece       !> Number of the piece to read (by default: 1)
+  integer(I4P), optional,    intent(IN)  :: cf           !> Current file index (for concurrent files IO).
+  integer(I4P)                           :: E_IO         !> Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done
+  integer(I4P)                           :: rf           !> Real file index.
   character(len=:), allocatable          :: fmt
   character(len=:), allocatable          :: type
   character(len=:), allocatable          :: data
@@ -11839,18 +11838,18 @@ end function
 
   function VTK_VAR_XML_LIST_3DA_I4_READ(var_location,varname,NC_NN,NCOMP,var,npiece,cf) result(E_IO)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Function for reading field of scalar variable (I4P, 1D array).
+  !> Function for reading field of scalar variable (I4P, 1D array).
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
-  character(*),              intent(IN)  :: var_location !< location of variables: CELL for cell-centered, NODE for node-centered
-  character(*),              intent(IN)  :: varname      !< variable name
-  integer(I4P),              intent(OUT) :: NC_NN        !< number of cells or nodes
-  integer(I4P),              intent(OUT) :: NCOMP        !< number of components
-  integer(I4P), allocatable, intent(OUT) :: var(:,:,:,:) !< variable to be saved
-  integer(I4P), optional,    intent(IN)  :: npiece       !< Number of the piece to read (by default: 1)
-  integer(I4P), optional,    intent(IN)  :: cf           !< Current file index (for concurrent files IO).
-  integer(I4P)                           :: E_IO         !< Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done
-  integer(I4P)                           :: rf           !< Real file index.
+  character(*),              intent(IN)  :: var_location !> location of variables: CELL for cell-centered, NODE for node-centered
+  character(*),              intent(IN)  :: varname      !> variable name
+  integer(I4P),              intent(OUT) :: NC_NN        !> number of cells or nodes
+  integer(I4P),              intent(OUT) :: NCOMP        !> number of components
+  integer(I4P), allocatable, intent(OUT) :: var(:,:,:,:) !> variable to be saved
+  integer(I4P), optional,    intent(IN)  :: npiece       !> Number of the piece to read (by default: 1)
+  integer(I4P), optional,    intent(IN)  :: cf           !> Current file index (for concurrent files IO).
+  integer(I4P)                           :: E_IO         !> Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done
+  integer(I4P)                           :: rf           !> Real file index.
   character(len=:), allocatable          :: fmt
   character(len=:), allocatable          :: type
   character(len=:), allocatable          :: data
@@ -11925,18 +11924,18 @@ end function
 
   function VTK_VAR_XML_LIST_3DA_I2_READ(var_location,varname,NC_NN,NCOMP,var,npiece,cf) result(E_IO)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Function for reading field of scalar variable (I2P, 1D array).
+  !> Function for reading field of scalar variable (I2P, 1D array).
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
-  character(*),              intent(IN)  :: var_location !< location of variables: CELL for cell-centered, NODE for node-centered
-  character(*),              intent(IN)  :: varname      !< variable name
-  integer(I4P),              intent(OUT) :: NC_NN        !< number of cells or nodes
-  integer(I4P),              intent(OUT) :: NCOMP        !< number of components
-  integer(I2P), allocatable, intent(OUT) :: var(:,:,:,:) !< variable to be saved
-  integer(I4P), optional,    intent(IN)  :: npiece       !< Number of the piece to read (by default: 1)
-  integer(I4P), optional,    intent(IN)  :: cf           !< Current file index (for concurrent files IO).
-  integer(I4P)                           :: E_IO         !< Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done
-  integer(I4P)                           :: rf           !< Real file index.
+  character(*),              intent(IN)  :: var_location !> location of variables: CELL for cell-centered, NODE for node-centered
+  character(*),              intent(IN)  :: varname      !> variable name
+  integer(I4P),              intent(OUT) :: NC_NN        !> number of cells or nodes
+  integer(I4P),              intent(OUT) :: NCOMP        !> number of components
+  integer(I2P), allocatable, intent(OUT) :: var(:,:,:,:) !> variable to be saved
+  integer(I4P), optional,    intent(IN)  :: npiece       !> Number of the piece to read (by default: 1)
+  integer(I4P), optional,    intent(IN)  :: cf           !> Current file index (for concurrent files IO).
+  integer(I4P)                           :: E_IO         !> Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done
+  integer(I4P)                           :: rf           !> Real file index.
   character(len=:), allocatable          :: fmt
   character(len=:), allocatable          :: type
   character(len=:), allocatable          :: data
@@ -12011,18 +12010,18 @@ end function
 
   function VTK_VAR_XML_LIST_3DA_I1_READ(var_location,varname,NC_NN,NCOMP,var,npiece,cf) result(E_IO)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Function for reading field of scalar variable (I1P, 1D array).
+  !> Function for reading field of scalar variable (I1P, 1D array).
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
-  character(*),              intent(IN)  :: var_location !< location of variables: CELL for cell-centered, NODE for node-centered
-  character(*),              intent(IN)  :: varname      !< variable name
-  integer(I4P),              intent(OUT) :: NC_NN        !< number of cells or nodes
-  integer(I4P),              intent(OUT) :: NCOMP        !< number of components
-  integer(I1P), allocatable, intent(OUT) :: var(:,:,:,:) !< variable to be saved
-  integer(I4P), optional,    intent(IN)  :: npiece       !< Number of the piece to read (by default: 1)
-  integer(I4P), optional,    intent(IN)  :: cf           !< Current file index (for concurrent files IO).
-  integer(I4P)                           :: E_IO         !< Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done
-  integer(I4P)                           :: rf           !< Real file index.
+  character(*),              intent(IN)  :: var_location !> location of variables: CELL for cell-centered, NODE for node-centered
+  character(*),              intent(IN)  :: varname      !> variable name
+  integer(I4P),              intent(OUT) :: NC_NN        !> number of cells or nodes
+  integer(I4P),              intent(OUT) :: NCOMP        !> number of components
+  integer(I1P), allocatable, intent(OUT) :: var(:,:,:,:) !> variable to be saved
+  integer(I4P), optional,    intent(IN)  :: npiece       !> Number of the piece to read (by default: 1)
+  integer(I4P), optional,    intent(IN)  :: cf           !> Current file index (for concurrent files IO).
+  integer(I4P)                           :: E_IO         !> Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done
+  integer(I4P)                           :: rf           !> Real file index.
   character(len=:), allocatable          :: fmt
   character(len=:), allocatable          :: type
   character(len=:), allocatable          :: data
@@ -12097,20 +12096,20 @@ end function
 
   function VTK_FLD_XML_R8_READ(fname,fld,cf) result(E_IO)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Function for reading field data (global auxiliary data, e.g. time, step number, data set name...) (R8P).
+  !> Function for reading field data (global auxiliary data, e.g. time, step number, data set name...) (R8P).
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
-  character(*),           intent(IN)  :: fname    !< Field data name.
-  real(R8P),              intent(OUT) :: fld      !< Field data value.
-  integer(I4P), optional, intent(IN)  :: cf       !< Current file index (for concurrent files IO).
-  integer(I4P)                        :: E_IO     !< Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
-  character(len=:), allocatable       :: s_buffer !< Buffer string.
-  character(len=:), allocatable       :: type     !< VTK data type
-  character(len=:), allocatable       :: fmt      !< VTK data format
-  character(len=:), allocatable       :: data     !< String.
-  integer(I4P)                        :: offs     !< Data offset.
-  integer(I4P)                        :: nt       !< Number of tuples.
-  integer(I4P)                        :: rf       !< Real file index.
+  character(*),           intent(IN)  :: fname    !> Field data name.
+  real(R8P),              intent(OUT) :: fld      !> Field data value.
+  integer(I4P), optional, intent(IN)  :: cf       !> Current file index (for concurrent files IO).
+  integer(I4P)                        :: E_IO     !> Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
+  character(len=:), allocatable       :: s_buffer !> Buffer string.
+  character(len=:), allocatable       :: type     !> VTK data type
+  character(len=:), allocatable       :: fmt      !> VTK data format
+  character(len=:), allocatable       :: data     !> String.
+  integer(I4P)                        :: offs     !> Data offset.
+  integer(I4P)                        :: nt       !> Number of tuples.
+  integer(I4P)                        :: rf       !> Real file index.
   integer(I4P)                        :: N_Byte
   integer(I1P), allocatable           :: dI1P(:)
   !---------------------------------------------------------------------------------------------------------------------------------
@@ -12187,20 +12186,20 @@ end function
 
   function VTK_FLD_XML_R4_READ(fname,fld,cf) result(E_IO)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Function for reading field data (global auxiliary data, e.g. time, step number, data set name...) (R4P).
+  !> Function for reading field data (global auxiliary data, e.g. time, step number, data set name...) (R4P).
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
-  character(*),           intent(IN)  :: fname    !< Field data name.
-  real(R4P),              intent(OUT) :: fld      !< Field data value.
-  integer(I4P), optional, intent(IN)  :: cf       !< Current file index (for concurrent files IO).
-  integer(I4P)                        :: E_IO     !< Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
-  character(len=:), allocatable       :: s_buffer !< Buffer string.
-  character(len=:), allocatable       :: type     !< VTK data type
-  character(len=:), allocatable       :: fmt      !< VTK data format
-  character(len=:), allocatable       :: data     !< String.
-  integer(I4P)                        :: offs     !< Data offset.
-  integer(I4P)                        :: nt       !< Number of tuples.
-  integer(I4P)                        :: rf       !< Real file index.
+  character(*),           intent(IN)  :: fname    !> Field data name.
+  real(R4P),              intent(OUT) :: fld      !> Field data value.
+  integer(I4P), optional, intent(IN)  :: cf       !> Current file index (for concurrent files IO).
+  integer(I4P)                        :: E_IO     !> Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
+  character(len=:), allocatable       :: s_buffer !> Buffer string.
+  character(len=:), allocatable       :: type     !> VTK data type
+  character(len=:), allocatable       :: fmt      !> VTK data format
+  character(len=:), allocatable       :: data     !> String.
+  integer(I4P)                        :: offs     !> Data offset.
+  integer(I4P)                        :: nt       !> Number of tuples.
+  integer(I4P)                        :: rf       !> Real file index.
   integer(I4P)                        :: N_Byte
   integer(I1P), allocatable           :: dI1P(:)
   !---------------------------------------------------------------------------------------------------------------------------------
@@ -12278,20 +12277,20 @@ end function
 
   function VTK_FLD_XML_I8_READ(fname,fld,cf) result(E_IO)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Function for reading field data (global auxiliary data, e.g. time, step number, data set name...) (I8P).
+  !> Function for reading field data (global auxiliary data, e.g. time, step number, data set name...) (I8P).
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
-  character(*),           intent(IN)  :: fname    !< Field data name.
-  integer(I8P),           intent(OUT) :: fld      !< Field data value.
-  integer(I4P), optional, intent(IN)  :: cf       !< Current file index (for concurrent files IO).
-  integer(I4P)                        :: E_IO     !< Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
-  character(len=:), allocatable       :: s_buffer !< Buffer string.
-  character(len=:), allocatable       :: type     !< VTK data type
-  character(len=:), allocatable       :: fmt      !< VTK data format
-  character(len=:), allocatable       :: data     !< String.
-  integer(I4P)                        :: offs     !< Data offset.
-  integer(I4P)                        :: nt       !< Number of tuples.
-  integer(I4P)                        :: rf       !< Real file index.
+  character(*),           intent(IN)  :: fname    !> Field data name.
+  integer(I8P),           intent(OUT) :: fld      !> Field data value.
+  integer(I4P), optional, intent(IN)  :: cf       !> Current file index (for concurrent files IO).
+  integer(I4P)                        :: E_IO     !> Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
+  character(len=:), allocatable       :: s_buffer !> Buffer string.
+  character(len=:), allocatable       :: type     !> VTK data type
+  character(len=:), allocatable       :: fmt      !> VTK data format
+  character(len=:), allocatable       :: data     !> String.
+  integer(I4P)                        :: offs     !> Data offset.
+  integer(I4P)                        :: nt       !> Number of tuples.
+  integer(I4P)                        :: rf       !> Real file index.
   integer(I4P)                        :: N_Byte
   integer(I1P), allocatable           :: dI1P(:)
   !---------------------------------------------------------------------------------------------------------------------------------
@@ -12367,20 +12366,20 @@ end function
 
   function VTK_FLD_XML_I4_READ(fname,fld,cf) result(E_IO)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Function for reading field data (global auxiliary data, e.g. time, step number, data set name...) (I4P).
+  !> Function for reading field data (global auxiliary data, e.g. time, step number, data set name...) (I4P).
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
-  character(*),           intent(IN)  :: fname    !< Field data name.
-  integer(I4P),           intent(OUT) :: fld      !< Field data value.
-  integer(I4P), optional, intent(IN)  :: cf       !< Current file index (for concurrent files IO).
-  integer(I4P)                        :: E_IO     !< Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
-  character(len=:), allocatable       :: s_buffer !< Buffer string.
-  character(len=:), allocatable       :: type     !< VTK data type
-  character(len=:), allocatable       :: fmt      !< VTK data format
-  character(len=:), allocatable       :: data     !< String.
-  integer(I4P)                        :: offs     !< Data offset.
-  integer(I4P)                        :: nt       !< Number of tuples.
-  integer(I4P)                        :: rf       !< Real file index.
+  character(*),           intent(IN)  :: fname    !> Field data name.
+  integer(I4P),           intent(OUT) :: fld      !> Field data value.
+  integer(I4P), optional, intent(IN)  :: cf       !> Current file index (for concurrent files IO).
+  integer(I4P)                        :: E_IO     !> Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
+  character(len=:), allocatable       :: s_buffer !> Buffer string.
+  character(len=:), allocatable       :: type     !> VTK data type
+  character(len=:), allocatable       :: fmt      !> VTK data format
+  character(len=:), allocatable       :: data     !> String.
+  integer(I4P)                        :: offs     !> Data offset.
+  integer(I4P)                        :: nt       !> Number of tuples.
+  integer(I4P)                        :: rf       !> Real file index.
   integer(I4P)                        :: N_Byte
   integer(I1P), allocatable           :: dI1P(:)
   !---------------------------------------------------------------------------------------------------------------------------------
@@ -12458,20 +12457,20 @@ end function
 
   function VTK_FLD_XML_I2_READ(fname,fld,cf) result(E_IO)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Function for reading field data (global auxiliary data, e.g. time, step number, data set name...) (I2P).
+  !> Function for reading field data (global auxiliary data, e.g. time, step number, data set name...) (I2P).
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
-  character(*),           intent(IN)  :: fname    !< Field data name.
-  integer(I2P),           intent(OUT) :: fld      !< Field data value.
-  integer(I4P), optional, intent(IN)  :: cf       !< Current file index (for concurrent files IO).
-  integer(I4P)                        :: E_IO     !< Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
-  character(len=:), allocatable       :: s_buffer !< Buffer string.
-  character(len=:), allocatable       :: type     !< VTK data type
-  character(len=:), allocatable       :: fmt      !< VTK data format
-  character(len=:), allocatable       :: data     !< String.
-  integer(I4P)                        :: offs     !< Data offset.
-  integer(I4P)                        :: nt       !< Number of tuples.
-  integer(I4P)                        :: rf       !< Real file index.
+  character(*),           intent(IN)  :: fname    !> Field data name.
+  integer(I2P),           intent(OUT) :: fld      !> Field data value.
+  integer(I4P), optional, intent(IN)  :: cf       !> Current file index (for concurrent files IO).
+  integer(I4P)                        :: E_IO     !> Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
+  character(len=:), allocatable       :: s_buffer !> Buffer string.
+  character(len=:), allocatable       :: type     !> VTK data type
+  character(len=:), allocatable       :: fmt      !> VTK data format
+  character(len=:), allocatable       :: data     !> String.
+  integer(I4P)                        :: offs     !> Data offset.
+  integer(I4P)                        :: nt       !> Number of tuples.
+  integer(I4P)                        :: rf       !> Real file index.
   integer(I4P)                        :: N_Byte
   integer(I1P), allocatable           :: dI1P(:)
   !---------------------------------------------------------------------------------------------------------------------------------
@@ -12549,20 +12548,20 @@ end function
 
   function VTK_FLD_XML_I1_READ(fname,fld,cf) result(E_IO)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Function for reading field data (global auxiliary data, e.g. time, step number, data set name...) (I1P).
+  !> Function for reading field data (global auxiliary data, e.g. time, step number, data set name...) (I1P).
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
-  character(*),           intent(IN)  :: fname    !< Field data name.
-  integer(I1P),              intent(OUT) :: fld      !< Field data value.
-  integer(I4P), optional, intent(IN)  :: cf       !< Current file index (for concurrent files IO).
-  integer(I4P)                        :: E_IO     !< Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
-  character(len=:), allocatable       :: s_buffer !< Buffer string.
-  character(len=:), allocatable       :: type     !< VTK data type
-  character(len=:), allocatable       :: fmt      !< VTK data format
-  character(len=:), allocatable       :: data     !< String.
-  integer(I4P)                        :: offs     !< Data offset.
-  integer(I4P)                        :: nt       !< Number of tuples.
-  integer(I4P)                        :: rf       !< Real file index.
+  character(*),           intent(IN)  :: fname    !> Field data name.
+  integer(I1P),              intent(OUT) :: fld      !> Field data value.
+  integer(I4P), optional, intent(IN)  :: cf       !> Current file index (for concurrent files IO).
+  integer(I4P)                        :: E_IO     !> Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
+  character(len=:), allocatable       :: s_buffer !> Buffer string.
+  character(len=:), allocatable       :: type     !> VTK data type
+  character(len=:), allocatable       :: fmt      !> VTK data format
+  character(len=:), allocatable       :: data     !> String.
+  integer(I4P)                        :: offs     !> Data offset.
+  integer(I4P)                        :: nt       !> Number of tuples.
+  integer(I4P)                        :: rf       !> Real file index.
   integer(I4P)                        :: N_Byte
   integer(I1P), allocatable           :: dI1P(:)
   !---------------------------------------------------------------------------------------------------------------------------------
@@ -12639,7 +12638,7 @@ end function
 
   function VTK_END_XML_READ(cf) result(E_IO)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Function for close an opened VTK file.
+  !> Function for close an opened VTK file.
   !---------------------------------------------------------------------------------------------------------------------------------
   integer(I4P), optional :: cf
   integer(I4P)           :: rf
@@ -12661,39 +12660,39 @@ end function
 
   function PVTK_INI_XML_READ(filename,mesh_topology,npieces,nnodefields,ncellfields, nx1,nx2,ny1,ny2,nz1,nz2,cf) result(E_IO)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Procedure for initializing PVTK-XML file when reading.
-  !<
-  !< Supported topologies are:
-  !<- PRectilinearGrid;
-  !<- PStructuredGrid; 
-  !<- PUnstructuredGrid. 
-  !<### Example of usage
-  !<```fortran
-  !< integer(I4P):: nx1,nx2,ny1,ny2,nz1,nz2
-  !< ...
-  !< E_IO = PVTK_INI_XML_READ('XML_PVTK.pvtr','RectilinearGrid',nx1=nx1,nx2=nx2,ny1=ny1,ny2=ny2,nz1=nz1,nz2=nz2,cf=rf)
-  !< ...
-  !<```
-  !< Note that the file extension is necessary in the file name. The XML standard has different extensions for each
-  !< different topologies (e.g. *vtr* for rectilinear topology). See the VTK-standard file for more information.
+  !> Procedure for initializing PVTK-XML file when reading.
+  !>
+  !> Supported topologies are:
+  !>- PRectilinearGrid;
+  !>- PStructuredGrid; 
+  !>- PUnstructuredGrid. 
+  !>### Example of usage
+  !>```fortran
+  !> integer(I4P):: nx1,nx2,ny1,ny2,nz1,nz2
+  !> ...
+  !> E_IO = PVTK_INI_XML_READ('XML_PVTK.pvtr','RectilinearGrid',nx1=nx1,nx2=nx2,ny1=ny1,ny2=ny2,nz1=nz1,nz2=nz2,cf=rf)
+  !> ...
+  !>```
+  !> Note that the file extension is necessary in the file name. The XML standard has different extensions for each
+  !> different topologies (e.g. *vtr* for rectilinear topology). See the VTK-standard file for more information.
   !---------------------------------------------------------------------------------------------------------------------------------
-  character(*), intent(IN)            :: filename       !< file name
-  character(*), intent(IN)            :: mesh_topology  !< mesh topology
-  integer(I4P), intent(OUT), optional :: npieces        !< Number of pieces stored in the file
-  integer(I4P), intent(OUT), optional :: nnodefields    !< Number of pieces stored in the file
-  integer(I4P), intent(OUT), optional :: ncellfields    !< Number of pieces stored in the file
-  integer(I4P), intent(OUT), optional :: nx1            !< Initial node of x axis.
-  integer(I4P), intent(OUT), optional :: nx2            !< Final node of x axis.
-  integer(I4P), intent(OUT), optional :: ny1            !< Initial node of y axis.
-  integer(I4P), intent(OUT), optional :: ny2            !< Final node of y axis.
-  integer(I4P), intent(OUT), optional :: nz1            !< Initial node of z axis.
-  integer(I4P), intent(OUT), optional :: nz2            !< Final node of z axis.
-  integer(I4P), intent(OUT), optional :: cf             !< Current file index (for concurrent files IO).
-  integer(I4P)                        :: rf             !< Real file index.
-  character(len=:),allocatable        :: s_buffer       !< Buffer string.
-  integer(I4P)                        :: E_IO           !< Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done
+  character(*), intent(IN)            :: filename       !> file name
+  character(*), intent(IN)            :: mesh_topology  !> mesh topology
+  integer(I4P), intent(OUT), optional :: npieces        !> Number of pieces stored in the file
+  integer(I4P), intent(OUT), optional :: nnodefields    !> Number of pieces stored in the file
+  integer(I4P), intent(OUT), optional :: ncellfields    !> Number of pieces stored in the file
+  integer(I4P), intent(OUT), optional :: nx1            !> Initial node of x axis.
+  integer(I4P), intent(OUT), optional :: nx2            !> Final node of x axis.
+  integer(I4P), intent(OUT), optional :: ny1            !> Initial node of y axis.
+  integer(I4P), intent(OUT), optional :: ny2            !> Final node of y axis.
+  integer(I4P), intent(OUT), optional :: nz1            !> Initial node of z axis.
+  integer(I4P), intent(OUT), optional :: nz2            !> Final node of z axis.
+  integer(I4P), intent(OUT), optional :: cf             !> Current file index (for concurrent files IO).
+  integer(I4P)                        :: rf             !> Real file index.
+  character(len=:),allocatable        :: s_buffer       !> Buffer string.
+  integer(I4P)                        :: E_IO           !> Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done
   character(len=:),allocatable        :: aux
-  integer(I4P), dimension(6)          :: rn             !< Real node ranges in WholeExtent [nx1,nx2,ny1,ny2,nz1,nz2]
+  integer(I4P), dimension(6)          :: rn             !> Real node ranges in WholeExtent [nx1,nx2,ny1,ny2,nz1,nz2]
   logical                             :: fexist
   !---------------------------------------------------------------------------------------------------------------------------------
 
@@ -12772,22 +12771,22 @@ end function
 
   function PVTK_GEO_XML_READ(npiece,cf,source,nx1,nx2,ny1,ny2,nz1,nz2) result(E_IO)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Function for close an opened VTK file.
+  !> Function for close an opened VTK file.
   !---------------------------------------------------------------------------------------------------------------------------------
-  integer(I4P), intent(IN),  optional    :: npiece         !< Number of pieces stored in the file
-  integer(I4P), intent(IN),  optional    :: cf             !< Current file index (for concurrent files IO).
-  character(:), intent(OUT), allocatable :: source         !< Source file name
-  integer(I4P), intent(OUT), optional    :: nx1            !< Initial node of x axis.
-  integer(I4P), intent(OUT), optional    :: nx2            !< Final node of x axis.
-  integer(I4P), intent(OUT), optional    :: ny1            !< Initial node of y axis.
-  integer(I4P), intent(OUT), optional    :: ny2            !< Final node of y axis.
-  integer(I4P), intent(OUT), optional    :: nz1            !< Initial node of z axis.
-  integer(I4P), intent(OUT), optional    :: nz2            !< Final node of z axis.
-  integer(I4P)                           :: rf             !< Real file index.
+  integer(I4P), intent(IN),  optional    :: npiece         !> Number of pieces stored in the file
+  integer(I4P), intent(IN),  optional    :: cf             !> Current file index (for concurrent files IO).
+  character(:), intent(OUT), allocatable :: source         !> Source file name
+  integer(I4P), intent(OUT), optional    :: nx1            !> Initial node of x axis.
+  integer(I4P), intent(OUT), optional    :: nx2            !> Final node of x axis.
+  integer(I4P), intent(OUT), optional    :: ny1            !> Initial node of y axis.
+  integer(I4P), intent(OUT), optional    :: ny2            !> Final node of y axis.
+  integer(I4P), intent(OUT), optional    :: nz1            !> Initial node of z axis.
+  integer(I4P), intent(OUT), optional    :: nz2            !> Final node of z axis.
+  integer(I4P)                           :: rf             !> Real file index.
   integer(I4P)                           :: np             !> Real piece number
-  character(len=:),allocatable           :: s_buffer       !< Buffer string.
-  integer(I4P)                           :: E_IO           !< Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done
-  integer(I4P), dimension(6)             :: rn             !< Real node ranges in Extent [nx1,nx2,ny1,ny2,nz1,nz2]
+  character(len=:),allocatable           :: s_buffer       !> Buffer string.
+  integer(I4P)                           :: E_IO           !> Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done
+  integer(I4P), dimension(6)             :: rn             !> Real node ranges in Extent [nx1,nx2,ny1,ny2,nz1,nz2]
   character(len=:),allocatable           :: aux
   !---------------------------------------------------------------------------------------------------------------------------------
 
@@ -12821,18 +12820,18 @@ end function
 
   function PVTK_VAR_XML_READ(var_location, nfield, cf, name, type, NCOMP) result(E_IO)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Function for close an opened VTK file.
+  !> Function for close an opened VTK file.
   !---------------------------------------------------------------------------------------------------------------------------------
-  character(*), intent(IN)                         :: var_location   !< Location of saving variables: CELL or NODE centered.
-  integer(I4P), intent(IN),               optional :: nfield         !< Number of pieces stored in the file
-  integer(I4P), intent(IN),               optional :: cf             !< Current file index (for concurrent files IO).
-  character(:), intent(OUT), allocatable, optional :: name           !< Field name
-  character(:), intent(OUT), allocatable, optional :: type           !< Field data type
-  integer(I4P), intent(OUT),              optional :: NCOMP          !< Field number of components
-  integer(I4P)                                     :: rf             !< Real file index.
-  integer(I4P)                                     :: nf             !< Real number of field
-  character(len=:),allocatable                     :: s_buffer       !< Buffer string.
-  integer(I4P)                                     :: E_IO           !< Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done
+  character(*), intent(IN)                         :: var_location   !> Location of saving variables: CELL or NODE centered.
+  integer(I4P), intent(IN),               optional :: nfield         !> Number of pieces stored in the file
+  integer(I4P), intent(IN),               optional :: cf             !> Current file index (for concurrent files IO).
+  character(:), intent(OUT), allocatable, optional :: name           !> Field name
+  character(:), intent(OUT), allocatable, optional :: type           !> Field data type
+  integer(I4P), intent(OUT),              optional :: NCOMP          !> Field number of components
+  integer(I4P)                                     :: rf             !> Real file index.
+  integer(I4P)                                     :: nf             !> Real number of field
+  character(len=:),allocatable                     :: s_buffer       !> Buffer string.
+  integer(I4P)                                     :: E_IO           !> Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done
   !---------------------------------------------------------------------------------------------------------------------------------
 
   !---------------------------------------------------------------------------------------------------------------------------------
@@ -12871,7 +12870,7 @@ end function
 
   function PVTK_END_XML_READ(cf) result(E_IO)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Function for close an opened VTK file.
+  !> Function for close an opened VTK file.
   !---------------------------------------------------------------------------------------------------------------------------------
   integer(I4P), optional :: cf
   integer(I4P)           :: rf
@@ -12893,4 +12892,4 @@ end function
 
 
 
-endmodule Lib_VTK_IO
+endmodule Lib_VTK

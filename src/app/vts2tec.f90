@@ -1,6 +1,6 @@
 program vts2tec
   use IR_Precision
-  use Lib_VTK_IO
+  use Lib_VTK
   use Lib_Tecplot
   use, intrinsic:: ISO_FORTRAN_ENV, only: stdout=>OUTPUT_UNIT, stderr=>ERROR_UNIT
 !-----------------------------------------------------------------------------------------------------------------------------------

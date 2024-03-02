@@ -3,6 +3,10 @@ build
 bin
 .setvars.sh
 
+# doc files
+doc/html
+doc/latex
+
 # Prerequisites
 *.d
 

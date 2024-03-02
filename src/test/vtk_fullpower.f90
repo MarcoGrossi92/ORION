@@ -1,9 +1,9 @@
-!< Testing program for Lib_VTK_IO, a pure Fortran (2003+) library to write and read data conforming the VTK standard
+!> Testing program for Lib_VTK_IO, a pure Fortran (2003+) library to write and read data conforming the VTK standard
 module Lib_Testers
-!< Module library of procedures for testing Lib_VTK_IO and for providing practical examples.
+!> Module library of procedures for testing Lib_VTK_IO and for providing practical examples.
 !-----------------------------------------------------------------------------------------------------------------------------------
 USE IR_Precision
-USE Lib_VTK_IO
+USE Lib_VTK
 USE, intrinsic:: ISO_FORTRAN_ENV, only: stdout=>OUTPUT_UNIT, stderr=>ERROR_UNIT
 !-----------------------------------------------------------------------------------------------------------------------------------
 
@@ -32,11 +32,11 @@ public:: test_mpi
 contains
   subroutine test_stress()
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Procedure for testing all functions.
-  !<
-  !< R4P and R8P mesh data, 1D and 3D arrays inputs, standard (X,Y,Z,... separated arrays) and
-  !< packed API (X,Y,Z,... packed into a single array). All available formats are used. The StructuredGrid topology is used.
-  !< @note This subroutine is designed not as an example rather than a comprehensive stress-tester for functions of any kind/rank.
+  !> Procedure for testing all functions.
+  !>
+  !> R4P and R8P mesh data, 1D and 3D arrays inputs, standard (X,Y,Z,... separated arrays) and
+  !> packed API (X,Y,Z,... packed into a single array). All available formats are used. The StructuredGrid topology is used.
+  !> @note This subroutine is designed not as an example rather than a comprehensive stress-tester for functions of any kind/rank.
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
   ! dataset dimensions
@@ -113,7 +113,7 @@ contains
   contains
     subroutine initialize()
     !-------------------------------------------------------------------------------------------------------------------------------
-    !< Procedure for initializing data.
+    !> Procedure for initializing data.
     !-------------------------------------------------------------------------------------------------------------------------------
     implicit none
     integer(I4P):: i,j,k,p
@@ -142,11 +142,11 @@ contains
 
     function save_node_variables(threeD) result(E_IO)
     !-------------------------------------------------------------------------------------------------------------------------------
-    !< Procedure for saving StructuredGrid files.
+    !> Procedure for saving StructuredGrid files.
     !-------------------------------------------------------------------------------------------------------------------------------
     implicit none
-    logical, intent(IN):: threeD !< Flag for checking the rank-dimensions of outputs.
-    integer(I4P)::        E_IO   !< Error traping flag.
+    logical, intent(IN):: threeD !> Flag for checking the rank-dimensions of outputs.
+    integer(I4P)::        E_IO   !> Error traping flag.
     !-------------------------------------------------------------------------------------------------------------------------------
 
     !-------------------------------------------------------------------------------------------------------------------------------
@@ -213,20 +213,20 @@ contains
 
     function save_strg(x64,y64,z64,xyz64,x32,y32,z32,xyz32,threeD,out_f) result(E_IO)
     !-------------------------------------------------------------------------------------------------------------------------------
-    !< Procedure for saving node-located variables.
+    !> Procedure for saving node-located variables.
     !-------------------------------------------------------------------------------------------------------------------------------
     implicit none
-    real(R8P), optional, intent(IN):: x64(:,:,:)     !< X Coordinates components (64 bits).
-    real(R8P), optional, intent(IN):: y64(:,:,:)     !< Y Coordinates components (64 bits).
-    real(R8P), optional, intent(IN):: z64(:,:,:)     !< Z Coordinates components (64 bits).
-    real(R8P), optional, intent(IN):: xyz64(:,:,:,:) !< Packed coordinates components (64 bits).
-    real(R4P), optional, intent(IN):: x32(:,:,:)     !< X Coordinates components (32 bits).
-    real(R4P), optional, intent(IN):: y32(:,:,:)     !< Y Coordinates components (32 bits).
-    real(R4P), optional, intent(IN):: z32(:,:,:)     !< Z Coordinates components (32 bits).
-    real(R4P), optional, intent(IN):: xyz32(:,:,:,:) !< Packed coordinates components (32 bits).
-    logical,             intent(IN):: threeD         !< Flag for checking the rank-dimensions of outputs.
-    character(*),        intent(IN):: out_f          !< Output format.
-    integer(I4P)::                    E_IO           !< Error traping flag.
+    real(R8P), optional, intent(IN):: x64(:,:,:)     !> X Coordinates components (64 bits).
+    real(R8P), optional, intent(IN):: y64(:,:,:)     !> Y Coordinates components (64 bits).
+    real(R8P), optional, intent(IN):: z64(:,:,:)     !> Z Coordinates components (64 bits).
+    real(R8P), optional, intent(IN):: xyz64(:,:,:,:) !> Packed coordinates components (64 bits).
+    real(R4P), optional, intent(IN):: x32(:,:,:)     !> X Coordinates components (32 bits).
+    real(R4P), optional, intent(IN):: y32(:,:,:)     !> Y Coordinates components (32 bits).
+    real(R4P), optional, intent(IN):: z32(:,:,:)     !> Z Coordinates components (32 bits).
+    real(R4P), optional, intent(IN):: xyz32(:,:,:,:) !> Packed coordinates components (32 bits).
+    logical,             intent(IN):: threeD         !> Flag for checking the rank-dimensions of outputs.
+    character(*),        intent(IN):: out_f          !> Output format.
+    integer(I4P)::                    E_IO           !> Error traping flag.
     !-------------------------------------------------------------------------------------------------------------------------------
 
     !-------------------------------------------------------------------------------------------------------------------------------
@@ -279,7 +279,7 @@ contains
 
   subroutine test_unst()
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Procedure for testing UnstructuredGrid functions.
+  !> Procedure for testing UnstructuredGrid functions.
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
   integer(I4P), parameter::       Nn = 27_I4P
@@ -351,7 +351,7 @@ contains
 
   subroutine test_strg()
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Procedure for testing StructuredGrid functions.
+  !> Procedure for testing StructuredGrid functions.
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
   integer(I4P), parameter::                       nx1=0_I4P,nx2=9_I4P,ny1=0_I4P,ny2=5_I4P,nz1=0_I4P,nz2=5_I4P
@@ -389,10 +389,10 @@ contains
 
   subroutine test_rect()
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Procedure for testing RectilinearGrid functions.
-  !<
-  !< @note This subroutine also shows the usage of FieldData functions that are useful for saving global auxiliary data, e.g. time,
-  !< time step, ecc.
+  !> Procedure for testing RectilinearGrid functions.
+  !>
+  !> @note This subroutine also shows the usage of FieldData functions that are useful for saving global auxiliary data, e.g. time,
+  !> time step, ecc.
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
   integer(I4P), parameter:: nx1=0_I4P,nx2=30_I4P,ny1=0_I4P,ny2=20_I4P,nz1=0_I4P,nz2=10_I4P
@@ -468,10 +468,10 @@ contains
 
   subroutine test_rect_read()
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Procedure for testing RectilinearGrid read functions.
-  !<
-  !< @note This subroutine also shows the usage of FieldData functions that are useful for loading global auxiliary data, e.g. time,
-  !< time step, ecc.
+  !> Procedure for testing RectilinearGrid read functions.
+  !>
+  !> @note This subroutine also shows the usage of FieldData functions that are useful for loading global auxiliary data, e.g. time,
+  !> time step, ecc.
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
   real(R8P), allocatable    :: x(:),y(:),z(:)
@@ -519,10 +519,10 @@ contains
 
   subroutine test_strg_read()
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Procedure for testing RectilinearGrid read functions.
-  !<
-  !< @note This subroutine also shows the usage of FieldData functions that are useful for loading global auxiliary data, e.g. time,
-  !< time step, ecc.
+  !> Procedure for testing RectilinearGrid read functions.
+  !>
+  !> @note This subroutine also shows the usage of FieldData functions that are useful for loading global auxiliary data, e.g. time,
+  !> time step, ecc.
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
   real(R8P), allocatable    :: x(:),y(:),z(:)
@@ -547,7 +547,7 @@ contains
 
   subroutine test_unst_read()
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Procedure for testing UnstructuredGrid read functions.
+  !> Procedure for testing UnstructuredGrid read functions.
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
   real(R4P),allocatable, dimension(:)     :: x,y,z
@@ -592,9 +592,9 @@ contains
 
   subroutine test_punst()
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Procedure for testing parallel (partitioned) PStructuredGrid functions.
-  !<
-  !< @note Note that the two parts are completely independet.
+  !> Procedure for testing parallel (partitioned) PStructuredGrid functions.
+  !>
+  !> @note Note that the two parts are completely independet.
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
   integer(I4P), parameter::       Nn = 27_I4P
@@ -667,9 +667,9 @@ contains
 
   subroutine test_punst_read()
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Procedure for testing parallel (partitioned) PStructuredGrid functions.
-  !<
-  !< @note Note that the two parts are completely independet.
+  !> Procedure for testing parallel (partitioned) PStructuredGrid functions.
+  !>
+  !> @note Note that the two parts are completely independet.
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
   real(R4P), allocatable, dimension(:)    :: x,y,z
@@ -716,19 +716,19 @@ contains
 
   subroutine test_pstrg()
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Procedure for testing parallel (partitioned) PStructuredGrid functions.
-  !<
-  !< The mesh is a simple prism partitioned into two pieces along x direction at ordinate i=nx2_p(1).
-  !<```
-  !< y ^
-  !<   |               ny2 +-----------------+--------------+
-  !<   |                   |                 |              |
-  !<   |                   |                 |              |
-  !<   |                   |                 |              |
-  !<   |                   |                 |              |
-  !<   o-------->      ny1 +-----------------+--------------+
-  !<            x         nx1               i=nx2_p(1)     nx2
-  !<```
+  !> Procedure for testing parallel (partitioned) PStructuredGrid functions.
+  !>
+  !> The mesh is a simple prism partitioned into two pieces along x direction at ordinate i=nx2_p(1).
+  !>```
+  !> y ^
+  !>   |               ny2 +-----------------+--------------+
+  !>   |                   |                 |              |
+  !>   |                   |                 |              |
+  !>   |                   |                 |              |
+  !>   |                   |                 |              |
+  !>   o-------->      ny1 +-----------------+--------------+
+  !>            x         nx1               i=nx2_p(1)     nx2
+  !>```
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
   integer(I4P), parameter::                          nx1=0_I4P,nx2=9_I4P,ny1=0_I4P,ny2=5_I4P,nz1=0_I4P,nz2=5_I4P
@@ -784,19 +784,19 @@ contains
 
   subroutine test_pstrg_Read()
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Procedure for testing parallel (partitioned) PStructuredGrid read functions.
-  !<
-  !< The mesh is a simple prism partitioned into two pieces along x direction at ordinate i=nx2_p(1).
-  !<```
-  !< y ^
-  !<   |               ny2 +-----------------+--------------+
-  !<   |                   |                 |              |
-  !<   |                   |                 |              |
-  !<   |                   |                 |              |
-  !<   |                   |                 |              |
-  !<   o-------->      ny1 +-----------------+--------------+
-  !<            x         nx1               i=nx2_p(1)     nx2
-  !<```
+  !> Procedure for testing parallel (partitioned) PStructuredGrid read functions.
+  !>
+  !> The mesh is a simple prism partitioned into two pieces along x direction at ordinate i=nx2_p(1).
+  !>```
+  !> y ^
+  !>   |               ny2 +-----------------+--------------+
+  !>   |                   |                 |              |
+  !>   |                   |                 |              |
+  !>   |                   |                 |              |
+  !>   |                   |                 |              |
+  !>   o-------->      ny1 +-----------------+--------------+
+  !>            x         nx1               i=nx2_p(1)     nx2
+  !>```
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
   real(R8P), allocatable, dimension(:)        :: x,y,z
@@ -839,9 +839,9 @@ contains
 
   subroutine test_vtm()
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Procedure for testing multi-blocks VTM functions.
-  !<
-  !< There are 4 subset of data organized into 2 blocks. All the subsets are simple StructuredGrid prisms shifted along x direction.
+  !> Procedure for testing multi-blocks VTM functions.
+  !>
+  !> There are 4 subset of data organized into 2 blocks. All the subsets are simple StructuredGrid prisms shifted along x direction.
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
   integer(I4P), parameter::                          nx1=0_I4P,nx2=9_I4P,ny1=0_I4P,ny2=5_I4P,nz1=0_I4P,nz2=5_I4P
@@ -899,57 +899,57 @@ contains
 #ifdef OPENMP
   subroutine test_openmp(Nf_tot)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Procedure for testing the libray in an OpenMP parallel framework.
-  !<
-  !< It is used for testing thread-safe capability and the
-  !< library speedup into OpenMP parallel framework. The output is a parallel (partitioned) PStructuredGrid file.
-  !< @note The whole grid is composed of blocks of 32x32x32 structured mesh. The total number of blocks/files, Nf_tot, is passed as
-  !< argument. The whole grid is built up composing the blocks along the X axis with a regular shift as following:
-  !<```
-  !< y ^
-  !<   |               ny2 +------------+------------+------------+------///////////-----+
-  !<   |                   |            |            |            |                      |
-  !<   |                   |            |            |            |                      |
-  !<   |                   |            |            |            |                      |
-  !<   |                   |            |            |            |                      |
-  !<   o-------->      ny1 +------------+------------+------------+------///////////-----+
-  !<            x         nx1          nx2    2*(nx2-nx+1)  3*(nx2-nx+1)          Nf_tot*(nx2-nx+1)
-  !<```
-  !< @note When the total number of blocks/files, Nf_tot, is not an integral of the number of threads used, Nths, the last
-  !< thread saves its own files (Nf_tot/Nths) plus the remainder blocks/files (mod(Nf_tot,Nths)). As a consequence the last
-  !< thread could has different elapsed time and it could degrade the speedup. Therefore the subroutine prints to stdout the
-  !< maximum and minimum elapsed time among the threads as well the average elapsed time in order to facilitate the assessing
-  !< of the parallel scalability.
-  !<
-  !< @note It is important to note that the output files initialization and finalization must be done outside the parallel ambient.
-  !<
-  !< @note The array containing the files indexes could be shared among threads, but the counter of this array ('p' in this example)
-  !< must be private.
+  !> Procedure for testing the libray in an OpenMP parallel framework.
+  !>
+  !> It is used for testing thread-safe capability and the
+  !> library speedup into OpenMP parallel framework. The output is a parallel (partitioned) PStructuredGrid file.
+  !> @note The whole grid is composed of blocks of 32x32x32 structured mesh. The total number of blocks/files, Nf_tot, is passed as
+  !> argument. The whole grid is built up composing the blocks along the X axis with a regular shift as following:
+  !>```
+  !> y ^
+  !>   |               ny2 +------------+------------+------------+------///////////-----+
+  !>   |                   |            |            |            |                      |
+  !>   |                   |            |            |            |                      |
+  !>   |                   |            |            |            |                      |
+  !>   |                   |            |            |            |                      |
+  !>   o-------->      ny1 +------------+------------+------------+------///////////-----+
+  !>            x         nx1          nx2    2*(nx2-nx+1)  3*(nx2-nx+1)          Nf_tot*(nx2-nx+1)
+  !>```
+  !> @note When the total number of blocks/files, Nf_tot, is not an integral of the number of threads used, Nths, the last
+  !> thread saves its own files (Nf_tot/Nths) plus the remainder blocks/files (mod(Nf_tot,Nths)). As a consequence the last
+  !> thread could has different elapsed time and it could degrade the speedup. Therefore the subroutine prints to stdout the
+  !> maximum and minimum elapsed time among the threads as well the average elapsed time in order to facilitate the assessing
+  !> of the parallel scalability.
+  !>
+  !> @note It is important to note that the output files initialization and finalization must be done outside the parallel ambient.
+  !>
+  !> @note The array containing the files indexes could be shared among threads, but the counter of this array ('p' in this example)
+  !> must be private.
   !---------------------------------------------------------------------------------------------------------------------------------
   USE omp_lib ! OpenMP runtime library.
   !---------------------------------------------------------------------------------------------------------------------------------
 
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
-  integer(I4P), intent(IN)::  Nf_tot                                             !< Total number of files saved.
-  integer(I4P), parameter::   nx1=1_I4P                                          !< First node in x direction.
-  integer(I4P), parameter::   nx2=32_I4P                                         !< Last node in x direction.
-  integer(I4P), parameter::   ny1=1_I4P                                          !< First node in y direction.
-  integer(I4P), parameter::   ny2=32_I4P                                         !< Last node in y direction.
-  integer(I4P), parameter::   nz1=1_I4P                                          !< First node in z direction.
-  integer(I4P), parameter::   nz2=32_I4P                                         !< Last node in z direction.
-  integer(I4P), parameter::   nn=(nx2-nx1+1_I4P)*(ny2-ny1+1_I4P)*(nz2-nz1+1_I4P) !< Whole grid extents.
-  real(R8P)::                 x( nx1:nx2,ny1:ny2,nz1:nz2)                        !< Coordinates in x direction.
-  real(R8P)::                 y( nx1:nx2,ny1:ny2,nz1:nz2)                        !< Coordinates in y direction.
-  real(R8P)::                 z( nx1:nx2,ny1:ny2,nz1:nz2)                        !< Coordinates in z direction.
-  real(R8P)::                 xf(nx1:nx2,ny1:ny2,nz1:nz2)                        !< Coordinates in x shifted by file offset.
-  integer(I4P), allocatable:: v(:,:,:,:)                                         !< Variable associated to nodes.
-  integer(I4P)::              mf(1:Nf_tot)                                       !< File indexes.
-  integer(I4P)::              Nths                                               !< Number of concurrent threads.
-  integer(I4P)::              i,j,k,f,nxf,th                                     !< Counters.
-  integer(I4P)::              E_IO                                               !< Error trapping flag.
-  real(R8P)::                 vtk_start,vtk_stop                                 !< Timing variables.
-  real(R8P), allocatable::    t(:)                                               !< Timing variables.
+  integer(I4P), intent(IN)::  Nf_tot                                             !> Total number of files saved.
+  integer(I4P), parameter::   nx1=1_I4P                                          !> First node in x direction.
+  integer(I4P), parameter::   nx2=32_I4P                                         !> Last node in x direction.
+  integer(I4P), parameter::   ny1=1_I4P                                          !> First node in y direction.
+  integer(I4P), parameter::   ny2=32_I4P                                         !> Last node in y direction.
+  integer(I4P), parameter::   nz1=1_I4P                                          !> First node in z direction.
+  integer(I4P), parameter::   nz2=32_I4P                                         !> Last node in z direction.
+  integer(I4P), parameter::   nn=(nx2-nx1+1_I4P)*(ny2-ny1+1_I4P)*(nz2-nz1+1_I4P) !> Whole grid extents.
+  real(R8P)::                 x( nx1:nx2,ny1:ny2,nz1:nz2)                        !> Coordinates in x direction.
+  real(R8P)::                 y( nx1:nx2,ny1:ny2,nz1:nz2)                        !> Coordinates in y direction.
+  real(R8P)::                 z( nx1:nx2,ny1:ny2,nz1:nz2)                        !> Coordinates in z direction.
+  real(R8P)::                 xf(nx1:nx2,ny1:ny2,nz1:nz2)                        !> Coordinates in x shifted by file offset.
+  integer(I4P), allocatable:: v(:,:,:,:)                                         !> Variable associated to nodes.
+  integer(I4P)::              mf(1:Nf_tot)                                       !> File indexes.
+  integer(I4P)::              Nths                                               !> Number of concurrent threads.
+  integer(I4P)::              i,j,k,f,nxf,th                                     !> Counters.
+  integer(I4P)::              E_IO                                               !> Error trapping flag.
+  real(R8P)::                 vtk_start,vtk_stop                                 !> Timing variables.
+  real(R8P), allocatable::    t(:)                                               !> Timing variables.
   !---------------------------------------------------------------------------------------------------------------------------------
 
   !---------------------------------------------------------------------------------------------------------------------------------
@@ -1030,52 +1030,52 @@ contains
 #ifdef MPI2
   subroutine test_mpi(Nf_tot)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Procedure for testing the library in an MPI parallel framework.
-  !<
-  !< It is used for testing the process-safe capability and the
-  !< library speedup into MPI parallel framework.  The output is a parallel (partitioned) PStructuredGrid file.
-  !< @note The whole grid is composed of blocks of 32x32x32 structured mesh. The total number of blocks/files, Nf_tot, is passed as
-  !< argument. The whole grid is built up composing the blocks along the X axis with a regular shift as following:
-  !<```
-  !< y ^
-  !<   |               ny2 +------------+------------+------------+------///////////-----+
-  !<   |                   |            |            |            |                      |
-  !<   |                   |            |            |            |                      |
-  !<   |                   |            |            |            |                      |
-  !<   |                   |            |            |            |                      |
-  !<   o-------->      ny1 +------------+------------+------------+------///////////-----+
-  !<            x         nx1          nx2    2*(nx2-nx+1)  3*(nx2-nx+1)          Nf_tot*(nx2-nx+1)
-  !<```
-  !< @note When the total number of blocks/files, Nf_tot, is not an integral of the number of processes used, nproc, the last
-  !< process saves its own files (Nf_tot/nproc) plus the remainder blocks/files (mod(Nf_tot,nproc)). As a consequence the last
-  !< process could has different elapsed time and it could degrade the speedup. Therefore the subroutine prints to stdout the
-  !< maximum and minimum elapsed time among the processes as well the average elapsed time in order to facilitate the assessing
-  !< of the parallel scalability.
+  !> Procedure for testing the library in an MPI parallel framework.
+  !>
+  !> It is used for testing the process-safe capability and the
+  !> library speedup into MPI parallel framework.  The output is a parallel (partitioned) PStructuredGrid file.
+  !> @note The whole grid is composed of blocks of 32x32x32 structured mesh. The total number of blocks/files, Nf_tot, is passed as
+  !> argument. The whole grid is built up composing the blocks along the X axis with a regular shift as following:
+  !>```
+  !> y ^
+  !>   |               ny2 +------------+------------+------------+------///////////-----+
+  !>   |                   |            |            |            |                      |
+  !>   |                   |            |            |            |                      |
+  !>   |                   |            |            |            |                      |
+  !>   |                   |            |            |            |                      |
+  !>   o-------->      ny1 +------------+------------+------------+------///////////-----+
+  !>            x         nx1          nx2    2*(nx2-nx+1)  3*(nx2-nx+1)          Nf_tot*(nx2-nx+1)
+  !>```
+  !> @note When the total number of blocks/files, Nf_tot, is not an integral of the number of processes used, nproc, the last
+  !> process saves its own files (Nf_tot/nproc) plus the remainder blocks/files (mod(Nf_tot,nproc)). As a consequence the last
+  !> process could has different elapsed time and it could degrade the speedup. Therefore the subroutine prints to stdout the
+  !> maximum and minimum elapsed time among the processes as well the average elapsed time in order to facilitate the assessing
+  !> of the parallel scalability.
   !---------------------------------------------------------------------------------------------------------------------------------
   USE MPI ! MPI runtime library.
   !---------------------------------------------------------------------------------------------------------------------------------
 
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
-  integer(I4P), intent(IN)::Nf_tot                                             !< Total number of files saved.
-  integer(I4P), parameter:: nx1=1_I4P                                          !< First node in x direction.
-  integer(I4P), parameter:: nx2=32_I4P                                         !< Last node in x direction.
-  integer(I4P), parameter:: ny1=1_I4P                                          !< First node in y direction.
-  integer(I4P), parameter:: ny2=32_I4P                                         !< Last node in y direction.
-  integer(I4P), parameter:: nz1=1_I4P                                          !< First node in z direction.
-  integer(I4P), parameter:: nz2=32_I4P                                         !< Last node in z direction.
-  integer(I4P), parameter:: nn=(nx2-nx1+1_I4P)*(ny2-ny1+1_I4P)*(nz2-nz1+1_I4P) !< Whole grid extents.
-  real(R8P)::               x(nx1:nx2,ny1:ny2,nz1:nz2)                         !< Coordinates in x direction.
-  real(R8P)::               y(nx1:nx2,ny1:ny2,nz1:nz2)                         !< Coordinates in y direction.
-  real(R8P)::               z(nx1:nx2,ny1:ny2,nz1:nz2)                         !< Coordinates in z direction.
-  integer(I4P)::            v(nx1:nx2,ny1:ny2,nz1:nz2)                         !< Variable associated to nodes.
-  real(R8P)::               xf(nx1:nx2,ny1:ny2,nz1:nz2)                        !< Coordinates in x shifted by file offset direction.
-  integer(I4P)::            i,j,k,f,foffset,nxf                                !< Counters.
-  integer(I4P)::            myrank                                             !< Rank of current process.
-  integer(I4P)::            Nf                                                 !< Number of files saved by the current process.
-  integer(I4P)::            nproc                                              !< Number of concurrent processes.
-  integer(I4P)::            E_IO                                               !< Error trapping flag.
-  real(R8P)::               vtk_start,vtk_stop,t,tmax,tmin,tmean               !< Timing variables.
+  integer(I4P), intent(IN)::Nf_tot                                             !> Total number of files saved.
+  integer(I4P), parameter:: nx1=1_I4P                                          !> First node in x direction.
+  integer(I4P), parameter:: nx2=32_I4P                                         !> Last node in x direction.
+  integer(I4P), parameter:: ny1=1_I4P                                          !> First node in y direction.
+  integer(I4P), parameter:: ny2=32_I4P                                         !> Last node in y direction.
+  integer(I4P), parameter:: nz1=1_I4P                                          !> First node in z direction.
+  integer(I4P), parameter:: nz2=32_I4P                                         !> Last node in z direction.
+  integer(I4P), parameter:: nn=(nx2-nx1+1_I4P)*(ny2-ny1+1_I4P)*(nz2-nz1+1_I4P) !> Whole grid extents.
+  real(R8P)::               x(nx1:nx2,ny1:ny2,nz1:nz2)                         !> Coordinates in x direction.
+  real(R8P)::               y(nx1:nx2,ny1:ny2,nz1:nz2)                         !> Coordinates in y direction.
+  real(R8P)::               z(nx1:nx2,ny1:ny2,nz1:nz2)                         !> Coordinates in z direction.
+  integer(I4P)::            v(nx1:nx2,ny1:ny2,nz1:nz2)                         !> Variable associated to nodes.
+  real(R8P)::               xf(nx1:nx2,ny1:ny2,nz1:nz2)                        !> Coordinates in x shifted by file offset direction.
+  integer(I4P)::            i,j,k,f,foffset,nxf                                !> Counters.
+  integer(I4P)::            myrank                                             !> Rank of current process.
+  integer(I4P)::            Nf                                                 !> Number of files saved by the current process.
+  integer(I4P)::            nproc                                              !> Number of concurrent processes.
+  integer(I4P)::            E_IO                                               !> Error trapping flag.
+  real(R8P)::               vtk_start,vtk_stop,t,tmax,tmin,tmean               !> Timing variables.
   !---------------------------------------------------------------------------------------------------------------------------------
 
   !---------------------------------------------------------------------------------------------------------------------------------
@@ -1165,53 +1165,53 @@ endmodule Lib_Testers
 
 program Test_Driver
 !-----------------------------------------------------------------------------------------------------------------------------------
-!< Testing program for Lib_VTK_IO, a pure Fortran (2003+) library to write and read data conforming the VTK standard
-!<
-!<### Usage
-!< For printing help message for usage run it without command line arguments
-!<```bash
-!< ./Test_Driver
-!<```
-!<
-!<#### Testing UnstructuredGrid functions
-!<```bash
-!< ./Test_Driver -unst
-!<```
-!<
-!<#### Testing StructuredGrid functions
-!<```bash
-!< ./Test_Driver -strg
-!<```
-!<
-!<#### Testing RectilinearGrid functions
-!<```bash
-!< ./Test_Driver -rect
-!<```
-!<
-!<#### Testing parallel (partitioned) PUnstructuredGrid functions
-!<```bash
-!< ./Test_Driver -punst
-!<```
-!<
-!<#### Testing parallel (partitioned) PStructuredGrid functions
-!<```bash
-!< ./Test_Driver -pstrg
-!<```
-!<
-!<#### Testing multi-blocks VTM functions
-!<```bash
-!< ./Test_Driver -vtm
-!<```
-!<
-!<#### Testing thread-safe capability into an OpenMP parallel framework
-!<```bash
-!< ./Test_Driver -openmp
-!<```
-!<
-!<#### Testing process-safe capability into a MPI parallel framework
-!<```bash
-!< ./Test_Driver -mpi
-!<```
+!> Testing program for Lib_VTK_IO, a pure Fortran (2003+) library to write and read data conforming the VTK standard
+!>
+!>### Usage
+!> For printing help message for usage run it without command line arguments
+!>```bash
+!> ./Test_Driver
+!>```
+!>
+!>#### Testing UnstructuredGrid functions
+!>```bash
+!> ./Test_Driver -unst
+!>```
+!>
+!>#### Testing StructuredGrid functions
+!>```bash
+!> ./Test_Driver -strg
+!>```
+!>
+!>#### Testing RectilinearGrid functions
+!>```bash
+!> ./Test_Driver -rect
+!>```
+!>
+!>#### Testing parallel (partitioned) PUnstructuredGrid functions
+!>```bash
+!> ./Test_Driver -punst
+!>```
+!>
+!>#### Testing parallel (partitioned) PStructuredGrid functions
+!>```bash
+!> ./Test_Driver -pstrg
+!>```
+!>
+!>#### Testing multi-blocks VTM functions
+!>```bash
+!> ./Test_Driver -vtm
+!>```
+!>
+!>#### Testing thread-safe capability into an OpenMP parallel framework
+!>```bash
+!> ./Test_Driver -openmp
+!>```
+!>
+!>#### Testing process-safe capability into a MPI parallel framework
+!>```bash
+!> ./Test_Driver -mpi
+!>```
 !-----------------------------------------------------------------------------------------------------------------------------------
 USE IR_Precision
 USE Lib_Testers
@@ -1220,9 +1220,9 @@ USE, intrinsic:: ISO_FORTRAN_ENV, only: stdout=>OUTPUT_UNIT, stderr=>ERROR_UNIT
 
 !-----------------------------------------------------------------------------------------------------------------------------------
 implicit none
-integer(I4P):: Nca = 0 !<  Number of command line arguments.
-character(7):: cas     !<  Command line argument switch.
-character(10):: nF     !<  Number of files for MPI and OpenMP benchmarks.
+integer(I4P):: Nca = 0 !>  Number of command line arguments.
+character(7):: cas     !>  Command line argument switch.
+character(10):: nF     !>  Number of files for MPI and OpenMP benchmarks.
 !-----------------------------------------------------------------------------------------------------------------------------------
 
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1289,7 +1289,7 @@ stop
 contains
   subroutine print_usage()
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Procedure for printing usage help message to stdout.
+  !> Procedure for printing usage help message to stdout.
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
   !---------------------------------------------------------------------------------------------------------------------------------

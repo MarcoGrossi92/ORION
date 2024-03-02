@@ -3,7 +3,7 @@
 !> @defgroup Lib_TecplotLibrary Lib_Tecplot
 !> @}
 
-!> This module contains the definition of procedures and variables useful for post-process Tecplot data.
+!> Pure Fortran (2003+) library to write data conforming the Tecplot standard
 !> @ingroup Lib_TecplotLibrary
 module Lib_Tecplot
   use, intrinsic:: ISO_FORTRAN_ENV, only: stdout => OUTPUT_UNIT, stderr => ERROR_UNIT ! Standard output/error logical units.
@@ -19,9 +19,9 @@ public:: tec_output
 !> Derived type containing the post-processing options.
 !> @ingroup Lib_TecplotDerivedType
 type :: Type_tec_Format
-  logical:: binary = .true.  !< Binary or ascii post-process file.
-  logical:: node   = .false. !< Node or cell data location.
-  logical:: bc     = .false. !< Saving or not boundary conditions cells.
+  logical:: binary = .true.  !> Binary or ascii post-process file.
+  logical:: node   = .false. !> Node or cell data location.
+  logical:: bc     = .false. !> Saving or not boundary conditions cells.
 endtype Type_tec_Format
 
 type, public :: obj_tecblock

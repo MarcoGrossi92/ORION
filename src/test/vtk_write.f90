@@ -1,11 +1,11 @@
   program vtk_write_multiblock
   USE IR_Precision
-  USE Lib_VTK_IO
+  USE Lib_VTK
   USE, intrinsic:: ISO_FORTRAN_ENV, only: stdout=>OUTPUT_UNIT, stderr=>ERROR_UNIT
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Procedure for testing multi-blocks VTM functions.
-  !<
-  !< There are 4 subset of data organized into 2 blocks. All the subsets are simple StructuredGrid prisms shifted along x direction.
+  !> Procedure for testing multi-blocks VTM functions.
+  !>
+  !> There are 4 subset of data organized into 2 blocks. All the subsets are simple StructuredGrid prisms shifted along x direction.
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
   integer(I4P), parameter::                           nx1=0_I4P,nx2=90_I4P,ny1=0_I4P,ny2=50_I4P,nz1=0_I4P,nz2=50_I4P

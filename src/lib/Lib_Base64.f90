@@ -1,12 +1,12 @@
-!< BeFoR64, Base64 encoding/decoding library for FoRtran poor men
+!> BeFoR64, Base64 encoding/decoding library for FoRtran poor men
 module Lib_Base64
 !-----------------------------------------------------------------------------------------------------------------------------------
-!< BeFoR64, Base64 encoding/decoding library for FoRtran poor men
-!<{!README-BeFoR64.md!}
-!<
-!<### ChangeLog
-!<
-!<{!ChangeLog-BeFoR64.md!}
+!> BeFoR64, Base64 encoding/decoding library for FoRtran poor men
+!>{!README-BeFoR64.md!}
+!>
+!>### ChangeLog
+!>
+!>{!ChangeLog-BeFoR64.md!}
 !-----------------------------------------------------------------------------------------------------------------------------------
 USE IR_Precision  ! Integers and reals precision definition.
 USE Lib_Pack_Data ! Library for packing heterogeneous data into single (homogeneous) packed one.
@@ -23,44 +23,44 @@ public:: autotest
 !-----------------------------------------------------------------------------------------------------------------------------------
 
 !-----------------------------------------------------------------------------------------------------------------------------------
-logical::       b64_initialized = .false. !< Flag for chcecking the initialization of the library.
-character(64):: base64="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/" !< Base64 alphabet.
+logical::       b64_initialized = .false. !> Flag for chcecking the initialization of the library.
+character(64):: base64="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/" !> Base64 alphabet.
 !-----------------------------------------------------------------------------------------------------------------------------------
 
 !-----------------------------------------------------------------------------------------------------------------------------------
 interface b64_encode
-  !< Procedure for encoding numbers (integer and real) to base64.
-  !<
-  !< This is an interface for encoding integer and real numbers of any kinds into a base64 string. This interface can encode both
-  !< scalar and array.
-  !<
-  !< @warning The encoded string is returned as varying length character string, `character(len=:), allocatable:: string`, thus the
-  !< compiler must support such a Fortran (2003) feature.
-  !<
-  !< @note Before start to encode anything the library must be initialized. The procedure `b64_init` must be called at first. The
-  !< global variable `b64_initialized` can be used to check the status of the initialization.
-  !<
-  !<### Usage
-  !< For a practical example see the `autotest` procedure.
-  !<
-  !<#### Scalar encoding
-  !<```fortran
-  !<character(len=:), allocatable:: code64 ! base64 encoded string
-  !<...
-  !<call b64_encode(n=12._R8P,code=code64)
-  !<```
-  !<
-  !<#### Array encoding
-  !<```fortran
-  !<character(len=:), allocatable:: code64 ! base64 encoded string
-  !<...
-  !<call b64_encode(n=[12_I4P,1_I4P],code=code64)
-  !<```
-  !<
-  !< @note If you want to encode heterogenous data (e.g. integer and real numbers), you must use the auxiliary `pack_data`
-  !< procedure.
-  !<
-  !< @warning The encoding of array of strings is admitted only if each string of the array has the same length.
+  !> Procedure for encoding numbers (integer and real) to base64.
+  !>
+  !> This is an interface for encoding integer and real numbers of any kinds into a base64 string. This interface can encode both
+  !> scalar and array.
+  !>
+  !> @warning The encoded string is returned as varying length character string, `character(len=:), allocatable:: string`, thus the
+  !> compiler must support such a Fortran (2003) feature.
+  !>
+  !> @note Before start to encode anything the library must be initialized. The procedure `b64_init` must be called at first. The
+  !> global variable `b64_initialized` can be used to check the status of the initialization.
+  !>
+  !>### Usage
+  !> For a practical example see the `autotest` procedure.
+  !>
+  !>#### Scalar encoding
+  !>```fortran
+  !>character(len=:), allocatable:: code64 ! base64 encoded string
+  !>...
+  !>call b64_encode(n=12._R8P,code=code64)
+  !>```
+  !>
+  !>#### Array encoding
+  !>```fortran
+  !>character(len=:), allocatable:: code64 ! base64 encoded string
+  !>...
+  !>call b64_encode(n=[12_I4P,1_I4P],code=code64)
+  !>```
+  !>
+  !> @note If you want to encode heterogenous data (e.g. integer and real numbers), you must use the auxiliary `pack_data`
+  !> procedure.
+  !>
+  !> @warning The encoding of array of strings is admitted only if each string of the array has the same length.
   module procedure &
 #ifdef r16p
                    b64_encode_R16,   b64_encode_R16_a, &
@@ -74,69 +74,69 @@ interface b64_encode
                    b64_encode_string,b64_encode_string_a
 endinterface
 interface b64_encode_up
-  !< Procedure for encoding unlimited polymorphic variable to base64.
-  !<
-  !< This is an interface for encoding both scalar and array.
-  !<
-  !< @warning The encoded string is returned as varying length character string, `character(len=:), allocatable:: string`, thus the
-  !< compiler must support such a Fortran (2003) feature.
-  !<
-  !< @note Before start to encode anything the library must be initialized. The procedure `b64_init` must be called at first. The
-  !< global variable `b64_initialized` can be used to check the status of the initialization.
-  !<
-  !<### Usage
-  !< For a practical example see the `autotest` procedure.
-  !<
-  !<#### Scalar encoding
-  !<```fortran
-  !<character(len=:), allocatable:: code64 ! base64 encoded string
-  !<...
-  !<call b64_encode_up(up=12._R8P,code=code64)
-  !<```
-  !<
-  !<#### Array encoding
-  !<```fortran
-  !<character(len=:), allocatable:: code64 ! base64 encoded string
-  !<...
-  !<call b64_encode_up(up=[12_I4P,1_I4P],code=code64)
-  !<```
-  !<
-  !< @note If you want to encode heterogenous data (e.g. integer and real numbers), you must use the auxiliary `pack_data`
-  !< procedure.
-  !<
-  !< @warning The encoding of array of strings is admitted only if each string of the array has the same length.
+  !> Procedure for encoding unlimited polymorphic variable to base64.
+  !>
+  !> This is an interface for encoding both scalar and array.
+  !>
+  !> @warning The encoded string is returned as varying length character string, `character(len=:), allocatable:: string`, thus the
+  !> compiler must support such a Fortran (2003) feature.
+  !>
+  !> @note Before start to encode anything the library must be initialized. The procedure `b64_init` must be called at first. The
+  !> global variable `b64_initialized` can be used to check the status of the initialization.
+  !>
+  !>### Usage
+  !> For a practical example see the `autotest` procedure.
+  !>
+  !>#### Scalar encoding
+  !>```fortran
+  !>character(len=:), allocatable:: code64 ! base64 encoded string
+  !>...
+  !>call b64_encode_up(up=12._R8P,code=code64)
+  !>```
+  !>
+  !>#### Array encoding
+  !>```fortran
+  !>character(len=:), allocatable:: code64 ! base64 encoded string
+  !>...
+  !>call b64_encode_up(up=[12_I4P,1_I4P],code=code64)
+  !>```
+  !>
+  !> @note If you want to encode heterogenous data (e.g. integer and real numbers), you must use the auxiliary `pack_data`
+  !> procedure.
+  !>
+  !> @warning The encoding of array of strings is admitted only if each string of the array has the same length.
   module procedure b64_encode_up,b64_encode_up_a
 endinterface
 interface b64_decode
-  !< Procedure for decoding numbers (integer and real) from base64.
-  !<
-  !< This is an interface for decoding integer and real numbers of any kinds from a base64 string. This interface can decode both
-  !< scalar and array.
-  !<
-  !< @note Before start to decode anything the library must be initialized. The procedure `b64_init` must be called at first. The
-  !< global variable `b64_initialized` can be used to check the status of the initialization.
-  !<
-  !<### Usage
-  !< For a practical example see the `autotest` procedure.
-  !<
-  !<#### Scalar decoding
-  !<```fortran
-  !<real(R8P):: decoded ! scalar to be decoded
-  !<...
-  !<call b64_decode(code='AAAAAAAA8D8=',n=decoded)
-  !<```
-  !<
-  !<#### Array decoding
-  !<```fortran
-  !<integer(I8P):: decoded(1:4) ! array to be decoded
-  !<...
-  !<call b64_decode(code='FwAAAAAAAABEAQAAAAAAABBwhAEAAAAAAgAAAAAAAAA=',n=decoded)
-  !<```
-  !<
-  !< @note If you want to decode heterogenous data (e.g. integer and real numbers), you must use the auxiliary `pack_data`
-  !< procedure.
-  !<
-  !< @warning The decoding of array of strings is admitted only if each string of the array has the same length.
+  !> Procedure for decoding numbers (integer and real) from base64.
+  !>
+  !> This is an interface for decoding integer and real numbers of any kinds from a base64 string. This interface can decode both
+  !> scalar and array.
+  !>
+  !> @note Before start to decode anything the library must be initialized. The procedure `b64_init` must be called at first. The
+  !> global variable `b64_initialized` can be used to check the status of the initialization.
+  !>
+  !>### Usage
+  !> For a practical example see the `autotest` procedure.
+  !>
+  !>#### Scalar decoding
+  !>```fortran
+  !>real(R8P):: decoded ! scalar to be decoded
+  !>...
+  !>call b64_decode(code='AAAAAAAA8D8=',n=decoded)
+  !>```
+  !>
+  !>#### Array decoding
+  !>```fortran
+  !>integer(I8P):: decoded(1:4) ! array to be decoded
+  !>...
+  !>call b64_decode(code='FwAAAAAAAABEAQAAAAAAABBwhAEAAAAAAgAAAAAAAAA=',n=decoded)
+  !>```
+  !>
+  !> @note If you want to decode heterogenous data (e.g. integer and real numbers), you must use the auxiliary `pack_data`
+  !> procedure.
+  !>
+  !> @warning The decoding of array of strings is admitted only if each string of the array has the same length.
   module procedure &
 #ifdef r16p
                    b64_decode_R16,   b64_decode_R16_a, &
@@ -150,43 +150,43 @@ interface b64_decode
                    b64_decode_string,b64_decode_string_a
 endinterface
 interface b64_decode_up
-  !< Procedure for decoding unlimited polymorphic variable from base64.
-  !<
-  !< This is an interface for decoding both scalar and array.
-  !<
-  !< @note Before start to decode anything the library must be initialized. The procedure `b64_init` must be called at first. The
-  !< global variable `b64_initialized` can be used to check the status of the initialization.
-  !<
-  !<### Usage
-  !< For a practical example see the `autotest` procedure.
-  !<
-  !<#### Scalar decoding
-  !<```fortran
-  !<real(R8P):: decoded ! scalar to be decoded
-  !<...
-  !<call b64_decode_up(code='AAAAAAAA8D8=',up=decoded)
-  !<```
-  !<
-  !<#### Array decoding
-  !<```fortran
-  !<integer(I8P):: decoded(1:4) ! array to be decoded
-  !<...
-  !<call b64_decode_up(code='FwAAAAAAAABEAQAAAAAAABBwhAEAAAAAAgAAAAAAAAA=',up=decoded)
-  !<```
-  !<
-  !< @note If you want to decode heterogenous data (e.g. integer and real numbers), you must use the auxiliary `pack_data`
-  !< procedure.
-  !<
-  !< @warning The decoding of array of strings is admitted only if each string of the array has the same length.
+  !> Procedure for decoding unlimited polymorphic variable from base64.
+  !>
+  !> This is an interface for decoding both scalar and array.
+  !>
+  !> @note Before start to decode anything the library must be initialized. The procedure `b64_init` must be called at first. The
+  !> global variable `b64_initialized` can be used to check the status of the initialization.
+  !>
+  !>### Usage
+  !> For a practical example see the `autotest` procedure.
+  !>
+  !>#### Scalar decoding
+  !>```fortran
+  !>real(R8P):: decoded ! scalar to be decoded
+  !>...
+  !>call b64_decode_up(code='AAAAAAAA8D8=',up=decoded)
+  !>```
+  !>
+  !>#### Array decoding
+  !>```fortran
+  !>integer(I8P):: decoded(1:4) ! array to be decoded
+  !>...
+  !>call b64_decode_up(code='FwAAAAAAAABEAQAAAAAAABBwhAEAAAAAAgAAAAAAAAA=',up=decoded)
+  !>```
+  !>
+  !> @note If you want to decode heterogenous data (e.g. integer and real numbers), you must use the auxiliary `pack_data`
+  !> procedure.
+  !>
+  !> @warning The decoding of array of strings is admitted only if each string of the array has the same length.
   module procedure b64_decode_up,b64_decode_up_a
 endinterface
 !-----------------------------------------------------------------------------------------------------------------------------------
 contains
   subroutine b64_init()
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Procedure for initializing the BeFoR64 library.
-  !<
-  !< @note This procedure **must** be called before encoding/decoding anything!
+  !> Procedure for initializing the BeFoR64 library.
+  !>
+  !> @note This procedure **must** be called before encoding/decoding anything!
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
   !---------------------------------------------------------------------------------------------------------------------------------
@@ -200,30 +200,30 @@ contains
 
   pure subroutine encode_bits(bits,padd,code)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Procedure for encoding a bits stream (must be multiple of 24 bits) into base64 charcaters code (of length multiple of 4).
-  !<
-  !< The bits stream are encoded in chunks of 24 bits as the following example (in little endian order)
-  !<```
-  !< +--first octet--+-second octet--+--third octet--+
-  !< |7 6 5 4 3 2 1 0|7 6 5 4 3 2 1 0|7 6 5 4 3 2 1 0|
-  !< +-----------+---+-------+-------+---+-----------+
-  !< |5 4 3 2 1 0|5 4 3 2 1 0|5 4 3 2 1 0|5 4 3 2 1 0|
-  !< +--1.index--+--2.index--+--3.index--+--4.index--+
-  !<```
-  !< @note The 4 indexes are stored into 4 elements 8 bits array, thus 2 bits of each array element are not used.
-  !<
-  !< @note The number of paddings must be computed outside this procedure, into the calling scope.
-  !<
-  !< @warning This procedure is the backend of encoding, thus it must be never called outside the module.
+  !> Procedure for encoding a bits stream (must be multiple of 24 bits) into base64 charcaters code (of length multiple of 4).
+  !>
+  !> The bits stream are encoded in chunks of 24 bits as the following example (in little endian order)
+  !>```
+  !> +--first octet--+-second octet--+--third octet--+
+  !> |7 6 5 4 3 2 1 0|7 6 5 4 3 2 1 0|7 6 5 4 3 2 1 0|
+  !> +-----------+---+-------+-------+---+-----------+
+  !> |5 4 3 2 1 0|5 4 3 2 1 0|5 4 3 2 1 0|5 4 3 2 1 0|
+  !> +--1.index--+--2.index--+--3.index--+--4.index--+
+  !>```
+  !> @note The 4 indexes are stored into 4 elements 8 bits array, thus 2 bits of each array element are not used.
+  !>
+  !> @note The number of paddings must be computed outside this procedure, into the calling scope.
+  !>
+  !> @warning This procedure is the backend of encoding, thus it must be never called outside the module.
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
-  integer(I1P), intent(IN)::  bits(1:)  !< Bits to be encoded.
-  integer(I4P), intent(IN)::  padd      !< Number of padding characters ('=').
-  character(*), intent(OUT):: code      !< Characters code.
-  integer(I1P)::              sixb(1:4) !< 6 bits slices (stored into 8 bits integer) of 24 bits input.
-  integer(I8P)::              c         !< Counter.
-  integer(I8P)::              e         !< Counter.
-  integer(I8P)::              Nb        !< Length of bits array.
+  integer(I1P), intent(IN)::  bits(1:)  !> Bits to be encoded.
+  integer(I4P), intent(IN)::  padd      !> Number of padding characters ('=').
+  character(*), intent(OUT):: code      !> Characters code.
+  integer(I1P)::              sixb(1:4) !> 6 bits slices (stored into 8 bits integer) of 24 bits input.
+  integer(I8P)::              c         !> Counter.
+  integer(I8P)::              e         !> Counter.
+  integer(I8P)::              Nb        !> Length of bits array.
   !---------------------------------------------------------------------------------------------------------------------------------
 
   !---------------------------------------------------------------------------------------------------------------------------------
@@ -255,32 +255,32 @@ contains
 
   pure subroutine decode_bits(code,bits)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Procedure for decoding a base64 string into a sequence of bits stream.
-  !<
-  !< The base64 string must be parsed with a strike of 4 characters and converted into a 3 bytes stream. Considering the base64 code
-  !< `QUJD` the decoding process must do
-  !<```
-  !< +-b64 char--+-b64 char--+-b64 char--+-b64 char--+
-  !< |      Q    |      U    |      J    |      D    |
-  !< +-b64 index-+-b64 index-+-b64 index-+-b64 index-+
-  !< !      16   |      20   |      9    |      3    |
-  !< +-6 bits----+-6 bits----+-6 bits----+-6 bits----+
-  !< |0 1 0 0 0 0|0 1 0 1 0 0|0 0 1 0 0 1|0 0 0 0 1 1|
-  !< +-----------+---+-------+-------+---+-----------+
-  !< |0 1 0 0 0 0 0 1|0 1 0 0 0 0 1 0|0 1 0 0 0 0 1 1|
-  !< +-----8 bits----+-----8 bits----+-----8 bits----+
-  !<```
-  !< @note The bits pattern is returned as a 1-byte element array, the dimension of witch must be computed outside this procedure.
-  !<
-  !< @warning This procedure is the backend of decoding, thus it must be never called outside the module.
+  !> Procedure for decoding a base64 string into a sequence of bits stream.
+  !>
+  !> The base64 string must be parsed with a strike of 4 characters and converted into a 3 bytes stream. Considering the base64 code
+  !> `QUJD` the decoding process must do
+  !>```
+  !> +-b64 char--+-b64 char--+-b64 char--+-b64 char--+
+  !> |      Q    |      U    |      J    |      D    |
+  !> +-b64 index-+-b64 index-+-b64 index-+-b64 index-+
+  !> !      16   |      20   |      9    |      3    |
+  !> +-6 bits----+-6 bits----+-6 bits----+-6 bits----+
+  !> |0 1 0 0 0 0|0 1 0 1 0 0|0 0 1 0 0 1|0 0 0 0 1 1|
+  !> +-----------+---+-------+-------+---+-----------+
+  !> |0 1 0 0 0 0 0 1|0 1 0 0 0 0 1 0|0 1 0 0 0 0 1 1|
+  !> +-----8 bits----+-----8 bits----+-----8 bits----+
+  !>```
+  !> @note The bits pattern is returned as a 1-byte element array, the dimension of witch must be computed outside this procedure.
+  !>
+  !> @warning This procedure is the backend of decoding, thus it must be never called outside the module.
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
-  character(*), intent(IN)::  code      !< Characters code.
-  integer(I1P), intent(OUT):: bits(1:)  !< Bits decoded.
-  integer(I1P)::              sixb(1:4) !< 6 bits slices (stored into 8 bits integer) of 24 bits input.
-  integer(I8P)::              c         !< Counter.
-  integer(I8P)::              e         !< Counter.
-  integer(I8P)::              Nb        !< Length of bits array.
+  character(*), intent(IN)::  code      !> Characters code.
+  integer(I1P), intent(OUT):: bits(1:)  !> Bits decoded.
+  integer(I1P)::              sixb(1:4) !> 6 bits slices (stored into 8 bits integer) of 24 bits input.
+  integer(I8P)::              c         !> Counter.
+  integer(I8P)::              e         !> Counter.
+  integer(I8P)::              Nb        !> Length of bits array.
   !---------------------------------------------------------------------------------------------------------------------------------
 
   !---------------------------------------------------------------------------------------------------------------------------------
@@ -313,11 +313,11 @@ contains
 
   subroutine b64_encode_up(up,code)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Procedure for encoding an unlimited polymorphic scalar to base64.
+  !> Procedure for encoding an unlimited polymorphic scalar to base64.
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
-  class(*),                      intent(IN)::  up   !< Unlimited polymorphic variable to be encoded.
-  character(len=:), allocatable, intent(OUT):: code !< Encoded scalar.
+  class(*),                      intent(IN)::  up   !> Unlimited polymorphic variable to be encoded.
+  character(len=:), allocatable, intent(OUT):: code !> Encoded scalar.
   !---------------------------------------------------------------------------------------------------------------------------------
 
   !---------------------------------------------------------------------------------------------------------------------------------
@@ -343,11 +343,11 @@ contains
 
   pure subroutine b64_encode_up_a(up,code)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Procedure for encoding an unlimited polymorphic array to base64.
+  !> Procedure for encoding an unlimited polymorphic array to base64.
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
-  class(*),                      intent(IN)::  up(1:) !< Unlimited polymorphic variable to be encoded.
-  character(len=:), allocatable, intent(OUT):: code   !< Encoded array.
+  class(*),                      intent(IN)::  up(1:) !> Unlimited polymorphic variable to be encoded.
+  character(len=:), allocatable, intent(OUT):: code   !> Encoded array.
   !---------------------------------------------------------------------------------------------------------------------------------
 
   !---------------------------------------------------------------------------------------------------------------------------------
@@ -373,11 +373,11 @@ contains
 
   subroutine b64_decode_up(code,up)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Procedure for decoding an unlimited polymorphic scalar from base64.
+  !> Procedure for decoding an unlimited polymorphic scalar from base64.
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
-  character(*), intent(IN)::  code !< Encoded scalar.
-  class(*),     intent(OUT):: up   !< Unlimited polymorphic variable to be decoded.
+  character(*), intent(IN)::  code !> Encoded scalar.
+  class(*),     intent(OUT):: up   !> Unlimited polymorphic variable to be decoded.
   !---------------------------------------------------------------------------------------------------------------------------------
 
   !---------------------------------------------------------------------------------------------------------------------------------
@@ -403,11 +403,11 @@ contains
 
   subroutine b64_decode_up_a(code,up)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Procedure for decoding an unlimited polymorphic array from base64.
+  !> Procedure for decoding an unlimited polymorphic array from base64.
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
-  character(*), intent(IN)::  code   !< Encoded array.
-  class(*),     intent(OUT):: up(1:) !< Unlimited polymorphic variable to be decoded.
+  character(*), intent(IN)::  code   !> Encoded array.
+  class(*),     intent(OUT):: up(1:) !> Unlimited polymorphic variable to be decoded.
   !---------------------------------------------------------------------------------------------------------------------------------
 
   !---------------------------------------------------------------------------------------------------------------------------------
@@ -433,13 +433,13 @@ contains
 
   pure subroutine b64_encode_R16(n,code)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Procedure for encoding scalar number to base64 (R16P).
+  !> Procedure for encoding scalar number to base64 (R16P).
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
-  real(R16P),                    intent(IN)::  n       !< Number to be encoded.
-  character(len=:), allocatable, intent(OUT):: code    !< Encoded scalar.
-  integer(I1P),     allocatable::              nI1P(:) !< One byte integer array containing n.
-  integer(I4P)::                               padd    !< Number of padding characters ('=').
+  real(R16P),                    intent(IN)::  n       !> Number to be encoded.
+  character(len=:), allocatable, intent(OUT):: code    !> Encoded scalar.
+  integer(I1P),     allocatable::              nI1P(:) !> One byte integer array containing n.
+  integer(I4P)::                               padd    !> Number of padding characters ('=').
   !---------------------------------------------------------------------------------------------------------------------------------
 
   !---------------------------------------------------------------------------------------------------------------------------------
@@ -454,13 +454,13 @@ contains
 
   pure subroutine b64_encode_R8(n,code)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Procedure for encoding scalar number to base64 (R8P).
+  !> Procedure for encoding scalar number to base64 (R8P).
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
-  real(R8P),                     intent(IN)::  n       !< Number to be encoded.
-  character(len=:), allocatable, intent(OUT):: code    !< Encoded scalar.
-  integer(I1P),     allocatable::              nI1P(:) !< One byte integer array containing n.
-  integer(I4P)::                               padd    !< Number of padding characters ('=').
+  real(R8P),                     intent(IN)::  n       !> Number to be encoded.
+  character(len=:), allocatable, intent(OUT):: code    !> Encoded scalar.
+  integer(I1P),     allocatable::              nI1P(:) !> One byte integer array containing n.
+  integer(I4P)::                               padd    !> Number of padding characters ('=').
   !---------------------------------------------------------------------------------------------------------------------------------
 
   !---------------------------------------------------------------------------------------------------------------------------------
@@ -475,13 +475,13 @@ contains
 
   pure subroutine b64_encode_R4(n,code)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Procedure for encoding scalar number to base64 (R4P).
+  !> Procedure for encoding scalar number to base64 (R4P).
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
-  real(R4P),                     intent(IN)::  n       !< Number to be encoded.
-  character(len=:), allocatable, intent(OUT):: code    !< Encoded scalar.
-  integer(I1P),     allocatable::              nI1P(:) !< One byte integer array containing n.
-  integer(I4P)::                               padd    !< Number of padding characters ('=').
+  real(R4P),                     intent(IN)::  n       !> Number to be encoded.
+  character(len=:), allocatable, intent(OUT):: code    !> Encoded scalar.
+  integer(I1P),     allocatable::              nI1P(:) !> One byte integer array containing n.
+  integer(I4P)::                               padd    !> Number of padding characters ('=').
   !---------------------------------------------------------------------------------------------------------------------------------
 
   !---------------------------------------------------------------------------------------------------------------------------------
@@ -496,13 +496,13 @@ contains
 
   pure subroutine b64_encode_I8(n,code)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Procedure for encoding scalar number to base64 (I8P).
+  !> Procedure for encoding scalar number to base64 (I8P).
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
-  integer(I8P),                  intent(IN)::  n       !< Number to be encoded.
-  character(len=:), allocatable, intent(OUT):: code    !< Encoded scalar.
-  integer(I1P),     allocatable::              nI1P(:) !< One byte integer array containing n.
-  integer(I4P)::                               padd    !< Number of padding characters ('=').
+  integer(I8P),                  intent(IN)::  n       !> Number to be encoded.
+  character(len=:), allocatable, intent(OUT):: code    !> Encoded scalar.
+  integer(I1P),     allocatable::              nI1P(:) !> One byte integer array containing n.
+  integer(I4P)::                               padd    !> Number of padding characters ('=').
   !---------------------------------------------------------------------------------------------------------------------------------
 
   !---------------------------------------------------------------------------------------------------------------------------------
@@ -517,13 +517,13 @@ contains
 
   pure subroutine b64_encode_I4(n,code)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Procedure for encoding scalar number to base64 (I4P).
+  !> Procedure for encoding scalar number to base64 (I4P).
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
-  integer(I4P),                  intent(IN)::  n       !< Number to be encoded.
-  character(len=:), allocatable, intent(OUT):: code    !< Encoded scalar.
-  integer(I1P),     allocatable::              nI1P(:) !< One byte integer array containing n.
-  integer(I4P)::                               padd    !< Number of padding characters ('=').
+  integer(I4P),                  intent(IN)::  n       !> Number to be encoded.
+  character(len=:), allocatable, intent(OUT):: code    !> Encoded scalar.
+  integer(I1P),     allocatable::              nI1P(:) !> One byte integer array containing n.
+  integer(I4P)::                               padd    !> Number of padding characters ('=').
   !---------------------------------------------------------------------------------------------------------------------------------
 
   !---------------------------------------------------------------------------------------------------------------------------------
@@ -538,13 +538,13 @@ contains
 
   pure subroutine b64_encode_I2(n,code)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Procedure for encoding scalar number to base64 (I2P).
+  !> Procedure for encoding scalar number to base64 (I2P).
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
-  integer(I2P),                  intent(IN)::  n       !< Number to be encoded.
-  character(len=:), allocatable, intent(OUT):: code    !< Encoded scalar.
-  integer(I1P),     allocatable::              nI1P(:) !< One byte integer array containing n.
-  integer(I4P)::                               padd    !< Number of padding characters ('=').
+  integer(I2P),                  intent(IN)::  n       !> Number to be encoded.
+  character(len=:), allocatable, intent(OUT):: code    !> Encoded scalar.
+  integer(I1P),     allocatable::              nI1P(:) !> One byte integer array containing n.
+  integer(I4P)::                               padd    !> Number of padding characters ('=').
   !---------------------------------------------------------------------------------------------------------------------------------
 
   !---------------------------------------------------------------------------------------------------------------------------------
@@ -559,13 +559,13 @@ contains
 
   pure subroutine b64_encode_I1(n,code)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Procedure for encoding scalar number to base64 (I1P).
+  !> Procedure for encoding scalar number to base64 (I1P).
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
-  integer(I1P),                  intent(IN)::  n       !< Number to be encoded.
-  character(len=:), allocatable, intent(OUT):: code    !< Encoded scalar.
-  integer(I1P),     allocatable::              nI1P(:) !< One byte integer array containing n.
-  integer(I4P)::                               padd    !< Number of padding characters ('=').
+  integer(I1P),                  intent(IN)::  n       !> Number to be encoded.
+  character(len=:), allocatable, intent(OUT):: code    !> Encoded scalar.
+  integer(I1P),     allocatable::              nI1P(:) !> One byte integer array containing n.
+  integer(I4P)::                               padd    !> Number of padding characters ('=').
   !---------------------------------------------------------------------------------------------------------------------------------
 
   !---------------------------------------------------------------------------------------------------------------------------------
@@ -580,14 +580,14 @@ contains
 
   pure subroutine b64_encode_string(s,code)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Procedure for encoding scalar string to base64.
+  !> Procedure for encoding scalar string to base64.
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
-  character(*),                  intent(IN)::  s       !< String to be encoded.
-  character(len=:), allocatable, intent(OUT):: code    !< Encoded scalar.
-  integer(I1P),     allocatable::              nI1P(:) !< One byte integer array containing n.
-  integer(I4P)::                               padd    !< Number of padding characters ('=').
-  integer(I4P)::                               BYCHS   !< Bytes of character string.
+  character(*),                  intent(IN)::  s       !> String to be encoded.
+  character(len=:), allocatable, intent(OUT):: code    !> Encoded scalar.
+  integer(I1P),     allocatable::              nI1P(:) !> One byte integer array containing n.
+  integer(I4P)::                               padd    !> Number of padding characters ('=').
+  integer(I4P)::                               BYCHS   !> Bytes of character string.
   !---------------------------------------------------------------------------------------------------------------------------------
 
   !---------------------------------------------------------------------------------------------------------------------------------
@@ -603,14 +603,14 @@ contains
 
   pure subroutine b64_encode_R16_a(n,code)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Procedure for encoding array numbers to base64 (R16P).
+  !> Procedure for encoding array numbers to base64 (R16P).
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
-  real(R16P),                    intent(IN)::  n(1:)   !< Array of numbers to be encoded.
-  character(len=:), allocatable, intent(OUT):: code    !< Encoded array.
-  integer(I1P),     allocatable::              nI1P(:) !< One byte integer array containing n.
-  integer(I4P)::                               padd    !< Number of padding characters ('=').
-  integer(I8P)::                               ns      !< Size of n.
+  real(R16P),                    intent(IN)::  n(1:)   !> Array of numbers to be encoded.
+  character(len=:), allocatable, intent(OUT):: code    !> Encoded array.
+  integer(I1P),     allocatable::              nI1P(:) !> One byte integer array containing n.
+  integer(I4P)::                               padd    !> Number of padding characters ('=').
+  integer(I8P)::                               ns      !> Size of n.
   !---------------------------------------------------------------------------------------------------------------------------------
 
   !---------------------------------------------------------------------------------------------------------------------------------
@@ -626,14 +626,14 @@ contains
 
   pure subroutine b64_encode_R8_a(n,code)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Procedure for encoding array numbers to base64 (R8P).
+  !> Procedure for encoding array numbers to base64 (R8P).
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
-  real(R8P),                     intent(IN)::  n(1:)   !< Array of numbers to be encoded.
-  character(len=:), allocatable, intent(OUT):: code    !< Encoded array.
-  integer(I1P),     allocatable::              nI1P(:) !< One byte integer array containing n.
-  integer(I4P)::                               padd    !< Number of padding characters ('=').
-  integer(I8P)::                               ns      !< Size of n.
+  real(R8P),                     intent(IN)::  n(1:)   !> Array of numbers to be encoded.
+  character(len=:), allocatable, intent(OUT):: code    !> Encoded array.
+  integer(I1P),     allocatable::              nI1P(:) !> One byte integer array containing n.
+  integer(I4P)::                               padd    !> Number of padding characters ('=').
+  integer(I8P)::                               ns      !> Size of n.
   !---------------------------------------------------------------------------------------------------------------------------------
 
   !---------------------------------------------------------------------------------------------------------------------------------
@@ -649,14 +649,14 @@ contains
 
   pure subroutine b64_encode_R4_a(n,code)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Procedure for encoding array numbers to base64 (R4P).
+  !> Procedure for encoding array numbers to base64 (R4P).
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
-  real(R4P),                     intent(IN)::  n(1:)   !< Array of numbers to be encoded.
-  character(len=:), allocatable, intent(OUT):: code    !< Encoded array.
-  integer(I1P),     allocatable::              nI1P(:) !< One byte integer array containing n.
-  integer(I4P)::                               padd    !< Number of padding characters ('=').
-  integer(I8P)::                               ns      !< Size of n.
+  real(R4P),                     intent(IN)::  n(1:)   !> Array of numbers to be encoded.
+  character(len=:), allocatable, intent(OUT):: code    !> Encoded array.
+  integer(I1P),     allocatable::              nI1P(:) !> One byte integer array containing n.
+  integer(I4P)::                               padd    !> Number of padding characters ('=').
+  integer(I8P)::                               ns      !> Size of n.
   !---------------------------------------------------------------------------------------------------------------------------------
 
   !---------------------------------------------------------------------------------------------------------------------------------
@@ -672,14 +672,14 @@ contains
 
   pure subroutine b64_encode_I8_a(n,code)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Procedure for encoding array numbers to base64 (I8P).
+  !> Procedure for encoding array numbers to base64 (I8P).
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
-  integer(I8P),                  intent(IN)::  n(1:)   !< Array of numbers to be encoded.
-  character(len=:), allocatable, intent(OUT):: code    !< Encoded array.
-  integer(I1P),     allocatable::              nI1P(:) !< One byte integer array containing n.
-  integer(I4P)::                               padd    !< Number of padding characters ('=').
-  integer(I8P)::                               ns      !< Size of n.
+  integer(I8P),                  intent(IN)::  n(1:)   !> Array of numbers to be encoded.
+  character(len=:), allocatable, intent(OUT):: code    !> Encoded array.
+  integer(I1P),     allocatable::              nI1P(:) !> One byte integer array containing n.
+  integer(I4P)::                               padd    !> Number of padding characters ('=').
+  integer(I8P)::                               ns      !> Size of n.
   !---------------------------------------------------------------------------------------------------------------------------------
 
   !---------------------------------------------------------------------------------------------------------------------------------
@@ -695,14 +695,14 @@ contains
 
   pure subroutine b64_encode_I4_a(n,code)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Procedure for encoding array numbers to base64 (I4P).
+  !> Procedure for encoding array numbers to base64 (I4P).
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
-  integer(I4P),                  intent(IN)::  n(1:)   !< Array of numbers to be encoded.
-  character(len=:), allocatable, intent(OUT):: code    !< Encoded array.
-  integer(I1P),     allocatable::              nI1P(:) !< One byte integer array containing n.
-  integer(I4P)::                               padd    !< Number of padding characters ('=').
-  integer(I8P)::                               ns      !< Size of n.
+  integer(I4P),                  intent(IN)::  n(1:)   !> Array of numbers to be encoded.
+  character(len=:), allocatable, intent(OUT):: code    !> Encoded array.
+  integer(I1P),     allocatable::              nI1P(:) !> One byte integer array containing n.
+  integer(I4P)::                               padd    !> Number of padding characters ('=').
+  integer(I8P)::                               ns      !> Size of n.
   !---------------------------------------------------------------------------------------------------------------------------------
 
   !---------------------------------------------------------------------------------------------------------------------------------
@@ -718,14 +718,14 @@ contains
 
   pure subroutine b64_encode_I2_a(n,code)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Procedure for encoding array numbers to base64 (I2P).
+  !> Procedure for encoding array numbers to base64 (I2P).
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
-  integer(I2P),                  intent(IN)::  n(1:)   !< Array of numbers to be encoded.
-  character(len=:), allocatable, intent(OUT):: code    !< Encoded array.
-  integer(I1P),     allocatable::              nI1P(:) !< One byte integer array containing n.
-  integer(I4P)::                               padd    !< Number of padding characters ('=').
-  integer(I8P)::                               ns      !< Size of n.
+  integer(I2P),                  intent(IN)::  n(1:)   !> Array of numbers to be encoded.
+  character(len=:), allocatable, intent(OUT):: code    !> Encoded array.
+  integer(I1P),     allocatable::              nI1P(:) !> One byte integer array containing n.
+  integer(I4P)::                               padd    !> Number of padding characters ('=').
+  integer(I8P)::                               ns      !> Size of n.
   !---------------------------------------------------------------------------------------------------------------------------------
 
   !---------------------------------------------------------------------------------------------------------------------------------
@@ -741,14 +741,14 @@ contains
 
   pure subroutine b64_encode_I1_a(n,code)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Procedure for encoding array numbers to base64 (I1P).
+  !> Procedure for encoding array numbers to base64 (I1P).
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
-  integer(I1P),                  intent(IN)::  n(1:)   !< Array of numbers to be encoded.
-  character(len=:), allocatable, intent(OUT):: code    !< Encoded array.
-  integer(I1P),     allocatable::              nI1P(:) !< One byte integer array containing n.
-  integer(I4P)::                               padd    !< Number of padding characters ('=').
-  integer(I8P)::                               ns      !< Size of n.
+  integer(I1P),                  intent(IN)::  n(1:)   !> Array of numbers to be encoded.
+  character(len=:), allocatable, intent(OUT):: code    !> Encoded array.
+  integer(I1P),     allocatable::              nI1P(:) !> One byte integer array containing n.
+  integer(I4P)::                               padd    !> Number of padding characters ('=').
+  integer(I8P)::                               ns      !> Size of n.
   !---------------------------------------------------------------------------------------------------------------------------------
 
   !---------------------------------------------------------------------------------------------------------------------------------
@@ -764,14 +764,14 @@ contains
 
   pure subroutine b64_encode_string_a(s,code)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Procedure for encoding array string to base64.
+  !> Procedure for encoding array string to base64.
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
-  character(*),                  intent(IN)::  s(1:)   !< String to be encoded.
-  character(len=:), allocatable, intent(OUT):: code    !< Encoded scalar.
-  integer(I1P),     allocatable::              nI1P(:) !< One byte integer array containing n.
-  integer(I4P)::                               padd    !< Number of padding characters ('=').
-  integer(I4P)::                               BYCHS   !< Bytes of character string.
+  character(*),                  intent(IN)::  s(1:)   !> String to be encoded.
+  character(len=:), allocatable, intent(OUT):: code    !> Encoded scalar.
+  integer(I1P),     allocatable::              nI1P(:) !> One byte integer array containing n.
+  integer(I4P)::                               padd    !> Number of padding characters ('=').
+  integer(I4P)::                               BYCHS   !> Bytes of character string.
   !---------------------------------------------------------------------------------------------------------------------------------
 
   !---------------------------------------------------------------------------------------------------------------------------------
@@ -787,12 +787,12 @@ contains
 
   elemental subroutine b64_decode_R16(code,n)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Procedure for decoding a base64 code into a scalar number (R16P).
+  !> Procedure for decoding a base64 code into a scalar number (R16P).
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
-  character(*), intent(IN)::  code    !< Encoded scalar.
-  real(R16P),   intent(OUT):: n       !< Number to be decoded.
-  integer(I1P), allocatable:: nI1P(:) !< One byte integer array containing n.
+  character(*), intent(IN)::  code    !> Encoded scalar.
+  real(R16P),   intent(OUT):: n       !> Number to be decoded.
+  integer(I1P), allocatable:: nI1P(:) !> One byte integer array containing n.
   !---------------------------------------------------------------------------------------------------------------------------------
 
   !---------------------------------------------------------------------------------------------------------------------------------
@@ -805,12 +805,12 @@ contains
 
   elemental subroutine b64_decode_R8(code,n)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Procedure for decoding a base64 code into a scalar number (R8P).
+  !> Procedure for decoding a base64 code into a scalar number (R8P).
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
-  character(*), intent(IN)::  code    !< Encoded scalar.
-  real(R8P),    intent(OUT):: n       !< Number to be decoded.
-  integer(I1P), allocatable:: nI1P(:) !< One byte integer array containing n.
+  character(*), intent(IN)::  code    !> Encoded scalar.
+  real(R8P),    intent(OUT):: n       !> Number to be decoded.
+  integer(I1P), allocatable:: nI1P(:) !> One byte integer array containing n.
   !---------------------------------------------------------------------------------------------------------------------------------
 
   !---------------------------------------------------------------------------------------------------------------------------------
@@ -823,12 +823,12 @@ contains
 
   elemental subroutine b64_decode_R4(code,n)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Procedure for decoding a base64 code into a scalar number (R4P).
+  !> Procedure for decoding a base64 code into a scalar number (R4P).
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
-  character(*), intent(IN)::  code    !< Encoded scalar.
-  real(R4P),    intent(OUT):: n       !< Number to be decoded.
-  integer(I1P), allocatable:: nI1P(:) !< One byte integer array containing n.
+  character(*), intent(IN)::  code    !> Encoded scalar.
+  real(R4P),    intent(OUT):: n       !> Number to be decoded.
+  integer(I1P), allocatable:: nI1P(:) !> One byte integer array containing n.
   !---------------------------------------------------------------------------------------------------------------------------------
 
   !---------------------------------------------------------------------------------------------------------------------------------
@@ -841,12 +841,12 @@ contains
 
   elemental subroutine b64_decode_I8(code,n)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Procedure for decoding a base64 code into a scalar number (I8P).
+  !> Procedure for decoding a base64 code into a scalar number (I8P).
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
-  character(*), intent(IN)::  code    !< Encoded scalar.
-  integer(I8P), intent(OUT):: n       !< Number to be decoded.
-  integer(I1P), allocatable:: nI1P(:) !< One byte integer array containing n.
+  character(*), intent(IN)::  code    !> Encoded scalar.
+  integer(I8P), intent(OUT):: n       !> Number to be decoded.
+  integer(I1P), allocatable:: nI1P(:) !> One byte integer array containing n.
   !---------------------------------------------------------------------------------------------------------------------------------
 
   !---------------------------------------------------------------------------------------------------------------------------------
@@ -859,12 +859,12 @@ contains
 
   elemental subroutine b64_decode_I4(code,n)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Procedure for decoding a base64 code into a scalar number (I4P).
+  !> Procedure for decoding a base64 code into a scalar number (I4P).
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
-  character(*), intent(IN)::  code    !< Encoded scalar.
-  integer(I4P), intent(OUT):: n       !< Number to be decoded.
-  integer(I1P), allocatable:: nI1P(:) !< One byte integer array containing n.
+  character(*), intent(IN)::  code    !> Encoded scalar.
+  integer(I4P), intent(OUT):: n       !> Number to be decoded.
+  integer(I1P), allocatable:: nI1P(:) !> One byte integer array containing n.
   !---------------------------------------------------------------------------------------------------------------------------------
 
   !---------------------------------------------------------------------------------------------------------------------------------
@@ -877,12 +877,12 @@ contains
 
   elemental subroutine b64_decode_I2(code,n)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Procedure for decoding a base64 code into a scalar number (I2P).
+  !> Procedure for decoding a base64 code into a scalar number (I2P).
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
-  character(*), intent(IN)::  code    !< Encoded scalar.
-  integer(I2P), intent(OUT):: n       !< Number to be decoded.
-  integer(I1P), allocatable:: nI1P(:) !< One byte integer array containing n.
+  character(*), intent(IN)::  code    !> Encoded scalar.
+  integer(I2P), intent(OUT):: n       !> Number to be decoded.
+  integer(I1P), allocatable:: nI1P(:) !> One byte integer array containing n.
   !---------------------------------------------------------------------------------------------------------------------------------
 
   !---------------------------------------------------------------------------------------------------------------------------------
@@ -895,12 +895,12 @@ contains
 
   elemental subroutine b64_decode_I1(code,n)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Procedure for decoding a base64 code into a scalar number (I1P).
+  !> Procedure for decoding a base64 code into a scalar number (I1P).
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
-  character(*), intent(IN)::  code    !< Encoded scalar.
-  integer(I1P), intent(OUT):: n       !< Number to be decoded.
-  integer(I1P), allocatable:: nI1P(:) !< One byte integer array containing n.
+  character(*), intent(IN)::  code    !> Encoded scalar.
+  integer(I1P), intent(OUT):: n       !> Number to be decoded.
+  integer(I1P), allocatable:: nI1P(:) !> One byte integer array containing n.
   !---------------------------------------------------------------------------------------------------------------------------------
 
   !---------------------------------------------------------------------------------------------------------------------------------
@@ -913,12 +913,12 @@ contains
 
   elemental subroutine b64_decode_string(code,s)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Procedure for decoding a base64 code into a scalar string.
+  !> Procedure for decoding a base64 code into a scalar string.
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
-  character(*), intent(IN)::  code    !< Encoded scalar.
-  character(*), intent(OUT):: s       !< String to be decoded.
-  integer(I1P), allocatable:: nI1P(:) !< One byte integer array containing n.
+  character(*), intent(IN)::  code    !> Encoded scalar.
+  character(*), intent(OUT):: s       !> String to be decoded.
+  integer(I1P), allocatable:: nI1P(:) !> One byte integer array containing n.
   !---------------------------------------------------------------------------------------------------------------------------------
 
   !---------------------------------------------------------------------------------------------------------------------------------
@@ -931,12 +931,12 @@ contains
 
   pure subroutine b64_decode_R16_a(code,n)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Procedure for decoding a base64 code into an array numbers (R16P).
+  !> Procedure for decoding a base64 code into an array numbers (R16P).
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
-  character(*), intent(IN)::  code    !< Encoded array.
-  real(R16P),   intent(OUT):: n(1:)   !< Array of numbers to be decoded.
-  integer(I1P), allocatable:: nI1P(:) !< One byte integer array containing n.
+  character(*), intent(IN)::  code    !> Encoded array.
+  real(R16P),   intent(OUT):: n(1:)   !> Array of numbers to be decoded.
+  integer(I1P), allocatable:: nI1P(:) !> One byte integer array containing n.
   !---------------------------------------------------------------------------------------------------------------------------------
 
   !---------------------------------------------------------------------------------------------------------------------------------
@@ -949,12 +949,12 @@ contains
 
   pure subroutine b64_decode_R8_a(code,n)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Procedure for decoding a base64 code into an array numbers (R8P).
+  !> Procedure for decoding a base64 code into an array numbers (R8P).
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
-  character(*), intent(IN)::  code    !< Encoded array.
-  real(R8P),    intent(OUT):: n(1:)   !< Array of numbers to be decoded.
-  integer(I1P), allocatable:: nI1P(:) !< One byte integer array containing n.
+  character(*), intent(IN)::  code    !> Encoded array.
+  real(R8P),    intent(OUT):: n(1:)   !> Array of numbers to be decoded.
+  integer(I1P), allocatable:: nI1P(:) !> One byte integer array containing n.
   !---------------------------------------------------------------------------------------------------------------------------------
 
   !---------------------------------------------------------------------------------------------------------------------------------
@@ -967,12 +967,12 @@ contains
 
   pure subroutine b64_decode_R4_a(code,n)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Procedure for decoding a base64 code into an array numbers (R4P).
+  !> Procedure for decoding a base64 code into an array numbers (R4P).
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
-  character(*), intent(IN)::  code    !< Encoded array.
-  real(R4P),    intent(OUT):: n(1:)   !< Array of numbers to be decoded.
-  integer(I1P), allocatable:: nI1P(:) !< One byte integer array containing n.
+  character(*), intent(IN)::  code    !> Encoded array.
+  real(R4P),    intent(OUT):: n(1:)   !> Array of numbers to be decoded.
+  integer(I1P), allocatable:: nI1P(:) !> One byte integer array containing n.
   !---------------------------------------------------------------------------------------------------------------------------------
 
   !---------------------------------------------------------------------------------------------------------------------------------
@@ -985,12 +985,12 @@ contains
 
   pure subroutine b64_decode_I8_a(code,n)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Procedure for decoding a base64 code into an array numbers (I8P).
+  !> Procedure for decoding a base64 code into an array numbers (I8P).
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
-  character(*), intent(IN)::  code    !< Encoded array.
-  integer(I8P), intent(OUT):: n(1:)   !< Array of numbers to be decoded.
-  integer(I1P), allocatable:: nI1P(:) !< One byte integer array containing n.
+  character(*), intent(IN)::  code    !> Encoded array.
+  integer(I8P), intent(OUT):: n(1:)   !> Array of numbers to be decoded.
+  integer(I1P), allocatable:: nI1P(:) !> One byte integer array containing n.
   !---------------------------------------------------------------------------------------------------------------------------------
 
   !---------------------------------------------------------------------------------------------------------------------------------
@@ -1003,12 +1003,12 @@ contains
 
   pure subroutine b64_decode_I4_a(code,n)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Procedure for decoding a base64 code into an array numbers (I4P).
+  !> Procedure for decoding a base64 code into an array numbers (I4P).
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
-  character(*), intent(IN)::  code    !< Encoded array.
-  integer(I4P), intent(OUT):: n(1:)   !< Array of numbers to be decoded.
-  integer(I1P), allocatable:: nI1P(:) !< One byte integer array containing n.
+  character(*), intent(IN)::  code    !> Encoded array.
+  integer(I4P), intent(OUT):: n(1:)   !> Array of numbers to be decoded.
+  integer(I1P), allocatable:: nI1P(:) !> One byte integer array containing n.
   !---------------------------------------------------------------------------------------------------------------------------------
 
   !---------------------------------------------------------------------------------------------------------------------------------
@@ -1021,12 +1021,12 @@ contains
 
   pure subroutine b64_decode_I2_a(code,n)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Procedure for decoding a base64 code into an array numbers (I2P).
+  !> Procedure for decoding a base64 code into an array numbers (I2P).
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
-  character(*), intent(IN)::  code    !< Encoded array.
-  integer(I2P), intent(OUT):: n(1:)   !< Array of numbers to be decoded.
-  integer(I1P), allocatable:: nI1P(:) !< One byte integer array containing n.
+  character(*), intent(IN)::  code    !> Encoded array.
+  integer(I2P), intent(OUT):: n(1:)   !> Array of numbers to be decoded.
+  integer(I1P), allocatable:: nI1P(:) !> One byte integer array containing n.
   !---------------------------------------------------------------------------------------------------------------------------------
 
   !---------------------------------------------------------------------------------------------------------------------------------
@@ -1039,12 +1039,12 @@ contains
 
   pure subroutine b64_decode_I1_a(code,n)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Procedure for decoding a base64 code into an array numbers (I1P).
+  !> Procedure for decoding a base64 code into an array numbers (I1P).
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
-  character(*), intent(IN)::  code    !< Encoded array.
-  integer(I1P), intent(OUT):: n(1:)   !< Array of numbers to be decoded.
-  integer(I1P), allocatable:: nI1P(:) !< One byte integer array containing n.
+  character(*), intent(IN)::  code    !> Encoded array.
+  integer(I1P), intent(OUT):: n(1:)   !> Array of numbers to be decoded.
+  integer(I1P), allocatable:: nI1P(:) !> One byte integer array containing n.
   !---------------------------------------------------------------------------------------------------------------------------------
 
   !---------------------------------------------------------------------------------------------------------------------------------
@@ -1057,12 +1057,12 @@ contains
 
   pure subroutine b64_decode_string_a(code,s)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Procedure for decoding a base64 code into an array of strings.
+  !> Procedure for decoding a base64 code into an array of strings.
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
-  character(*), intent(IN)::  code    !< Encoded scalar.
-  character(*), intent(OUT):: s(1:)   !< String to be decoded.
-  integer(I1P), allocatable:: nI1P(:) !< One byte integer array containing n.
+  character(*), intent(IN)::  code    !> Encoded scalar.
+  character(*), intent(OUT):: s(1:)   !> String to be decoded.
+  integer(I1P), allocatable:: nI1P(:) !> One byte integer array containing n.
   !---------------------------------------------------------------------------------------------------------------------------------
 
   !---------------------------------------------------------------------------------------------------------------------------------
@@ -1075,28 +1075,28 @@ contains
 
   subroutine autotest()
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Procedure for autotesting the library functionalities.
-  !<
-  !< @note Into the *src* directory there is a small python script (*validation.py*) that can be used to validate the library
-  !< correctness by a comparison with other widely used tools such as the python builtin module *struct*.
+  !> Procedure for autotesting the library functionalities.
+  !>
+  !> @note Into the *src* directory there is a small python script (*validation.py*) that can be used to validate the library
+  !> correctness by a comparison with other widely used tools such as the python builtin module *struct*.
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
-  character(len=:), allocatable:: code64        !< Base64 code.
-  logical::                       ok            !< Flag for checking the result of encoding/decoding.
-  real(R16P)::                    scalar_R16    !< Decoded scalar.
-  real(R8P)::                     scalar_R8     !< Decoded scalar.
-  real(R4P)::                     scalar_R4     !< Decoded scalar.
-  integer(I8P)::                  scalar_I8     !< Decoded scalar.
-  integer(I4P)::                  scalar_I4     !< Decoded scalar.
-  integer(I2P)::                  scalar_I2     !< Decoded scalar.
-  integer(I1P)::                  scalar_I1     !< Decoded scalar.
-  real(R8P)::                     array_R8(1:2) !< Decoded array.
-  real(R4P)::                     array_R4(1:2) !< Decoded array.
-  integer(I8P)::                  array_I8(1:4) !< Decoded array.
-  integer(I4P)::                  array_I4(1:2) !< Decoded array.
-  integer(I2P)::                  array_I2(1:2) !< Decoded array.
-  integer(I1P)::                  array_I1(1:2) !< Decoded array.
-  character(5)::                  array_s(1:2)  !< Decoded array.
+  character(len=:), allocatable:: code64        !> Base64 code.
+  logical::                       ok            !> Flag for checking the result of encoding/decoding.
+  real(R16P)::                    scalar_R16    !> Decoded scalar.
+  real(R8P)::                     scalar_R8     !> Decoded scalar.
+  real(R4P)::                     scalar_R4     !> Decoded scalar.
+  integer(I8P)::                  scalar_I8     !> Decoded scalar.
+  integer(I4P)::                  scalar_I4     !> Decoded scalar.
+  integer(I2P)::                  scalar_I2     !> Decoded scalar.
+  integer(I1P)::                  scalar_I1     !> Decoded scalar.
+  real(R8P)::                     array_R8(1:2) !> Decoded array.
+  real(R4P)::                     array_R4(1:2) !> Decoded array.
+  integer(I8P)::                  array_I8(1:4) !> Decoded array.
+  integer(I4P)::                  array_I4(1:2) !> Decoded array.
+  integer(I2P)::                  array_I2(1:2) !> Decoded array.
+  integer(I1P)::                  array_I1(1:2) !> Decoded array.
+  character(5)::                  array_s(1:2)  !> Decoded array.
   !---------------------------------------------------------------------------------------------------------------------------------
 
   !---------------------------------------------------------------------------------------------------------------------------------
