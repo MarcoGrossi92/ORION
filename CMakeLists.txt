@@ -7,7 +7,7 @@ project (ORION LANGUAGES Fortran)
 
 set(CMAKE_VERBOSE_MAKEFILE FALSE)
 # seach path for cmake modules
-set(CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake/")
+set(CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake/")
 
 # Set some options the user may choose
 # Uncomment the below if you want the user to choose a parallelization library
@@ -25,7 +25,7 @@ INCLUDE(${CMAKE_MODULE_PATH}/SetParallelizationLibrary.cmake)
 
 # Include libraries
 # TecIO
-include_directories(${CMAKE_SOURCE_DIR}/lib/64bit/TecIO)
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/lib/64bit/TecIO)
 file(GLOB TECIO "lib/64bit/TecIO/lib*")
 if(UNIX AND NOT APPLE)
   add_compile_definitions(TECIO)
