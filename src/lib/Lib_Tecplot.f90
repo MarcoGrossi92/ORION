@@ -8,49 +8,29 @@
 module Lib_Tecplot
   use, intrinsic:: ISO_FORTRAN_ENV, only: stdout => OUTPUT_UNIT, stderr => ERROR_UNIT ! Standard output/error logical units.
   use IR_Precision
-!-----------------------------------------------------------------------------------------------------------------------------------
-implicit none
-save
-private
-public:: tec_output
-!-----------------------------------------------------------------------------------------------------------------------------------
+  use Lib_ORION_data
+  implicit none
 
-!-----------------------------------------------------------------------------------------------------------------------------------
-!> Derived type containing the post-processing options.
-!> @ingroup Lib_TecplotDerivedType
-type :: Type_tec_Format
-  logical:: binary = .true.  !> Binary or ascii post-process file.
-  logical:: node   = .false. !> Node or cell data location.
-  logical:: bc     = .false. !> Saving or not boundary conditions cells.
-endtype Type_tec_Format
 
-type, public :: obj_tecblock
-  integer :: Nx, Ny, Nz
-  real(8), dimension(:,:,:,:), allocatable :: mesh
-  real(8), dimension(:,:,:,:), allocatable :: vars
-end type obj_tecblock
-
-!> @ingroup Lib_TecplotGlobalVarPar
-!> @{
-type(Type_tec_Format), public :: tec_format !< Post-processing format options (see \ref lib_tecplot::type_tec_format "definition").
-!> @}
-!-----------------------------------------------------------------------------------------------------------------------------------
 contains
- 
-  subroutine compute_dimensions(Nx,Ny,Nz,gc,ni1,ni2,nj1,nj2,nk1,nk2,ci1,ci2,cj1,cj2,ck1,ck2)
+
+
+  subroutine compute_dimensions(node,bc,Nx,Ny,Nz,gc,ni1,ni2,nj1,nj2,nk1,nk2,ci1,ci2,cj1,cj2,ck1,ck2)
   !---------------------------------------------------------------------------------------------------------------------------------
   ! Subroutine for computing the dimensions of the domain to be post-processed.
   !---------------------------------------------------------------------------------------------------------------------------------
 
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
-  integer, intent(IN)::  Nx, Ny, Nz, gc          ! Block-level data.
+  logical, intent(in) :: node 
+  logical, intent(in) :: bc 
+  integer, intent(IN) :: Nx, Ny, Nz, gc          ! Block-level data.
   integer, intent(OUT):: ni1,ni2,nj1,nj2,nk1,nk2 ! Bounds of dimensions of node-centered data.
   integer, intent(OUT):: ci1,ci2,cj1,cj2,ck1,ck2 ! Bounds of dimensions of cell-centered data.
   !---------------------------------------------------------------------------------------------------------------------------------
 
   !---------------------------------------------------------------------------------------------------------------------------------
-  if (tec_format%node) then
+  if (node) then
     ni1 = 0 ; ni2 = Nx
     nj1 = 0 ; nj2 = Ny
     nk1 = 0 ; nk2 = Nz
@@ -59,7 +39,7 @@ contains
     cj1 = 0 ; cj2 = Ny
     ck1 = 0 ; ck2 = Nz
   else
-    if (tec_format%bc) then
+    if (bc) then
       ni1 = 0 - gc ; ni2 = Nx + gc
       nj1 = 0 - gc ; nj2 = Ny + gc
       nk1 = 0 - gc ; nk2 = Nz + gc
@@ -83,13 +63,13 @@ contains
 
   !> @ingroup Lib_PostProcessingPublicProcedure
   !> @{
-  !> Function for writing OFF block data to Tecplot file.
-  function tec_output(block_,varnames,time,filename) result(err)
+  !> Function for writing ORION block data to Tecplot file.
+  function tec_output(data_,varnames,time,filename) result(err)
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
-  type(obj_tecblock), intent(in)            :: block_(:)
+  type(orion_data), intent(in)              :: data_
   character(len=*), intent(in), optional    :: varnames
-  real(8), intent(in)                       :: time
+  real(R8P), intent(in), optional           :: time
   character(len=*), intent(in)              :: filename            !< File name of the output file.
   logical :: meshonly
   integer :: err
@@ -113,59 +93,68 @@ contains
   integer::                 b                   !< Counter.
   integer::                 NvarTot
   integer::                 gc
+  real(R8P)::               time_
   !---------------------------------------------------------------------------------------------------------------------------------
 
   !---------------------------------------------------------------------------------------------------------------------------------
   ! Preliminary operations
   Nvar = 0
   meshonly = .true.
-  if (allocated(block_(1)%vars)) then
+  if (allocated(data_%block(1)%vars)) then
     meshonly = .false.
-    Nvar = size(block_(1)%vars,1)
+    Nvar = size(data_%block(1)%vars,1)
   endif
-  Nblocks = size(block_)
+  Nblocks = size(data_%block)
   gc = 1
   ! allocating dynamic arrays
   allocate(tecvarloc(1:3+Nvar))
   allocate(tecnull(1:3+Nvar))
   ! initializing tecplot variables
   call tec_init()
+  ! time
+  if (present(time)) then
+    time_ = time
+  else
+    time_ = 0._R8P
+  endif
   ! initializing tecplot file
-  if (tec_format%binary) then
+  select case(data_%tec%format)
+  case('binary')
 # if defined (TECIO)
     if (filename(len_trim(filename)-4:len_trim(filename))/=".plt") then
       err = tecini112(tecendrec,trim(tecvarname)//tecendrec,trim(filename)//".plt"//tecendrec,'.'//tecendrec,0,0,1)
     else
       err = tecini112(tecendrec,trim(tecvarname)//tecendrec,trim(filename)//tecendrec,'.'//tecendrec,0,0,1)
     endif
-    err = tecauxstr112("Time"//tecendrec,trim(str(n=time))//tecendrec)
+    err = tecauxstr112("Time"//tecendrec,trim(str(n=time_))//tecendrec)
 # else
-    write(stderr,'(A)') 'Error: your are trying to save binary tecplot file without compiling against the Tecplot library.'
+    write(stderr,'(A)') 'Error1: your are trying to save binary tecplot file without compiling against the Tecplot library.'
     stop
 # endif
-  else
+  case('ascii')
     if (filename(len_trim(filename)-4:len_trim(filename))/=".dat") then
       open(newunit=tecunit,file=trim(filename)//".dat")
     else
       open(newunit=tecunit,file=trim(filename))
     endif
     write(tecunit,'(A)',iostat=err)trim(tecvarname)
-  endif
+  end select
   ! writing data blocks
   do b=1,Nblocks
     err = tec_blk_data(b = b)
   enddo
   ! finalizing tecplot file
-  if (tec_format%binary) then
+  select case(data_%tec%format)
+  case('binary')
 # if defined (TECIO)
     err = tecend112()
 # else
-    write(stderr,'(A)') 'Error: your are trying to save binary tecplot file without compiling against the Tecplot library.'
+    write(stderr,'(A)') 'Error2: your are trying to save binary tecplot file without compiling against the Tecplot library.'
     stop
 # endif
-  else
+  case('ascii')
     close(tecunit)
-  endif
+  end select
   ! deallocating dynamic arrays
   deallocate(tecvarloc)
   deallocate(tecnull)
@@ -188,7 +177,8 @@ contains
     else
       NvarTot = 3
     endif
-    if (tec_format%binary) then
+    select case(data_%tec%format)
+    case('binary')
       ! header variables names
       tecvarname = 'x y z'
       if (.not.meshonly) then
@@ -201,14 +191,14 @@ contains
         endif
       endif
       ! variables location
-      if (tec_format%node) then
+      if (data_%tec%node) then
         tecvarloc = 1
       else
         tecvarloc(1:3) = 1 ; tecvarloc(4:3+Nvar)= 0
       endif
       ! null array
       tecnull = 0
-    else
+    case('ascii')
       ! header variables names
       tecvarname = ' VARIABLES ="x" "y" "z"'
       if (.not.meshonly) then
@@ -228,7 +218,7 @@ contains
       endif
       ! variables location
       if (.not.meshonly) then
-        if (tec_format%node) then
+        if (data_%tec%node) then
           tecvarlocstr = ', VARLOCATION=([1-'//trim(str(.true.,NvarTot))//']=NODAL)'
         else
           if (NvarTot==4) then
@@ -240,7 +230,7 @@ contains
       else
         tecvarlocstr = ', VARLOCATION=([1-3]=NODAL)'
       endif
-    endif
+    end select
     !-------------------------------------------------------------------------------------------------------------------------------
     endsubroutine tec_init
 
@@ -261,15 +251,17 @@ contains
     !-------------------------------------------------------------------------------------------------------------------------------
 
     !-------------------------------------------------------------------------------------------------------------------------------
-    Nx = size(block_(b)%vars,2)-1; Ny = size(block_(b)%vars,3)-1; Nz = size(block_(b)%vars,4)-1
+    Nx = size(data_%block(b)%vars,2)-1; Ny = size(data_%block(b)%vars,3)-1; Nz = size(data_%block(b)%vars,4)-1
     ! initialize the zone dimensions
-    call compute_dimensions(Nx=Nx,Ny=Ny,Nz=Nz,gc=gc,                         &
+    call compute_dimensions(node=data_%tec%node,bc=data_%tec%bc,             &
+                            Nx=Nx,Ny=Ny,Nz=Nz,gc=gc,                         &
                             ni1=ni1,ni2=ni2,nj1=nj1,nj2=nj2,nk1=nk1,nk2=nk2, &
                             ci1=ci1,ci2=ci2,cj1=cj1,cj2=cj2,ck1=ck1,ck2=ck2)
     nnode = (ni2-ni1+1)*(nj2-nj1+1)*(nk2-nk1+1)
     ncell = (ci2-ci1+1)*(cj2-cj1+1)*(ck2-ck1+1)
     ! writing the block data
-    if (tec_format%binary) then
+    select case(data_%tec%format)
+    case('binary')
 #   if defined (TECIO)
       err = teczne112('Block'//trim(strz(nz_pad=2,n=b))//tecendrec, &
                       0,                                            &
@@ -279,7 +271,7 @@ contains
                       0,                                            &
                       0,                                            &
                       0,                                            &
-                      time,                                         &
+                      time_,                                        &
                       0,                                            &
                       0,                                            &
                       1,                                            & !1=>block,0=>point
@@ -293,18 +285,18 @@ contains
                       tecnull(1:nvar),                              &
                       0)
 #     else
-      write(stderr,'(A)') 'Error: your are trying to save binary tecplot file without compiling against the Tecplot library.'
+      write(stderr,'(A)') 'Error3: your are trying to save binary tecplot file without compiling against the Tecplot library.'
       stop
 #     endif
-      err=tec_dat(N=nnode,dat=block_(b)%mesh(1,ni1:ni2,nj1:nj2,nk1:nk2))
-      err=tec_dat(N=nnode,dat=block_(b)%mesh(2,ni1:ni2,nj1:nj2,nk1:nk2))
-      err=tec_dat(N=nnode,dat=block_(b)%mesh(3,ni1:ni2,nj1:nj2,nk1:nk2))
+      err=tec_dat(N=nnode,dat=data_%block(b)%mesh(1,ni1:ni2,nj1:nj2,nk1:nk2))
+      err=tec_dat(N=nnode,dat=data_%block(b)%mesh(2,ni1:ni2,nj1:nj2,nk1:nk2))
+      err=tec_dat(N=nnode,dat=data_%block(b)%mesh(3,ni1:ni2,nj1:nj2,nk1:nk2))
       if (.not.meshonly) then
         do s=1,Nvar
-          err=tec_dat(N=ncell,dat=block_(b)%vars(s,ci1:ci2,cj1:cj2,ck1:ck2))
+          err=tec_dat(N=ncell,dat=data_%block(b)%vars(s,ci1:ci2,cj1:cj2,ck1:ck2))
         enddo
       endif
-    else
+    case('ascii')
       ! tecplot zone header
       teczoneheader = ' ZONE  T = "Block'//trim(strz(nz_pad=2,n=1))//'"'// &
                       ', I='//trim(str(no_sign=.true.,n=ni2-ni1+1))//       &
@@ -312,15 +304,15 @@ contains
                       ', K='//trim(str(no_sign=.true.,n=nk2-nk1+1))//       &
                       ', DATAPACKING=BLOCK'//adjustl(trim(tecvarlocstr))
       write(tecunit,'(A)',iostat=err)trim(teczoneheader)
-      write(tecunit,FR_P,iostat=err)(((block_(b)%mesh(1,i,j,k),i=ni1,ni2),j=nj1,nj2),k=nk1,nk2)
-      write(tecunit,FR_P,iostat=err)(((block_(b)%mesh(2,i,j,k),i=ni1,ni2),j=nj1,nj2),k=nk1,nk2)
-      write(tecunit,FR_P,iostat=err)(((block_(b)%mesh(3,i,j,k),i=ni1,ni2),j=nj1,nj2),k=nk1,nk2)
+      write(tecunit,FR_P,iostat=err)(((data_%block(b)%mesh(1,i,j,k),i=ni1,ni2),j=nj1,nj2),k=nk1,nk2)
+      write(tecunit,FR_P,iostat=err)(((data_%block(b)%mesh(2,i,j,k),i=ni1,ni2),j=nj1,nj2),k=nk1,nk2)
+      write(tecunit,FR_P,iostat=err)(((data_%block(b)%mesh(3,i,j,k),i=ni1,ni2),j=nj1,nj2),k=nk1,nk2)
       if (.not.meshonly) then
         do s=1,Nvar
-          write(tecunit,FR_P,iostat=err)(((block_(b)%vars(s,i,j,k),i=ci1,ci2),j=cj1,cj2),k=ck1,ck2)
+          write(tecunit,FR_P,iostat=err)(((data_%block(b)%vars(s,i,j,k),i=ci1,ci2),j=cj1,cj2),k=ck1,ck2)
         enddo
       endif
-    endif
+    end select
     !-------------------------------------------------------------------------------------------------------------------------------
     endfunction tec_blk_data
 

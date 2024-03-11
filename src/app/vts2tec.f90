@@ -2,20 +2,20 @@ program vts2tec
   use IR_Precision
   use Lib_VTK
   use Lib_Tecplot
+  use Lib_ORION_data
   use, intrinsic:: ISO_FORTRAN_ENV, only: stdout=>OUTPUT_UNIT, stderr=>ERROR_UNIT
 !-----------------------------------------------------------------------------------------------------------------------------------
   implicit none
   real(R8P), allocatable          :: x(:),y(:),z(:) ! Input geo arrays
   real(R8P), allocatable          :: v(:)           ! Input var arrays
-  type(obj_tecblock), allocatable :: block(:)       ! Output tecblock
+  type(orion_data)                :: data
   character(256), allocatable     :: file(:)
   character(256), allocatable     :: varnames(:), varname_scalar
-  character(6)                    :: input_format, output_format
   integer(I4P)                    :: Nblocks,nx1,nx2,ny1,ny2,nz1,nz2,nn,nc
   integer(I4P)                    :: b, i, j, k, n, p, err
 
-  tec_format%binary = .true.
-  input_format = 'binary'
+  data%tec%format = 'binary'
+  data%vtk%format = 'binary'
 
   call command_line_argument()
 
@@ -31,30 +31,30 @@ program vts2tec
   end do
 
   write(*,*)
-  write(*,'(2A)')' - Input format  : ',trim(input_format)
-  write(*,'(2A)')' - Output format : ',trim(output_format)
+  write(*,'(2A)')' - Input format  : ',trim(data%tec%format)
+  write(*,'(2A)')' - Output format : ',trim(data%vtk%format)
   write(*,*)
 
-  allocate(block(1:Nblocks))
+  allocate(data%block(1:Nblocks))
 
   ! Read VTS file
   do b = 1, Nblocks
     
     call read_variables_name(file(b),varnames)
     ! Geometry
-    err = VTK_INI_XML_READ(input_format=trim(input_format),filename=trim(file(b)),mesh_topology='StructuredGrid',&
+    err = VTK_INI_XML_READ(input_format=trim(data%vtk%format),filename=trim(file(b)),mesh_topology='StructuredGrid',&
                             nx1=nx1,nx2=nx2,ny1=ny1,ny2=ny2,nz1=nz1,nz2=nz2)
     err = VTK_GEO_XML_READ(nx1=nx1,nx2=nx2,ny1=ny1,ny2=ny2,nz1=nz1,nz2=nz2,NN=nn,X=x,Y=y,Z=z)
-    allocate(block(b)%mesh(1:3,nx1:nx2,ny1:ny2,nz1:nz2))
+    allocate(data%block(b)%mesh(1:3,nx1:nx2,ny1:ny2,nz1:nz2))
     n = 0
     do k = nz1, nz2; do j = ny1, ny2; do i = nx1, nx2
           n = n + 1
-          block(b)%mesh(1,i,j,k) = x(n)
-          block(b)%mesh(2,i,j,k) = y(n)
-          block(b)%mesh(3,i,j,k) = z(n)
+          data%block(b)%mesh(1,i,j,k) = x(n)
+          data%block(b)%mesh(2,i,j,k) = y(n)
+          data%block(b)%mesh(3,i,j,k) = z(n)
     enddo; enddo; enddo
     ! Variables field
-    allocate(block(b)%vars(1:size(varnames)-1,nx1:nx2,ny1:ny2,nz1:nz2))
+    allocate(data%block(b)%vars(1:size(varnames)-1,nx1:nx2,ny1:ny2,nz1:nz2))
     do p = 1, size(varnames)-1
       if (allocated(v)) deallocate(v)
       err = VTK_VAR_XML_READ(var_location='cell', varname=trim(varnames(p+1)), NC_NN=nn, NCOMP=nc, var=v)
@@ -64,13 +64,13 @@ program vts2tec
         err = VTK_VAR_XML_READ(var_location='node', varname=trim(varnames(p+1)), NC_NN=nn, NCOMP=nc, var=v)
         if (err==0) then
           write(*,'(A)') ' - Data location : cell nodes'
-          tec_format%node = .true.
+          data%tec%node = .true.
         endif
       endif
       n = 0
       do k = nz1+1, nz2; do j = ny1+1, ny2; do i = nx1+1, nx2
             n = n + 1
-            block(b)%vars(p,i,j,k) = v(n)
+            data%block(b)%vars(p,i,j,k) = v(n)
       enddo; enddo; enddo
     enddo
   enddo
@@ -81,8 +81,11 @@ program vts2tec
   do p = 2, size(varnames)
     varname_scalar = trim(varname_scalar)//' '//trim(varnames(p))
   enddo
-  err = tec_output(block_=block,time=0.d0,varnames=varname_scalar,filename='tecfile')
+  err = tec_output(data_=data,varnames=varname_scalar,filename='tecfile')
   if (err/=0) write(*,'(A)') 'Error during writing of tecplot file'
+
+  write(*,*)
+  write(*,'(A)')' Done!'
   
 !-----------------------------------------------------------------------------------------------------------------------------------
 contains
@@ -107,11 +110,10 @@ contains
         stop
       elseif (index(arg, '--out-format=') > 0) then
         ! Extract the output format from the argument
-        output_format = trim(adjustl(arg(14:)))
-        if (index(output_format,'ascii')>0) tec_format%binary = .false.
+        data%tec%format = trim(adjustl(arg(14:)))
       elseif (index(arg, '--in-format=') > 0) then
         ! Extract the input format from the argument
-        input_format = trim(adjustl(arg(13:)))
+        data%vtk%format = trim(adjustl(arg(13:)))
       end if
     end do
 
