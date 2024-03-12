@@ -298,7 +298,7 @@ contains
       endif
     case('ascii')
       ! tecplot zone header
-      teczoneheader = ' ZONE  T = "Block'//trim(strz(nz_pad=2,n=1))//'"'// &
+      teczoneheader = ' ZONE  T = Block'//trim(strz(nz_pad=2,n=1))//        &
                       ', I='//trim(str(no_sign=.true.,n=ni2-ni1+1))//       &
                       ', J='//trim(str(no_sign=.true.,n=nj2-nj1+1))//       &
                       ', K='//trim(str(no_sign=.true.,n=nk2-nk1+1))//       &
