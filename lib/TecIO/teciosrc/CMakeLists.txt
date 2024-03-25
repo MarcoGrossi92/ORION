@@ -34,14 +34,14 @@ LIST(REMOVE_ITEM mainFiles "${CMAKE_CURRENT_SOURCE_DIR}/szcombine.cpp")
 
 #set (CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}/../../bin")
 
-add_library(TECIO STATIC ${mainFiles})
+add_library(tecio STATIC ${mainFiles})
 
 add_executable(szcombine "szcombine.cpp")
 if (WIN32)
-    target_link_libraries(szcombine TECIO)
+    target_link_libraries(szcombine tecio)
 else ()
-    target_link_libraries(szcombine TECIO pthread)
+    target_link_libraries(szcombine tecio pthread)
 endif ()
 
-set_target_properties(TECIO PROPERTIES LINKER_LANGUAGE Fortran)
+set_target_properties(tecio PROPERTIES LINKER_LANGUAGE Fortran)
 set_target_properties(szcombine PROPERTIES LINKER_LANGUAGE Fortran)

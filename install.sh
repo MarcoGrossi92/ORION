@@ -66,6 +66,9 @@ function define_path () {
 function build_project () {
   # download Doxygen
   #./doxygen .Doxyfile
+  cd lib/TecIO
+  ./build.sh
+  cd ../../
   rm -rf bin build && mkdir -p build
   cd build
   cmake .. -DUSE_OPENMP=OFF -DCMAKE_BUILD_TYPE=RELEASE
