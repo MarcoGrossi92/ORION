@@ -3,6 +3,9 @@ build
 bin
 .setvars.sh
 
+# TecIO files
+lib/TecIO/boost
+
 # doc files
 doc/html
 doc/latex
