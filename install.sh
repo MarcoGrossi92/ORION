@@ -17,6 +17,7 @@ readonly PROJECT="ORION"
 readonly DIR=$(pwd)
 readonly PROGRAM=`basename "$0"`
 
+
 function usage () {
     echo "Install script of $PROJECT"
     echo "Usage:"
@@ -63,17 +64,16 @@ function define_path () {
   source $RCFILE --force
 }
 
+
 function build_project () {
   # download Doxygen
   #./doxygen .Doxyfile
-  cd lib/TecIO
-  ./build.sh
-  cd ../../
   rm -rf bin build && mkdir -p build
   cd build
   cmake .. -DUSE_OPENMP=OFF -DCMAKE_BUILD_TYPE=RELEASE
   make -j
 }
+
 
 function compile () {
   mkdir -p build
@@ -81,6 +81,7 @@ function compile () {
   cmake .. -DCMAKE_BUILD_TYPE=$TYPE
   make -j
 }
+
 
 SETVARS=0
 BUILD=0

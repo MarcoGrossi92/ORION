@@ -7,7 +7,6 @@ endif ()
 if(UNIX AND APPLE)
   set(CMAKE_CXX_COMPILER "/opt/homebrew/bin/g++-13")
   set(CMAKE_C_COMPILER "/opt/homebrew/bin/gcc-13")
-  set(CMAKE_Fortran_COMPILER gfortran)
 endif()
 
 project (tecio C CXX Fortran)
@@ -16,6 +15,19 @@ FIND_PACKAGE(Boost)
 IF (Boost_FOUND)
     INCLUDE_DIRECTORIES(${Boost_INCLUDE_DIR})
 ELSE()
+    # Check if the "boost" directory doesn't exist, and if so, extract boost.tar.gz
+    ADD_CUSTOM_TARGET(ExtractBoost
+        COMMAND ${CMAKE_COMMAND} -E tar xzf ${CMAKE_CURRENT_SOURCE_DIR}/../boost.tar.gz
+        COMMENT "Extracting Boost library"
+        VERBATIM
+        )
+    ADD_CUSTOM_TARGET(CreateBoostLink ALL
+        COMMAND ${CMAKE_COMMAND} -E create_symlink ${CMAKE_CURRENT_SOURCE_DIR}/../boost ${CMAKE_CURRENT_SOURCE_DIR}/boost
+        COMMENT "Creating symbolic link to Boost directory"
+        VERBATIM)
+    # Add dependencies between the targets
+    add_dependencies(CreateBoostLink ExtractBoost)
+
     Set (Boost_INCLUDE_DIR "boost")
     message ("Warning:  Cannot find boost include directories.  Hardcoding to ${Boost_INCLUDE_DIR}")
     INCLUDE_DIRECTORIES(SYSTEM ${Boost_INCLUDE_DIR})
@@ -32,9 +44,8 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${BaseFlags}")
 FILE(GLOB mainFiles "*.cpp" "*.h")
 LIST(REMOVE_ITEM mainFiles "${CMAKE_CURRENT_SOURCE_DIR}/szcombine.cpp")
 
-#set (CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}/../../bin")
-
 add_library(tecio STATIC ${mainFiles})
+add_dependencies(tecio CreateBoostLink)
 
 add_executable(szcombine "szcombine.cpp")
 if (WIN32)

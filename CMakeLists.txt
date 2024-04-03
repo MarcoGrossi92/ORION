@@ -2,7 +2,7 @@
 
 cmake_minimum_required(VERSION 3.13)
 if(UNIX AND APPLE)
-  set(CMAKE_Fortran_COMPILER gfortran)
+  set(CMAKE_Fortran_COMPILER "gfortran")
 endif()
 
 project (ORION LANGUAGES Fortran)
@@ -28,9 +28,9 @@ INCLUDE(${CMAKE_MODULE_PATH}/SetParallelizationLibrary.cmake)
 # Include libraries
 # TecIO
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/lib/TecIO/teciosrc)
-#add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/lib/TecIO/teciosrc)
+add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/lib/TecIO/teciosrc)
 set(LINKLIBS -lpthread -lm -lstdc++)
-file(GLOB TECIO "${CMAKE_CURRENT_SOURCE_DIR}/lib/TecIO/teciosrc/build/libtecio.a")
+#file(GLOB TECIO "${CMAKE_CURRENT_SOURCE_DIR}/lib/TecIO/teciosrc/build/libtecio.a")
 
 include(GNUInstallDirs)
 

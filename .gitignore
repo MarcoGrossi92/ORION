@@ -5,6 +5,7 @@ bin
 
 # TecIO files
 lib/TecIO/boost
+lib/TecIO/teciosrc/boost
 
 # doc files
 doc/html
