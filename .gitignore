@@ -4,7 +4,6 @@ bin
 .setvars.sh
 
 # TecIO files
-lib/TecIO/boost
 lib/TecIO/teciosrc/boost
 
 # doc files

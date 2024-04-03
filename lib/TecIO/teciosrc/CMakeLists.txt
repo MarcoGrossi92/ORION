@@ -19,10 +19,9 @@ ELSE()
     ADD_CUSTOM_TARGET(ExtractBoost
         COMMAND ${CMAKE_COMMAND} -E tar xzf ${CMAKE_CURRENT_SOURCE_DIR}/../boost.tar.gz
         COMMENT "Extracting Boost library"
-        VERBATIM
-        )
+        VERBATIM)
     ADD_CUSTOM_TARGET(CreateBoostLink ALL
-        COMMAND ${CMAKE_COMMAND} -E create_symlink ${CMAKE_CURRENT_SOURCE_DIR}/../boost ${CMAKE_CURRENT_SOURCE_DIR}/boost
+        COMMAND ${CMAKE_COMMAND} -E create_symlink ${CMAKE_BINARY_DIR}/lib/TecIO/teciosrc/boost ${CMAKE_CURRENT_SOURCE_DIR}/boost
         COMMENT "Creating symbolic link to Boost directory"
         VERBATIM)
     # Add dependencies between the targets
