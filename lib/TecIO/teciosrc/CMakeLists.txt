@@ -41,7 +41,7 @@ ENDIF ()
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${BaseFlags}")
                     
 FILE(GLOB mainFiles "*.cpp" "*.h")
-LIST(REMOVE_ITEM mainFiles "${CMAKE_CURRENT_SOURCE_DIR}/szcombine.cpp")
+LIST(REMOVE_ITEM mainFiles "szcombine.cpp")
 
 add_library(tecio STATIC ${mainFiles})
 add_dependencies(tecio CreateBoostLink)
@@ -54,4 +54,3 @@ else ()
 endif ()
 
 set_target_properties(tecio PROPERTIES LINKER_LANGUAGE Fortran)
-set_target_properties(szcombine PROPERTIES LINKER_LANGUAGE Fortran)
