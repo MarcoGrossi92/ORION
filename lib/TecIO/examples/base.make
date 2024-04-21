@@ -14,7 +14,7 @@ ISTECIOSRC := $(shell test -d ../../teciosrc/; echo $$?)
 
 ifeq ($(ISTECIOSRC),0)
 	TECIOMPILIB=../../teciompisrc/libteciompi.a
-	TECIOLIB=../../teciosrc/build/libtecio.a
+	TECIOLIB=../../build/libtecio.a
     EXTRALIBS=-lstdc++
     EXTRAINCLUDES=-I../../teciosrc
 else

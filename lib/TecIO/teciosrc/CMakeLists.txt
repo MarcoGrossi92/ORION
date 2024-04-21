@@ -4,6 +4,7 @@ if (NOT CMAKE_BUILD_TYPE)
     set (CMAKE_BUILD_TYPE Release CACHE STRING "CMake build type (Debug|Release)" FORCE)
 endif ()
 
+# For Apple machiness add here the correct path to C/C++ compilers
 if(UNIX AND APPLE)
   set(CMAKE_CXX_COMPILER "/opt/homebrew/bin/g++-13")
   set(CMAKE_C_COMPILER "/opt/homebrew/bin/gcc-13")
@@ -44,7 +45,9 @@ FILE(GLOB mainFiles "*.cpp" "*.h")
 LIST(REMOVE_ITEM mainFiles "szcombine.cpp")
 
 add_library(tecio STATIC ${mainFiles})
-add_dependencies(tecio CreateBoostLink)
+IF (NOT Boost_FOUND)
+  add_dependencies(tecio CreateBoostLink)
+ENDIF()
 
 add_executable(szcombine "szcombine.cpp")
 if (WIN32)
