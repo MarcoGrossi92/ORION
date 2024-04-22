@@ -69,6 +69,9 @@ function build_project () {
   # download Doxygen
   #./doxygen .Doxyfile
   rm -rf bin build && mkdir -p build
+  cd lib/TecIO
+  ./build.sh
+  cd ../../
   cd build
   cmake .. -DUSE_OPENMP=OFF -DCMAKE_BUILD_TYPE=RELEASE
   make -j

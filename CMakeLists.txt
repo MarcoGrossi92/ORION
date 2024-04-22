@@ -1,7 +1,9 @@
 # CMake project file for ORION
 
 cmake_minimum_required(VERSION 3.13)
-#set(CMAKE_Fortran_COMPILER "gfortran")
+if(UNIX AND APPLE)
+  set(CMAKE_Fortran_COMPILER "gfortran")
+endif()
 
 project (ORION LANGUAGES Fortran)
 
@@ -25,10 +27,14 @@ INCLUDE(${CMAKE_MODULE_PATH}/SetParallelizationLibrary.cmake)
 
 # Include libraries
 # TecIO
+OPTION(TECIO_PREBUILD "Build TecIO independently" ON)
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/lib/TecIO/teciosrc)
-add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/lib/TecIO/teciosrc)
 set(LINKLIBS -lpthread -lm -lstdc++)
-#file(GLOB TECIO "${CMAKE_CURRENT_SOURCE_DIR}/lib/TecIO/teciosrc/build/libtecio.a")
+if (TECIO_PREBUILD)
+  file(GLOB TECIO "${CMAKE_CURRENT_SOURCE_DIR}/lib/TecIO/build/libtecio.a")
+else()
+  add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/lib/TecIO/teciosrc)
+endif()
 
 include(GNUInstallDirs)
 

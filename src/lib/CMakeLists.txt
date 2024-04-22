@@ -1,3 +1,7 @@
 file(GLOB LIBSRC *.f90)
 add_library(ORION ${LIBSRC})
-target_link_libraries(ORION tecio)
+if (TECIO_PREBUILD)
+  target_link_libraries(ORION ${TECIO})
+else()
+  target_link_libraries(ORION tecio)
+endif()
