@@ -10,7 +10,7 @@ program tecplot_read_multiblock
   data%tec%bc = .false.
 
   data%tec%format = 'ascii'
-  error = tec_input(data_=data,filename='solfile')
+  error = tec_input(data_=data,filename='solfile.dat')
   nb = size(data%block)
 
   write(*,*) 'Blocks number = ', nb

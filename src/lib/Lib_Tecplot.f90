@@ -333,18 +333,15 @@ contains
     meshonly = .false.
 
     ! Open file
-    if (filename(len_trim(filename)-4:len_trim(filename))/=".dat") then
-      open(newunit=tecunit,file=trim(filename)//".dat")
-    else
-      open(newunit=tecunit,file=trim(filename))
-    endif
+    open(newunit=tecunit,file=trim(filename))
     
     ! Count blocks and allocate data
     ios = 0; Nblocks = 0; nlines = -1
     do while(ios==0)
       read(tecunit,'(A)',iostat=ios) line
       nlines = nlines+1
-      if (index(line,"ZONE")>0) Nblocks = Nblocks+1
+      if (index(line,"ZONE")>0 .and. index(line,"ZONETYPE")==0) Nblocks = Nblocks+1
+      if (index(line,"Zone")>0) Nblocks = Nblocks+1
     enddo
     allocate(data_%block(1:Nblocks))
     rewind(tecunit)
@@ -386,7 +383,10 @@ contains
       read(tecunit,'(A)',iostat=ios) line
       if (ios==iostat_end) exit
       read(line,*,iostat=ios) dummy_float
-      if (ios/=0) nskip(b) = nskip(b)+1
+      if ((ios==0 .and. index(line,'DATA')>0) .or. ios/=0) then
+        nskip(b) = nskip(b)+1
+        ios = 1
+      endif
       if (ios==0 .and. ios_prev/=0) b = b+1
       ios_prev = ios
     enddo

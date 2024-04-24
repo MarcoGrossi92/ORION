@@ -1,9 +1,9 @@
 # CMake project file for ORION
 
 cmake_minimum_required(VERSION 3.13)
-if(UNIX AND APPLE)
-  set(CMAKE_Fortran_COMPILER "gfortran")
-endif()
+# if(UNIX AND APPLE)
+#   set(CMAKE_Fortran_COMPILER "gfortran")
+# endif()
 
 project (ORION LANGUAGES Fortran)
 
