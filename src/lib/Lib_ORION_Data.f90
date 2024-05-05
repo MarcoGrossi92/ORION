@@ -13,12 +13,13 @@ module Lib_ORION_data
 
   type :: Type_tec_Format
     character(6):: format = 'binary'  !> Binary or ascii file.
-    logical     :: node   = .false. !> Node or cell data location.
-    logical     :: bc     = .false. !> Saving or not boundary conditions cells.
+    logical     :: node   = .false.   !> Node or cell data location.
+    logical     :: bc     = .false.   !> Saving or not boundary conditions cells.
   endtype Type_tec_Format
 
   type :: Type_vtk_Format
     character(6):: format = 'binary'  !> Binary or ascii file.
+    logical     :: node   = .false.   !> Node or cell data location.
   endtype Type_vtk_Format
 
   type :: obj_block

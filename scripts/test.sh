@@ -11,7 +11,7 @@ echo '--- VTK2TEC ---'
 $ORIONDIR/bin/app/vts2tec --out-format=ascii
 
 echo
-echo '--- VTK reading ---'
+echo '--- VTK writing ---'
 ./vtk_write
 
 echo

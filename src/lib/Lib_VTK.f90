@@ -58,6 +58,9 @@ public:: VTK_CON
 public:: VTK_DAT
 public:: VTK_VAR
 public:: VTK_END
+! wrapper
+public:: vtk_MBS_input
+public:: vtk_MBS_output
 ! 
 public:: read_variables_name
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -774,6 +777,7 @@ contains
     inquire(unit=vtk(rf)%u, iostat=E_IO, pos=p)     
   end if
   read(unit=vtk(rf)%u, iostat=E_IO, pos=p) c
+  print*,'jo'
   do while (c /= end_rec)
 !write (*,'(A)',advance="no") c
 !    s_buffer(n:n) = c 
@@ -6875,6 +6879,7 @@ contains
 
         select case(trim(vtk(rf)%topology))
           case('RectilinearGrid', 'StructuredGrid')
+          print*, trim(vtk(rf)%topology)
             ! Get WholeExtent
             E_IO = move(inside='VTKFile', to_find=trim(vtk(rf)%topology), cf=rf,buffer=s_buffer)
             call get_char(buffer=s_buffer, attrib='WholeExtent', val=aux, E_IO=E_IO)
@@ -6897,6 +6902,8 @@ contains
         enddo
 
     end select
+
+    print*,'qui'
 
   case('RAW')
     vtk(rf)%f = raw
@@ -6959,7 +6966,8 @@ contains
         inquire(unit=vtk(rf)%u, pos=vtk(rf)%ioffset)
 
     end select
-  end select  
+  end select
+  print*,'jj'
   if(present(npieces)) npieces = np
   end function VTK_INI_XML_READ
 
@@ -12890,6 +12898,156 @@ end function
   !---------------------------------------------------------------------------------------------------------------------------------
   end function PVTK_END_XML_READ
 
+
+  function vtk_MBS_output(path,orion,varnames,time) result(E_IO)
+  !---------------------------------------------------------------------------------------------------------------------------------
+  !> Function to write multi-block structured data in a VTS folder
+  !---------------------------------------------------------------------------------------------------------------------------------
+  use Lib_ORION_data
+  use strings, only: parse
+  implicit none
+  type(orion_data), intent(inout)   :: orion
+  character(len=*), intent(inout)   :: varnames
+  character(len=*), intent(in)      :: path
+  real(R8P), intent(in), optional   :: time
+  integer(I4P)                      :: mf(99), b, s
+  integer(I4P)                      :: nb,nn,nnvar,Nvar
+  integer(I4P)                      :: E_IO 
+  logical                           :: meshonly
+  character(len=4)                  :: location
+  character(len=len_trim(varnames)) :: varname(20)
+  !---------------------------------------------------------------------------------------------------------------------------------
+
+  !---------------------------------------------------------------------------------------------------------------------------------
+  ! Preliminary operations
+  nb = size(orion%block)
+  Nvar = 0
+  meshonly = .true.
+  if (allocated(orion%block(1)%vars)) then
+    meshonly = .false.
+    Nvar = size(orion%block(1)%vars,1)
+  endif
+  location = 'cell'
+  if (orion%vtk%node) location = 'node'
+  call parse(varnames,' ',varname(1:Nvar))
+  ! Block writing
+  do b = 1, nb
+    associate (nx2 => orion%block(b)%Ni, ny2 => orion%block(b)%Nj, nz2 => orion%block(b)%Nk)
+    nn=(nx2+1)*(ny2+1)*(nz2+1)
+    nnvar=(nx2)*(ny2)*(nz2)
+    E_IO = VTK_INI_XML(cf=mf(b),output_format=orion%vtk%format, filename=trim(path)//trim(str(.true.,b))//'.vts', &
+                       mesh_topology='StructuredGrid', nx1=0, nx2=nx2, ny1=0, ny2=ny2, nz1=0, nz2=nz2)
+    if (present(time)) then
+      E_IO = VTK_FLD_XML(fld_action='open')
+      E_IO = VTK_FLD_XML(fld=time,fname='TIME')
+      E_IO = VTK_FLD_XML(fld_action='close')
+    endif
+    E_IO = VTK_GEO_XML(cf=mf(b),nx1=0, nx2=nx2, ny1=0, ny2=ny2, nz1=0, nz2=nz2, NN=nn, &
+                       X=reshape(orion%block(b)%mesh(1,0:nx2,:,:),(/nn/)),        &
+                       Y=reshape(orion%block(b)%mesh(2,0:nx2,:,:),(/nn/)),        &
+                       Z=reshape(orion%block(b)%mesh(3,0:nx2,:,:),(/nn/)))
+    if (.not.meshonly) then
+      E_IO = VTK_DAT_XML(cf=mf(b),var_location = location, var_block_action = 'open')
+      do s = 1, Nvar
+        E_IO = VTK_VAR_XML(cf=mf(b),NC_NN = nnvar, varname = trim(varname(s)), &
+                           var = reshape(orion%block(b)%vars(s,1:nx2,:,:),[nnvar]))
+      enddo
+      E_IO = VTK_DAT_XML(cf=mf(b),var_location = location, var_block_action = 'close')
+    endif
+    E_IO = VTK_GEO_XML(cf=mf(b))
+    E_IO = VTK_END_XML()
+    endassociate
+  enddo
+
+  E_IO = VTM_INI_XML(trim(path)//'.vtm')
+  E_IO = VTM_BLK_XML(block_action='open')
+  E_IO = VTM_WRF_XML(flist=[(trim(path)//trim(str(.true.,b))//'.vts',b=1,nb)])
+  E_IO = VTM_BLK_XML(block_action='close')
+  E_IO = VTM_END_XML()
+  !---------------------------------------------------------------------------------------------------------------------------------
+  end function vtk_MBS_output
+
+
+
+  function vtk_MBS_input(path,orion,time) result(err)
+  !---------------------------------------------------------------------------------------------------------------------------------
+  !> Function to read multi-block structured data from a VTS folder
+  !---------------------------------------------------------------------------------------------------------------------------------
+  use Lib_ORION_data
+  use strings, only: parse
+  implicit none
+  type(orion_data), intent(inout)   :: orion
+  character(len=*), intent(in)      :: path
+  real(R8P), intent(out), optional  :: time
+  integer(I4P)                      :: b, s, i, j, k
+  integer(I4P)                      :: Nblocks,nn,nu,nc,n
+  integer(I4P)                      :: nx1, nx2, ny1, ny2, nz1, nz2
+  integer(I4P)                      :: err 
+  logical                           :: meshonly
+  character(256), allocatable       :: varnames(:)
+  character(256)                    :: line
+  real(R8P), allocatable            :: x(:),y(:),z(:) ! Input geo arrays
+  real(R8P), allocatable            :: v(:)           ! Input var arrays
+  !---------------------------------------------------------------------------------------------------------------------------------
+
+  !---------------------------------------------------------------------------------------------------------------------------------
+  ! Preliminary operations
+  open(newunit=nu,file=trim(path)//'.vtm',action='read')
+  do
+    read(nu,'(A)') line
+    if (index(line,'<Block')==0) cycle
+    exit
+  enddo
+  Nblocks = 0
+  do
+    read(nu,'(A)') line
+    if (index(line,'</Block')>0) exit
+    Nblocks = Nblocks+1
+    cycle
+  enddo
+  allocate(orion%block(1:Nblocks))
+  call read_variables_name(trim(path)//'1.vts',varnames)
+  print*, Nblocks
+
+  ! Read VTS file
+  do b = 1, Nblocks
+  print*,b, trim(path)//trim(str(.true.,b))//'.vts'
+    ! Geometry
+    err = VTK_INI_XML_READ(input_format=trim(orion%vtk%format),filename=trim(path)//trim(str(.true.,b))//'.vts', &
+                            mesh_topology='StructuredGrid',&
+                            nx1=nx1,nx2=nx2,ny1=ny1,ny2=ny2,nz1=nz1,nz2=nz2)
+                            print*,err
+    err = VTK_GEO_XML_READ(nx1=nx1,nx2=nx2,ny1=ny1,ny2=ny2,nz1=nz1,nz2=nz2,NN=nn,X=x,Y=y,Z=z)
+    allocate(orion%block(b)%mesh(1:3,nx1:nx2,ny1:ny2,nz1:nz2))
+    n = 0
+    print*,nx1,nx2,ny1,ny2,nz1,nz2
+    do k = nz1, nz2; do j = ny1, ny2; do i = nx1, nx2
+          n = n + 1
+          orion%block(b)%mesh(1,i,j,k) = x(n)
+          orion%block(b)%mesh(2,i,j,k) = y(n)
+          orion%block(b)%mesh(3,i,j,k) = z(n)
+    enddo; enddo; enddo
+    ! Variables field
+    allocate(orion%block(b)%vars(1:size(varnames)-1,nx1:nx2,ny1:ny2,nz1:nz2))
+    do s = 1, size(varnames)-1
+      if (allocated(v)) deallocate(v)
+      err = VTK_VAR_XML_READ(var_location='cell', varname=trim(varnames(s+1)), NC_NN=nn, NCOMP=nc, var=v)
+      if (err/=0) then
+        err = VTK_VAR_XML_READ(var_location='node', varname=trim(varnames(s+1)), NC_NN=nn, NCOMP=nc, var=v)
+        if (err==0) then
+          orion%vtk%node = .true.
+        endif
+      endif
+      n = 0
+      do k = nz1+1, nz2; do j = ny1+1, ny2; do i = nx1+1, nx2
+            n = n + 1
+            orion%block(b)%vars(s,i,j,k) = v(n)
+      enddo; enddo; enddo
+    enddo
+  enddo
+  err = VTK_END_XML_READ()
+
+  end function vtk_MBS_input
 
 
 endmodule Lib_VTK
