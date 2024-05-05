@@ -10,7 +10,9 @@ module Lib_Tecplot
   use IR_Precision
   use Lib_ORION_data
   implicit none
+# if defined(TECIO)
   include "tecio.f90"
+# endif
 
 
 contains
@@ -74,11 +76,13 @@ contains
   character(len=*), intent(in)              :: filename            !< File name of the output file.
   logical :: meshonly
   integer :: err
+# if defined(TECIO)
   integer, external::                tecini142,    &     ! |
                                      tecauxstr142, &     ! |
                                      teczne142,    &     ! | Tecplot external functions.
-                                     tecdatd142,    &     ! |
+                                     tecdatd142,    &    ! |
                                      tecend142           ! |
+# endif
   character(1), parameter:: tecendrec = char(0) !< End-character for binary-record end.
   character(500)::          tecvarname          !< Variables name for tecplot header file.
   character(500)::          teczoneheader       !< Tecplot string of zone header.
@@ -119,12 +123,16 @@ contains
   ! initializing tecplot file
   select case(data_%tec%format)
   case('binary')
+# if defined(TECIO)
     if (filename(len_trim(filename)-4:len_trim(filename))/=".plt") then
       err = tecini142(tecendrec,trim(tecvarname)//tecendrec,trim(filename)//".plt"//tecendrec,'.'//tecendrec,0,0,1,0)
     else
       err = tecini142(tecendrec,trim(tecvarname)//tecendrec,trim(filename)//tecendrec,'.'//tecendrec,0,0,1,0)
     endif
     err = tecauxstr142("Time"//tecendrec,trim(str(n=time_))//tecendrec)
+# else
+    stop "You can not write in binary formato without compiling against TecIO"
+# endif
   case('ascii')
     if (filename(len_trim(filename)-4:len_trim(filename))/=".dat") then
       open(newunit=tecunit,file=trim(filename)//".dat")
@@ -140,7 +148,9 @@ contains
   ! finalizing tecplot file
   select case(data_%tec%format)
   case('binary')
+# if defined(TECIO)
     err = tecend142()
+# endif
   case('ascii')
     close(tecunit)
   end select
@@ -168,6 +178,7 @@ contains
     endif
     select case(data_%tec%format)
     case('binary')
+#   if defined(TECIO)
       ! header variables names
       tecvarname = 'x y z'
       if (.not.meshonly) then
@@ -187,6 +198,9 @@ contains
       endif
       ! null array
       tecnull = 0
+#   else
+    stop "You can not write in binary formato without compiling against TecIO"
+#   endif
     case('ascii')
       ! header variables names
       tecvarname = ' VARIABLES ="x" "y" "z"'
@@ -251,6 +265,7 @@ contains
     ! writing the block data
     select case(data_%tec%format)
     case('binary')
+#   if defined(TECIO)
       err = teczne142('Block'//trim(strz(nz_pad=2,n=b))//tecendrec, &
                       0,                                            &
                       ni2-ni1+1,                                    &
@@ -280,6 +295,7 @@ contains
           err=tec_dat(N=ncell,dat=data_%block(b)%vars(s,ci1:ci2,cj1:cj2,ck1:ck2))
         enddo
       endif
+#   endif
     case('ascii')
       ! tecplot zone header
       teczoneheader = ' ZONE  T = Block'//trim(strz(nz_pad=2,n=1))//        &
@@ -300,6 +316,7 @@ contains
     !-------------------------------------------------------------------------------------------------------------------------------
     endfunction tec_blk_data
 
+#   if defined(TECIO)
     ! Function interface for using "tecdat" function.
     function tec_dat(N,dat) result(err) 
       implicit none
@@ -308,6 +325,7 @@ contains
       integer :: err                  ! Error trapping flag: 0 no errors, >0 error occurs.
       err = tecdatd142(N,dat)
     endfunction tec_dat
+#   endif
 
   endfunction tec_output
 

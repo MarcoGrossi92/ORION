@@ -73,7 +73,7 @@ function build_project () {
   ./build.sh
   cd ../../
   cd build
-  cmake .. -DUSE_OPENMP=OFF -DCMAKE_BUILD_TYPE=RELEASE
+  cmake .. -DUSE_OPENMP=OFF -DCMAKE_BUILD_TYPE=RELEASE -DUSE_TECIO=ON
   make -j
 }
 
