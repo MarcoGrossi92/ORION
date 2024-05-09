@@ -38,9 +38,9 @@ contains
     nj1 = 0 ; nj2 = Ny
     nk1 = 0 ; nk2 = Nz
 
-    ci1 = 0 ; ci2 = Nx
-    cj1 = 0 ; cj2 = Ny
-    ck1 = 0 ; ck2 = Nz
+    ci1 = 1 ; ci2 = Nx
+    cj1 = 1 ; cj2 = Ny
+    ck1 = 1 ; ck2 = Nz
   else
     if (bc) then
       ni1 = 0 - gc ; ni2 = Nx + gc
@@ -67,7 +67,7 @@ contains
   !> @ingroup Lib_PostProcessingPublicProcedure
   !> @{
   !> Function for writing ORION block data to Tecplot file.
-  function tec_output(data_,varnames,time,filename) result(err)
+  function tec_write_structured_multiblock(data_,varnames,time,filename) result(err)
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
   type(orion_data), intent(in)              :: data_
@@ -251,6 +251,7 @@ contains
     integer:: nnode,ncell             ! Number of nodes and cells.
     integer:: i,j,k,s                 ! Counters.
     integer:: Nx, Ny, Nz
+    integer:: start
     !-------------------------------------------------------------------------------------------------------------------------------
 
     !-------------------------------------------------------------------------------------------------------------------------------
@@ -291,8 +292,10 @@ contains
       err=tec_dat(N=nnode,dat=data_%block(b)%mesh(2,ni1:ni2,nj1:nj2,nk1:nk2))
       err=tec_dat(N=nnode,dat=data_%block(b)%mesh(3,ni1:ni2,nj1:nj2,nk1:nk2))
       if (.not.meshonly) then
+        start = 1
+        if (data_%tec%node) start = 0
         do s=1,Nvar
-          err=tec_dat(N=ncell,dat=data_%block(b)%vars(s,ci1:ci2,cj1:cj2,ck1:ck2))
+          err=tec_dat(N=ncell,dat=data_%block(b)%vars(s,ni1+start:ni2,nj1+start:nj2,nk1+start:nk2))
         enddo
       endif
 #   endif
@@ -308,8 +311,10 @@ contains
       write(tecunit,FR_P,iostat=err)(((data_%block(b)%mesh(2,i,j,k),i=ni1,ni2),j=nj1,nj2),k=nk1,nk2)
       write(tecunit,FR_P,iostat=err)(((data_%block(b)%mesh(3,i,j,k),i=ni1,ni2),j=nj1,nj2),k=nk1,nk2)
       if (.not.meshonly) then
+        start = 1
+        if (data_%tec%node) start = 0
         do s=1,Nvar
-          write(tecunit,FR_P,iostat=err)(((data_%block(b)%vars(s,i,j,k),i=ci1,ci2),j=cj1,cj2),k=ck1,ck2)
+          write(tecunit,FR_P,iostat=err)(((data_%block(b)%vars(s,i,j,k),i=ni1+start,ni2),j=nj1+start,nj2),k=nk1+start,nk2)
         enddo
       endif
     end select
@@ -327,11 +332,11 @@ contains
     endfunction tec_dat
 #   endif
 
-  endfunction tec_output
+  endfunction tec_write_structured_multiblock
 
 
   !> Function for reading ORION block data from Tecplot file.
-  function tec_input(data_,filename) result(err)
+  function tec_read_structured_multiblock(data_,filename) result(err)
     use, intrinsic :: iso_fortran_env, only : iostat_end
     use strings, only: getvals, parse
     implicit none
@@ -340,7 +345,7 @@ contains
     character(len=*), intent(in)                 :: filename
     real(R8P) :: dummy_float
     logical :: meshonly
-    integer :: err
+    integer :: err, end
     integer :: tecunit, ios, ios_prev
     integer :: i, j, k, d, b
     integer :: Nblocks, nlines, nvar
@@ -428,8 +433,10 @@ contains
               read(tecunit,*) data_%block(b)%mesh(d,i,j,k)
         enddo; enddo; enddo
       enddo
+      end = 0
+      if (data_%tec%node) end = 1
       do d = 1, nvar
-        do k = 1, data_%block(b)%Nk; do j = 1, data_%block(b)%Nj; do i = 1, data_%block(b)%Ni
+        do k = 1, data_%block(b)%Nk+end; do j = 1, data_%block(b)%Nj+end; do i = 1, data_%block(b)%Ni+end
               read(tecunit,*) data_%block(b)%vars(d,i,j,k)
         enddo; enddo; enddo
       enddo
@@ -437,7 +444,7 @@ contains
 
     close(tecunit)
 
-  end function tec_input
+  end function tec_read_structured_multiblock
 
 
   subroutine skip(u,n)

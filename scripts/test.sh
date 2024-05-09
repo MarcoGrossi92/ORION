@@ -1,18 +1,22 @@
 #!/bin/bash
 
 cd $ORIONDIR/bin/test
-rm -f XML* *.dat *.plt
+rm -f XML* *.dat *.plt field*
 
 ulimit -s unlimited
 
 echo
 echo '--- VTK2TEC ---'
 ./vtk_fullpower -strgr
-$ORIONDIR/bin/app/vts2tec --out-format=ascii
+$ORIONDIR/bin/app/vts2tec --out-format=ascii --in-format=raw
 
 echo
-echo '--- VTK writing ---'
-./vtk_write
+echo '--- VTK writing (wrapper) ---'
+./vtk_write_wrapper
+
+echo
+echo '--- VTK reading (wrapper) ---'
+./vtk_read_wrapper
 
 echo
 echo '--- Tecplot writing ---'

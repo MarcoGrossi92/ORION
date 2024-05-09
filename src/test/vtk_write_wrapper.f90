@@ -1,6 +1,6 @@
   program vtk_write_multiblock
   USE IR_Precision
-  USE Lib_VTK, only: vtk_MBS_output
+  USE Lib_VTK, only: vtk_write_structured_multiblock
   use Lib_ORION_data
   USE, intrinsic:: ISO_FORTRAN_ENV, only: stdout=>OUTPUT_UNIT, stderr=>ERROR_UNIT
   !---------------------------------------------------------------------------------------------------------------------------------
@@ -46,6 +46,7 @@
   enddo
 
   varnames='var1 var2'
-  E_IO = vtk_MBS_output(orion=orion,path='field',varnames=varnames)
+  orion%vtk%format='raw'
+  E_IO = vtk_write_structured_multiblock(orion=orion,path='field',varnames=varnames)
 
   end program vtk_write_multiblock

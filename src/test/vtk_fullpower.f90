@@ -354,7 +354,7 @@ contains
   !> Procedure for testing StructuredGrid functions.
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
-  integer(I4P), parameter::                       nx1=0_I4P,nx2=9_I4P,ny1=0_I4P,ny2=5_I4P,nz1=0_I4P,nz2=5_I4P
+  integer(I4P), parameter::                       nx1=0_I4P,nx2=90_I4P,ny1=0_I4P,ny2=50_I4P,nz1=0_I4P,nz2=50_I4P
   integer(I4P), parameter::                       nn=(nx2-nx1+1)*(ny2-ny1+1)*(nz2-nz1+1)
   real(R8P), dimension(nx1:nx2,ny1:ny2,nz1:nz2):: x,y,z
   real(R8P), dimension(nx1:nx2,ny1:ny2,nz1:nz2):: v_R
@@ -375,7 +375,7 @@ contains
       enddo
     enddo
   enddo
-  E_IO = VTK_INI_XML(output_format='binary',filename='XML_STRG.vts',mesh_topology='StructuredGrid',&
+  E_IO = VTK_INI_XML(output_format='raw',filename='XML_STRG.vts',mesh_topology='StructuredGrid',&
                      nx1=nx1,nx2=nx2,ny1=ny1,ny2=ny2,nz1=nz1,nz2=nz2)
   E_IO = VTK_GEO_XML(nx1=nx1,nx2=nx2,ny1=ny1,ny2=ny2,nz1=nz1,nz2=nz2,NN=nn,X=x,Y=y,Z=z)
   E_IO = VTK_DAT_XML(var_location='node',var_block_action='open')
@@ -533,10 +533,10 @@ contains
 
   !---------------------------------------------------------------------------------------------------------------------------------
   call test_strg()
-  write(stdout,'(A)')' Testing StructuredGrid read functions. Input file is XML_RECT#.vtr'
+  write(stdout,'(A)')' Testing StructuredGrid read functions. Input file is XML_STRG.vts'
 
   ! binary
-  E_IO = VTK_INI_XML_READ(input_format='binary',filename='XML_STRG.vts',mesh_topology='StructuredGrid',&
+  E_IO = VTK_INI_XML_READ(input_format='raw',filename='XML_STRG.vts',mesh_topology='StructuredGrid',&
                      nx1=nx1,nx2=nx2,ny1=ny1,ny2=ny2,nz1=nz1,nz2=nz2)
   E_IO = VTK_GEO_XML_READ(nx1=nx1,nx2=nx2,ny1=ny1,ny2=ny2,nz1=nz1,nz2=nz2,NN=nn,X=x,Y=y,Z=z)
   E_IO = VTK_VAR_XML_READ(var_location='node', varname='scal_R8', NC_NN=nn, NCOMP=nc, var=v)

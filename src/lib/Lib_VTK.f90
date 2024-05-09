@@ -59,8 +59,8 @@ public:: VTK_DAT
 public:: VTK_VAR
 public:: VTK_END
 ! wrapper
-public:: vtk_MBS_input
-public:: vtk_MBS_output
+public:: vtk_read_structured_multiblock
+public:: vtk_write_structured_multiblock
 ! 
 public:: read_variables_name
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -777,7 +777,6 @@ contains
     inquire(unit=vtk(rf)%u, iostat=E_IO, pos=p)     
   end if
   read(unit=vtk(rf)%u, iostat=E_IO, pos=p) c
-  print*,'jo'
   do while (c /= end_rec)
 !write (*,'(A)',advance="no") c
 !    s_buffer(n:n) = c 
@@ -908,17 +907,19 @@ contains
   end function
 
 
-  subroutine read_variables_name(filename,varname)
+  subroutine read_variables_name(filename,varname,nodal)
   !---------------------------------------------------------------------------------------------------------------------------------
   !> look for and read variables name
   !---------------------------------------------------------------------------------------------------------------------------------
   character(*), intent(IN)                     :: filename   !> File name.
   character(256), allocatable, intent(OUT)     :: varname(:) !> String with the variables name
+  logical, intent(inout)                       :: nodal      !> Switch for variables position
   integer(I4P)                                 :: E_IO       !> Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done
   integer(I4P) :: unitfile, n
   integer(I4P) :: start_pos, end_pos
   character(256) :: line
   !---------------------------------------------------------------------------------------------------------------------------------
+  nodal = .true.
   open(newunit=unitfile,file=trim(filename),&
          access='SEQUENTIAL',action='READ',status='OLD',iostat=E_IO)
   E_IO = 0; n = 0
@@ -931,6 +932,7 @@ contains
   E_IO = 0; n = 0
   do while(E_IO==0)
     read(unitfile,'(A)',iostat=E_IO) line
+    if (index(line,'CellData')>0) nodal = .false.
     if (index(line,'Name')>0) then
       n = n + 1
       ! Find the position of the value after the keyword
@@ -6879,7 +6881,6 @@ contains
 
         select case(trim(vtk(rf)%topology))
           case('RectilinearGrid', 'StructuredGrid')
-          print*, trim(vtk(rf)%topology)
             ! Get WholeExtent
             E_IO = move(inside='VTKFile', to_find=trim(vtk(rf)%topology), cf=rf,buffer=s_buffer)
             call get_char(buffer=s_buffer, attrib='WholeExtent', val=aux, E_IO=E_IO)
@@ -6902,8 +6903,6 @@ contains
         enddo
 
     end select
-
-    print*,'qui'
 
   case('RAW')
     vtk(rf)%f = raw
@@ -6967,7 +6966,6 @@ contains
 
     end select
   end select
-  print*,'jj'
   if(present(npieces)) npieces = np
   end function VTK_INI_XML_READ
 
@@ -9061,8 +9059,8 @@ end function
         case('RectilinearGrid','StructuredGrid')
           call get_char(buffer=s_buffer, attrib='Extent', val=aux, E_IO=E_IO)
           if(E_IO == 0) then      
-            read(aux,*, iostat=E_IO) x1,x2,y1,y2,z1,z2   
-            NC_NN = (x2-x1+1)*(y2-y1+1)*(z2-z1+1)
+            read(aux,*, iostat=E_IO) x1,x2,y1,y2,z1,z2
+            NC_NN = (x2-x1)*(y2-y1)*(z2-z1)
             if(present(nx1)) nx1=x1; if(present(nx2)) nx2=x2
             if(present(ny1)) ny1=y1; if(present(ny2)) ny2=y2
             if(present(nz1)) nz1=z1; if(present(nz2)) nz2=z2
@@ -12899,7 +12897,7 @@ end function
   end function PVTK_END_XML_READ
 
 
-  function vtk_MBS_output(path,orion,varnames,time) result(E_IO)
+  function vtk_write_structured_multiblock(path,orion,varnames,time) result(E_IO)
   !---------------------------------------------------------------------------------------------------------------------------------
   !> Function to write multi-block structured data in a VTS folder
   !---------------------------------------------------------------------------------------------------------------------------------
@@ -12965,11 +12963,11 @@ end function
   E_IO = VTM_BLK_XML(block_action='close')
   E_IO = VTM_END_XML()
   !---------------------------------------------------------------------------------------------------------------------------------
-  end function vtk_MBS_output
+  end function vtk_write_structured_multiblock
 
 
 
-  function vtk_MBS_input(path,orion,time) result(err)
+  function vtk_read_structured_multiblock(path,orion,time) result(err)
   !---------------------------------------------------------------------------------------------------------------------------------
   !> Function to read multi-block structured data from a VTS folder
   !---------------------------------------------------------------------------------------------------------------------------------
@@ -12982,7 +12980,7 @@ end function
   integer(I4P)                      :: b, s, i, j, k
   integer(I4P)                      :: Nblocks,nn,nu,nc,n
   integer(I4P)                      :: nx1, nx2, ny1, ny2, nz1, nz2
-  integer(I4P)                      :: err 
+  integer(I4P)                      :: err, start
   logical                           :: meshonly
   character(256), allocatable       :: varnames(:)
   character(256)                    :: line
@@ -12991,7 +12989,7 @@ end function
   !---------------------------------------------------------------------------------------------------------------------------------
 
   !---------------------------------------------------------------------------------------------------------------------------------
-  ! Preliminary operations
+  !% Preliminary operations
   open(newunit=nu,file=trim(path)//'.vtm',action='read')
   do
     read(nu,'(A)') line
@@ -13006,21 +13004,24 @@ end function
     cycle
   enddo
   allocate(orion%block(1:Nblocks))
-  call read_variables_name(trim(path)//'1.vts',varnames)
-  print*, Nblocks
+  call read_variables_name(trim(path)//'1.vts',varnames,orion%vtk%node)
 
   ! Read VTS file
   do b = 1, Nblocks
-  print*,b, trim(path)//trim(str(.true.,b))//'.vts'
     ! Geometry
     err = VTK_INI_XML_READ(input_format=trim(orion%vtk%format),filename=trim(path)//trim(str(.true.,b))//'.vts', &
                             mesh_topology='StructuredGrid',&
                             nx1=nx1,nx2=nx2,ny1=ny1,ny2=ny2,nz1=nz1,nz2=nz2)
-                            print*,err
     err = VTK_GEO_XML_READ(nx1=nx1,nx2=nx2,ny1=ny1,ny2=ny2,nz1=nz1,nz2=nz2,NN=nn,X=x,Y=y,Z=z)
+    if (orion%vtk%node) then
+      start = 0
+      orion%block(b)%Ni = nx2+1; orion%block(b)%Nj = ny2+1; orion%block(b)%Nk = nz2+1
+    else
+      start = 1
+      orion%block(b)%Ni = nx2; orion%block(b)%Nj = ny2; orion%block(b)%Nk = nz2
+    endif
     allocate(orion%block(b)%mesh(1:3,nx1:nx2,ny1:ny2,nz1:nz2))
     n = 0
-    print*,nx1,nx2,ny1,ny2,nz1,nz2
     do k = nz1, nz2; do j = ny1, ny2; do i = nx1, nx2
           n = n + 1
           orion%block(b)%mesh(1,i,j,k) = x(n)
@@ -13028,18 +13029,16 @@ end function
           orion%block(b)%mesh(3,i,j,k) = z(n)
     enddo; enddo; enddo
     ! Variables field
-    allocate(orion%block(b)%vars(1:size(varnames)-1,nx1:nx2,ny1:ny2,nz1:nz2))
+    allocate(orion%block(b)%vars(1:size(varnames)-1,nx1+start:nx2,ny1+start:ny2,nz1+start:nz2))
     do s = 1, size(varnames)-1
       if (allocated(v)) deallocate(v)
-      err = VTK_VAR_XML_READ(var_location='cell', varname=trim(varnames(s+1)), NC_NN=nn, NCOMP=nc, var=v)
-      if (err/=0) then
+      if (orion%vtk%node) then
         err = VTK_VAR_XML_READ(var_location='node', varname=trim(varnames(s+1)), NC_NN=nn, NCOMP=nc, var=v)
-        if (err==0) then
-          orion%vtk%node = .true.
-        endif
+      else
+        err = VTK_VAR_XML_READ(var_location='cell', varname=trim(varnames(s+1)), NC_NN=nn, NCOMP=nc, var=v)    
       endif
       n = 0
-      do k = nz1+1, nz2; do j = ny1+1, ny2; do i = nx1+1, nx2
+      do k = nz1+start, nz2; do j = ny1+start, ny2; do i = nx1+start, nx2
             n = n + 1
             orion%block(b)%vars(s,i,j,k) = v(n)
       enddo; enddo; enddo
@@ -13047,7 +13046,7 @@ end function
   enddo
   err = VTK_END_XML_READ()
 
-  end function vtk_MBS_input
+  end function vtk_read_structured_multiblock
 
 
 endmodule Lib_VTK

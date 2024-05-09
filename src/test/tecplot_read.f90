@@ -10,12 +10,12 @@ program tecplot_read_multiblock
   data%tec%bc = .false.
 
   data%tec%format = 'ascii'
-  error = tec_input(data_=data,filename='solfile.dat')
+  error = tec_read_structured_multiblock(data_=data,filename='solfile.dat')
   nb = size(data%block)
 
   write(*,*) 'Blocks number = ', nb
   do i = 1, nb
-    write(*,*) 'Block size   = ', data%block(i)%Ni, data%block(i)%Nj, data%block(i)%Nk
+    write(*,*) 'Block size    = ', data%block(i)%Ni, data%block(i)%Nj, data%block(i)%Nk
   enddo
 
 end program tecplot_read_multiblock

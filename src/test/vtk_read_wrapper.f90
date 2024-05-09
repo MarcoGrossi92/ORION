@@ -1,18 +1,22 @@
   program vtk_read_multiblock
   USE IR_Precision
-  USE Lib_VTK, only: vtk_MBS_input
+  USE Lib_VTK, only: vtk_read_structured_multiblock
   use Lib_ORION_data
-  USE, intrinsic:: ISO_FORTRAN_ENV, only: stdout=>OUTPUT_UNIT, stderr=>ERROR_UNIT
   !---------------------------------------------------------------------------------------------------------------------------------
   !> Procedure for testing multi-blocks reading.
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
   type(orion_data):: orion
-  integer(I4P):: E_IO
+  integer(I4P):: E_IO, i
   !---------------------------------------------------------------------------------------------------------------------------------
 
   !---------------------------------------------------------------------------------------------------------------------------------
-  orion%vtk%format='binary'
-  E_IO = vtk_MBS_input(orion=orion,path='field')
+  orion%vtk%format='raw'
+  E_IO = vtk_read_structured_multiblock(orion=orion,path='field')
+
+  write(*,*) 'Blocks number = ', size(orion%block)
+  do i = 1, size(orion%block)
+    write(*,*) 'Block size    = ', orion%block(i)%Ni, orion%block(i)%Nj, orion%block(i)%Nk
+  enddo
 
   end program vtk_read_multiblock

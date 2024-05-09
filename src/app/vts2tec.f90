@@ -12,7 +12,7 @@ program vts2tec
   character(256), allocatable     :: file(:)
   character(256), allocatable     :: varnames(:), varname_scalar
   integer(I4P)                    :: Nblocks,nx1,nx2,ny1,ny2,nz1,nz2,nn,nc
-  integer(I4P)                    :: b, i, j, k, n, p, err
+  integer(I4P)                    :: b, i, j, k, n, p, err, start
 
   data%tec%format = 'binary'
   data%vtk%format = 'binary'
@@ -40,7 +40,7 @@ program vts2tec
   ! Read VTS file
   do b = 1, Nblocks
     
-    call read_variables_name(file(b),varnames)
+    call read_variables_name(file(b),varnames,data%tec%node)
     ! Geometry
     err = VTK_INI_XML_READ(input_format=trim(data%vtk%format),filename=trim(file(b)),mesh_topology='StructuredGrid',&
                             nx1=nx1,nx2=nx2,ny1=ny1,ny2=ny2,nz1=nz1,nz2=nz2)
@@ -54,21 +54,20 @@ program vts2tec
           data%block(b)%mesh(3,i,j,k) = z(n)
     enddo; enddo; enddo
     ! Variables field
-    allocate(data%block(b)%vars(1:size(varnames)-1,nx1:nx2,ny1:ny2,nz1:nz2))
     do p = 1, size(varnames)-1
       if (allocated(v)) deallocate(v)
-      err = VTK_VAR_XML_READ(var_location='cell', varname=trim(varnames(p+1)), NC_NN=nn, NCOMP=nc, var=v)
-      if (err==0) then
-        write(*,'(A)') ' - Data location : cell centers'
-      else
+      if (data%tec%node) then
         err = VTK_VAR_XML_READ(var_location='node', varname=trim(varnames(p+1)), NC_NN=nn, NCOMP=nc, var=v)
-        if (err==0) then
-          write(*,'(A)') ' - Data location : cell nodes'
-          data%tec%node = .true.
-        endif
+        write(*,'(A)') ' - Data location : cell nodes'
+        start = 0
+      else
+        err = VTK_VAR_XML_READ(var_location='cell', varname=trim(varnames(p+1)), NC_NN=nn, NCOMP=nc, var=v)
+        write(*,'(A)') ' - Data location : cell centers'
+        start = 1
       endif
+      allocate(data%block(b)%vars(1:size(varnames)-1,nx1+start:nx2,ny1+start:ny2,nz1+start:nz2))
       n = 0
-      do k = nz1+1, nz2; do j = ny1+1, ny2; do i = nx1+1, nx2
+      do k = nz1+start, nz2; do j = ny1+start, ny2; do i = nx1+start, nx2
             n = n + 1
             data%block(b)%vars(p,i,j,k) = v(n)
       enddo; enddo; enddo
@@ -81,7 +80,7 @@ program vts2tec
   do p = 2, size(varnames)
     varname_scalar = trim(varname_scalar)//' '//trim(varnames(p))
   enddo
-  err = tec_output(data_=data,varnames=varname_scalar,filename='tecfile')
+  err = tec_write_structured_multiblock(data_=data,varnames=varname_scalar,filename='tecfile')
   if (err/=0) write(*,'(A)') 'Error during writing of tecplot file'
 
   write(*,*)
