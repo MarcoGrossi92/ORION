@@ -12897,7 +12897,7 @@ end function
   end function PVTK_END_XML_READ
 
 
-  function vtk_write_structured_multiblock(path,orion,varnames,time) result(E_IO)
+  function vtk_write_structured_multiblock(vtspath,vtmpath,orion,varnames,time) result(E_IO)
   !---------------------------------------------------------------------------------------------------------------------------------
   !> Function to write multi-block structured data in a VTS folder
   !---------------------------------------------------------------------------------------------------------------------------------
@@ -12906,7 +12906,7 @@ end function
   implicit none
   type(orion_data), intent(inout)   :: orion
   character(len=*), intent(inout)   :: varnames
-  character(len=*), intent(in)      :: path
+  character(len=*), intent(in)      :: vtspath, vtmpath
   real(R8P), intent(in), optional   :: time
   integer(I4P)                      :: mf(99), b, s
   integer(I4P)                      :: nb,nn,nnvar,Nvar
@@ -12933,7 +12933,7 @@ end function
     associate (nx2 => orion%block(b)%Ni, ny2 => orion%block(b)%Nj, nz2 => orion%block(b)%Nk)
     nn=(nx2+1)*(ny2+1)*(nz2+1)
     nnvar=(nx2)*(ny2)*(nz2)
-    E_IO = VTK_INI_XML(cf=mf(b),output_format=orion%vtk%format, filename=trim(path)//trim(str(.true.,b))//'.vts', &
+    E_IO = VTK_INI_XML(cf=mf(b),output_format=orion%vtk%format, filename=trim(vtspath)//trim(str(.true.,b))//'.vts', &
                        mesh_topology='StructuredGrid', nx1=0, nx2=nx2, ny1=0, ny2=ny2, nz1=0, nz2=nz2)
     if (present(time)) then
       E_IO = VTK_FLD_XML(fld_action='open')
@@ -12957,9 +12957,9 @@ end function
     endassociate
   enddo
 
-  E_IO = VTM_INI_XML(trim(path)//'.vtm')
+  E_IO = VTM_INI_XML(trim(vtmpath)//'.vtm')
   E_IO = VTM_BLK_XML(block_action='open')
-  E_IO = VTM_WRF_XML(flist=[(trim(path)//trim(str(.true.,b))//'.vts',b=1,nb)])
+  E_IO = VTM_WRF_XML(flist=[(trim(vtspath)//trim(str(.true.,b))//'.vts',b=1,nb)])
   E_IO = VTM_BLK_XML(block_action='close')
   E_IO = VTM_END_XML()
   !---------------------------------------------------------------------------------------------------------------------------------

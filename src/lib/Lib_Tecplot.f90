@@ -255,7 +255,7 @@ contains
     !-------------------------------------------------------------------------------------------------------------------------------
 
     !-------------------------------------------------------------------------------------------------------------------------------
-    Nx = size(data_%block(b)%vars,2)-1; Ny = size(data_%block(b)%vars,3)-1; Nz = size(data_%block(b)%vars,4)-1
+    Nx = size(data_%block(b)%vars,2); Ny = size(data_%block(b)%vars,3); Nz = size(data_%block(b)%vars,4)
     ! initialize the zone dimensions
     call compute_dimensions(node=data_%tec%node,bc=data_%tec%bc,             &
                             Nx=Nx,Ny=Ny,Nz=Nz,gc=gc,                         &
@@ -425,19 +425,19 @@ contains
 
     ! Read all
     do b = 1, Nblocks
-      allocate(data_%block(b)%mesh(1:3,1:data_%block(b)%Ni+1,1:data_%block(b)%Nj+1,1:data_%block(b)%Nk+1))
+      allocate(data_%block(b)%mesh(1:3,0:data_%block(b)%Ni,0:data_%block(b)%Nj,0:data_%block(b)%Nk))
       if (.not.meshonly) allocate(data_%block(b)%vars(1:nvar,1:data_%block(b)%Ni,1:data_%block(b)%Nj,1:data_%block(b)%Nk))
       call skip(tecunit,nskip(b))
       do d = 1, 3
-        do k = 1, data_%block(b)%Nk+1; do j = 1, data_%block(b)%Nj+1; do i = 1, data_%block(b)%Ni+1
-              read(tecunit,*) data_%block(b)%mesh(d,i,j,k)
+        do k = 0, data_%block(b)%Nk; do j = 0, data_%block(b)%Nj; do i = 0, data_%block(b)%Ni
+              read(tecunit,*,iostat=err) data_%block(b)%mesh(d,i,j,k)
         enddo; enddo; enddo
       enddo
       end = 0
       if (data_%tec%node) end = 1
       do d = 1, nvar
         do k = 1, data_%block(b)%Nk+end; do j = 1, data_%block(b)%Nj+end; do i = 1, data_%block(b)%Ni+end
-              read(tecunit,*) data_%block(b)%vars(d,i,j,k)
+              read(tecunit,*,iostat=err) data_%block(b)%vars(d,i,j,k)
         enddo; enddo; enddo
       enddo
     enddo
