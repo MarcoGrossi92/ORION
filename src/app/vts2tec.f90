@@ -31,8 +31,8 @@ program vts2tec
   end do
 
   write(*,*)
-  write(*,'(2A)')' - Input format  : ',trim(data%tec%format)
-  write(*,'(2A)')' - Output format : ',trim(data%vtk%format)
+  write(*,'(2A)')' - Input format  : ',trim(data%vtk%format)
+  write(*,'(2A)')' - Output format : ',trim(data%tec%format)
   write(*,*)
 
   allocate(data%block(1:Nblocks))
@@ -80,7 +80,7 @@ program vts2tec
   do p = 2, size(varnames)
     varname_scalar = trim(varname_scalar)//' '//trim(varnames(p))
   enddo
-  err = tec_write_structured_multiblock(data_=data,varnames=varname_scalar,filename='tecfile')
+  err = tec_write_structured_multiblock(data_=data,varnames=varname_scalar,filename='vts2tec')
   if (err/=0) write(*,'(A)') 'Error during writing of tecplot file'
 
   write(*,*)

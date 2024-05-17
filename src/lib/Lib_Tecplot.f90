@@ -255,7 +255,7 @@ contains
     !-------------------------------------------------------------------------------------------------------------------------------
 
     !-------------------------------------------------------------------------------------------------------------------------------
-    Nx = size(data_%block(b)%vars,2); Ny = size(data_%block(b)%vars,3); Nz = size(data_%block(b)%vars,4)
+    Nx = size(data_%block(b)%mesh,2)-1; Ny = size(data_%block(b)%mesh,3)-1; Nz = size(data_%block(b)%mesh,4)-1
     ! initialize the zone dimensions
     call compute_dimensions(node=data_%tec%node,bc=data_%tec%bc,             &
                             Nx=Nx,Ny=Ny,Nz=Nz,gc=gc,                         &

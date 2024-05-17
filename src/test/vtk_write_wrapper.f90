@@ -47,6 +47,6 @@
 
   varnames='var1 var2'
   orion%vtk%format='raw'
-  E_IO = vtk_write_structured_multiblock(orion=orion,vtspath='field',vtkpath='field',varnames=varnames)
+  E_IO = vtk_write_structured_multiblock(orion=orion,vtspath='field',vtmpath='field',varnames=varnames)
 
   end program vtk_write_multiblock
