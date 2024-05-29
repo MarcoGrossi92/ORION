@@ -67,13 +67,14 @@ contains
   !> @ingroup Lib_PostProcessingPublicProcedure
   !> @{
   !> Function for writing ORION block data to Tecplot file.
-  function tec_write_structured_multiblock(data_,varnames,time,filename) result(err)
+  function tec_write_structured_multiblock(orion,varnames,time,filename,Nvars) result(err)
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
-  type(orion_data), intent(in)              :: data_
+  type(orion_data), intent(in)              :: orion
   character(len=*), intent(in), optional    :: varnames
   real(R8P), intent(in), optional           :: time
-  character(len=*), intent(in)              :: filename            !< File name of the output file.
+  character(len=*), intent(in)              :: filename !< File name of the output file.
+  integer, intent(in), optional             :: Nvars    !< Input number of variables saved.
   logical :: meshonly
   integer :: err
 # if defined(TECIO)
@@ -91,7 +92,7 @@ contains
   character(500)::          tecvarlocstr        !< Tecplot string of variables location.
   integer, allocatable::    tecnull(:)          !< Tecplot null array.
   integer::                 tecunit             !< Free logic unit of tecplot file.
-  integer::                 Nvar                !< Number of variables saved.
+  integer::                 Nvar                !< Internal number of variables saved.
   integer::                 Nblocks             !< Number of blocks.
   integer::                 b                   !< Counter.
   integer::                 NvarTot
@@ -101,13 +102,17 @@ contains
 
   !---------------------------------------------------------------------------------------------------------------------------------
   ! Preliminary operations
-  Nvar = 0
-  meshonly = .true.
-  if (allocated(data_%block(1)%vars)) then
+  if (allocated(orion%block(1)%vars) .and. .not.present(Nvars)) then
     meshonly = .false.
-    Nvar = size(data_%block(1)%vars,1)
+    Nvar = size(orion%block(1)%vars,1)
+  elseif (allocated(orion%block(1)%vars) .and. present(Nvars)) then
+    meshonly = .false.
+    Nvar = Nvars
+  elseif (.not.allocated(orion%block(1)%vars)) then
+    meshonly = .true.
+    Nvar = 0
   endif
-  Nblocks = size(data_%block)
+  Nblocks = size(orion%block)
   gc = 1
   ! allocating dynamic arrays
   allocate(tecvarloc(1:3+Nvar))
@@ -121,7 +126,7 @@ contains
     time_ = 0._R8P
   endif
   ! initializing tecplot file
-  select case(data_%tec%format)
+  select case(orion%tec%format)
   case('binary')
 # if defined(TECIO)
     if (filename(len_trim(filename)-4:len_trim(filename))/=".plt") then
@@ -146,7 +151,7 @@ contains
     err = tec_blk_data(b = b)
   enddo
   ! finalizing tecplot file
-  select case(data_%tec%format)
+  select case(orion%tec%format)
   case('binary')
 # if defined(TECIO)
     err = tecend142()
@@ -176,7 +181,7 @@ contains
     else
       NvarTot = 3
     endif
-    select case(data_%tec%format)
+    select case(orion%tec%format)
     case('binary')
 #   if defined(TECIO)
       ! header variables names
@@ -191,7 +196,7 @@ contains
         endif
       endif
       ! variables location
-      if (data_%tec%node) then
+      if (orion%tec%node) then
         tecvarloc = 1
       else
         tecvarloc(1:3) = 1 ; tecvarloc(4:3+Nvar)= 0
@@ -221,7 +226,7 @@ contains
       endif
       ! variables location
       if (.not.meshonly) then
-        if (data_%tec%node) then
+        if (orion%tec%node) then
           tecvarlocstr = ', VARLOCATION=([1-'//trim(str(.true.,NvarTot))//']=NODAL)'
         else
           if (NvarTot==4) then
@@ -255,16 +260,16 @@ contains
     !-------------------------------------------------------------------------------------------------------------------------------
 
     !-------------------------------------------------------------------------------------------------------------------------------
-    Nx = size(data_%block(b)%mesh,2)-1; Ny = size(data_%block(b)%mesh,3)-1; Nz = size(data_%block(b)%mesh,4)-1
+    Nx = size(orion%block(b)%mesh,2)-1; Ny = size(orion%block(b)%mesh,3)-1; Nz = size(orion%block(b)%mesh,4)-1
     ! initialize the zone dimensions
-    call compute_dimensions(node=data_%tec%node,bc=data_%tec%bc,             &
+    call compute_dimensions(node=orion%tec%node,bc=orion%tec%bc,             &
                             Nx=Nx,Ny=Ny,Nz=Nz,gc=gc,                         &
                             ni1=ni1,ni2=ni2,nj1=nj1,nj2=nj2,nk1=nk1,nk2=nk2, &
                             ci1=ci1,ci2=ci2,cj1=cj1,cj2=cj2,ck1=ck1,ck2=ck2)
     nnode = (ni2-ni1+1)*(nj2-nj1+1)*(nk2-nk1+1)
     ncell = (ci2-ci1+1)*(cj2-cj1+1)*(ck2-ck1+1)
     ! writing the block data
-    select case(data_%tec%format)
+    select case(orion%tec%format)
     case('binary')
 #   if defined(TECIO)
       err = teczne142('Block'//trim(strz(nz_pad=2,n=b))//tecendrec, &
@@ -288,14 +293,14 @@ contains
                       tecvarloc(1:nvar),                            &
                       tecnull(1:nvar),                              &
                       0)
-      err=tec_dat(N=nnode,dat=data_%block(b)%mesh(1,ni1:ni2,nj1:nj2,nk1:nk2))
-      err=tec_dat(N=nnode,dat=data_%block(b)%mesh(2,ni1:ni2,nj1:nj2,nk1:nk2))
-      err=tec_dat(N=nnode,dat=data_%block(b)%mesh(3,ni1:ni2,nj1:nj2,nk1:nk2))
+      err=tec_dat(N=nnode,dat=orion%block(b)%mesh(1,ni1:ni2,nj1:nj2,nk1:nk2))
+      err=tec_dat(N=nnode,dat=orion%block(b)%mesh(2,ni1:ni2,nj1:nj2,nk1:nk2))
+      err=tec_dat(N=nnode,dat=orion%block(b)%mesh(3,ni1:ni2,nj1:nj2,nk1:nk2))
       if (.not.meshonly) then
         start = 1
-        if (data_%tec%node) start = 0
+        if (orion%tec%node) start = 0
         do s=1,Nvar
-          err=tec_dat(N=ncell,dat=data_%block(b)%vars(s,ni1+start:ni2,nj1+start:nj2,nk1+start:nk2))
+          err=tec_dat(N=ncell,dat=orion%block(b)%vars(s,ni1+start:ni2,nj1+start:nj2,nk1+start:nk2))
         enddo
       endif
 #   endif
@@ -307,14 +312,14 @@ contains
                       ', K='//trim(str(no_sign=.true.,n=nk2-nk1+1))//       &
                       ', DATAPACKING=BLOCK'//adjustl(trim(tecvarlocstr))
       write(tecunit,'(A)',iostat=err)trim(teczoneheader)
-      write(tecunit,FR_P,iostat=err)(((data_%block(b)%mesh(1,i,j,k),i=ni1,ni2),j=nj1,nj2),k=nk1,nk2)
-      write(tecunit,FR_P,iostat=err)(((data_%block(b)%mesh(2,i,j,k),i=ni1,ni2),j=nj1,nj2),k=nk1,nk2)
-      write(tecunit,FR_P,iostat=err)(((data_%block(b)%mesh(3,i,j,k),i=ni1,ni2),j=nj1,nj2),k=nk1,nk2)
+      write(tecunit,FR_P,iostat=err)(((orion%block(b)%mesh(1,i,j,k),i=ni1,ni2),j=nj1,nj2),k=nk1,nk2)
+      write(tecunit,FR_P,iostat=err)(((orion%block(b)%mesh(2,i,j,k),i=ni1,ni2),j=nj1,nj2),k=nk1,nk2)
+      write(tecunit,FR_P,iostat=err)(((orion%block(b)%mesh(3,i,j,k),i=ni1,ni2),j=nj1,nj2),k=nk1,nk2)
       if (.not.meshonly) then
         start = 1
-        if (data_%tec%node) start = 0
+        if (orion%tec%node) start = 0
         do s=1,Nvar
-          write(tecunit,FR_P,iostat=err)(((data_%block(b)%vars(s,i,j,k),i=ni1+start,ni2),j=nj1+start,nj2),k=nk1+start,nk2)
+          write(tecunit,FR_P,iostat=err)(((orion%block(b)%vars(s,i,j,k),i=ni1+start,ni2),j=nj1+start,nj2),k=nk1+start,nk2)
         enddo
       endif
     end select
@@ -336,11 +341,11 @@ contains
 
 
   !> Function for reading ORION block data from Tecplot file.
-  function tec_read_structured_multiblock(data_,filename) result(err)
+  function tec_read_structured_multiblock(orion,filename) result(err)
     use, intrinsic :: iso_fortran_env, only : iostat_end
     use strings, only: getvals, parse
     implicit none
-    type(orion_data), intent(inout)              :: data_
+    type(orion_data), intent(inout)              :: orion
     !character(len=*), intent(inout), optional    :: varnames
     character(len=*), intent(in)                 :: filename
     real(R8P) :: dummy_float
@@ -366,7 +371,7 @@ contains
       if (index(line,"ZONE")>0 .and. index(line,"ZONETYPE")==0) Nblocks = Nblocks+1
       if (index(line,"Zone")>0) Nblocks = Nblocks+1
     enddo
-    allocate(data_%block(1:Nblocks))
+    allocate(orion%block(1:Nblocks))
     rewind(tecunit)
 
     ! Read blocks size
@@ -381,18 +386,18 @@ contains
       do i = 1, 6!size(args)
         if (index(args(i),'I=')>0) then
           call parse(args(i),'=',subargs)
-          read(subargs(2),'(I4)') data_%block(b)%Ni
-          data_%block(b)%Ni = data_%block(b)%Ni-1
+          read(subargs(2),'(I4)') orion%block(b)%Ni
+          orion%block(b)%Ni = orion%block(b)%Ni-1
         endif
         if (index(args(i),'J=')>0) then
           call parse(args(i),'=',subargs)
-          read(subargs(2),'(I4)') data_%block(b)%Nj
-          data_%block(b)%Nj = data_%block(b)%Nj-1
+          read(subargs(2),'(I4)') orion%block(b)%Nj
+          orion%block(b)%Nj = orion%block(b)%Nj-1
         endif
         if (index(args(i),'K=')>0) then
           call parse(args(i),'=',subargs)
-          read(subargs(2),'(I4)') data_%block(b)%Nk
-          data_%block(b)%Nk = data_%block(b)%Nk-1
+          read(subargs(2),'(I4)') orion%block(b)%Nk
+          orion%block(b)%Nk = orion%block(b)%Nk-1
         endif
       enddo
       line = 'here we go'
@@ -418,26 +423,26 @@ contains
     ! Count variables
     Nvar = nlines-sum(nskip)
     do b = 1, Nblocks
-      nvar = nvar-3*((data_%block(b)%Ni+1)*(data_%block(b)%Nj+1)*(data_%block(b)%Nk+1))
+      nvar = nvar-3*((orion%block(b)%Ni+1)*(orion%block(b)%Nj+1)*(orion%block(b)%Nk+1))
     enddo
-    nvar = nvar/(sum(data_%block(:)%Ni*data_%block(:)%Nj*data_%block(:)%Nk))
+    nvar = nvar/(sum(orion%block(:)%Ni*orion%block(:)%Nj*orion%block(:)%Nk))
     if (nvar==0) meshonly = .true.
 
     ! Read all
     do b = 1, Nblocks
-      allocate(data_%block(b)%mesh(1:3,0:data_%block(b)%Ni,0:data_%block(b)%Nj,0:data_%block(b)%Nk))
-      if (.not.meshonly) allocate(data_%block(b)%vars(1:nvar,1:data_%block(b)%Ni,1:data_%block(b)%Nj,1:data_%block(b)%Nk))
+      allocate(orion%block(b)%mesh(1:3,0:orion%block(b)%Ni,0:orion%block(b)%Nj,0:orion%block(b)%Nk))
+      if (.not.meshonly) allocate(orion%block(b)%vars(1:nvar,1:orion%block(b)%Ni,1:orion%block(b)%Nj,1:orion%block(b)%Nk))
       call skip(tecunit,nskip(b))
       do d = 1, 3
-        do k = 0, data_%block(b)%Nk; do j = 0, data_%block(b)%Nj; do i = 0, data_%block(b)%Ni
-              read(tecunit,*,iostat=err) data_%block(b)%mesh(d,i,j,k)
+        do k = 0, orion%block(b)%Nk; do j = 0, orion%block(b)%Nj; do i = 0, orion%block(b)%Ni
+              read(tecunit,*,iostat=err) orion%block(b)%mesh(d,i,j,k)
         enddo; enddo; enddo
       enddo
       end = 0
-      if (data_%tec%node) end = 1
+      if (orion%tec%node) end = 1
       do d = 1, nvar
-        do k = 1, data_%block(b)%Nk+end; do j = 1, data_%block(b)%Nj+end; do i = 1, data_%block(b)%Ni+end
-              read(tecunit,*,iostat=err) data_%block(b)%vars(d,i,j,k)
+        do k = 1, orion%block(b)%Nk+end; do j = 1, orion%block(b)%Nj+end; do i = 1, orion%block(b)%Ni+end
+              read(tecunit,*,iostat=err) orion%block(b)%vars(d,i,j,k)
         enddo; enddo; enddo
       enddo
     enddo
