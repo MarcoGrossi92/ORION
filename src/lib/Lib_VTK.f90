@@ -12981,7 +12981,6 @@ end function
   integer(I4P)                      :: Nblocks,nn,nu,nc,n
   integer(I4P)                      :: nx1, nx2, ny1, ny2, nz1, nz2
   integer(I4P)                      :: err, start
-  logical                           :: meshonly
   character(256), allocatable       :: varnames(:)
   character(256)                    :: line
   real(R8P), allocatable            :: x(:),y(:),z(:) ! Input geo arrays
@@ -13012,6 +13011,11 @@ end function
     err = VTK_INI_XML_READ(input_format=trim(orion%vtk%format),filename=trim(path)//trim(str(.true.,b))//'.vts', &
                             mesh_topology='StructuredGrid',&
                             nx1=nx1,nx2=nx2,ny1=ny1,ny2=ny2,nz1=nz1,nz2=nz2)
+    if (present(time)) then
+      err = VTK_FLD_XML(fld_action='open')
+      err = VTK_FLD_XML(fld=time,fname='TIME')
+      err = VTK_FLD_XML(fld_action='close')
+    endif
     err = VTK_GEO_XML_READ(nx1=nx1,nx2=nx2,ny1=ny1,ny2=ny2,nz1=nz1,nz2=nz2,NN=nn,X=x,Y=y,Z=z)
     if (orion%vtk%node) then
       start = 0

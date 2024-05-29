@@ -134,7 +134,7 @@ contains
     stop "You can not write in binary formato without compiling against TecIO"
 # endif
   case('ascii')
-    if (filename(len_trim(filename)-4:len_trim(filename)-3)/=".") then
+    if (index(filename,'.')==0) then
       open(newunit=tecunit,file=trim(filename)//".dat")
     else
       open(newunit=tecunit,file=trim(filename))
