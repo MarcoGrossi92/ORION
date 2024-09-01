@@ -43,12 +43,12 @@ include(GNUInstallDirs)
 set(CMAKE_Fortran_MODULE_DIRECTORY "${CMAKE_BINARY_DIR}/modules")
 
 # Build library
-add_subdirectory(src/lib)
+add_subdirectory(src/fortran/lib)
 
 # Build tests and applications (only if ORION build has not been called by another program)
 if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
     message("-- Full build allowed")
-    add_subdirectory(src/test)
-    add_subdirectory(src/app)
+    add_subdirectory(src/fortran/test)
+    add_subdirectory(src/fortran/app)
 endif()
 
