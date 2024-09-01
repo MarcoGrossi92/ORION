@@ -6,8 +6,8 @@ endif ()
 
 # For Apple machiness add here the correct path to C/C++ compilers
 if(UNIX AND APPLE)
-  set(CMAKE_CXX_COMPILER "/opt/homebrew/bin/g++-13")
-  set(CMAKE_C_COMPILER "/opt/homebrew/bin/gcc-13")
+  set(CMAKE_CXX_COMPILER "/opt/homebrew/bin/g++-14")
+  set(CMAKE_C_COMPILER "/opt/homebrew/bin/gcc-14")
 endif()
 
 project (tecio C CXX Fortran)
