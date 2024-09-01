@@ -13,9 +13,6 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v3
 
-      - name: Make the script executable
-        run: chmod +x ./script/version_bump.sh
-
       - name: Determine the version bump type
         id: get_bump_type
         run: |
