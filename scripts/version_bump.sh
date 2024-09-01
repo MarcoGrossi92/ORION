@@ -55,14 +55,14 @@ echo "New version: $new_version"
 echo $new_version > $VERSION_FILE
 
 # Commit the version change
-# git add $VERSION_FILE
-# git commit -m "Bump version to $new_version"
+git add $VERSION_FILE
+git commit -m "Bump version to $new_version"
 
-# # Create a new Git tag
-# git tag "v$new_version"
+# Create a new Git tag
+git tag "v$new_version"
 
-# # Push the changes and the new tag
-# git push origin main
-# git push origin "v$new_version"
+# Push the changes and the new tag
+git push origin main
+git push origin "v$new_version"
 
 echo "Version bumped to $new_version and pushed with tag v$new_version"
