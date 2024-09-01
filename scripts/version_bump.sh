@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Set the file containing the version
-VERSION_FILE="version.txt"
+VERSION_FILE="script/version.txt"
 
 # Function to increment version numbers
 increment_version() {
