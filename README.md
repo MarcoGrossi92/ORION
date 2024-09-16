@@ -21,10 +21,10 @@ For example, a version number of `1.2.3` indicates:
 
 ### How Versioning is Managed
 
-Version numbers are automatically updated running the following command AFTER committing and pushing the code changes:
+Version numbers are automatically updated running the following command AFTER committing the code changes:
 
 ```bash
 ./scripts/version_bump.sh --major|--minor|--patch
 ```
 
-The updated version is then tagged in the repository and released automatically.
+Pushing is not required. The updated version is tagged in the repository and released automatically.
