@@ -63,6 +63,6 @@ git tag "v$new_version"
 
 # Push the changes and the new tag
 git push origin HEAD:main
-git push origin HEAD:"v$new_version"
+git push origin "v$new_version"
 
 echo "Version bumped to $new_version and pushed with tag v$new_version"
