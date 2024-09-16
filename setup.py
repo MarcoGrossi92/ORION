@@ -7,7 +7,7 @@ import os
 from setuptools import setup, find_packages
 
 def read_version():
-    with open("script/version.txt") as f:
+    with open("scripts/version.txt") as f:
         return f.read().strip()
 
 # Package meta-data.
