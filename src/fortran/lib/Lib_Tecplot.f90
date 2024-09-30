@@ -299,6 +299,9 @@ contains
       if (.not.meshonly) then
         start = 1
         if (orion%tec%node) start = 0
+        if (ni2==0) ni2 = 1
+        if (nj2==0) nj2 = 1
+        if (nk2==0) nk2 = 1
         do s=1,Nvar
           err=tec_dat(N=ncell,dat=orion%block(b)%vars(s,ni1+start:ni2,nj1+start:nj2,nk1+start:nk2))
         enddo
@@ -318,6 +321,9 @@ contains
       if (.not.meshonly) then
         start = 1
         if (orion%tec%node) start = 0
+        if (ni2==0) ni2 = 1
+        if (nj2==0) nj2 = 1
+        if (nk2==0) nk2 = 1
         do s=1,Nvar
           write(tecunit,FR_P,iostat=err)(((orion%block(b)%vars(s,i,j,k),i=ni1+start,ni2),j=nj1+start,nj2),k=nk1+start,nk2)
         enddo
