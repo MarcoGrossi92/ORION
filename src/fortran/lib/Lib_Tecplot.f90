@@ -458,6 +458,94 @@ contains
   end function tec_read_structured_multiblock
 
 
+  !> Function for reading ORION block data from Tecplot file.
+  function tec_read_structured_multivars(orion,filename) result(err)
+    use, intrinsic :: iso_fortran_env, only : iostat_end
+    use strings, only: getvals, parse
+    implicit none
+    type(orion_data), intent(inout)              :: orion
+    !character(len=*), intent(inout), optional    :: varnames
+    character(len=*), intent(in)                 :: filename
+    real(R8P) :: dummy_float
+    integer :: err
+    integer :: tecunit, ios, ios_prev
+    integer :: i, j, k, b
+    integer :: Nzones, nlines, nvar
+    integer, allocatable :: nskip(:)
+    character(500) :: line
+    character(100) :: args(20), subargs(2)
+
+    ! Open file
+    open(newunit=tecunit,file=trim(filename))
+    
+    ! Count blocks and allocate data
+    ios = 0; Nzones = 0; nlines = -1
+    do while(ios==0)
+      read(tecunit,'(A)',iostat=ios) line
+      nlines = nlines+1
+      if (index(line,"ZONE")>0 .and. index(line,"ZONETYPE")==0) Nzones = Nzones+1
+      if (index(line,"Zone")>0) Nzones = Nzones+1
+      if (index(line,"ZONE T")>0) Nzones = Nzones+1
+    enddo
+    allocate(orion%block(1:Nzones))
+    rewind(tecunit)
+
+    ! Read blocks size
+    ios = 0; b = 0
+    do
+      do while (index(line,'I=')==0 .and. ios/=iostat_end)
+        read(tecunit,'(A)',iostat=ios) line
+      enddo
+      if (ios==iostat_end) exit
+      b = b+1
+      call parse(line,',',args)
+      do i = 1, 2
+        if (index(args(i),'I=')>0) then
+          call parse(args(i),'=',subargs)
+          read(subargs(2),'(I4)') orion%block(b)%Ni
+          orion%block(b)%Ni = orion%block(b)%Ni-1
+          orion%block(b)%Nj = 1
+          orion%block(b)%Nk = 1
+        endif
+      enddo
+      line = 'here we go'
+    enddo
+    rewind(tecunit)
+
+    ! Count not-floating lines
+    allocate(nskip(Nzones))
+    nskip = 0; ios = 0; b = 1; ios_prev = 0
+    do
+      read(tecunit,'(A)',iostat=ios) line
+      if (ios==iostat_end) exit
+      read(line,*,iostat=ios) dummy_float
+      if ((ios==0 .and. index(line,'DATA')>0) .or. ios/=0) then
+        nskip(b) = nskip(b)+1
+        ios = 1
+      endif
+      if (ios==0 .and. ios_prev/=0) b = b+1
+      ios_prev = ios
+    enddo
+    rewind(tecunit)
+
+    ! Count variables
+    nvar = 1
+
+    ! Read all
+    do b = 1, Nzones
+      allocate(orion%block(b)%mesh(1:1,1:orion%block(b)%Ni,1:orion%block(b)%Nj,1:orion%block(b)%Nk))
+      allocate(orion%block(b)%vars(1:4,1:orion%block(b)%Ni,1:orion%block(b)%Nj,1:orion%block(b)%Nk))
+      call skip(tecunit,nskip(b))
+      do k = 1, orion%block(b)%Nk; do j = 1, orion%block(b)%Nj; do i = 1, orion%block(b)%Ni
+            read(tecunit,*,iostat=err) orion%block(b)%mesh(1,i,j,k), orion%block(b)%vars(1:4,i,j,k)
+      enddo; enddo; enddo
+    enddo
+
+    close(tecunit)
+
+  end function tec_read_structured_multivars
+
+
   subroutine skip(u,n)
     implicit none
     integer, intent(in) :: u, n
