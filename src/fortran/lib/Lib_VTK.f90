@@ -12902,7 +12902,7 @@ end function
   !> Function to write multi-block structured data in a VTS folder
   !---------------------------------------------------------------------------------------------------------------------------------
   use Lib_ORION_data
-  use strings, only: parse
+  use strings, only: parse, simplified_relative_path
   implicit none
   type(orion_data), intent(inout)   :: orion
   character(len=*), intent(inout)   :: varnames
@@ -12914,6 +12914,7 @@ end function
   logical                           :: meshonly
   character(len=4)                  :: location
   character(len=len_trim(varnames)) :: varname(20)
+  character(len=len_trim(vtspath))  :: newvtspath
   !---------------------------------------------------------------------------------------------------------------------------------
 
   !---------------------------------------------------------------------------------------------------------------------------------
@@ -12957,9 +12958,11 @@ end function
     endassociate
   enddo
 
+  newvtspath = simplified_relative_path(vtmpath,vtspath)
+
   E_IO = VTM_INI_XML(trim(vtmpath)//'.vtm')
   E_IO = VTM_BLK_XML(block_action='open')
-  E_IO = VTM_WRF_XML(flist=[(trim(vtspath)//trim(str(.true.,b))//'.vts',b=1,nb)])
+  E_IO = VTM_WRF_XML(flist=[(trim(newvtspath)//trim(str(.true.,b))//'.vts',b=1,nb)])
   E_IO = VTM_BLK_XML(block_action='close')
   E_IO = VTM_END_XML()
   !---------------------------------------------------------------------------------------------------------------------------------

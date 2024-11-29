@@ -60,6 +60,53 @@ contains
 
 !**********************************************************************
 
+function simplified_relative_path(path1,path2) result(relative_path)
+    implicit none
+    character(len=*), intent(in) :: path1, path2
+    character(len=256) :: relative_path
+    character(len=256) :: common
+    integer :: common_len, pos, last_slash
+
+    ! Find the length of the common prefix
+    common_len = 0
+    do pos = 1, min(len_trim(path1), len_trim(path2))
+        if (path1(pos:pos) /= path2(pos:pos)) exit
+        common_len = pos
+    end do
+
+    ! Extract the common prefix and ensure it ends at a directory boundary
+    if (common_len > 0) then
+        common = path1(:common_len)
+        last_slash = 0
+        do pos = common_len, 1, -1
+            if (common(pos:pos) == '/') then
+                last_slash = pos
+                exit
+            end if
+        end do
+        if (last_slash > 0) then
+            common = common(:last_slash)
+        else
+            common = ""  ! No valid common directory
+        end if
+    else
+        common = ""  ! No common prefix
+    end if
+
+    ! Calculate the relative path
+    relative_path = ""
+
+    ! Add "../" for each extra directory in path1 after the common path
+    do pos = last_slash + 1, len_trim(path1)
+        if (path1(pos:pos) == "/") relative_path = trim(relative_path) // "../"
+    end do
+
+    ! Add the remaining part of path2 after the common path
+    relative_path = trim(relative_path) // path2(last_slash + 1:)
+
+end function simplified_relative_path
+
+
 subroutine getvals(line,values,icount,ierr)
 implicit none
 character(len=*),parameter  :: ident='@(#)getvals: read arbitrary number of values from a character variable up to size of values'
