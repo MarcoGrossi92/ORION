@@ -459,24 +459,25 @@ contains
 
 
   !> Function for reading ORION block data from Tecplot file.
-  function tec_read_structured_multivars(orion,filename) result(err)
+  function tec_read_points_multivars(orion,nvar,filename) result(err)
     use, intrinsic :: iso_fortran_env, only : iostat_end
     use strings, only: getvals, parse
     implicit none
-    type(orion_data), intent(inout)              :: orion
-    !character(len=*), intent(inout), optional    :: varnames
-    character(len=*), intent(in)                 :: filename
+    type(orion_data), intent(inout)  :: orion
+    character(len=*), intent(in)     :: filename
+    integer, intent(in)              :: nvar
     real(R8P) :: dummy_float
     integer :: err
     integer :: tecunit, ios, ios_prev
     integer :: i, j, k, b
-    integer :: Nzones, nlines, nvar
+    integer :: Nzones, nlines
     integer, allocatable :: nskip(:)
     character(500) :: line
     character(100) :: args(20), subargs(2)
 
     ! Open file
-    open(newunit=tecunit,file=trim(filename))
+    open(newunit=tecunit,file=trim(filename),iostat=err,action='read',status='old')
+    if (err/=0) return
     
     ! Count blocks and allocate data
     ios = 0; Nzones = 0; nlines = -1
@@ -503,7 +504,7 @@ contains
         if (index(args(i),'I=')>0) then
           call parse(args(i),'=',subargs)
           read(subargs(2),'(I4)') orion%block(b)%Ni
-          orion%block(b)%Ni = orion%block(b)%Ni-1
+          orion%block(b)%Ni = orion%block(b)%Ni
           orion%block(b)%Nj = 1
           orion%block(b)%Nk = 1
         endif
@@ -528,13 +529,10 @@ contains
     enddo
     rewind(tecunit)
 
-    ! Count variables
-    nvar = 1
-
     ! Read all
     do b = 1, Nzones
       allocate(orion%block(b)%mesh(1:1,1:orion%block(b)%Ni,1:orion%block(b)%Nj,1:orion%block(b)%Nk))
-      allocate(orion%block(b)%vars(1:4,1:orion%block(b)%Ni,1:orion%block(b)%Nj,1:orion%block(b)%Nk))
+      allocate(orion%block(b)%vars(1:nvar,1:orion%block(b)%Ni,1:orion%block(b)%Nj,1:orion%block(b)%Nk))
       call skip(tecunit,nskip(b))
       do k = 1, orion%block(b)%Nk; do j = 1, orion%block(b)%Nj; do i = 1, orion%block(b)%Ni
             read(tecunit,*,iostat=err) orion%block(b)%mesh(1,i,j,k), orion%block(b)%vars(1:4,i,j,k)
@@ -543,7 +541,7 @@ contains
 
     close(tecunit)
 
-  end function tec_read_structured_multivars
+  end function tec_read_points_multivars
 
 
   subroutine skip(u,n)
