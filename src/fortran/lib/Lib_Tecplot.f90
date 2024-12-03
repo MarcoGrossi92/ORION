@@ -357,10 +357,10 @@ contains
     real(R8P) :: dummy_float
     logical :: meshonly
     integer :: err, end
-    integer :: tecunit, ios, ios_prev
-    integer :: i, j, k, d, b
+    integer :: tecunit, ios, ios_prev, ios2
+    integer :: i, j, k, d, b, b2
+    integer :: Ni(50), Nj(50), Nk(50), nskip(50)
     integer :: Nblocks, nlines, nvar
-    integer, allocatable :: nskip(:)
     character(500) :: line
     character(100) :: args(20), subargs(2)
 
@@ -369,60 +369,46 @@ contains
     ! Open file
     open(newunit=tecunit,file=trim(filename))
     
-    ! Count blocks and allocate data
-    ios = 0; Nblocks = 0; nlines = -1
+    ! Count blocks and their dimensions
+    ios = 0; Nblocks = 0; nlines = -1; b = 1; ios2 = 0; nskip = 0; ios_prev = 0; b2 = 1
     do while(ios==0)
       read(tecunit,'(A)',iostat=ios) line
       nlines = nlines+1
       if (index(line,"ZONE")>0 .and. index(line,"ZONETYPE")==0) Nblocks = Nblocks+1
       if (index(line,"Zone")>0) Nblocks = Nblocks+1
-    enddo
-    allocate(orion%block(1:Nblocks))
-    rewind(tecunit)
-
-    ! Read blocks size
-    ios = 0; b = 0
-    do
-      do while (index(line,'I=')==0 .and. ios/=iostat_end)
-        read(tecunit,'(A)',iostat=ios) line
-      enddo
-      if (ios==iostat_end) exit
-      b = b+1
-      call parse(line,',',args)
-      do i = 1, 6!size(args)
-        if (index(args(i),'I=')>0) then
-          call parse(args(i),'=',subargs)
-          read(subargs(2),'(I4)') orion%block(b)%Ni
-          orion%block(b)%Ni = orion%block(b)%Ni-1
-        endif
-        if (index(args(i),'J=')>0) then
-          call parse(args(i),'=',subargs)
-          read(subargs(2),'(I4)') orion%block(b)%Nj
-          orion%block(b)%Nj = orion%block(b)%Nj-1
-        endif
-        if (index(args(i),'K=')>0) then
-          call parse(args(i),'=',subargs)
-          read(subargs(2),'(I4)') orion%block(b)%Nk
-          orion%block(b)%Nk = orion%block(b)%Nk-1
-        endif
-      enddo
-      line = 'here we go'
-    enddo
-    rewind(tecunit)
-
-    ! Count not-floating lines
-    allocate(nskip(Nblocks))
-    nskip = 0; ios = 0; b = 1; ios_prev = 0
-    do
-      read(tecunit,'(A)',iostat=ios) line
-      if (ios==iostat_end) exit
-      read(line,*,iostat=ios) dummy_float
-      if ((ios==0 .and. index(line,'DATA')>0) .or. ios/=0) then
-        nskip(b) = nskip(b)+1
-        ios = 1
+      if (index(line,'I=')>0) then
+        call parse(line,',',args)
+        do i = 1, 6!size(args)
+          if (index(args(i),'I=')>0) then
+            call parse(args(i),'=',subargs)
+            read(subargs(2),'(I4)') Ni(b)
+          endif
+          if (index(args(i),'J=')>0) then
+            call parse(args(i),'=',subargs)
+            read(subargs(2),'(I4)') Nj(b)
+          endif
+          if (index(args(i),'K=')>0) then
+            call parse(args(i),'=',subargs)
+            read(subargs(2),'(I4)') Nk(b)
+          endif
+        enddo
+        b = b+1
       endif
-      if (ios==0 .and. ios_prev/=0) b = b+1
-      ios_prev = ios
+       ! Count not-floating lines
+      read(line,*,iostat=ios2) dummy_float
+      if ( (ios2==0 .and. index(line,'DATA')>0) .or. ios2/=0 ) then
+        nskip(b2) = nskip(b2)+1
+        ios2 = 1
+      endif
+      if (ios2==0 .and. ios_prev/=0) b2 = b2+1
+      ios_prev = ios2
+    enddo
+    ! Allocate data
+    allocate(orion%block(1:Nblocks))
+    do b = 1, Nblocks
+      orion%block(b)%Ni = Ni(b)-1
+      orion%block(b)%Nj = Nj(b)-1
+      orion%block(b)%Nk = Nk(b)-1
     enddo
     rewind(tecunit)
 
