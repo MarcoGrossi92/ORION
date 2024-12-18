@@ -470,9 +470,13 @@ contains
     do while(ios==0)
       read(tecunit,'(A)',iostat=ios) line
       nlines = nlines+1
-      if (index(line,"ZONE")>0 .and. index(line,"ZONETYPE")==0) Nzones = Nzones+1
-      if (index(line,"Zone")>0) Nzones = Nzones+1
-      if (index(line,"ZONE T")>0) Nzones = Nzones+1
+      if (index(line,"ZONE")>0 .and. index(line,"ZONETYPE")==0) then
+        Nzones = Nzones+1
+      elseif (index(line,"Zone")>0) then
+        Nzones = Nzones+1
+      elseif (index(line,"ZONE T")>0) then
+        Nzones = Nzones+1
+      endif
     enddo
     allocate(orion%block(1:Nzones))
     rewind(tecunit)
@@ -489,7 +493,7 @@ contains
       do i = 1, 2
         if (index(args(i),'I=')>0) then
           call parse(args(i),'=',subargs)
-          read(subargs(2),'(I4)') orion%block(b)%Ni
+          read(subargs(2),'(I8)') orion%block(b)%Ni
           orion%block(b)%Ni = orion%block(b)%Ni
           orion%block(b)%Nj = 1
           orion%block(b)%Nk = 1
@@ -521,7 +525,7 @@ contains
       allocate(orion%block(b)%vars(1:nvar,1:orion%block(b)%Ni,1:orion%block(b)%Nj,1:orion%block(b)%Nk))
       call skip(tecunit,nskip(b))
       do k = 1, orion%block(b)%Nk; do j = 1, orion%block(b)%Nj; do i = 1, orion%block(b)%Ni
-            read(tecunit,*,iostat=err) orion%block(b)%mesh(1,i,j,k), orion%block(b)%vars(1:4,i,j,k)
+            read(tecunit,*,iostat=err) orion%block(b)%mesh(1,i,j,k), orion%block(b)%vars(1:nvar,i,j,k)
       enddo; enddo; enddo
     enddo
 

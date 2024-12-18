@@ -12970,7 +12970,7 @@ end function
 
 
 
-  function vtk_read_structured_multiblock(path,orion,time) result(err)
+  function vtk_read_structured_multiblock(vtspath,vtmpath,orion,time) result(err)
   !---------------------------------------------------------------------------------------------------------------------------------
   !> Function to read multi-block structured data from a VTS folder
   !---------------------------------------------------------------------------------------------------------------------------------
@@ -12978,7 +12978,7 @@ end function
   use strings, only: parse
   implicit none
   type(orion_data), intent(inout)   :: orion
-  character(len=*), intent(in)      :: path
+  character(len=*), intent(in)      :: vtspath, vtmpath
   real(R8P), intent(out), optional  :: time
   integer(I4P)                      :: b, s, i, j, k
   integer(I4P)                      :: Nblocks,nn,nu,nc,n
@@ -12992,7 +12992,7 @@ end function
 
   !---------------------------------------------------------------------------------------------------------------------------------
   !% Preliminary operations
-  open(newunit=nu,file=trim(path)//'.vtm',action='read')
+  open(newunit=nu,file=trim(vtmpath)//'.vtm',action='read')
   do
     read(nu,'(A)') line
     if (index(line,'<Block')==0) cycle
@@ -13006,12 +13006,12 @@ end function
     cycle
   enddo
   allocate(orion%block(1:Nblocks))
-  call read_variables_name(trim(path)//'1.vts',varnames,orion%vtk%node)
+  call read_variables_name(trim(vtspath)//'1.vts',varnames,orion%vtk%node)
 
   ! Read VTS file
   do b = 1, Nblocks
     ! Geometry
-    err = VTK_INI_XML_READ(input_format=trim(orion%vtk%format),filename=trim(path)//trim(str(.true.,b))//'.vts', &
+    err = VTK_INI_XML_READ(input_format=trim(orion%vtk%format),filename=trim(vtspath)//trim(str(.true.,b))//'.vts', &
                             mesh_topology='StructuredGrid',&
                             nx1=nx1,nx2=nx2,ny1=ny1,ny2=ny2,nz1=nz1,nz2=nz2)
     if (present(time)) then
