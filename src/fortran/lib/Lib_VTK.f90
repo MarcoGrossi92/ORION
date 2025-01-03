@@ -12962,7 +12962,9 @@ end function
 
   E_IO = VTM_INI_XML(trim(vtmpath)//'.vtm')
   E_IO = VTM_BLK_XML(block_action='open')
-  E_IO = VTM_WRF_XML(flist=[(trim(newvtspath)//trim(orion%block(b)%name)//'.vts',b=1,nb)])
+  do b = 1, nb
+    E_IO = VTM_WRF_XML(flist=[(trim(newvtspath)//trim(orion%block(b)%name)//'.vts')])
+  enddo
   E_IO = VTM_BLK_XML(block_action='close')
   E_IO = VTM_END_XML()
   !---------------------------------------------------------------------------------------------------------------------------------
