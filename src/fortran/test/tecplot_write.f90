@@ -17,6 +17,9 @@ program tecplot_write_multiblock
 
   allocate(data%block(1:2))
 
+  data%block(1)%name = 'blocco-A'
+  data%block(2)%name = 'blocco-B'
+
   allocate(data%block(1)%mesh(1:3,nx1:nx2,ny1:ny2,nz1:nz2))
   allocate(data%block(1)%vars(1:2,nx1+1:nx2,ny1+1:ny2,nz1+1:nz2))
   allocate(data%block(2)%mesh(1:3,nx1:nx2+10,ny1:ny2,nz1:nz2))

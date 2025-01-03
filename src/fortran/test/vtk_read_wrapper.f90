@@ -12,10 +12,11 @@
 
   !---------------------------------------------------------------------------------------------------------------------------------
   orion%vtk%format='raw'
-  E_IO = vtk_read_structured_multiblock(orion=orion,vtmpath='field',vtspath='field')
+  E_IO = vtk_read_structured_multiblock(orion=orion,vtmpath='field',vtspath='')
 
   write(*,*) 'Blocks number = ', size(orion%block)
   do i = 1, size(orion%block)
+    write(*,*) 'Block name    = ', orion%block(i)%name
     write(*,*) 'Block size    = ', orion%block(i)%Ni, orion%block(i)%Nj, orion%block(i)%Nk
   enddo
 

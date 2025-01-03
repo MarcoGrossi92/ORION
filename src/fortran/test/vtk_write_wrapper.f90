@@ -18,6 +18,7 @@
   !---------------------------------------------------------------------------------------------------------------------------------
   allocate(orion%block(1:4))
   do b = 1, 4
+    orion%block(b)%name = 'B'//trim(str(.true.,b))
     orion%block(b)%Ni = nx2
     orion%block(b)%Nj = ny2
     orion%block(b)%Nk = nz2
@@ -47,6 +48,6 @@
 
   varnames='var1 var2'
   orion%vtk%format='raw'
-  E_IO = vtk_write_structured_multiblock(orion=orion,vtspath='field',vtmpath='field',varnames=varnames)
+  E_IO = vtk_write_structured_multiblock(orion=orion,vtspath='',vtmpath='field',varnames=varnames)
 
   end program vtk_write_multiblock
