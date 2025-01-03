@@ -23,6 +23,7 @@ module Lib_ORION_data
   endtype Type_vtk_Format
 
   type :: obj_block
+    character(len=128) :: name
     integer :: Ni, Nj, Nk
     real(R8P), dimension(:,:,:,:), allocatable :: mesh
     real(R8P), dimension(:,:,:,:), allocatable :: vars

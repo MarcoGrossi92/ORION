@@ -272,7 +272,7 @@ contains
     select case(orion%tec%format)
     case('binary')
 #   if defined(TECIO)
-      err = teczne142('Block'//trim(strz(nz_pad=2,n=b))//tecendrec, &
+      err = teczne142(trim(orion%block(b)%name)//tecendrec,         &
                       0,                                            &
                       ni2-ni1+1,                                    &
                       nj2-nj1+1,                                    &
@@ -309,7 +309,7 @@ contains
 #   endif
     case('ascii')
       ! tecplot zone header
-      teczoneheader = ' ZONE  T = Block'//trim(strz(nz_pad=2,n=1))//        &
+      teczoneheader = ' ZONE  T = '//trim(orion%block(b)%name)//            &
                       ', I='//trim(str(no_sign=.true.,n=ni2-ni1+1))//       &
                       ', J='//trim(str(no_sign=.true.,n=nj2-nj1+1))//       &
                       ', K='//trim(str(no_sign=.true.,n=nk2-nk1+1))//       &

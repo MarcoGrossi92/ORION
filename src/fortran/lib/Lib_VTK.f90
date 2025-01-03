@@ -12934,7 +12934,7 @@ end function
     associate (nx2 => orion%block(b)%Ni, ny2 => orion%block(b)%Nj, nz2 => orion%block(b)%Nk)
     nn=(nx2+1)*(ny2+1)*(nz2+1)
     nnvar=(nx2)*(ny2)*(nz2)
-    E_IO = VTK_INI_XML(cf=mf(b),output_format=orion%vtk%format, filename=trim(vtspath)//trim(str(.true.,b))//'.vts', &
+    E_IO = VTK_INI_XML(cf=mf(b),output_format=orion%vtk%format, filename=trim(vtspath)//trim(orion%block(b)%name)//'.vts', &
                        mesh_topology='StructuredGrid', nx1=0, nx2=nx2, ny1=0, ny2=ny2, nz1=0, nz2=nz2)
     if (present(time)) then
       E_IO = VTK_FLD_XML(fld_action='open')
@@ -12962,7 +12962,7 @@ end function
 
   E_IO = VTM_INI_XML(trim(vtmpath)//'.vtm')
   E_IO = VTM_BLK_XML(block_action='open')
-  E_IO = VTM_WRF_XML(flist=[(trim(newvtspath)//trim(str(.true.,b))//'.vts',b=1,nb)])
+  E_IO = VTM_WRF_XML(flist=[(trim(newvtspath)//trim(orion%block(b)%name)//'.vts',b=1,nb)])
   E_IO = VTM_BLK_XML(block_action='close')
   E_IO = VTM_END_XML()
   !---------------------------------------------------------------------------------------------------------------------------------
@@ -12983,9 +12983,9 @@ end function
   integer(I4P)                      :: b, s, i, j, k
   integer(I4P)                      :: Nblocks,nn,nu,nc,n
   integer(I4P)                      :: nx1, nx2, ny1, ny2, nz1, nz2
-  integer(I4P)                      :: err, start
+  integer(I4P)                      :: err, start, start_pos, end_pos
   character(256), allocatable       :: varnames(:)
-  character(256)                    :: line
+  character(256)                    :: line, dummy_name(16)
   real(R8P), allocatable            :: x(:),y(:),z(:) ! Input geo arrays
   real(R8P), allocatable            :: v(:)           ! Input var arrays
   !---------------------------------------------------------------------------------------------------------------------------------
@@ -13001,17 +13001,21 @@ end function
   Nblocks = 0
   do
     read(nu,'(A)') line
+    start_pos = index(line, 'file="') + len('file="')
+    end_pos = index(line, '.vts"')
     if (index(line,'</Block')>0) exit
     Nblocks = Nblocks+1
+    dummy_name(Nblocks) = line(start_pos:end_pos-1)
     cycle
   enddo
   allocate(orion%block(1:Nblocks))
-  call read_variables_name(trim(vtspath)//'1.vts',varnames,orion%vtk%node)
+  orion%block(:)%name = dummy_name(1:Nblocks)
+  call read_variables_name(trim(vtspath)//trim(orion%block(b)%name)//'.vts',varnames,orion%vtk%node)
 
   ! Read VTS file
   do b = 1, Nblocks
     ! Geometry
-    err = VTK_INI_XML_READ(input_format=trim(orion%vtk%format),filename=trim(vtspath)//trim(str(.true.,b))//'.vts', &
+    err = VTK_INI_XML_READ(input_format=trim(orion%vtk%format),filename=trim(vtspath)//trim(orion%block(b)%name)//'.vts', &
                             mesh_topology='StructuredGrid',&
                             nx1=nx1,nx2=nx2,ny1=ny1,ny2=ny2,nz1=nz1,nz2=nz2)
     if (present(time)) then
