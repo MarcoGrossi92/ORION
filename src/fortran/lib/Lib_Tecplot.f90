@@ -381,15 +381,15 @@ contains
         do i = 1, 6!size(args)
           if (index(args(i),'I=')>0) then
             call parse(args(i),'=',subargs)
-            read(subargs(2),'(I4)') Ni(b)
+            read(subargs(2),'(I5)') Ni(b)
           endif
           if (index(args(i),'J=')>0) then
             call parse(args(i),'=',subargs)
-            read(subargs(2),'(I4)') Nj(b)
+            read(subargs(2),'(I5)') Nj(b)
           endif
           if (index(args(i),'K=')>0) then
             call parse(args(i),'=',subargs)
-            read(subargs(2),'(I4)') Nk(b)
+            read(subargs(2),'(I5)') Nk(b)
           endif
         enddo
         b = b+1
