@@ -102,7 +102,7 @@ def read_geometry(file_path,Nx,Ny,Nz,jumpline):
                 yc[i,j,k] = 0.125*(yn[i,j,k]+yn[i+1,j,k]+yn[i,j+1,k]+yn[i,j,k+1]+yn[i+1,j+1,k]+yn[i+1,j,k+1]+yn[i,j+1,k+1]+yn[i+1,j+1,k+1])
                 zc[i,j,k] = 0.125*(zn[i,j,k]+zn[i+1,j,k]+zn[i,j+1,k]+zn[i,j,k+1]+zn[i+1,j+1,k]+zn[i+1,j,k+1]+zn[i,j+1,k+1]+zn[i+1,j+1,k+1])
 
-    return xc, yc, zc
+    return xn, yn, zn, xc, yc, zc
 
 
 def read_field(file_path,N,Nx,Ny,Nz,jumpline):
@@ -139,7 +139,6 @@ def read_TEC(file_path):
     print()
 
     xb = []; yb = []; zb = []; vb = []
-    aa = 1
 
     # Read mesh
     jump = 0
@@ -151,7 +150,7 @@ def read_TEC(file_path):
         Ny = dimensions[b][1]-1
         Nz = dimensions[b][2]-1
         if b==0: jump += lines_before_float
-        [x,y,z] = read_geometry(file_path,Nx,Ny,Nz,jump)
+        [xn,yn,zn,x,y,z] = read_geometry(file_path,Nx,Ny,Nz,jump)
         xb.append(x); yb.append(y); zb.append(z)
         jump += 3*(Nx+1)*(Ny+1)*(Nz+1)
         var = read_field(file_path,Nvar,Nx,Ny,Nz,jump)
@@ -161,11 +160,32 @@ def read_TEC(file_path):
     return xb, yb, zb, vb
 
 
-# import sys
-# sys.path.append('../../src/lib/')
-# from Lib_Tecplot import read_TEC
+def read_nodes_TEC(file_path):
 
-# xb, yb, zb, vb = read_TEC('solfile.dat')
+    variables = read_variables(file_path)
+    lines_before_float = count_lines_before_float(file_path)
+    dimensions = read_dimensions(file_path)
 
-# print(xb[0][0,0,0])
-# print(vb[0][0][0,0,0])
+    # Displaying the result
+    print("Number of Variables:", variables['number'])
+    print("Variables:", variables['name'])
+    print("Block Dimensions:", dimensions)
+    print()
+
+    xb = []; yb = []; zb = []
+
+    # Read mesh
+    jump = 0
+    Nb = len(dimensions)
+    Nvar = variables['number']-3
+    x = []; y = []; z = []
+    for b in range(Nb):
+        Nx = dimensions[b][0]-1
+        Ny = dimensions[b][1]-1
+        Nz = dimensions[b][2]-1
+        if b==0: jump += lines_before_float
+        [xn,yn,zn,x,y,z] = read_geometry(file_path,Nx,Ny,Nz,jump)
+        xb.append(xn); yb.append(yn); zb.append(zn)
+        jump += 3*(Nx+1)*(Ny+1)*(Nz+1)
+
+    return xb, yb, zb
