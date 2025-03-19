@@ -1,0 +1,43 @@
+program p3d_write_multiblock
+  use Lib_Tecplot
+  use Lib_ORION_data
+  implicit none
+  integer, parameter :: nx1=0                              !< X lower bound extent.
+  integer, parameter :: nx2=10                             !< X upper bound extent.
+  integer, parameter :: ny1=0                              !< Y lower bound extent.
+  integer, parameter :: ny2=10                             !< Y upper bound extent.
+  integer, parameter :: nz1=0                              !< Z lower bound extent.
+  integer, parameter :: nz2=10                             !< Z upper bound extent.
+  type(orion_data)   :: data
+  integer            :: error                              !< Status error.
+  integer            :: i, j, k                            !< Counter.
+
+  allocate(data%block(1:2))
+
+  allocate(data%block(1)%mesh(1:3,nx1:nx2,ny1:ny2,nz1:nz2))
+  allocate(data%block(2)%mesh(1:3,nx1:nx2+10,ny1:ny2,nz1:nz2))
+
+  do k=nz1, nz2
+    do j=ny1, ny2
+      do i=nx1, nx2
+        data%block(1)%mesh(1,i,j,k) = dble(i)
+        data%block(1)%mesh(2,i,j,k) = dble(j)
+        data%block(1)%mesh(3,i,j,k) = dble(k)
+      enddo
+    enddo
+  enddo
+
+  do k=nz1, nz2
+    do j=ny1, ny2
+      do i=nx1, nx2+10
+        data%block(2)%mesh(1,i,j,k) = data%block(1)%mesh(1,nx2,j,k)+dble(i)
+        data%block(2)%mesh(2,i,j,k) = dble(j)
+        data%block(2)%mesh(3,i,j,k) = dble(k)
+      enddo
+    enddo
+  enddo
+
+  data%p3d%format = 'ascii'
+  error = p3d_write_multiblock(orion=data,filename='mesh')
+
+end program p3d_write_multiblock

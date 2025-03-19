@@ -22,6 +22,10 @@ module Lib_ORION_data
     logical     :: node   = .false.   !> Node or cell data location.
   endtype Type_vtk_Format
 
+  type :: Type_p3d_Format
+    character(6):: format = 'binary'  !> Binary or ascii file.
+  endtype Type_p3d_Format
+
   type :: obj_block
     character(len=128) :: name
     integer :: Ni, Nj, Nk
@@ -33,6 +37,7 @@ module Lib_ORION_data
     type(obj_block), allocatable :: block(:)
     type(Type_tec_Format) :: tec
     type(Type_vtk_Format) :: vtk
+    type(Type_p3d_Format) :: p3d
   endtype orion_data
 
 end module Lib_ORION_data
