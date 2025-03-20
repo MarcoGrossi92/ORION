@@ -5,6 +5,9 @@ module Lib_PLOT3D
   implicit none
   private
 
+  public:: p3d_read_multiblock
+  public:: p3d_write_multiblock
+
 
 contains
 
@@ -24,7 +27,7 @@ contains
       stop "You can not write in binary P3D format"
     case('ascii')
       if (index(filename,'.')==0) then
-        open(newunit=units,file=trim(filename)//".p3d")
+        open(newunit=unit,file=trim(filename)//".p3d")
       else
         open(newunit=unit,file=trim(filename))
       endif
@@ -61,8 +64,7 @@ contains
     type(orion_data), intent(inout)              :: orion
     character(len=*), intent(in)                 :: filename
     integer :: err
-    integer :: i, j, k, d, b
-    integer :: Nblocks
+    integer :: unit, b, d, k, j, i, Nblocks
 
     open(newunit=unit,file=trim(filename))
 

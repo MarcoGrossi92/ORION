@@ -1,4 +1,4 @@
-program p3d_read_multiblock
+program p3d_read
   use Lib_PLOT3D
   use Lib_ORION_data
   implicit none
@@ -15,4 +15,4 @@ program p3d_read_multiblock
     write(*,*) 'Block size    = ', data%block(i)%Ni, data%block(i)%Nj, data%block(i)%Nk
   enddo
 
-end program p3d_read_multiblock
+end program p3d_read

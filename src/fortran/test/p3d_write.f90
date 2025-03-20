@@ -1,5 +1,5 @@
-program p3d_write_multiblock
-  use Lib_Tecplot
+program p3d_write
+  use Lib_PLOT3D
   use Lib_ORION_data
   implicit none
   integer, parameter :: nx1=0                              !< X lower bound extent.
@@ -13,6 +13,14 @@ program p3d_write_multiblock
   integer            :: i, j, k                            !< Counter.
 
   allocate(data%block(1:2))
+
+  data%block(1)%Ni = nx2
+  data%block(1)%Nj = ny2
+  data%block(1)%Nk = nz2
+
+  data%block(2)%Ni = nx2+10
+  data%block(2)%Nj = ny2
+  data%block(2)%Nk = nz2
 
   allocate(data%block(1)%mesh(1:3,nx1:nx2,ny1:ny2,nz1:nz2))
   allocate(data%block(2)%mesh(1:3,nx1:nx2+10,ny1:ny2,nz1:nz2))
@@ -40,4 +48,4 @@ program p3d_write_multiblock
   data%p3d%format = 'ascii'
   error = p3d_write_multiblock(orion=data,filename='mesh')
 
-end program p3d_write_multiblock
+end program p3d_write

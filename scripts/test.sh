@@ -25,3 +25,12 @@ echo '--- Tecplot writing ---'
 echo
 echo '--- Tecplot reading (ascii) ---'
 ./tecplot_read
+
+
+echo
+echo '--- PLOT3D writing ---'
+./p3d_write
+
+echo
+echo '--- PLOT3D reading ---'
+./p3d_read
