@@ -9,7 +9,7 @@ contains
   subroutine read_vts(orion,files)
     implicit none
     type(orion_data), intent(inout) :: orion
-    character(len=*), inten(in)     :: files(:)
+    character(len=*), intent(in)    :: files(:)
     real(R8P), allocatable          :: x(:),y(:),z(:) ! Input geo arrays
     real(R8P), allocatable          :: v(:)           ! Input var arrays
     character(256), allocatable     :: varnames(:), varname_scalar
@@ -64,7 +64,7 @@ contains
   subroutine read_vtm(orion,file)
     implicit none
     type(orion_data), intent(inout) :: orion
-    character(len=*), inten(in)     :: file
+    character(len=*), intent(in)    :: file
     integer :: E_IO
 
     E_IO = vtk_read_structured_multiblock(orion=orion,vtmpath=trim(file),vtspath='')
@@ -76,10 +76,25 @@ contains
   end subroutine read_vtm
 
 
+  subroutine read_tec(orion,file)
+    implicit none
+    type(orion_data), intent(inout) :: orion
+    character(len=*), intent(in)    :: file
+    integer :: E_IO
+
+    E_IO = tec_read_structured_multiblock(orion=orion,varnames=varname_scalar,filename=trim(file))
+    if (E_IO/=0) then
+      write(*,'(A)')' ERROR read Tecplot file'
+      stop
+    endif
+
+  end subroutine read_tec
+
+
   subroutine write_tec(orion,file)
     implicit none
     type(orion_data), intent(inout) :: orion
-    character(len=*), inten(in)     :: file
+    character(len=*), intent(in)    :: file
     integer :: E_IO
 
     E_IO = tec_write_structured_multiblock(orion=orion,varnames=varname_scalar,filename=trim(file))
@@ -91,10 +106,25 @@ contains
   end subroutine write_tec
 
 
+  subroutine read_p3d(orion,file)
+    implicit none
+    type(orion_data), intent(inout) :: orion
+    character(len=*), intent(in)    :: file
+    integer :: E_IO
+
+    E_IO = p3d_read_multiblock(orion=orion,filename=trim(file))
+    if (E_IO/=0) then
+      write(*,'(A)')' ERROR write PLOT3D file'
+      stop
+    endif
+
+  end subroutine read_p3d
+
+
   subroutine write_p3d(orion,file)
     implicit none
     type(orion_data), intent(inout) :: orion
-    character(len=*), inten(in)     :: file
+    character(len=*), intent(in)    :: file
     integer :: E_IO
 
     E_IO = p3d_write_multiblock(orion=orion,filename=trim(file))
@@ -109,38 +139,37 @@ end module functions
 
 
 
-program vts2tec
+program main
+  use functions
   use Lib_ORION_data
   implicit none
-  type(orion_data)                :: data
-  character(256), allocatable     :: file(:)
-  character(256), allocatable     :: varnames(:), varname_scalar
+  type(orion_data)             :: data
+  integer                      :: p
+  character(256)               :: infile, outfile
+  character(256), allocatable  :: varnames(:), varname_scalar
 
   data%tec%format = 'binary'
   data%vtk%format = 'binary'
 
   call command_line_argument()
 
-  ! Find and count VTS files
-  call FindFiles('vts')
-  write(*,'(A,I4)')' Number of VTS files = ',Nblocks
-  if (Nblocks==0) then
-    write(*,'(A)')' No file to be converted'
-    stop
-  endif
-  do i = 1, Nblocks
-    write(*,'(2A)') "  ", trim(adjustl(file(i)))
-  end do
+  write(*,*)
+  write(*,'(2A)')' - Input file  : ',trim(infile)
+  write(*,'(2A)')' - Output file : ',trim(outfile)
+  write(*,*)
 
-  write(*,*)
-  write(*,'(2A)')' - Input format  : ',trim(data%vtk%format)
-  write(*,'(2A)')' - Output format : ',trim(data%tec%format)
-  write(*,*)
+  if (index(trim(infile),'.tec')>0) call read_tec(data,infile)
+  if (index(trim(infile),'.p3d')>0) call read_p3d(data,infile)
+  if (index(trim(infile),'.vtm')>0) call read_vtm(data,infile)
 
   varname_scalar = ''
   do p = 2, size(varnames)
     varname_scalar = trim(varname_scalar)//' '//trim(varnames(p))
   enddo
+
+  if (index(trim(outfile),'.tec')>0) call write_tec(data,outfile)
+  if (index(trim(outfile),'.p3d')>0) call write_p3d(data,outfile)
+  if (index(trim(outfile),'.vtm')>0) call write_vtm(data,outfile)
 
   write(*,*)
   write(*,'(A)')' Done!'
@@ -152,7 +181,7 @@ contains
   subroutine command_line_argument()
     implicit none
     character(99):: arg
-    integer(I4P) :: arg_count
+    integer :: arg_count, i
 
     ! Get the number of command-line arguments
     arg_count = COMMAND_ARGUMENT_COUNT()
@@ -167,12 +196,23 @@ contains
         ! Display help information
         call print_help()
         stop
+
+      elseif (index(arg, '--out-file=') > 0) then
+        outfile = trim(adjustl(arg(11:)))
+
+      elseif (index(arg, '--in-file=') > 0) then
+        infile = trim(adjustl(arg(10:)))
+
       elseif (index(arg, '--out-format=') > 0) then
-        ! Extract the output format from the argument
-        data%tec%format = trim(adjustl(arg(14:)))
+        if (index(outfile,'.tec')>0) data%tec%format = trim(adjustl(arg(14:)))
+        if (index(outfile,'.p3d')>0) data%p3d%format = trim(adjustl(arg(14:)))
+        if (index(outfile,'.vtm')>0) data%vtk%format = trim(adjustl(arg(14:)))
+
       elseif (index(arg, '--in-format=') > 0) then
-        ! Extract the input format from the argument
-        data%vtk%format = trim(adjustl(arg(13:)))
+        if (index(infile,'.tec')>0) data%tec%format = trim(adjustl(arg(14:)))
+        if (index(infile,'.p3d')>0) data%p3d%format = trim(adjustl(arg(14:)))
+        if (index(infile,'.vtm')>0) data%vtk%format = trim(adjustl(arg(14:)))
+
       end if
     end do
 
@@ -188,41 +228,4 @@ contains
     write(*,*) "  --out-format=<format>   Set the output format (e.g., binary,ascii)"
   end subroutine print_help
 
-
-  subroutine FindFiles(file_extension)
-    implicit none
-    character(*), intent(in)    :: file_extension
-    character(256) :: command
-    character(256) :: file_list_filename
-    integer :: status, unit
-
-    ! Create a temporary file to store the list of files
-    file_list_filename = "file_list.txt"
-
-    ! Build the system command to list files with the given extension
-    command = "ls *." // trim(file_extension) // " > " // trim(file_list_filename)
-
-    ! Execute the system command
-    call execute_command_line(command, wait=.true.)
-
-    ! Open the file and read the list of files
-    Nblocks = 0
-    open(unit, file=file_list_filename, status='old', action='read')
-    do
-      read(unit, *, iostat=status)
-      if (status /= 0) exit
-      Nblocks = Nblocks + 1
-    end do
-    allocate(file(Nblocks))
-    rewind(unit)
-    do i = 1, Nblocks
-      read(unit, *, iostat=status) file(i)
-    end do
-    close(unit)
-
-    ! Remove the temporary file
-    call execute_command_line("rm " // trim(file_list_filename), wait=.true.)
-
-  endsubroutine FindFiles
-
-endprogram vts2tec
+endprogram main

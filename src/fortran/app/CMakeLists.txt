@@ -1,6 +1,6 @@
 # Application build
-set(APP vts2tec)
-add_executable(${APP} "vts2tec.f90")
+set(APP conv)
+add_executable(${APP} "conversion.f90")
 if (TECIO_PREBUILD)
   target_link_libraries(${APP} ORION ${TECIO} ${LINKLIBS})
 else()
