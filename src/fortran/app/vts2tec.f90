@@ -1,18 +1,120 @@
-program vts2tec
-  use IR_Precision
+module functions
   use Lib_VTK
   use Lib_Tecplot
-  use Lib_ORION_data
-  use, intrinsic:: ISO_FORTRAN_ENV, only: stdout=>OUTPUT_UNIT, stderr=>ERROR_UNIT
-!-----------------------------------------------------------------------------------------------------------------------------------
+  use Lib_PLOT3D
   implicit none
-  real(R8P), allocatable          :: x(:),y(:),z(:) ! Input geo arrays
-  real(R8P), allocatable          :: v(:)           ! Input var arrays
+
+contains
+
+  subroutine read_vts(orion,files)
+    implicit none
+    type(orion_data), intent(inout) :: orion
+    character(len=*), inten(in)     :: files(:)
+    real(R8P), allocatable          :: x(:),y(:),z(:) ! Input geo arrays
+    real(R8P), allocatable          :: v(:)           ! Input var arrays
+    character(256), allocatable     :: varnames(:), varname_scalar
+    integer(I4P)                    :: Nblocks,nx1,nx2,ny1,ny2,nz1,nz2,nn,nc
+    integer(I4P)                    :: b, i, j, k, n, p, err, start
+
+    Nblocks = size(files)
+
+    allocate(orion%block(1:Nblocks))
+
+    ! Read VTS file
+    do b = 1, Nblocks
+      
+      call read_variables_name(files(b),varnames,orion%tec%node)
+      ! Geometry
+      err = VTK_INI_XML_READ(input_format=trim(orion%vtk%format),filename=trim(files(b)),mesh_topology='StructuredGrid',&
+                              nx1=nx1,nx2=nx2,ny1=ny1,ny2=ny2,nz1=nz1,nz2=nz2)
+      err = VTK_GEO_XML_READ(nx1=nx1,nx2=nx2,ny1=ny1,ny2=ny2,nz1=nz1,nz2=nz2,NN=nn,X=x,Y=y,Z=z)
+      allocate(orion%block(b)%mesh(1:3,nx1:nx2,ny1:ny2,nz1:nz2))
+      n = 0
+      do k = nz1, nz2; do j = ny1, ny2; do i = nx1, nx2
+            n = n + 1
+            orion%block(b)%mesh(1,i,j,k) = x(n)
+            orion%block(b)%mesh(2,i,j,k) = y(n)
+            orion%block(b)%mesh(3,i,j,k) = z(n)
+      enddo; enddo; enddo
+      ! Variables field
+      do p = 1, size(varnames)-1
+        if (allocated(v)) deallocate(v)
+        if (orion%tec%node) then
+          err = VTK_VAR_XML_READ(var_location='node', varname=trim(varnames(p+1)), NC_NN=nn, NCOMP=nc, var=v)
+          write(*,'(A)') ' - Data location : cell nodes'
+          start = 0
+        else
+          err = VTK_VAR_XML_READ(var_location='cell', varname=trim(varnames(p+1)), NC_NN=nn, NCOMP=nc, var=v)
+          write(*,'(A)') ' - Data location : cell centers'
+          start = 1
+        endif
+        allocate(orion%block(b)%vars(1:size(varnames)-1,nx1+start:nx2,ny1+start:ny2,nz1+start:nz2))
+        n = 0
+        do k = nz1+start, nz2; do j = ny1+start, ny2; do i = nx1+start, nx2
+              n = n + 1
+              orion%block(b)%vars(p,i,j,k) = v(n)
+        enddo; enddo; enddo
+      enddo
+    enddo
+    err = VTK_END_XML_READ()
+
+  end subroutine read_vts
+
+
+  subroutine read_vtm(orion,file)
+    implicit none
+    type(orion_data), intent(inout) :: orion
+    character(len=*), inten(in)     :: file
+    integer :: E_IO
+
+    E_IO = vtk_read_structured_multiblock(orion=orion,vtmpath=trim(file),vtspath='')
+    if (E_IO/=0) then
+      write(*,'(A)')' ERROR read VTM file'
+      stop
+    endif
+
+  end subroutine read_vtm
+
+
+  subroutine write_tec(orion,file)
+    implicit none
+    type(orion_data), intent(inout) :: orion
+    character(len=*), inten(in)     :: file
+    integer :: E_IO
+
+    E_IO = tec_write_structured_multiblock(orion=orion,varnames=varname_scalar,filename=trim(file))
+    if (E_IO/=0) then
+      write(*,'(A)')' ERROR write Tecplot file'
+      stop
+    endif
+
+  end subroutine write_tec
+
+
+  subroutine write_p3d(orion,file)
+    implicit none
+    type(orion_data), intent(inout) :: orion
+    character(len=*), inten(in)     :: file
+    integer :: E_IO
+
+    E_IO = p3d_write_multiblock(orion=orion,filename=trim(file))
+    if (E_IO/=0) then
+      write(*,'(A)')' ERROR write PLOT3D file'
+      stop
+    endif
+
+  end subroutine write_p3d
+
+end module functions
+
+
+
+program vts2tec
+  use Lib_ORION_data
+  implicit none
   type(orion_data)                :: data
   character(256), allocatable     :: file(:)
   character(256), allocatable     :: varnames(:), varname_scalar
-  integer(I4P)                    :: Nblocks,nx1,nx2,ny1,ny2,nz1,nz2,nn,nc
-  integer(I4P)                    :: b, i, j, k, n, p, err, start
 
   data%tec%format = 'binary'
   data%vtk%format = 'binary'
@@ -35,59 +137,17 @@ program vts2tec
   write(*,'(2A)')' - Output format : ',trim(data%tec%format)
   write(*,*)
 
-  allocate(data%block(1:Nblocks))
-
-  ! Read VTS file
-  do b = 1, Nblocks
-    
-    call read_variables_name(file(b),varnames,data%tec%node)
-    ! Geometry
-    err = VTK_INI_XML_READ(input_format=trim(data%vtk%format),filename=trim(file(b)),mesh_topology='StructuredGrid',&
-                            nx1=nx1,nx2=nx2,ny1=ny1,ny2=ny2,nz1=nz1,nz2=nz2)
-    err = VTK_GEO_XML_READ(nx1=nx1,nx2=nx2,ny1=ny1,ny2=ny2,nz1=nz1,nz2=nz2,NN=nn,X=x,Y=y,Z=z)
-    allocate(data%block(b)%mesh(1:3,nx1:nx2,ny1:ny2,nz1:nz2))
-    n = 0
-    do k = nz1, nz2; do j = ny1, ny2; do i = nx1, nx2
-          n = n + 1
-          data%block(b)%mesh(1,i,j,k) = x(n)
-          data%block(b)%mesh(2,i,j,k) = y(n)
-          data%block(b)%mesh(3,i,j,k) = z(n)
-    enddo; enddo; enddo
-    ! Variables field
-    do p = 1, size(varnames)-1
-      if (allocated(v)) deallocate(v)
-      if (data%tec%node) then
-        err = VTK_VAR_XML_READ(var_location='node', varname=trim(varnames(p+1)), NC_NN=nn, NCOMP=nc, var=v)
-        write(*,'(A)') ' - Data location : cell nodes'
-        start = 0
-      else
-        err = VTK_VAR_XML_READ(var_location='cell', varname=trim(varnames(p+1)), NC_NN=nn, NCOMP=nc, var=v)
-        write(*,'(A)') ' - Data location : cell centers'
-        start = 1
-      endif
-      allocate(data%block(b)%vars(1:size(varnames)-1,nx1+start:nx2,ny1+start:ny2,nz1+start:nz2))
-      n = 0
-      do k = nz1+start, nz2; do j = ny1+start, ny2; do i = nx1+start, nx2
-            n = n + 1
-            data%block(b)%vars(p,i,j,k) = v(n)
-      enddo; enddo; enddo
-    enddo
-  enddo
-  err = VTK_END_XML_READ()
-
-  ! Write in Tecplot format
   varname_scalar = ''
   do p = 2, size(varnames)
     varname_scalar = trim(varname_scalar)//' '//trim(varnames(p))
   enddo
-  err = tec_write_structured_multiblock(orion=data,varnames=varname_scalar,filename='vts2tec')
-  if (err/=0) write(*,'(A)') 'Error during writing of tecplot file'
 
   write(*,*)
   write(*,'(A)')' Done!'
   
-!-----------------------------------------------------------------------------------------------------------------------------------
+
 contains
+
 
   subroutine command_line_argument()
     implicit none
@@ -134,7 +194,7 @@ contains
     character(*), intent(in)    :: file_extension
     character(256) :: command
     character(256) :: file_list_filename
-    integer :: status
+    integer :: status, unit
 
     ! Create a temporary file to store the list of files
     file_list_filename = "file_list.txt"
@@ -147,22 +207,22 @@ contains
 
     ! Open the file and read the list of files
     Nblocks = 0
-    open(313, file=file_list_filename, status='old', action='read')
+    open(unit, file=file_list_filename, status='old', action='read')
     do
-      read(313, *, iostat=status)
+      read(unit, *, iostat=status)
       if (status /= 0) exit
       Nblocks = Nblocks + 1
     end do
     allocate(file(Nblocks))
-    rewind(313)
+    rewind(unit)
     do i = 1, Nblocks
-      read(313, *, iostat=status) file(i)
+      read(unit, *, iostat=status) file(i)
     end do
-    close(313)
+    close(unit)
 
     ! Remove the temporary file
     call execute_command_line("rm " // trim(file_list_filename), wait=.true.)
 
   endsubroutine FindFiles
-!-----------------------------------------------------------------------------------------------------------------------------------
+
 endprogram vts2tec
