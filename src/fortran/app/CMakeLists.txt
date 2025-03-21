@@ -1,5 +1,5 @@
 # Application build
-set(APP conv)
+set(APP converter)
 add_executable(${APP} "conversion.f90")
 if (TECIO_PREBUILD)
   target_link_libraries(${APP} ORION ${TECIO} ${LINKLIBS})

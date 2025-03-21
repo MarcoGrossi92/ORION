@@ -4,7 +4,28 @@ module functions
   use Lib_PLOT3D
   implicit none
 
+
 contains
+
+
+  pure function extract_path(inpath) result(outpath)
+    implicit none
+    integer :: index_start
+    character(len=256), intent(in)    :: inpath
+    character(len=256)                :: outpath
+
+    ! Find the last occurrence of '/' in the string
+    index_start = len_trim(inpath)
+    do while (index_start > 0)
+      if (inpath(index_start:index_start) == '/') exit
+      index_start = index_start - 1
+    end do
+    ! Extract the folder path
+    outpath = inpath(1:index_start)
+    if (outpath=='') outpath = './'
+
+  end function extract_path
+
 
   subroutine read_vts(orion,files)
     implicit none
@@ -69,11 +90,32 @@ contains
 
     E_IO = vtk_read_structured_multiblock(orion=orion,vtmpath=trim(file),vtspath='')
     if (E_IO/=0) then
-      write(*,'(A)')' ERROR read VTM file'
+      write(*,'(A)')' ERROR read VTK files'
       stop
     endif
 
   end subroutine read_vtm
+
+
+  subroutine write_vtm(orion,file,varname_scalar)
+    use strings, only: parse
+    implicit none
+    type(orion_data), intent(inout) :: orion
+    character(len=*), intent(in)    :: file
+    character(len=*), intent(inout) :: varname_scalar
+    integer :: E_IO
+    character(32)  :: name
+    character(256) :: path
+
+    name = file(1:len_trim(file)-4)
+    path = extract_path(file)
+    E_IO = vtk_write_structured_multiblock(orion=orion,vtspath=trim(path),vtmpath=trim(name),varnames=varname_scalar)
+    if (E_IO/=0) then
+      write(*,'(A)')' ERROR write VTK files'
+      stop
+    endif
+
+  end subroutine write_vtm
 
 
   subroutine read_tec(orion,file)
@@ -82,7 +124,7 @@ contains
     character(len=*), intent(in)    :: file
     integer :: E_IO
 
-    E_IO = tec_read_structured_multiblock(orion=orion,varnames=varname_scalar,filename=trim(file))
+    E_IO = tec_read_structured_multiblock(orion=orion,filename=trim(file))
     if (E_IO/=0) then
       write(*,'(A)')' ERROR read Tecplot file'
       stop
@@ -91,10 +133,10 @@ contains
   end subroutine read_tec
 
 
-  subroutine write_tec(orion,file)
+  subroutine write_tec(orion,file,varname_scalar)
     implicit none
     type(orion_data), intent(inout) :: orion
-    character(len=*), intent(in)    :: file
+    character(len=*), intent(in)    :: file,varname_scalar
     integer :: E_IO
 
     E_IO = tec_write_structured_multiblock(orion=orion,varnames=varname_scalar,filename=trim(file))
@@ -144,12 +186,13 @@ program main
   use Lib_ORION_data
   implicit none
   type(orion_data)             :: data
-  integer                      :: p
-  character(256)               :: infile, outfile
-  character(256), allocatable  :: varnames(:), varname_scalar
+  integer                      :: b
+  character(256)               :: infile, outfile, varname_scalar
+  character(256), allocatable  :: varnames(:)
 
   data%tec%format = 'binary'
   data%vtk%format = 'binary'
+  data%p3d%format = 'ascii'
 
   call command_line_argument()
 
@@ -163,13 +206,16 @@ program main
   if (index(trim(infile),'.vtm')>0) call read_vtm(data,infile)
 
   varname_scalar = ''
-  do p = 2, size(varnames)
-    varname_scalar = trim(varname_scalar)//' '//trim(varnames(p))
+  do b = 1, size(data%block(1)%vars)
+    varname_scalar = trim(varname_scalar)//' '//'var'//trim(str(.true.,b))
+  enddo
+  do b = 1, size(data%block)
+    data%block(b)%name = 'Block'//trim(str(.true.,b))
   enddo
 
-  if (index(trim(outfile),'.tec')>0) call write_tec(data,outfile)
+  if (index(trim(outfile),'.tec')>0) call write_tec(data,outfile,varname_scalar)
   if (index(trim(outfile),'.p3d')>0) call write_p3d(data,outfile)
-  if (index(trim(outfile),'.vtm')>0) call write_vtm(data,outfile)
+  if (index(trim(outfile),'.vtm')>0) call write_vtm(data,outfile,varname_scalar)
 
   write(*,*)
   write(*,'(A)')' Done!'
@@ -186,6 +232,11 @@ contains
     ! Get the number of command-line arguments
     arg_count = COMMAND_ARGUMENT_COUNT()
 
+    if (arg_count==0) then
+      call print_help
+      stop
+    endif
+
     ! Loop through each command-line argument
     do i = 1, arg_count
       ! Get the i-th command-line argument
@@ -198,10 +249,10 @@ contains
         stop
 
       elseif (index(arg, '--out-file=') > 0) then
-        outfile = trim(adjustl(arg(11:)))
+        outfile = trim(adjustl(arg(12:)))
 
       elseif (index(arg, '--in-file=') > 0) then
-        infile = trim(adjustl(arg(10:)))
+        infile = trim(adjustl(arg(11:)))
 
       elseif (index(arg, '--out-format=') > 0) then
         if (index(outfile,'.tec')>0) data%tec%format = trim(adjustl(arg(14:)))
@@ -221,10 +272,14 @@ contains
 
   subroutine print_help
     implicit none
-    write(*,*) "Usage: vts2tec [options]"
-    write(*,*) "Options:"
+    write(*,*) "File format converter. Supported formats: PLOT3D, Tecplot, VTK"
+    write(*,*)
+    write(*,*) "Usage: ORION [input]"
+    write(*,*) "Input:"
     write(*,*) "  -h, --help              Display this help message"
+    write(*,*) "  --in-file=<file>        Choose the input file path"
     write(*,*) "  --in-format=<format>    Set the input format (e.g., binary,ascii)"
+    write(*,*) "  --out-file=<file>       Choose the output file path"
     write(*,*) "  --out-format=<format>   Set the output format (e.g., binary,ascii)"
   end subroutine print_help
 
