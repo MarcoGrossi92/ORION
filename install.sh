@@ -21,8 +21,7 @@ Global Options:
   -v       , --verbose         Enable verbose output
 
 Commands:
-  build                        Perform a full build
-    --use-conda=<bool>         Use Conda environment (true, false, default: true)
+  build                        Perform the full build
 
   compile                      Compile the program
     --build-type=<build>       Set build type (release, debug, testing, default: release)
