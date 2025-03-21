@@ -121,10 +121,6 @@ done
 # Execute the selected command
 case "$COMMAND" in
     build)
-        if [[ -z "$OS_TYPE" || -z "$MASTER_TYPE" ]]; then
-            echo "Error: --os and --master are required for the 'build' command!"
-            exit 1
-        fi
         log "Building project"
         # download Doxygen
         #./doxygen .Doxyfile
