@@ -123,7 +123,7 @@ contains
   if (present(time)) then
     time_ = time
   else
-    time_ = 0._R8P
+    time_ = -10._R8P
   endif
   ! initializing tecplot file
   select case(orion%tec%format)
@@ -314,6 +314,8 @@ contains
                       ', J='//trim(str(no_sign=.true.,n=nj2-nj1+1))//       &
                       ', K='//trim(str(no_sign=.true.,n=nk2-nk1+1))//       &
                       ', DATAPACKING=BLOCK'//adjustl(trim(tecvarlocstr))
+      if (time_>0.0_R8P) &
+        teczoneheader = trim(teczoneheader)//', SOLUTIONTIME='//trim(str(no_sign=.true.,n=time_))
       write(tecunit,'(A)',iostat=err)trim(teczoneheader)
       write(tecunit,FR_P,iostat=err)(((orion%block(b)%mesh(1,i,j,k),i=ni1,ni2),j=nj1,nj2),k=nk1,nk2)
       write(tecunit,FR_P,iostat=err)(((orion%block(b)%mesh(2,i,j,k),i=ni1,ni2),j=nj1,nj2),k=nk1,nk2)
