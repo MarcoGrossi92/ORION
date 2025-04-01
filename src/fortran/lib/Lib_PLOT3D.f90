@@ -27,17 +27,17 @@ contains
       stop "You can not write in binary P3D format"
     case('ascii')
       if (index(filename,'.')==0) then
-        open(newunit=unit,file=trim(filename)//".p3d")
+        open(newunit=unit,file=trim(filename)//".p3d",iostat=err)
       else
-        open(newunit=unit,file=trim(filename))
+        open(newunit=unit,file=trim(filename),iostat=err)
       endif
     end select
 
     ! writing data blocks
-    write(unit,*) Nblocks
+    write(unit,*,iostat=err) Nblocks
     
     do b = 1, Nblocks
-      write(unit,*) orion%block(b)%Ni+1, orion%block(b)%Nj+1, orion%block(b)%Nk+1
+      write(unit,*,iostat=err) orion%block(b)%Ni+1, orion%block(b)%Nj+1, orion%block(b)%Nk+1
     enddo
 
     do b = 1, Nblocks
@@ -45,7 +45,7 @@ contains
         do k = 0, orion%block(b)%Nk
           do j = 0, orion%block(b)%Nj
             do i = 0, orion%block(b)%Ni
-              write(unit,*) orion%block(b)%mesh(d,i,j,k)
+              write(unit,*,iostat=err) orion%block(b)%mesh(d,i,j,k)
             enddo
           enddo
         enddo
