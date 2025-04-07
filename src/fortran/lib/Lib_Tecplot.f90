@@ -353,9 +353,8 @@ contains
     use, intrinsic :: iso_fortran_env, only : iostat_end
     use strings, only: getvals, parse
     implicit none
-    type(orion_data), intent(inout)              :: orion
-    !character(len=*), intent(inout), optional    :: varnames
-    character(len=*), intent(in)                 :: filename
+    type(orion_data), intent(inout)                        :: orion
+    character(len=*), intent(in)                           :: filename
     real(R8P) :: dummy_float
     logical :: meshonly
     integer :: err, end
@@ -369,7 +368,16 @@ contains
     meshonly = .false.
 
     ! Open file
-    open(newunit=tecunit,file=trim(filename))
+    open(newunit=tecunit,file=trim(filename),status='old',action='read')
+
+    ios = 0
+    do while(ios==0)
+      read(tecunit,'(A)',iostat=ios) line
+      call read_variables(line, orion%varnames)
+      if (allocated(orion%varnames)) ios = 1
+    enddo
+
+    rewind(tecunit)
     
     ! Count blocks and their dimensions
     ios = 0; Nblocks = 0; nlines = -1; b = 1; ios2 = 0; nskip = 0; ios_prev = 0; b2 = 1
@@ -534,6 +542,47 @@ contains
     close(tecunit)
 
   end function tec_read_points_multivars
+
+
+  subroutine read_variables(line,variables)
+    implicit none
+    character(len=*), intent(inout) :: line
+    character(len=32), allocatable, intent(out) :: variables(:)
+    character(len=32) :: variables_(150)
+    integer :: nvar, start, end_pos
+
+    nvar = 0
+
+    ! Find the position of "VARIABLES"
+    if (index(line, 'VARIABLES') > 0) then
+        ! Remove the "VARIABLES =" part from the line
+        line = trim(adjustl(line(index(line, '=')+1:)))
+
+        ! Loop to extract each variable name
+        do while (len_trim(line) > 0)
+            ! Find the start and end positions of the variable name
+            start = index(line, '"') + 1
+            end_pos = index(line(start+1:), '"') + start
+
+            ! Store the variable name in the array
+            nvar = nvar + 1
+            variables_(nvar) = trim(line(start:end_pos-1))
+
+            ! Remove the extracted variable from the line
+            if (index(line(end_pos+1:), ',') > 0 .or. index(line(end_pos+1:), ' ') > 0) then
+                line = trim(adjustl(line(end_pos+2:)))
+            else
+                line = ''
+            end if
+        end do
+    else
+      return
+    end if
+    
+    allocate(character(32)::variables(1:nvar-3))
+    variables = variables_(4:nvar)
+
+  end subroutine read_variables
 
 
   subroutine skip(u,n)

@@ -36,6 +36,7 @@ module Lib_ORION_data
   end type obj_block
 
   type, public :: orion_data
+    character(len=32), allocatable :: varnames(:)
     type(obj_block), allocatable :: block(:)
     type(Type_tec_Format) :: tec
     type(Type_vtk_Format) :: vtk
@@ -63,6 +64,18 @@ contains
     else
       allocate(b%block(size(a%block)))
     end if
+
+    ! Handle allocation of varnames
+    if (allocated(b%varnames)) then
+      if (size(b%varnames) /= size(a%varnames)) then
+        deallocate(b%varnames)
+        allocate(b%varnames(size(a%varnames)))
+      end if
+    else
+      allocate(b%varnames(size(a%varnames)))
+    end if
+
+    b%varnames = a%varnames
 
     ! Copy each block
     do i = 1, size(a%block)
