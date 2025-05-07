@@ -76,8 +76,6 @@ def read_geometry(file_path,Nx,Ny,Nz,jumpline):
         for j in range(Nj):
             for i in range(Ni):
                 line += 1
-                #print(line)
-                #print(MESH[line])
                 xn[i,j,k] = float(MESH[line])
 
     for k in range(Nk):
@@ -92,17 +90,17 @@ def read_geometry(file_path,Nx,Ny,Nz,jumpline):
                 line += 1
                 zn[i,j,k] = float(MESH[line])
 
-    xc = np.zeros((Nx, Ny, Nz))
-    yc = np.zeros((Nx, Ny, Nz))
-    zc = np.zeros((Nx, Ny, Nz))
-    for k in range(Nz):
-        for j in range(Ny):
-            for i in range(Nx):
-                xc[i,j,k] = 0.125*(xn[i,j,k]+xn[i+1,j,k]+xn[i,j+1,k]+xn[i,j,k+1]+xn[i+1,j+1,k]+xn[i+1,j,k+1]+xn[i,j+1,k+1]+xn[i+1,j+1,k+1])
-                yc[i,j,k] = 0.125*(yn[i,j,k]+yn[i+1,j,k]+yn[i,j+1,k]+yn[i,j,k+1]+yn[i+1,j+1,k]+yn[i+1,j,k+1]+yn[i,j+1,k+1]+yn[i+1,j+1,k+1])
-                zc[i,j,k] = 0.125*(zn[i,j,k]+zn[i+1,j,k]+zn[i,j+1,k]+zn[i,j,k+1]+zn[i+1,j+1,k]+zn[i+1,j,k+1]+zn[i,j+1,k+1]+zn[i+1,j+1,k+1])
+    # xc = np.zeros((Nx, Ny, Nz))
+    # yc = np.zeros((Nx, Ny, Nz))
+    # zc = np.zeros((Nx, Ny, Nz))
+    # for k in range(Nz):
+    #     for j in range(Ny):
+    #         for i in range(Nx):
+    #             xc[i,j,k] = 0.125*(xn[i,j,k]+xn[i+1,j,k]+xn[i,j+1,k]+xn[i,j,k+1]+xn[i+1,j+1,k]+xn[i+1,j,k+1]+xn[i,j+1,k+1]+xn[i+1,j+1,k+1])
+    #             yc[i,j,k] = 0.125*(yn[i,j,k]+yn[i+1,j,k]+yn[i,j+1,k]+yn[i,j,k+1]+yn[i+1,j+1,k]+yn[i+1,j,k+1]+yn[i,j+1,k+1]+yn[i+1,j+1,k+1])
+    #             zc[i,j,k] = 0.125*(zn[i,j,k]+zn[i+1,j,k]+zn[i,j+1,k]+zn[i,j,k+1]+zn[i+1,j+1,k]+zn[i+1,j,k+1]+zn[i,j+1,k+1]+zn[i+1,j+1,k+1])
 
-    return xn, yn, zn, xc, yc, zc
+    return xn, yn, zn
 
 
 def read_field(file_path,N,Nx,Ny,Nz,jumpline):
@@ -150,8 +148,8 @@ def read_TEC(file_path):
         Ny = dimensions[b][1]-1
         Nz = dimensions[b][2]-1
         if b==0: jump += lines_before_float
-        [xn,yn,zn,x,y,z] = read_geometry(file_path,Nx,Ny,Nz,jump)
-        xb.append(x); yb.append(y); zb.append(z)
+        [xn,yn,zn] = read_geometry(file_path,Nx,Ny,Nz,jump)
+        xb.append(xn); yb.append(yn); zb.append(zn)
         jump += 3*(Nx+1)*(Ny+1)*(Nz+1)
         var = read_field(file_path,Nvar,Nx,Ny,Nz,jump)
         vb.append(var)
@@ -160,32 +158,39 @@ def read_TEC(file_path):
     return xb, yb, zb, vb
 
 
-def read_nodes_TEC(file_path):
+def write_TEC(file_path,xb,yb,zb,vb):
 
-    variables = read_variables(file_path)
-    lines_before_float = count_lines_before_float(file_path)
-    dimensions = read_dimensions(file_path)
+    with open(file_path, 'w') as file:
 
-    # Displaying the result
-    print("Number of Variables:", variables['number'])
-    print("Variables:", variables['name'])
-    print("Block Dimensions:", dimensions)
-    print()
+        Nv = len(vb[0])
+        var_names = ['"x"', '"y"', '"z"'] + [f'"v{v+1}"' for v in range(Nv)]
+        file.write("VARIABLES = " + " ".join(var_names) + "\n")
 
-    xb = []; yb = []; zb = []
-
-    # Read mesh
-    jump = 0
-    Nb = len(dimensions)
-    Nvar = variables['number']-3
-    x = []; y = []; z = []
-    for b in range(Nb):
-        Nx = dimensions[b][0]-1
-        Ny = dimensions[b][1]-1
-        Nz = dimensions[b][2]-1
-        if b==0: jump += lines_before_float
-        [xn,yn,zn,x,y,z] = read_geometry(file_path,Nx,Ny,Nz,jump)
-        xb.append(xn); yb.append(yn); zb.append(zn)
-        jump += 3*(Nx+1)*(Ny+1)*(Nz+1)
-
-    return xb, yb, zb
+        Nb = len(vb)
+        for b in range(Nb):
+            Nx, Ny, Nz = xb[b].shape
+            if Nv == 1:
+                file.write(f'ZONE T="Block{b+1}", I={Nx}, J={Ny}, K={Nz}, DATAPACKING=BLOCK, VARLOCATION=([1-3]=NODAL,[4]=CELLCENTERED)\n')
+            else:
+                file.write(f'ZONE T="Block{b+1}", I={Nx}, J={Ny}, K={Nz}, DATAPACKING=BLOCK, VARLOCATION=([1-3]=NODAL,[4-{3+Nv}]=CELLCENTERED)\n')
+            for k in range(Nz):
+                for j in range(Ny):
+                    for i in range(Nx):
+                        val = xb[b][i, j, k]
+                        file.write(f"{val}\n")
+            for k in range(Nz):
+                for j in range(Ny):
+                    for i in range(Nx):
+                        val = yb[b][i, j, k]
+                        file.write(f"{val}\n")
+            for k in range(Nz):
+                for j in range(Ny):
+                    for i in range(Nx):
+                        val = zb[b][i, j, k]
+                        file.write(f"{val}\n")
+            for v in range(Nv):
+                for k in range(Nz-1):
+                    for j in range(Ny-1):
+                        for i in range(Nx-1):
+                            val = vb[b][v][i, j, k]
+                            file.write(f"{val}\n")
