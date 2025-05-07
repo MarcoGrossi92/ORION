@@ -28,14 +28,9 @@ INCLUDE(${CMAKE_MODULE_PATH}/SetParallelizationLibrary.cmake)
 # Include libraries
 # TecIO
 OPTION(USE_TECIO "Use TecIO" ON)
-OPTION(TECIO_PREBUILD "Build TecIO independently" ON)
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/lib/TecIO/teciosrc)
 set(LINKLIBS -lpthread -lm -lstdc++)
-if (TECIO_PREBUILD)
-  file(GLOB TECIO "${CMAKE_CURRENT_SOURCE_DIR}/lib/TecIO/build/libtecio.a")
-else()
-  add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/lib/TecIO/teciosrc)
-endif()
+file(GLOB TECIO "${CMAKE_CURRENT_SOURCE_DIR}/lib/TecIO/build/libtecio.a")
 
 include(GNUInstallDirs)
 
