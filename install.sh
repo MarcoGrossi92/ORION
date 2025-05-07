@@ -128,7 +128,6 @@ case "$COMMAND" in
         rm -rf bin build && mkdir -p build
         cd $DIR/lib/TecIO
         ./build.sh
-        mkdir -p $DIR/build
         cd $DIR/build
         cmake .. -DCMAKE_BUILD_TYPE=RELEASE -DUSE_TECIO=ON
         make
