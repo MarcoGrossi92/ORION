@@ -1,11 +1,6 @@
-# Turns on either OpenMP or MPI
-# If both are requested, the other is disabled
-# When one is turned on, the other is turned off
-# If both are off, we explicitly disable them just in case
+# Turns on either OpenMP and/or MPI
 
-IF (USE_OPENMP AND USE_MPI)
-    MESSAGE (FATAL_ERROR "Cannot use both OpenMP and MPI")
-ELSEIF (USE_OPENMP)
+IF (USE_OPENMP)
     # Find OpenMP
     IF (NOT OpenMP_Fortran_FLAGS)
         FIND_PACKAGE (OpenMP_Fortran)
@@ -13,21 +8,17 @@ ELSEIF (USE_OPENMP)
             MESSAGE (FATAL_ERROR "Fortran compiler does not support OpenMP")
         ENDIF (NOT OpenMP_Fortran_FLAGS)
     ENDIF (NOT OpenMP_Fortran_FLAGS)
-    # Turn of MPI
-    UNSET (MPI_FOUND CACHE)
-    UNSET (MPI_COMPILER CACHE)
-    UNSET (MPI_LIBRARY CACHE)
-ELSEIF (USE_MPI)
+ENDIF()
+
+IF (USE_MPI)
     # Find MPI
     IF (NOT MPI_Fortran_FOUND)
         FIND_PACKAGE (MPI REQUIRED)
+        message(STATUS "MPI enabled, using compilers: ${MPI_Fortran_COMPILER}")
     ENDIF (NOT MPI_Fortran_FOUND)
-    # Turn off OpenMP
-    SET (OMP_NUM_PROCS 0 CACHE
-         STRING "Number of processors OpenMP may use" FORCE)
-    UNSET (OpenMP_C_FLAGS CACHE)
-    UNSET (GOMP_Fortran_LINK_FLAGS CACHE)
-ELSE ()
+ENDIF()
+
+IF (NOT USE_OPENMP AND NOT USE_MPI)
     # Turn off both OpenMP and MPI
     SET (OMP_NUM_PROCS 0 CACHE
          STRING "Number of processors OpenMP may use" FORCE)
@@ -36,4 +27,5 @@ ELSE ()
     UNSET (MPI_FOUND CACHE)
     UNSET (MPI_COMPILER CACHE)
     UNSET (MPI_LIBRARY CACHE)
-ENDIF (USE_OPENMP AND USE_MPI)
+ENDIF ()
+
