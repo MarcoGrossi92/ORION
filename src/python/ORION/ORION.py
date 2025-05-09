@@ -107,19 +107,15 @@ def read_field(file_path,N,Nx,Ny,Nz,jumpline):
     MESH = open(file_path,"r")
     MESH = MESH.readlines()
 
-    Ni = Nx; Nj = Ny; Nk = Nz
-    var = []
+    var = [np.zeros((Nx, Ny, Nz)) for _ in range(N)]
     line = jumpline-2
-        
-    for _ in range(N):
-        xaux = []
-        for _ in range(Ni*Nj*Nk):
-            line += 1
-            x = float(MESH[line])
-            xaux.append(x)
-        # Reshape the list into a 3D array
-        xx = np.array(xaux).reshape(Ni, Nj, Nk)
-        var.append(xx)
+
+    for v in range(N):
+        for k in range(Nz):
+            for j in range(Ny):
+                for i in range(Nx):
+                    line += 1
+                    var[v][i,j,k] = float(MESH[line])
 
     return var
 
@@ -155,15 +151,17 @@ def read_TEC(file_path):
         vb.append(var)
         jump += Nvar*Nx*Ny*Nz+1
 
-    return xb, yb, zb, vb
+    return xb, yb, zb, vb, variables['name']
 
 
-def write_TEC(file_path,xb,yb,zb,vb):
+def write_TEC(file_path, xb, yb, zb, vb, var_names=None):
 
     with open(file_path, 'w') as file:
-
         Nv = len(vb[0])
-        var_names = ['"x"', '"y"', '"z"'] + [f'"v{v+1}"' for v in range(Nv)]
+        if var_names is None:
+            var_names = ['"x"', '"y"', '"z"'] + [f'"v{v+1}"' for v in range(Nv)]
+        else:
+            var_names = [f'"{name}"' for name in var_names]
         file.write("VARIABLES = " + " ".join(var_names) + "\n")
 
         Nb = len(vb)
