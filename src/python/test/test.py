@@ -1,6 +1,6 @@
 from ORION import read_TEC, write_TEC
 
-[x,y,z,var] = read_TEC('solfile.dat')
+[x,y,z,var,names] = read_TEC("field.tec")
 
 var[0][0] *= 10
 
