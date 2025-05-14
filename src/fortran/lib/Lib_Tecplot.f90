@@ -178,7 +178,9 @@ contains
   if (orion%block(1)%id == -1) then
     ! Non-ordered output -> Cycle over processes
     do id=0,nproc - 1
+#   ifdef MPI_VERSION
       call MPI_BARRIER( MPI_COMM_WORLD , err )
+#   endif
       if (myrank == id) then
         do b=1,Nblocks
           err = tec_blk_data(b = b)
@@ -188,7 +190,9 @@ contains
   else
     ! Ordered output -> Cycle over global blocks
     do id=1,Nb_tot
+#   ifdef MPI_VERSION
       call MPI_BARRIER( MPI_COMM_WORLD , err )
+#   endif
       do b=1,Nblocks
         if (orion%block(b)%id == id) err = tec_blk_data(b = b)
       enddo
