@@ -30,7 +30,6 @@ module Lib_ORION_data
 
   type :: obj_block
     character(len=128) :: name
-    integer :: id = -1 !> ID, default -1 for non-ordered/ordered output
     integer :: Ni, Nj, Nk
     real(R8P), dimension(:,:,:,:), allocatable :: mesh
     real(R8P), dimension(:,:,:,:), allocatable :: vars

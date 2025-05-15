@@ -69,9 +69,6 @@ contains
   !> Function for writing ORION block data to Tecplot file.
   function tec_write_structured_multiblock(orion,varnames,time,filename,Nvars) result(err)
   !---------------------------------------------------------------------------------------------------------------------------------
-# ifdef MPI_VERSION
-    use mpi
-# endif
   implicit none
   type(orion_data), intent(in)              :: orion
   character(len=*), intent(in), optional    :: varnames
@@ -94,26 +91,16 @@ contains
   integer, allocatable::    tecvarloc(:)        !< Tecplot array of variables location.
   character(500)::          tecvarlocstr        !< Tecplot string of variables location.
   integer, allocatable::    tecnull(:)          !< Tecplot null array.
-  integer::                 tecunit             !< Free logic unit of tecplot file.
+  integer, allocatable::    tecunit(:)          !< Free logic unit of tecplot file.
   integer::                 Nvar                !< Internal number of variables saved.
   integer::                 Nblocks,Nb_tot      !< Number of blocks.
   integer::                 b                   !< Counter.
   integer::                 NvarTot
   integer::                 gc
-  integer::                 id,myrank,nproc,fl  !< MPI auxiliary vars
   real(R8P)::               time_
   !---------------------------------------------------------------------------------------------------------------------------------
 
   !---------------------------------------------------------------------------------------------------------------------------------
-
-  ! First open/check MPI environment
-# ifdef MPI_VERSION
-    call MPI_Comm_size(MPI_COMM_WORLD,  nproc, err)
-    call MPI_Comm_rank(MPI_COMM_WORLD, myrank, err)
-# else
-     nproc = 1
-    myrank = 0
-# endif
 
   ! Preliminary operations
   if (allocated(orion%block(1)%vars) .and. .not.present(Nvars)) then
@@ -127,15 +114,11 @@ contains
     Nvar = 0
   endif
   Nblocks = size(orion%block)
-#ifdef MPI_VERSION
-  call MPI_ALLREDUCE(Nblocks,Nb_tot,1,MPI_INTEGER,MPI_SUM,MPI_COMM_WORLD,err)
-#else
-  Nb_tot = Nblocks
-#endif    
   gc = 1
   ! allocating dynamic arrays
   allocate(tecvarloc(1:3+Nvar))
   allocate(tecnull(1:3+Nvar))
+  allocate(tecunit(Nblocks))
   ! initializing tecplot variables
   call tec_init()
   ! time
@@ -161,43 +144,20 @@ contains
     stop "You can not write in binary formato without compiling against TecIO"
 # endif
   case('ascii')
-    if (index(filename,'.')==0) then
-      if (myrank==0) open(newunit=tecunit,file=trim(filename)//".dat")
-    else
-      if (myrank==0) open(newunit=tecunit,file=trim(filename))
-    endif
-    if (myrank==0) write(tecunit,'(A)',iostat=err) trim(tecvarname)
+    do b=1,Nblocks
+      if (index(filename,'.')==0) then
+        open(newunit=tecunit(b),file=trim(filename)//"_"//trim(orion%block(b)%name)//".dat")
+      else
+        open(newunit=tecunit(b),file=trim(filename(1:index(filename,'.')-1))//"_"//trim(orion%block(b)%name)//trim(filename(index(filename,'.'):len(filename))))
+      endif
+      write(tecunit(b),'(A)',iostat=err) trim(tecvarname)
+    enddo
     ! Open file in different processes
-#   ifdef MPI_VERSION
-      call MPI_BARRIER( MPI_COMM_WORLD , err )
-      call MPI_BCAST( tecunit, 1, MPI_INTEGER, 0, MPI_COMM_WORLD, err )
-      if (myrank /= 0) open ( unit=tecunit,file=trim(filename),status='old' )
-#   endif
   end select
   ! writing data blocks
-  if (orion%block(1)%id == -1) then
-    ! Non-ordered output -> Cycle over processes
-    do id=0,nproc - 1
-#   ifdef MPI_VERSION
-      call MPI_BARRIER( MPI_COMM_WORLD , err )
-#   endif
-      if (myrank == id) then
-        do b=1,Nblocks
-          err = tec_blk_data(b = b)
-        enddo
-      endif
-    enddo
-  else
-    ! Ordered output -> Cycle over global blocks
-    do id=1,Nb_tot
-#   ifdef MPI_VERSION
-      call MPI_BARRIER( MPI_COMM_WORLD , err )
-#   endif
-      do b=1,Nblocks
-        if (orion%block(b)%id == id) err = tec_blk_data(b = b)
-      enddo
-    enddo
-  endif
+  do b=1,Nblocks
+    err = tec_blk_data(b = b)
+  enddo
   ! finalizing tecplot file
   select case(orion%tec%format)
   case('binary')
@@ -205,11 +165,14 @@ contains
     err = tecend142()
 # endif
   case('ascii')
-    close(tecunit)
+    do b=1,Nblocks
+      close(tecunit(b))
+    enddo
   end select
   ! deallocating dynamic arrays
   deallocate(tecvarloc)
   deallocate(tecnull)
+  deallocate(tecunit)
   return
   !---------------------------------------------------------------------------------------------------------------------------------
   contains
@@ -364,10 +327,10 @@ contains
                       ', DATAPACKING=BLOCK'//adjustl(trim(tecvarlocstr))
       if (time_>0.0_R8P) &
         teczoneheader = trim(teczoneheader)//', SOLUTIONTIME='//trim(str(no_sign=.true.,n=time_))
-      write(tecunit,'(A)',iostat=err)trim(teczoneheader)
-      write(tecunit,FR_P,iostat=err)(((orion%block(b)%mesh(1,i,j,k),i=ni1,ni2),j=nj1,nj2),k=nk1,nk2)
-      write(tecunit,FR_P,iostat=err)(((orion%block(b)%mesh(2,i,j,k),i=ni1,ni2),j=nj1,nj2),k=nk1,nk2)
-      write(tecunit,FR_P,iostat=err)(((orion%block(b)%mesh(3,i,j,k),i=ni1,ni2),j=nj1,nj2),k=nk1,nk2)
+      write(tecunit(b),'(A)',iostat=err)trim(teczoneheader)
+      write(tecunit(b),FR_P,iostat=err)(((orion%block(b)%mesh(1,i,j,k),i=ni1,ni2),j=nj1,nj2),k=nk1,nk2)
+      write(tecunit(b),FR_P,iostat=err)(((orion%block(b)%mesh(2,i,j,k),i=ni1,ni2),j=nj1,nj2),k=nk1,nk2)
+      write(tecunit(b),FR_P,iostat=err)(((orion%block(b)%mesh(3,i,j,k),i=ni1,ni2),j=nj1,nj2),k=nk1,nk2)
       if (.not.meshonly) then
         start = 1
         if (orion%tec%node) start = 0
@@ -375,7 +338,7 @@ contains
         if (nj2==0) nj2 = 1
         if (nk2==0) nk2 = 1
         do s=1,Nvar
-          write(tecunit,FR_P,iostat=err)(((orion%block(b)%vars(s,i,j,k),i=ni1+start,ni2),j=nj1+start,nj2),k=nk1+start,nk2)
+          write(tecunit(b),FR_P,iostat=err)(((orion%block(b)%vars(s,i,j,k),i=ni1+start,ni2),j=nj1+start,nj2),k=nk1+start,nk2)
         enddo
       endif
     end select
