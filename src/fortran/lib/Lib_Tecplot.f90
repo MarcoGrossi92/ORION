@@ -13,6 +13,11 @@ module Lib_Tecplot
 # if defined(TECIO)
   include "tecio.f90"
 # endif
+  private
+
+  public:: tec_write_structured_multiblock
+  public:: tec_read_structured_multiblock
+  public:: tec_read_points_multivars
 
 
 contains
@@ -92,6 +97,10 @@ contains
   character(500)::          tecvarlocstr        !< Tecplot string of variables location.
   integer, allocatable::    tecnull(:)          !< Tecplot null array.
   integer::                 tecunit             !< Free logic unit of tecplot file.
+  integer::                 Debug      = 0
+  integer::                 VIsDouble  = 0
+  integer::                 FileType   = 0
+  integer::                 fileFormat ! 0 == PLT, 1 == SZPLT
   integer::                 Nvar                !< Internal number of variables saved.
   integer::                 Nblocks             !< Number of blocks.
   integer::                 b                   !< Counter.
@@ -102,6 +111,9 @@ contains
 
   !---------------------------------------------------------------------------------------------------------------------------------
   ! Preliminary operations
+  FileType   = 0
+  Debug      = 0
+  VIsDouble  = 0
   if (allocated(orion%block(1)%vars) .and. .not.present(Nvars)) then
     meshonly = .false.
     Nvar = size(orion%block(1)%vars,1)
@@ -129,21 +141,21 @@ contains
   select case(orion%tec%format)
   case('binary')
 # if defined(TECIO)
-    if (filename(len_trim(filename)-4:len_trim(filename))/=".plt") then
-      err = tecini142(tecendrec,trim(tecvarname)//tecendrec,trim(filename)//".plt"//tecendrec,'.'//tecendrec,0,0,1,0)
+    if (index(filename,'.plt')>0) then
+      fileFormat = 0
+    elseif (index(filename,'.szplt')>0) then
+      fileFormat = 1
     else
-      err = tecini142(tecendrec,trim(tecvarname)//tecendrec,trim(filename)//tecendrec,'.'//tecendrec,0,0,1,0)
+      write(stderr,'(A)')'Tecplot binary file must end with ".plt" or ".szplt"'
+      return
     endif
+    err = tecini142(tecendrec,trim(tecvarname)//tecendrec,trim(filename)//tecendrec,'.'//tecendrec,fileFormat,FileType,Debug,VIsDouble)
     err = tecauxstr142("Time"//tecendrec,trim(str(n=time_))//tecendrec)
 # else
     stop "You can not write in binary formato without compiling against TecIO"
 # endif
   case('ascii')
-    if (index(filename,'.')==0) then
-      open(newunit=tecunit,file=trim(filename)//".dat")
-    else
-      open(newunit=tecunit,file=trim(filename))
-    endif
+    open(newunit=tecunit,file=trim(filename))
     write(tecunit,'(A)',iostat=err)trim(tecvarname)
   end select
   ! writing data blocks
@@ -347,9 +359,24 @@ contains
 
   endfunction tec_write_structured_multiblock
 
-
   !> Function for reading ORION block data from Tecplot file.
   function tec_read_structured_multiblock(orion,filename) result(err)
+    implicit none
+    type(orion_data), intent(inout)                        :: orion
+    character(len=*), intent(in)                           :: filename
+    integer :: err
+
+    if (index(filename,'.dat')>0 .or. index(filename,'.tec')>0) then
+      err = tec_read_ascii(orion,filename)
+    elseif (index(filename,'.szplt')>0) then
+      err = tec_read_szplt(orion,filename)
+    endif
+
+  end function tec_read_structured_multiblock
+
+
+  !> Function for reading ORION block data from Tecplot ascii file.
+  function tec_read_ascii(orion,filename) result(err)
     use, intrinsic :: iso_fortran_env, only : iostat_end
     use strings, only: getvals, parse
     implicit none
@@ -451,7 +478,7 @@ contains
 
     close(tecunit)
 
-  end function tec_read_structured_multiblock
+  end function tec_read_ascii
 
 
   !> Function for reading ORION block data from Tecplot file.
@@ -583,6 +610,297 @@ contains
     variables = variables_(4:nvar)
 
   end subroutine read_variables
+
+
+  ! Convenience to extract a returned C string to a FOrtran string
+  subroutine copyCharArrayToString(charArray, length, string)
+    use iso_c_binding, only : C_NULL_CHAR, c_ptr, c_f_pointer
+    implicit none
+    type(c_ptr) :: charArray
+    integer length
+    character(*) string
+
+    character, pointer :: charPointer(:)
+    integer i
+
+    call c_f_pointer(charArray, charPointer, [length])
+
+    string = ' '
+    do i = 1, length
+        string(i:i) = charPointer(i)
+    enddo
+    string(length+1:length+1) = C_NULL_CHAR
+
+  end
+
+  function tec_read_szplt(orion,filename) result(i)
+    use iso_c_binding
+    implicit none
+    include "tecio.f90"
+    type(orion_data), intent(inout)                        :: orion
+    character(len=*), intent(in)                           :: filename
+
+    integer i, j, k, cnt
+    character(256) programName
+    character(256) inputFileName
+    character(256) dataSetTitle, zoneTitle
+    character(256) name, val
+    character(256) macroFunctionCmd
+    character(256) textString, typeface, fontName, testFontName
+    character(1024) varNames
+    character(1024) labelSet
+    character, pointer :: stringPtr(:)
+    integer nameLen, strLen
+    integer(c_int8_t), allocatable :: int8Values(:)
+    integer(c_int16_t), allocatable :: int16Values(:)
+    integer(c_int32_t) :: numVars, var
+    integer(c_int32_t) :: fileType
+    integer(c_int32_t) :: varType
+    integer(c_int32_t) :: fileFormat = 1 ! .szplt
+    integer(c_int32_t) :: inputZone, numZones
+    integer(c_int32_t) :: zoneType
+    integer(c_int32_t) :: strandID, faceNeighborMode
+    integer(c_int32_t) :: shareConnectivityFromZone
+    integer(c_int32_t) :: zero = 0
+    integer(c_int32_t) :: is64Bit
+    integer(c_int32_t) :: numItems, whichItem
+    integer(c_int32_t) :: numSets
+    integer(c_int32_t) :: numGeoms, geom, geomType, clipping
+    integer(c_int32_t) :: segment, ind
+    integer(c_int32_t) :: numTexts, text
+    integer(c_int32_t) :: boxColor, boxFillColor, boxType, anchor
+    integer(c_int32_t) :: isBold, isItalic, sizeUnits, font
+    integer(c_int32_t), allocatable :: int32Values(:)
+    integer(c_int32_t), allocatable :: faceConnections32(:)
+    integer(c_int32_t), allocatable :: nodeMap32(:)
+    integer(c_int32_t), allocatable :: numSegPts(:)
+    integer(c_int64_t) :: numValues, numFaceValues
+    integer(c_int64_t) :: numFaceConnections
+    integer(c_int64_t) :: iMax, jMax, kMax
+    integer(c_int64_t), allocatable :: faceConnections64(:)
+    integer(c_int32_t), allocatable :: varTypes(:)
+    integer(c_int32_t), allocatable :: passiveVarList(:)
+    integer(c_int32_t), allocatable :: valueLocation(:)
+    integer(c_int32_t), allocatable :: shareVarFromZone(:)
+    integer(c_int64_t), allocatable :: nodeMap64(:)
+    real(c_float), allocatable :: floatValues(:)
+    real(c_double) :: solutionTime
+    real(c_double) :: x, y, z, patternLength, lineThickness
+    real(c_double) :: arrowheadAngle, arrowheadSize
+    real(c_double) :: geomX, geomY, geomZ, width, height, squareSize
+    real(c_double) :: radius, horizontalAxis, verticalAxis
+    real(c_double) :: boxLineThickness, boxMargin, angle, lineSpacing
+    real(c_double), allocatable :: doubleValues(:)
+    real(c_double), allocatable :: xGeomData(:), yGeomData(:), &
+                                  zGeomData(:)
+    type(c_ptr) :: inputFileHandle = C_NULL_PTR
+    type(c_ptr) :: stringCPtr = C_NULL_PTR
+    type(c_ptr) :: nameCPtr = C_NULL_PTR, valueCPtr = C_NULL_PTR
+
+    inputFileName = trim(filename) // C_NULL_CHAR
+
+    ! Open the input file for reading
+    i = tecFileReaderOpen(inputFileName, inputFileHandle)
+
+    ! Read info about the data set
+    i = tecDataSetGetTitle(inputFileHandle, stringCPtr)
+    call copyCharArrayToString(stringCPtr, &
+        tecStringLength(stringCPtr), dataSetTitle)
+    call tecStringFree(stringCPtr)
+    i = tecDataSetGetNumVars(inputFileHandle, numVars)
+
+    strLen = 0
+    do var = 1, numVars
+        i = tecVarGetName(inputFileHandle, var, stringCPtr)
+        nameLen = tecStringLength(stringCPtr)
+        call c_f_pointer(stringCPtr, stringPtr, [nameLen])
+        if (var .gt. 1) then
+            strLen = strLen + 1
+            varNames(strLen : strLen) = ','
+        endif
+        do j = 1, nameLen
+            varNames(strLen + j : strLen + j) = stringPtr(j)
+        enddo
+        strLen = strLen + nameLen
+        call tecStringFree(stringCPtr)
+    enddo
+    varNames(strLen + 1 : strlen + 1) = C_NULL_CHAR
+
+    i = tecFileGetType(inputFileHandle, fileType)
+    i = tecDataSetGetNumZones(inputFileHandle, numZones)
+
+    allocate(orion%block(1:numZones))
+
+    ! Zones
+    do inputZone = 1, numZones
+        i = tecZoneGetType(inputFileHandle, inputZone, zoneType)
+        if (zoneType == 6 .or. zoneType == 7) &
+            stop "Unsupported inputZone type."
+          
+        ! Retrieve info about the inputZone
+        i = tecZoneGetTitle(inputFileHandle, inputZone, stringCPtr)
+        call copyCharArrayToString(stringCPtr, &
+            tecStringLength(stringCPtr), zoneTitle)
+        call tecStringFree(stringCPtr)
+        
+        i = tecZoneGetIJK(inputFileHandle, inputZone, &
+            iMax, jMax, kMax)
+
+        orion%block(inputZone)%Ni = iMax-1
+        orion%block(inputZone)%Nj = jMax-1
+        orion%block(inputZone)%Nk = kMax-1
+        orion%block(inputZone)%name = zoneTitle
+        allocate(orion%block(inputZone)%mesh(1:3,0:iMax-1,0:jMax-1,0:kMax-1))
+        allocate(orion%block(inputZone)%vars(1:numVars-3,1:iMax-1,1:jMax-1,1:kMax-1))
+
+        allocate(varTypes(numVars))
+        allocate(passiveVarList(numVars))
+        allocate(valueLocation(numVars))
+        allocate(shareVarFromZone(numVars))
+        do var = 1, numVars
+            i = tecZoneVarGetType(inputFileHandle, inputZone, &
+                var, varTypes(var))
+            i = tecZoneVarIsPassive(inputFileHandle, inputZone, &
+                var, passiveVarList(var))
+            i = tecZoneVarGetValueLocation(inputFileHandle, inputZone, &
+                var, valueLocation(var))
+            i = tecZoneVarGetSharedZone(inputFileHandle, inputZone, &
+                var, shareVarFromZone(var))
+        enddo
+
+        ! i = tecZoneConnectivityGetSharedZone(inputFileHandle, &
+        !     inputZone, shareConnectivityFromZone)
+        ! i = tecZoneFaceNbrGetMode(inputFileHandle, inputZone, &
+        !     faceNeighborMode)
+        ! if (faceNeighborMode > 4) faceNeighborMode = 1
+        ! i = tecZoneFaceNbrGetNumConnections(inputfileHandle, &
+        !     inputZone, numFaceConnections)
+
+        i = tecZoneGetSolutionTime(inputFileHandle, inputZone, &
+            solutionTime)
+        i = tecZoneGetStrandID(inputFileHandle, inputZone, strandID)
+        ! if (solutionTime /= 0.0 .or. strandID /= 0) &
+        !     i = tecZoneSetUnsteadyOptions(outputFileHandle, &
+        !         outputZone, solutionTime, strandID)
+
+        ! Read and write inputZone data
+        do var = 1, numVars
+            if (passiveVarList(var) == 0 .and. &
+                  shareVarFromZone(var) == 0) then            
+                i = tecZoneVarGetNumValues(inputFileHandle, &
+                          inputZone, var, numValues)
+                select case (varTypes(var))
+                case (1) ! float
+                    allocate(floatValues(numValues))
+                    i = tecZoneVarGetFloatValues(inputFileHandle, &
+                        inputZone, var, 1_c_int64_t, numValues, &
+                        floatValues)
+                    if (valueLocation(var)==1) then
+                      cnt = 1
+                      do k = 0, kMax-1; do j = 0, jMax-1; do i = 0, iMax-1
+                            orion%block(inputZone)%mesh(var,i,j,k) = floatValues(cnt)
+                            cnt = cnt + 1
+                      enddo; enddo; enddo
+                    else
+                      cnt = 1
+                      do k = 1, kMax-1; do j = 1, jMax-1; do i = 1, iMax-1
+                            orion%block(inputZone)%vars(var-3,i,j,k) = floatValues(cnt)
+                            cnt = cnt + 1
+                      enddo; enddo; enddo
+                    endif
+                    deallocate(floatValues)
+                case (2) ! double
+                    allocate(doubleValues(numValues))
+                    i = tecZoneVarGetDoubleValues(inputFileHandle, &
+                        inputZone, var, 1_c_int64_t, numValues, &
+                        doubleValues)
+                    if (valueLocation(var)==1) then
+                      cnt = 1
+                      do k = 0, kMax-1; do j = 0, jMax-1; do i = 0, iMax-1
+                            orion%block(inputZone)%mesh(var,i,j,k) = floatValues(cnt)
+                            cnt = cnt + 1
+                      enddo; enddo; enddo
+                    else
+                      cnt = 1
+                      do k = 1, kMax-1; do j = 1, jMax-1; do i = 1, iMax-1
+                            orion%block(inputZone)%vars(var-3,i,j,k) = floatValues(cnt)
+                            cnt = cnt + 1
+                      enddo; enddo; enddo
+                    endif
+                    deallocate(doubleValues)
+                case (3) ! int32_t
+                    allocate(int32Values(numValues))
+                    i = tecZoneVarGetInt32Values(inputFileHandle, &
+                        inputZone, var, 1_c_int64_t, numValues, &
+                        int32Values)
+                    if (valueLocation(var)==1) then
+                      cnt = 1
+                      do k = 0, kMax-1; do j = 0, jMax-1; do i = 0, iMax-1
+                            orion%block(inputZone)%mesh(var,i,j,k) = floatValues(cnt)
+                            cnt = cnt + 1
+                      enddo; enddo; enddo
+                    else
+                      cnt = 1
+                      do k = 1, kMax-1; do j = 1, jMax-1; do i = 1, iMax-1
+                            orion%block(inputZone)%vars(var-3,i,j,k) = floatValues(cnt)
+                            cnt = cnt + 1
+                      enddo; enddo; enddo
+                    endif
+                    deallocate(int32Values)
+                case (4) ! int16_t
+                    allocate(int16Values(numValues))
+                    i = tecZoneVarGetInt16Values(inputFileHandle, &
+                        inputZone, var, 1_c_int64_t, numValues, &
+                        int16Values)
+                    if (valueLocation(var)==1) then
+                      cnt = 1
+                      do k = 0, kMax-1; do j = 0, jMax-1; do i = 0, iMax-1
+                            orion%block(inputZone)%mesh(var,i,j,k) = floatValues(cnt)
+                            cnt = cnt + 1
+                      enddo; enddo; enddo
+                    else
+                      cnt = 1
+                      do k = 1, kMax-1; do j = 1, jMax-1; do i = 1, iMax-1
+                            orion%block(inputZone)%vars(var-3,i,j,k) = floatValues(cnt)
+                            cnt = cnt + 1
+                      enddo; enddo; enddo
+                    endif
+                    deallocate(int16Values)
+                case (5) ! uint8_t
+                    allocate(int8Values(numValues))
+                    i = tecZoneVarGetUInt8Values(inputFileHandle, &
+                        inputZone, var, 1_c_int64_t, numValues, &
+                        int8Values)
+                    if (valueLocation(var)==1) then
+                      cnt = 1
+                      do k = 0, kMax-1; do j = 0, jMax-1; do i = 0, iMax-1
+                            orion%block(inputZone)%mesh(var,i,j,k) = floatValues(cnt)
+                            cnt = cnt + 1
+                      enddo; enddo; enddo
+                    else
+                      cnt = 1
+                      do k = 1, kMax-1; do j = 1, jMax-1; do i = 1, iMax-1
+                            orion%block(inputZone)%vars(var-3,i,j,k) = floatValues(cnt)
+                            cnt = cnt + 1
+                      enddo; enddo; enddo
+                    endif
+                    deallocate(int8Values)
+                endselect
+            endif
+        enddo
+        
+        deallocate(varTypes)
+        deallocate(passiveVarList)
+        deallocate(valueLocation)
+        deallocate(shareVarFromZone)
+                  
+    enddo ! inputZone loop
+
+    ! Close old and new files
+    i = tecFileReaderClose(inputFileHandle)
+
+  end function tec_read_szplt
+
 
 
   subroutine skip(u,n)

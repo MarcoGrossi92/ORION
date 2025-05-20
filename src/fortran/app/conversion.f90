@@ -1,4 +1,6 @@
 module functions
+  use IR_Precision
+  use Lib_ORION_data
   use Lib_VTK
   use Lib_Tecplot
   use Lib_PLOT3D
@@ -202,6 +204,7 @@ program main
   write(*,*)
 
   if (index(trim(infile),'.tec')>0) call read_tec(data,infile)
+  if (index(trim(infile),'.szplt')>0) call read_tec(data,infile)
   if (index(trim(infile),'.p3d')>0) call read_p3d(data,infile)
   if (index(trim(infile),'.vtm')>0) call read_vtm(data,infile)
 
@@ -214,6 +217,7 @@ program main
   enddo
 
   if (index(trim(outfile),'.tec')>0) call write_tec(data,outfile,varname_scalar)
+  if (index(trim(outfile),'.szplt')>0) call write_tec(data,outfile,varname_scalar)
   if (index(trim(outfile),'.p3d')>0) call write_p3d(data,outfile)
   if (index(trim(outfile),'.vtm')>0) call write_vtm(data,outfile,varname_scalar)
 
@@ -255,12 +259,14 @@ contains
         infile = trim(adjustl(arg(11:)))
 
       elseif (index(arg, '--out-format=') > 0) then
-        if (index(outfile,'.tec')>0) data%tec%format = trim(adjustl(arg(14:)))
+        if (index(outfile,'.tec')>0) data%tec%format = 'ascii'
+        if (index(outfile,'.szplt')>0) data%tec%format = 'binary'
         if (index(outfile,'.p3d')>0) data%p3d%format = trim(adjustl(arg(14:)))
         if (index(outfile,'.vtm')>0) data%vtk%format = trim(adjustl(arg(14:)))
 
       elseif (index(arg, '--in-format=') > 0) then
-        if (index(infile,'.tec')>0) data%tec%format = trim(adjustl(arg(14:)))
+        if (index(infile,'.tec')>0) data%tec%format = 'ascii'
+        if (index(infile,'.szplt')>0) data%tec%format = 'binary'
         if (index(infile,'.p3d')>0) data%p3d%format = trim(adjustl(arg(14:)))
         if (index(infile,'.vtm')>0) data%vtk%format = trim(adjustl(arg(14:)))
 
