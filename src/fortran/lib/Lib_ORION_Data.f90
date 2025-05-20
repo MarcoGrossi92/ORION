@@ -45,7 +45,7 @@ module Lib_ORION_data
 
 contains
 
-   subroutine copyORION(a,b)
+  subroutine copyORION(a,b)
     type(orion_data), intent(in)  :: a
     type(orion_data), intent(out) :: b
     integer :: i
@@ -64,18 +64,20 @@ contains
     else
       allocate(b%block(size(a%block)))
     end if
-
-    ! Handle allocation of varnames
-    if (allocated(b%varnames)) then
-      if (size(b%varnames) /= size(a%varnames)) then
-        deallocate(b%varnames)
+  
+    if (allocated(a%varnames)) then
+      ! Handle allocation of varnames
+      if (allocated(b%varnames)) then
+        if (size(b%varnames) /= size(a%varnames)) then
+          deallocate(b%varnames)
+          allocate(b%varnames(size(a%varnames)))
+        end if
+      else
         allocate(b%varnames(size(a%varnames)))
       end if
-    else
-      allocate(b%varnames(size(a%varnames)))
-    end if
-
-    b%varnames = a%varnames
+      b%varnames = a%varnames
+    endif
+ 
 
     ! Copy each block
     do i = 1, size(a%block)
@@ -93,20 +95,21 @@ contains
       else
         allocate(b%block(i)%mesh, mold=a%block(i)%mesh)
       end if
+      b%block(i)%mesh = a%block(i)%mesh
 
-      ! Handle vars allocation
-      if (allocated(b%block(i)%vars)) then
-        if (any(shape(b%block(i)%vars) /= shape(a%block(i)%vars))) then
-          deallocate(b%block(i)%vars)
+      if (allocated(a%block(i)%vars)) then
+        ! Handle vars allocation
+        if (allocated(b%block(i)%vars)) then
+          if (any(shape(b%block(i)%vars) /= shape(a%block(i)%vars))) then
+            deallocate(b%block(i)%vars)
+            allocate(b%block(i)%vars, mold=a%block(i)%vars)
+          end if
+        else
           allocate(b%block(i)%vars, mold=a%block(i)%vars)
         end if
-      else
-        allocate(b%block(i)%vars, mold=a%block(i)%vars)
-      end if
+        b%block(i)%vars = a%block(i)%vars
+      endif
 
-      ! Copy data
-      b%block(i)%mesh = a%block(i)%mesh
-      b%block(i)%vars = a%block(i)%vars
     end do
 
   end subroutine copyORION
