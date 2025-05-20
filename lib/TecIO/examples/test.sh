@@ -72,6 +72,7 @@ if [[ "$1" == "clean" ]]; then
   
   for dir in $dirs; do
     cd $dir                      > /dev/null 2>&1
+    rm -r build
     rm makefile *.plt test*      > /dev/null 2>&1
     cd ..                        > /dev/null 2>&1
   done

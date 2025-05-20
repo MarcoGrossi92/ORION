@@ -56,4 +56,13 @@ else ()
     target_link_libraries(szcombine tecio pthread)
 endif ()
 
+set ( testD ../examples/rewriteszl/ "${CMAKE_CURRENT_SOURCE_DIR}/../examples/rewriteszl/build")
+add_subdirectory(${testD})
+
+set ( testD ../examples/ijkpartitioned/ "${CMAKE_CURRENT_SOURCE_DIR}/../examples/ijkpartitioned/build")
+add_subdirectory(${testD})
+
+set ( testD ../examples/ij_ordered/ "${CMAKE_CURRENT_SOURCE_DIR}/../examples/ij_ordered/build")
+add_subdirectory(${testD})
+
 set_target_properties(tecio PROPERTIES LINKER_LANGUAGE Fortran)
