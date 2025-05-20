@@ -62,9 +62,12 @@ program tecplot_write_multiblock
   enddo
 
   data%tec%format = 'binary'
-  error = tec_write_structured_multiblock(orion=data,varnames='variable1 variable2',filename='solfile')
+  error = tec_write_structured_multiblock(orion=data,varnames='variable1 variable2',filename='tecfile.szplt')
+
+  data%tec%format = 'binary'
+  error = tec_write_structured_multiblock(orion=data,varnames='variable1 variable2',filename='tecfile.plt')
 
   data%tec%format = 'ascii'
-  error = tec_write_structured_multiblock(orion=data,varnames='"variable1"',filename='solfile',Nvars=1)
+  error = tec_write_structured_multiblock(orion=data,varnames='"variable1"',filename='tecfile.tec',Nvars=1)
 
 end program tecplot_write_multiblock
