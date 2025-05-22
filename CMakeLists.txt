@@ -35,21 +35,27 @@ if (USE_TECIO)
   if(NOT EXISTS "${TECIO_INSTALL_DIR}")
     message(STATUS "TecIO not installed, building and installing it...")
 
-    # Build SUNDIALS in a temporary build directory
-    execute_process(COMMAND ${CMAKE_COMMAND} -S ${CMAKE_CURRENT_SOURCE_DIR}/lib/TecIO
+    # Build TecIO in a temporary build directory
+    execute_process(COMMAND ${CMAKE_COMMAND} -S ${CMAKE_CURRENT_SOURCE_DIR}/lib/TecIO/teciosrc
                                            -B ${CMAKE_CURRENT_SOURCE_DIR}/lib/TecIO/build
                                            -DCMAKE_INSTALL_PREFIX=${TECIO_INSTALL_DIR}
-                                           -DCMAKE_CXX_COMPILER=${CMAKE_C_COMPILER}
+                                           -DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER}
+                                           -DCMAKE_C_COMPILER=${CMAKE_C_COMPILER}
                                            -DCMAKE_Fortran_COMPILER=${CMAKE_Fortran_COMPILER}
                     RESULT_VARIABLE CONFIGURE_RESULT)
     if(NOT CONFIGURE_RESULT EQUAL 0)
-        message(FATAL_ERROR "Failed to configure SUNDIALS")
+        message(FATAL_ERROR "Failed to configure TecIO")
     endif()
 
-    execute_process(COMMAND ${CMAKE_COMMAND} --build ${CMAKE_CURRENT_SOURCE_DIR}/lib/sundials/build --target install
+    execute_process(COMMAND ${CMAKE_COMMAND} --build ${CMAKE_CURRENT_SOURCE_DIR}/lib/TecIO/build
                     RESULT_VARIABLE BUILD_RESULT)
     if(NOT BUILD_RESULT EQUAL 0)
-        message(FATAL_ERROR "Failed to build and install SUNDIALS")
+        message(FATAL_ERROR "Failed to build TecIO")
+    endif()
+    execute_process(COMMAND ${CMAKE_COMMAND} --install ${CMAKE_CURRENT_SOURCE_DIR}/lib/TecIO/build
+                    RESULT_VARIABLE INSTALL_RESULT)
+    if(NOT INSTALL_RESULT EQUAL 0)
+        message(FATAL_ERROR "Failed to install TecIO")
     endif()
   endif()
   find_package(tecio REQUIRED
