@@ -1,7 +1,7 @@
 # Application build
 set(APP converter)
 add_executable(${APP} "conversion.f90")
-target_link_libraries(${APP} ORION ${TECIO} ${LINKLIBS})
+target_link_libraries(${APP} ORION)
 target_include_directories(${APP}
     INTERFACE
         $<BUILD_INTERFACE:${CMAKE_Fortran_MODULE_DIRECTORY}>

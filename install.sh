@@ -126,8 +126,6 @@ case "$COMMAND" in
         #./doxygen .Doxyfile
         define_path
         rm -rf bin build && mkdir -p build
-        cd $DIR/lib/TecIO
-        ./build.sh
         cd $DIR/build
         cmake .. -DCMAKE_BUILD_TYPE=RELEASE -DUSE_TECIO=ON
         make

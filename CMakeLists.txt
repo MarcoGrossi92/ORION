@@ -1,11 +1,14 @@
 # CMake project file for ORION
 
 cmake_minimum_required(VERSION 3.13)
-# if(UNIX AND APPLE)
-#   set(CMAKE_Fortran_COMPILER "gfortran")
-# endif()
 
-project (ORION LANGUAGES Fortran)
+# -------- Compiler overrides (for macOS) --------
+if (UNIX AND APPLE)
+    set(CMAKE_CXX_COMPILER "/opt/homebrew/bin/g++-14")
+    set(CMAKE_C_COMPILER   "/opt/homebrew/bin/gcc-14")
+endif ()
+
+project (ORION LANGUAGES Fortran CXX C)
 
 set(CMAKE_VERBOSE_MAKEFILE FALSE)
 # seach path for cmake modules
@@ -25,12 +28,36 @@ INCLUDE(${CMAKE_MODULE_PATH}/SetFortranFlags.cmake)
 # about Fortran.
 INCLUDE(${CMAKE_MODULE_PATH}/SetParallelizationLibrary.cmake)
 
-# Include libraries
 # TecIO
 OPTION(USE_TECIO "Use TecIO" ON)
-include_directories(${CMAKE_CURRENT_SOURCE_DIR}/lib/TecIO/teciosrc)
-set(LINKLIBS -lpthread -lm -lstdc++)
-file(GLOB TECIO "${CMAKE_CURRENT_SOURCE_DIR}/lib/TecIO/build/libtecio.a")
+if (USE_TECIO)
+  set(TECIO_INSTALL_DIR "${CMAKE_CURRENT_SOURCE_DIR}/lib/TecIO/tecio-install")
+  if(NOT EXISTS "${TECIO_INSTALL_DIR}")
+    message(STATUS "TecIO not installed, building and installing it...")
+
+    # Build SUNDIALS in a temporary build directory
+    execute_process(COMMAND ${CMAKE_COMMAND} -S ${CMAKE_CURRENT_SOURCE_DIR}/lib/TecIO
+                                           -B ${CMAKE_CURRENT_SOURCE_DIR}/lib/TecIO/build
+                                           -DCMAKE_INSTALL_PREFIX=${TECIO_INSTALL_DIR}
+                                           -DCMAKE_CXX_COMPILER=${CMAKE_C_COMPILER}
+                                           -DCMAKE_Fortran_COMPILER=${CMAKE_Fortran_COMPILER}
+                    RESULT_VARIABLE CONFIGURE_RESULT)
+    if(NOT CONFIGURE_RESULT EQUAL 0)
+        message(FATAL_ERROR "Failed to configure SUNDIALS")
+    endif()
+
+    execute_process(COMMAND ${CMAKE_COMMAND} --build ${CMAKE_CURRENT_SOURCE_DIR}/lib/sundials/build --target install
+                    RESULT_VARIABLE BUILD_RESULT)
+    if(NOT BUILD_RESULT EQUAL 0)
+        message(FATAL_ERROR "Failed to build and install SUNDIALS")
+    endif()
+  endif()
+  find_package(tecio REQUIRED
+             PATHS ${TECIO_INSTALL_DIR}
+             NO_DEFAULT_PATH)
+  include_directories(${CMAKE_CURRENT_SOURCE_DIR}/lib/TecIO/teciosrc)
+  set(LINKLIBS -lpthread -lm -lstdc++)
+endif()
 
 include(GNUInstallDirs)
 

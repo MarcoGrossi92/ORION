@@ -1,68 +1,115 @@
-cmake_minimum_required(VERSION 2.8.12) # requiring 2.8.12 sets the CMP0022 policy to new (non-transitive linking, i.e. just the interfaces) by default
+cmake_minimum_required(VERSION 2.8.12)
 
+# -------- Project metadata and language setup --------
+project(tecio LANGUAGES C CXX Fortran)
+
+# Default build type
 if (NOT CMAKE_BUILD_TYPE)
-    set (CMAKE_BUILD_TYPE Release CACHE STRING "CMake build type (Debug|Release)" FORCE)
+    set(CMAKE_BUILD_TYPE Release CACHE STRING "CMake build type (Debug|Release)" FORCE)
 endif ()
 
-# For Apple machiness add here the correct path to C/C++ compilers
-if(UNIX AND APPLE)
-  set(CMAKE_CXX_COMPILER "/opt/homebrew/bin/g++-14")
-  set(CMAKE_C_COMPILER "/opt/homebrew/bin/gcc-14")
-endif()
-
-project (tecio C CXX Fortran)
-
-FIND_PACKAGE(Boost)
-IF (Boost_FOUND)
-    INCLUDE_DIRECTORIES(${Boost_INCLUDE_DIR})
-ELSE()
-    # Check if the "boost" directory doesn't exist, and if so, extract boost.tar.gz
-    ADD_CUSTOM_TARGET(ExtractBoost
+# -------- Boost detection and fallback --------
+find_package(Boost)
+if (Boost_FOUND)
+    include_directories(${Boost_INCLUDE_DIR})
+else()
+    add_custom_target(ExtractBoost
         COMMAND ${CMAKE_COMMAND} -E chdir ${CMAKE_CURRENT_SOURCE_DIR}/.. tar xzf ${CMAKE_CURRENT_SOURCE_DIR}/../boost.tar.gz
         COMMENT "Extracting Boost library"
         VERBATIM)
-    ADD_CUSTOM_TARGET(CreateBoostLink ALL
+
+    add_custom_target(CreateBoostLink ALL
         COMMAND ${CMAKE_COMMAND} -E create_symlink ${CMAKE_CURRENT_SOURCE_DIR}/../boost ${CMAKE_CURRENT_SOURCE_DIR}/boost
         COMMENT "Creating symbolic link to Boost directory"
         VERBATIM)
-    # Add dependencies between the targets
+
     add_dependencies(CreateBoostLink ExtractBoost)
 
-    Set (Boost_INCLUDE_DIR "boost")
-    message ("Warning:  Cannot find boost include directories.  Hardcoding to ${Boost_INCLUDE_DIR}")
-    INCLUDE_DIRECTORIES(SYSTEM ${Boost_INCLUDE_DIR})
-ENDIF()
+    set(Boost_INCLUDE_DIR "boost")
+    message(WARNING "Cannot find Boost. Hardcoding include directory to ${Boost_INCLUDE_DIR}")
+    include_directories(SYSTEM ${Boost_INCLUDE_DIR})
+endif()
+
 include_directories(.)
 
-IF (WIN32)
+# -------- Compilation flags --------
+if (WIN32)
     set(BaseFlags "/EHsc /MP /wd\"4996\" /D MSWIN /D TP_PROJECT_USES_BOOST /D BOOST_ALL_NO_LIB /D MAKEARCHIVE /D NO_THIRD_PARTY_LIBS /D NO_ASSERTS")
-ELSE ()
-	set(BaseFlags "-DLINUX -DLINUX64 -DTP_PROJECT_USES_BOOST -DBOOST_ALL_NO_LIB -DMAKEARCHIVE -DNO_THIRD_PARTY_LIBS -DNO_ASSERTS -fmessage-length=0 -fPIC -fvisibility=hidden -w")
-ENDIF ()
+else()
+    set(BaseFlags "-DLINUX -DLINUX64 -DTP_PROJECT_USES_BOOST -DBOOST_ALL_NO_LIB -DMAKEARCHIVE -DNO_THIRD_PARTY_LIBS -DNO_ASSERTS -fmessage-length=0 -fPIC -fvisibility=hidden -w")
+endif()
+
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${BaseFlags}")
-                    
-FILE(GLOB mainFiles "*.cpp" "*.h")
-LIST(REMOVE_ITEM mainFiles "szcombine.cpp")
+
+# -------- Library source files --------
+file(GLOB mainFiles "*.cpp" "*.h")
+list(REMOVE_ITEM mainFiles "szcombine.cpp")
 
 add_library(tecio STATIC ${mainFiles})
-IF (NOT Boost_FOUND)
-  add_dependencies(tecio CreateBoostLink)
-ENDIF()
+add_library(tecio::tecio ALIAS tecio)
 
-add_executable(szcombine "szcombine.cpp")
+set_target_properties(tecio PROPERTIES
+    LINKER_LANGUAGE Fortran
+    PUBLIC_HEADER ""  # Add headers here if desired
+)
+
+if (NOT Boost_FOUND)
+    add_dependencies(tecio CreateBoostLink)
+endif()
+
+# -------- Executable --------
+add_executable(szcombine szcombine.cpp)
 if (WIN32)
     target_link_libraries(szcombine tecio)
-else ()
+else()
     target_link_libraries(szcombine tecio pthread)
-endif ()
+endif()
 
-set ( testD ../examples/rewriteszl/ "${CMAKE_CURRENT_SOURCE_DIR}/../examples/rewriteszl/build")
-add_subdirectory(${testD})
+# -------- Examples --------
+set(example_dirs
+    rewriteszl
+    ijkpartitioned
+    ij_ordered
+)
 
-set ( testD ../examples/ijkpartitioned/ "${CMAKE_CURRENT_SOURCE_DIR}/../examples/ijkpartitioned/build")
-add_subdirectory(${testD})
+# foreach(example_dir ${example_dirs})
+#     set ( testD ../examples/${exammple_dir}/ "${CMAKE_CURRENT_SOURCE_DIR}/../examples/${exammple_dir}/build")
+#     add_subdirectory(${testD})
+# endforeach()
 
-set ( testD ../examples/ij_ordered/ "${CMAKE_CURRENT_SOURCE_DIR}/../examples/ij_ordered/build")
-add_subdirectory(${testD})
+# -------- Install rules --------
+include(GNUInstallDirs)
 
-set_target_properties(tecio PROPERTIES LINKER_LANGUAGE Fortran)
+# Headers (if any)
+install(DIRECTORY ./
+    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/tecio
+    FILES_MATCHING PATTERN "*.h"
+)
+
+# Library install/export
+install(TARGETS tecio
+    EXPORT tecioTargets
+    ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    PUBLIC_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/tecio
+)
+
+install(EXPORT tecioTargets
+    FILE tecioTargets.cmake
+    NAMESPACE tecio::
+    DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/tecio
+)
+
+# -------- CMake package config --------
+include(CMakePackageConfigHelpers)
+
+configure_package_config_file(
+    "${CMAKE_CURRENT_SOURCE_DIR}/cmake/tecioConfig.cmake.in"
+    "${CMAKE_CURRENT_BINARY_DIR}/tecioConfig.cmake"
+    INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/tecio
+)
+
+install(FILES
+    "${CMAKE_CURRENT_BINARY_DIR}/tecioConfig.cmake"
+    DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/tecio
+)
