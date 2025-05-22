@@ -395,7 +395,8 @@ contains
     meshonly = .false.
 
     ! Open file
-    open(newunit=tecunit,file=trim(filename),status='old',action='read')
+    open(newunit=tecunit,file=trim(filename),status='old',action='read',iostat=err)
+    if (err/=0) return
 
     ios = 0
     do while(ios==0)
