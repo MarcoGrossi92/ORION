@@ -62,7 +62,7 @@ if (USE_TECIO)
              PATHS ${TECIO_INSTALL_DIR}
              NO_DEFAULT_PATH)
   include_directories(${CMAKE_CURRENT_SOURCE_DIR}/lib/TecIO/teciosrc)
-  set(LINKLIBS -lpthread -lm -lstdc++)
+  #set(LINKLIBS -lpthread -lm -lstdc++)
 endif()
 
 include(GNUInstallDirs)
