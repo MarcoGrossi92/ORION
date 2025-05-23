@@ -10,7 +10,7 @@ endif ()
 
 project (ORION LANGUAGES Fortran CXX C)
 
-set(CMAKE_VERBOSE_MAKEFILE FALSE)
+set(CMAKE_VERBOSE_MAKEFILE TRUE)
 # seach path for cmake modules
 set(CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake/")
 
@@ -62,7 +62,8 @@ if (USE_TECIO)
              PATHS ${TECIO_INSTALL_DIR}
              NO_DEFAULT_PATH)
   include_directories(${CMAKE_CURRENT_SOURCE_DIR}/lib/TecIO/teciosrc)
-  set(LINKLIBS -lpthread -lm -lstdc++)
+  #set(LINKLIBS -lpthread -lm -lstdc++)
+  set(LINKLIBS -lpthread)
 endif()
 
 include(GNUInstallDirs)

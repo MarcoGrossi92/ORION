@@ -5,10 +5,10 @@ rm -f XML* *.dat *.plt field*
 
 ulimit -s unlimited
 
-echo
-echo '--- VTK2TEC ---'
-./vtk_fullpower -strgr
-$ORIONDIR/bin/app/vts2tec --out-format=ascii --in-format=raw
+#echo
+#echo '--- ORION ---'
+#./vtk_fullpower -strgr
+#ORION --out-format=ascii --in-format=raw
 
 echo
 echo '--- VTK writing (wrapper) ---'
