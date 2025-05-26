@@ -72,10 +72,10 @@ set(example_dirs
     ij_ordered
 )
 
-# foreach(example_dir ${example_dirs})
-#     set ( testD ../examples/${exammple_dir}/ "${CMAKE_CURRENT_SOURCE_DIR}/../examples/${exammple_dir}/build")
-#     add_subdirectory(${testD})
-# endforeach()
+foreach(example_dir ${example_dirs})
+    set ( testD ../examples/${example_dir}/ "${CMAKE_CURRENT_SOURCE_DIR}/../examples/${example_dir}/build")
+    add_subdirectory(${testD})
+endforeach()
 
 # -------- Install rules --------
 include(GNUInstallDirs)
