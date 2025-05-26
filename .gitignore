@@ -1,10 +1,12 @@
 # Build dir and files
-build
 bin
 .setvars.sh
 
 # TecIO files
-tecio-install
+tecio-install*
+teciompi-install*
+tecio-build*
+teciompi-build*
 lib/TecIO/boost
 lib/TecIO/teciosrc/boost
 
