@@ -4,7 +4,6 @@ program tecplot_read_multiblock
   implicit none
   type(orion_data) :: data
   integer          :: error, i, nb
-  character(500)   :: varnames
 
   data%tec%node = .false.
   data%tec%bc = .false.
@@ -17,10 +16,24 @@ program tecplot_read_multiblock
   error = tec_read_structured_multiblock(orion=data,filename='tecfile.tec')
   nb = size(data%block)
 
+  write(*,*) '3D domain'
   write(*,*) 'Blocks number = ', nb
   do i = 1, nb
     write(*,*) 'Block size    = ', data%block(i)%Ni, data%block(i)%Nj, data%block(i)%Nk
   enddo
+
+  deallocate(data%block)
+
+  error = tec_read_structured_multiblock(orion=data,filename='tec2D.tec')
+  nb = size(data%block)
+
+  write(*,*) '2D domain'
+  write(*,*) 'Blocks number = ', nb
+  do i = 1, nb
+    write(*,*) 'Block size    = ', data%block(i)%Ni, data%block(i)%Nj, data%block(i)%Nk
+  enddo
+
+  print*, data%block(1)%vars(1,1,1,1)
 
   deallocate(data%block)
 
@@ -32,9 +45,21 @@ program tecplot_read_multiblock
   error = tec_read_structured_multiblock(orion=data,filename='tecfile.szplt')
   nb = size(data%block)
 
+  write(*,*) '3D domain'
   write(*,*) 'Blocks number = ', nb
   do i = 1, nb
     write(*,*) 'Block name    = ', trim(data%block(i)%name) 
+    write(*,*) 'Block size    = ', data%block(i)%Ni, data%block(i)%Nj, data%block(i)%Nk
+  enddo
+
+  deallocate(data%block)
+
+  error = tec_read_structured_multiblock(orion=data,filename='tec2D.szplt')
+  nb = size(data%block)
+
+  write(*,*) '2D domain'
+  write(*,*) 'Blocks number = ', nb
+  do i = 1, nb
     write(*,*) 'Block size    = ', data%block(i)%Ni, data%block(i)%Nj, data%block(i)%Nk
   enddo
 

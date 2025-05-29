@@ -65,6 +65,10 @@ contains
       ck1 = 1      ; ck2 = Nz
     endif
   endif
+  ! If 2D domain -> nk = 0; ck = 1 
+  if (nk1+nk2==0) then
+    ck2 = 1; ck1 = 1
+  endif
   !---------------------------------------------------------------------------------------------------------------------------------
   endsubroutine compute_dimensions
   !> @}
@@ -102,6 +106,7 @@ contains
   integer::                 FileType   = 0
   integer::                 fileFormat ! 0 == PLT, 1 == SZPLT
   integer::                 Nvar                !< Internal number of variables saved.
+  integer::                 ndir                !< Internal number of dimensions.
   integer::                 Nblocks             !< Number of blocks.
   integer::                 b                   !< Counter.
   integer::                 NvarTot
@@ -125,10 +130,11 @@ contains
     Nvar = 0
   endif
   Nblocks = size(orion%block)
+  ndir = size(orion%block(1)%mesh, 1)
   gc = 1
   ! allocating dynamic arrays
-  allocate(tecvarloc(1:3+Nvar))
-  allocate(tecnull(1:3+Nvar))
+  allocate(tecvarloc(1:ndir+Nvar))
+  allocate(tecnull(1:ndir+Nvar))
   ! initializing tecplot variables
   call tec_init()
   ! time
@@ -189,15 +195,16 @@ contains
 
     !-------------------------------------------------------------------------------------------------------------------------------
     if (.not.meshonly) then
-      NvarTot = 3 + Nvar
+      NvarTot = ndir + Nvar
     else
-      NvarTot = 3
+      NvarTot = ndir
     endif
     select case(orion%tec%format)
     case('binary')
 #   if defined(TECIO)
       ! header variables names
-      tecvarname = 'x y z'
+      tecvarname = 'x y'
+      if (ndir>2) tecvarname = trim(tecvarname)//' z'
       if (.not.meshonly) then
         if (present(varnames)) then
           tecvarname = trim(tecvarname)//' '//trim(varnames)
@@ -211,7 +218,7 @@ contains
       if (orion%tec%node) then
         tecvarloc = 1
       else
-        tecvarloc(1:3) = 1 ; tecvarloc(4:3+Nvar)= 0
+        tecvarloc(1:ndir) = 1 ; tecvarloc(ndir+1:ndir+Nvar)= 0
       endif
       ! null array
       tecnull = 0
@@ -220,7 +227,8 @@ contains
 #   endif
     case('ascii')
       ! header variables names
-      tecvarname = ' VARIABLES ="x" "y" "z"'
+      tecvarname = ' VARIABLES ="x" "y"'
+      if (ndir>2) tecvarname = trim(tecvarname)//' "z"'
       if (.not.meshonly) then
         if (present(varnames)) then
           tecvarname = trim(tecvarname)//' '//trim(varnames)
@@ -241,14 +249,14 @@ contains
         if (orion%tec%node) then
           tecvarlocstr = ', VARLOCATION=([1-'//trim(str(.true.,NvarTot))//']=NODAL)'
         else
-          if (NvarTot==4) then
-            tecvarlocstr = ', VARLOCATION=([1-3]=NODAL,[4]=CELLCENTERED)'
+          if (Nvar==1) then
+            tecvarlocstr = ', VARLOCATION=([1-'//trim(str(.true.,ndir))//']=NODAL,['//trim(str(.true.,ndir+1))//']=CELLCENTERED)'
           else
-            tecvarlocstr = ', VARLOCATION=([1-3]=NODAL,[4-'//trim(str(.true.,NvarTot))//']=CELLCENTERED)'
+            tecvarlocstr = ', VARLOCATION=([1-'//trim(str(.true.,ndir))//']=NODAL,['//trim(str(.true.,ndir+1))//'-'//trim(str(.true.,NvarTot))//']=CELLCENTERED)'
           endif
         endif
       else
-        tecvarlocstr = ', VARLOCATION=([1-3]=NODAL)'
+        tecvarlocstr = ', VARLOCATION=([1-'//trim(str(.true.,ndir))//']=NODAL)'
       endif
     end select
     !-------------------------------------------------------------------------------------------------------------------------------
@@ -307,13 +315,18 @@ contains
                       0)
       err=tec_dat(N=nnode,dat=orion%block(b)%mesh(1,ni1:ni2,nj1:nj2,nk1:nk2))
       err=tec_dat(N=nnode,dat=orion%block(b)%mesh(2,ni1:ni2,nj1:nj2,nk1:nk2))
-      err=tec_dat(N=nnode,dat=orion%block(b)%mesh(3,ni1:ni2,nj1:nj2,nk1:nk2))
+      if (ndir>2) &
+        err=tec_dat(N=nnode,dat=orion%block(b)%mesh(3,ni1:ni2,nj1:nj2,nk1:nk2))
       if (.not.meshonly) then
         start = 1
         if (orion%tec%node) start = 0
         if (ni2==0) ni2 = 1
         if (nj2==0) nj2 = 1
         if (nk2==0) nk2 = 1
+        ! Force values if 2D
+        if (ndir==2) then
+          nk1 = 1-start; nk2 = 1
+        endif
         do s=1,Nvar
           err=tec_dat(N=ncell,dat=orion%block(b)%vars(s,ni1+start:ni2,nj1+start:nj2,nk1+start:nk2))
         enddo
@@ -331,13 +344,18 @@ contains
       write(tecunit,'(A)',iostat=err)trim(teczoneheader)
       write(tecunit,FR_P,iostat=err)(((orion%block(b)%mesh(1,i,j,k),i=ni1,ni2),j=nj1,nj2),k=nk1,nk2)
       write(tecunit,FR_P,iostat=err)(((orion%block(b)%mesh(2,i,j,k),i=ni1,ni2),j=nj1,nj2),k=nk1,nk2)
-      write(tecunit,FR_P,iostat=err)(((orion%block(b)%mesh(3,i,j,k),i=ni1,ni2),j=nj1,nj2),k=nk1,nk2)
+      if (ndir>2) &
+        write(tecunit,FR_P,iostat=err)(((orion%block(b)%mesh(3,i,j,k),i=ni1,ni2),j=nj1,nj2),k=nk1,nk2)
       if (.not.meshonly) then
         start = 1
         if (orion%tec%node) start = 0
         if (ni2==0) ni2 = 1
         if (nj2==0) nj2 = 1
         if (nk2==0) nk2 = 1
+        ! Force values if 2D
+        if (ndir==2) then
+          nk1 = 1-start; nk2 = 1
+        endif
         do s=1,Nvar
           write(tecunit,FR_P,iostat=err)(((orion%block(b)%vars(s,i,j,k),i=ni1+start,ni2),j=nj1+start,nj2),k=nk1+start,nk2)
         enddo
@@ -386,9 +404,9 @@ contains
     logical :: meshonly
     integer :: err, end
     integer :: tecunit, ios, ios_prev, ios2
-    integer :: i, j, k, d, b, b2
+    integer :: i, j, k, d, b, b2, ck1, ck2
     integer :: Ni(50), Nj(50), Nk(50), nskip(50)
-    integer :: Nblocks, nlines, nvar
+    integer :: Nblocks, nlines, nvar, ndir
     character(500) :: line
     character(100) :: args(20), subargs(2)
 
@@ -402,7 +420,7 @@ contains
     do while(ios==0)
       read(tecunit,'(A)',iostat=ios) line
       call read_variables(line, orion%varnames)
-      if (allocated(orion%varnames)) ios = 1
+      if (allocated(orion%varnames)) exit
     enddo
 
     rewind(tecunit)
@@ -450,28 +468,38 @@ contains
     enddo
     rewind(tecunit)
 
+    if (Nk(1)==1) then
+      ndir = 2
+    else
+      ndir = 3
+    endif
+
     ! Count variables
     Nvar = nlines-sum(nskip)
     do b = 1, Nblocks
-      nvar = nvar-3*((orion%block(b)%Ni+1)*(orion%block(b)%Nj+1)*(orion%block(b)%Nk+1))
+      nvar = nvar-ndir*((orion%block(b)%Ni+1)*(orion%block(b)%Nj+1)*(orion%block(b)%Nk+1))
     enddo
-    nvar = nvar/(sum(orion%block(:)%Ni*orion%block(:)%Nj*orion%block(:)%Nk))
+    nvar = nvar/(sum(orion%block(:)%Ni*orion%block(:)%Nj*max(orion%block(:)%Nk,1)))
     if (nvar==0) meshonly = .true.
 
     ! Read all
+    end = 0; if (orion%tec%node) end = 1
     do b = 1, Nblocks
-      allocate(orion%block(b)%mesh(1:3,0:orion%block(b)%Ni,0:orion%block(b)%Nj,0:orion%block(b)%Nk))
-      if (.not.meshonly) allocate(orion%block(b)%vars(1:nvar,1:orion%block(b)%Ni,1:orion%block(b)%Nj,1:orion%block(b)%Nk))
+      allocate(orion%block(b)%mesh(1:ndir,0:orion%block(b)%Ni,0:orion%block(b)%Nj,0:orion%block(b)%Nk))
+      if (.not.meshonly) allocate(orion%block(b)%vars(1:nvar,1:orion%block(b)%Ni,1:orion%block(b)%Nj,1:max(orion%block(b)%Nk,1)))
       call skip(tecunit,nskip(b))
-      do d = 1, 3
+      do d = 1, ndir
         do k = 0, orion%block(b)%Nk; do j = 0, orion%block(b)%Nj; do i = 0, orion%block(b)%Ni
               read(tecunit,*,iostat=err) orion%block(b)%mesh(d,i,j,k)
         enddo; enddo; enddo
       enddo
-      end = 0
-      if (orion%tec%node) end = 1
+      if (ndir==2) then
+        ck1 = 1; ck2 = 1
+      else
+        ck1 = 1; ck2 = orion%block(b)%Nk + end
+      endif
       do d = 1, nvar
-        do k = 1, orion%block(b)%Nk+end; do j = 1, orion%block(b)%Nj+end; do i = 1, orion%block(b)%Ni+end
+        do k = ck1, ck2; do j = 1, orion%block(b)%Nj+end; do i = 1, orion%block(b)%Ni+end
               read(tecunit,*,iostat=err) orion%block(b)%vars(d,i,j,k)
         enddo; enddo; enddo
       enddo
@@ -607,8 +635,8 @@ contains
       return
     end if
     
-    allocate(character(32)::variables(1:nvar-3))
-    variables = variables_(4:nvar)
+    allocate(character(32)::variables(1:nvar))
+    variables = variables_(1:nvar)
 
   end subroutine read_variables
 
@@ -677,7 +705,7 @@ contains
     integer(c_int32_t), allocatable :: numSegPts(:)
     integer(c_int64_t) :: numValues, numFaceValues
     integer(c_int64_t) :: numFaceConnections
-    integer(c_int64_t) :: iMax, jMax, kMax
+    integer(c_int64_t) :: iMax, jMax, kMax, ndir
     integer(c_int64_t), allocatable :: faceConnections64(:)
     integer(c_int32_t), allocatable :: varTypes(:)
     integer(c_int32_t), allocatable :: passiveVarList(:)
@@ -747,12 +775,18 @@ contains
         i = tecZoneGetIJK(inputFileHandle, inputZone, &
             iMax, jMax, kMax)
 
+        if (kMax>1) then
+          ndir = 3
+        else
+          ndir = 2
+        endif
+
         orion%block(inputZone)%Ni = iMax-1
         orion%block(inputZone)%Nj = jMax-1
         orion%block(inputZone)%Nk = kMax-1
         orion%block(inputZone)%name = zoneTitle
         allocate(orion%block(inputZone)%mesh(1:3,0:iMax-1,0:jMax-1,0:kMax-1))
-        allocate(orion%block(inputZone)%vars(1:numVars-3,1:iMax-1,1:jMax-1,1:kMax-1))
+        allocate(orion%block(inputZone)%vars(1:numVars-ndir,1:iMax-1,1:jMax-1,1:max(1,kMax-1)))
 
         allocate(varTypes(numVars))
         allocate(passiveVarList(numVars))
@@ -804,8 +838,8 @@ contains
                       enddo; enddo; enddo
                     else
                       cnt = 1
-                      do k = 1, kMax-1; do j = 1, jMax-1; do i = 1, iMax-1
-                            orion%block(inputZone)%vars(var-3,i,j,k) = floatValues(cnt)
+                      do k = 1, max(1,kMax-1); do j = 1, jMax-1; do i = 1, iMax-1
+                            orion%block(inputZone)%vars(var-ndir,i,j,k) = floatValues(cnt)
                             cnt = cnt + 1
                       enddo; enddo; enddo
                     endif
@@ -823,8 +857,8 @@ contains
                       enddo; enddo; enddo
                     else
                       cnt = 1
-                      do k = 1, kMax-1; do j = 1, jMax-1; do i = 1, iMax-1
-                            orion%block(inputZone)%vars(var-3,i,j,k) = floatValues(cnt)
+                      do k = 1,  max(1,kMax-1); do j = 1, jMax-1; do i = 1, iMax-1
+                            orion%block(inputZone)%vars(var-ndir,i,j,k) = floatValues(cnt)
                             cnt = cnt + 1
                       enddo; enddo; enddo
                     endif
@@ -842,8 +876,8 @@ contains
                       enddo; enddo; enddo
                     else
                       cnt = 1
-                      do k = 1, kMax-1; do j = 1, jMax-1; do i = 1, iMax-1
-                            orion%block(inputZone)%vars(var-3,i,j,k) = floatValues(cnt)
+                      do k = 1, max(1,kMax-1); do j = 1, jMax-1; do i = 1, iMax-1
+                            orion%block(inputZone)%vars(var-ndir,i,j,k) = floatValues(cnt)
                             cnt = cnt + 1
                       enddo; enddo; enddo
                     endif
@@ -861,8 +895,8 @@ contains
                       enddo; enddo; enddo
                     else
                       cnt = 1
-                      do k = 1, kMax-1; do j = 1, jMax-1; do i = 1, iMax-1
-                            orion%block(inputZone)%vars(var-3,i,j,k) = floatValues(cnt)
+                      do k = 1, max(1,kMax-1); do j = 1, jMax-1; do i = 1, iMax-1
+                            orion%block(inputZone)%vars(var-ndir,i,j,k) = floatValues(cnt)
                             cnt = cnt + 1
                       enddo; enddo; enddo
                     endif
@@ -874,14 +908,14 @@ contains
                         int8Values)
                     if (valueLocation(var)==1) then
                       cnt = 1
-                      do k = 0, kMax-1; do j = 0, jMax-1; do i = 0, iMax-1
+                      do k = 0, max(1,kMax-1); do j = 0, jMax-1; do i = 0, iMax-1
                             orion%block(inputZone)%mesh(var,i,j,k) = floatValues(cnt)
                             cnt = cnt + 1
                       enddo; enddo; enddo
                     else
                       cnt = 1
                       do k = 1, kMax-1; do j = 1, jMax-1; do i = 1, iMax-1
-                            orion%block(inputZone)%vars(var-3,i,j,k) = floatValues(cnt)
+                            orion%block(inputZone)%vars(var-ndir,i,j,k) = floatValues(cnt)
                             cnt = cnt + 1
                       enddo; enddo; enddo
                     endif
