@@ -48,4 +48,36 @@ program p3d_write
   data%p3d%format = 'ascii'
   error = p3d_write_multiblock(orion=data,filename='mesh')
 
+  ! 2D
+  deallocate(data%block)
+  allocate(data%block(1:2))
+
+  data%block(1)%Ni = nx2
+  data%block(1)%Nj = ny2
+  data%block(1)%Nk = 0
+
+  data%block(2)%Ni = nx2+10
+  data%block(2)%Nj = ny2
+  data%block(2)%Nk = 0
+
+  allocate(data%block(1)%mesh(1:2,nx1:nx2,ny1:ny2,0:0))
+  allocate(data%block(2)%mesh(1:2,nx1:nx2+10,ny1:ny2,0:0))
+
+  do j=ny1, ny2
+    do i=nx1, nx2
+      data%block(1)%mesh(1,i,j,0) = dble(i)
+      data%block(1)%mesh(2,i,j,0) = dble(j)
+    enddo
+  enddo
+
+  do j=ny1, ny2
+    do i=nx1, nx2+10
+      data%block(2)%mesh(1,i,j,0) = data%block(1)%mesh(1,nx2,j,0)+dble(i)
+      data%block(2)%mesh(2,i,j,0) = dble(j)
+    enddo
+  enddo
+
+  data%p3d%format = 'ascii'
+  error = p3d_write_multiblock(orion=data,filename='mesh2D')
+
 end program p3d_write
