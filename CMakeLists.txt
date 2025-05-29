@@ -27,6 +27,8 @@ INCLUDE(${CMAKE_MODULE_PATH}/SetFortranFlags.cmake)
 # taken care of here, such as the fact that the FindOpenMP routine doesn't know
 # about Fortran.
 INCLUDE(${CMAKE_MODULE_PATH}/SetParallelizationLibrary.cmake)
+# Set the suffix for the compiler ID based on the compilers used.
+INCLUDE(${CMAKE_MODULE_PATH}/SetCompilerID.cmake)
 
 # TecIO
 OPTION(USE_TECIO "Use TecIO" ON)
@@ -36,13 +38,13 @@ if (USE_TECIO)
   else()
     set(basename "tecio")
   endif()
-  set(TECIO_INSTALL_DIR "${CMAKE_CURRENT_SOURCE_DIR}/lib/TecIO/${basename}-install")
+  set(TECIO_INSTALL_DIR "${CMAKE_CURRENT_SOURCE_DIR}/lib/TecIO/${basename}-install-${COMPILER_SUFFIX}")
   if(NOT EXISTS "${TECIO_INSTALL_DIR}")
     message(STATUS "TecIO not installed, building and installing it...")
 
     # Build TecIO in a temporary build directory
     execute_process(COMMAND ${CMAKE_COMMAND} -S ${CMAKE_CURRENT_SOURCE_DIR}/lib/TecIO/${basename}src
-                                           -B ${CMAKE_CURRENT_SOURCE_DIR}/lib/TecIO/${basename}-build
+                                           -B ${CMAKE_CURRENT_SOURCE_DIR}/lib/TecIO/${basename}-build-${COMPILER_SUFFIX}
                                            -DCMAKE_INSTALL_PREFIX=${TECIO_INSTALL_DIR}
                                            -DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER}
                                            -DCMAKE_C_COMPILER=${CMAKE_C_COMPILER}
@@ -52,12 +54,12 @@ if (USE_TECIO)
         message(FATAL_ERROR "Failed to configure TecIO")
     endif()
 
-    execute_process(COMMAND ${CMAKE_COMMAND} --build ${CMAKE_CURRENT_SOURCE_DIR}/lib/TecIO/${basename}-build
+    execute_process(COMMAND ${CMAKE_COMMAND} --build ${CMAKE_CURRENT_SOURCE_DIR}/lib/TecIO/${basename}-build-${COMPILER_SUFFIX}
                     RESULT_VARIABLE BUILD_RESULT)
     if(NOT BUILD_RESULT EQUAL 0)
         message(FATAL_ERROR "Failed to build TecIO")
     endif()
-    execute_process(COMMAND ${CMAKE_COMMAND} --install ${CMAKE_CURRENT_SOURCE_DIR}/lib/TecIO/${basename}-build
+    execute_process(COMMAND ${CMAKE_COMMAND} --install ${CMAKE_CURRENT_SOURCE_DIR}/lib/TecIO/${basename}-build-${COMPILER_SUFFIX}
                     RESULT_VARIABLE INSTALL_RESULT)
     if(NOT INSTALL_RESULT EQUAL 0)
         message(FATAL_ERROR "Failed to install TecIO")
