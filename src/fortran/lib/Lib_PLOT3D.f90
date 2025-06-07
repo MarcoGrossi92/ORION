@@ -77,7 +77,8 @@ contains
     integer :: unit, b, d, k, j, i, Nblocks, ndir
     character(len=256) :: line
 
-    open(newunit=unit,file=trim(filename))
+    open(newunit=unit,file=trim(filename),iostat=err,form='formatted',status='old')
+    if (err /= 0) return
 
     read(unit,*) Nblocks
     allocate(orion%block(1:Nblocks))
