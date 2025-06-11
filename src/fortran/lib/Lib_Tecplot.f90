@@ -223,7 +223,7 @@ contains
       ! null array
       tecnull = 0
 #   else
-    stop "You can not write in binary formato without compiling against TecIO"
+    stop "You can not write in binary format without compiling against TecIO"
 #   endif
     case('ascii')
       ! header variables names
@@ -387,7 +387,11 @@ contains
     if (index(filename,'.dat')>0 .or. index(filename,'.tec')>0) then
       err = tec_read_ascii(orion,filename)
     elseif (index(filename,'.szplt')>0) then
+#     if defined(TECIO)
       err = tec_read_szplt(orion,filename)
+#     else
+      stop "You can not read in binary format without compiling against TecIO"
+#     endif
     endif
 
   end function tec_read_structured_multiblock
@@ -662,10 +666,10 @@ contains
 
   end
 
+# if defined(TECIO)
   function tec_read_szplt(orion,filename) result(i)
     use iso_c_binding
     implicit none
-    include "tecio.f90"
     type(orion_data), intent(inout)                        :: orion
     character(len=*), intent(in)                           :: filename
 
@@ -935,6 +939,7 @@ contains
     i = tecFileReaderClose(inputFileHandle)
 
   end function tec_read_szplt
+# endif
 
 
 
