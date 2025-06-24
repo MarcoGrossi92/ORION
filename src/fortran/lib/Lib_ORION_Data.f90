@@ -14,18 +14,19 @@ module Lib_ORION_data
   public :: copyORION
 
   type :: Type_tec_Format
-    character(6):: format = 'binary'  !> Binary or ascii file.
-    logical     :: node   = .false.   !> Node or cell data location.
-    logical     :: bc     = .false.   !> Saving or not boundary conditions cells.
+    character(6):: extension = '.tec'    !> File extension.
+    character(6):: format    = 'binary'  !> Binary or ascii file.
+    logical     :: node      = .false.   !> Node or cell data location.
+    logical     :: bc        = .false.   !> Saving or not boundary conditions cells.
   endtype Type_tec_Format
 
   type :: Type_vtk_Format
-    character(6):: format = 'binary'  !> Binary or ascii file.
-    logical     :: node   = .false.   !> Node or cell data location.
+    character(6):: format    = 'binary'  !> Binary or ascii file.
+    logical     :: node      = .false.   !> Node or cell data location.
   endtype Type_vtk_Format
 
   type :: Type_p3d_Format
-    character(6):: format = 'binary'  !> Binary or ascii file.
+    character(6):: format    = 'binary'  !> Binary or ascii file.
   endtype Type_p3d_Format
 
   type :: obj_block
