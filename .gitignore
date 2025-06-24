@@ -1,6 +1,10 @@
-# Build dir and files
-bin
+# Build
+build
 .setvars.sh
+CMakePresets.json
+
+# Executables
+bin/
 
 # TecIO files
 tecio-install*
@@ -13,7 +17,6 @@ lib/TecIO/teciosrc/boost
 # Distribution / packaging
 .Python
 env/
-build/
 develop-eggs/
 dist/
 downloads/
@@ -30,35 +33,5 @@ var/
 doc/html
 doc/latex
 
-# Prerequisites
-*.d
-
-# Compiled Object files
-*.slo
-*.lo
-*.o
-*.obj
-
-# Precompiled Headers
-*.gch
-*.pch
-
-# Compiled Dynamic libraries
-*.so
-*.dylib
-*.dll
-
 # Fortran module files
 *.mod
-*.smod
-
-# Compiled Static libraries
-*.lai
-*.la
-*.a
-*.lib
-
-# Executables
-*.exe
-*.out
-*.app
