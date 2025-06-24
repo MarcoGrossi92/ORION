@@ -42,7 +42,6 @@ if (USE_TECIO)
                                            -B ${CMAKE_CURRENT_SOURCE_DIR}/lib/TecIO/${basename}-build-${COMPILER_SUFFIX}
                                            -DCMAKE_INSTALL_PREFIX=${TECIO_INSTALL_DIR}
                                            -DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER}
-                                           -DCMAKE_C_COMPILER=${CMAKE_C_COMPILER}
                                            -DCMAKE_Fortran_COMPILER=${CMAKE_Fortran_COMPILER}
                     RESULT_VARIABLE CONFIGURE_RESULT)
     if(NOT CONFIGURE_RESULT EQUAL 0)
