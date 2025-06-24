@@ -6,7 +6,6 @@ set -u  # Treat unset variables as an error
 PROGRAM=$(basename "$0")
 readonly DIR=$(pwd)
 VERBOSE=false
-CMD_OPTIONS=()  # Replace with a regular array
 
 function usage() {
     cat <<EOF
@@ -17,16 +16,16 @@ Usage:
   $PROGRAM [GLOBAL_OPTIONS] COMMAND [COMMAND_OPTIONS]
 
 Global Options:
-  -h       , --help            Show this help message and exit
-  -v       , --verbose         Enable verbose output
+  -h       , --help         Show this help message and exit
+  -v       , --verbose      Enable verbose output
 
 Commands:
-  build                        Perform the full build
+  build                     Perform the full build
+    --use-tecio             Use TecIO
 
-  compile                      Compile the program
-    --build-type=<build>       Set build type (release, debug, testing, default: release)
+  compile                   Compile the program using the CMakePresets file
 
-  setvars                      Set project paths in environment variables
+  setvars                   Set project paths in environment variables
 
 EOF
     exit 1
@@ -69,12 +68,39 @@ function define_path () {
 }
 
 
+# Create default CMakePresets.json if it doesn't exist
+function write_presets() {
+  cat <<EOF > CMakePresets.json
+{
+  "version": 3,
+  "cmakeMinimumRequired": {
+    "major": 3,
+    "minor": 23
+  },
+  "configurePresets": [
+    {
+      "name": "default",
+      "description": "Default preset",
+      "binaryDir": "\${sourceDir}/build",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "${BUILD_TYPE}",
+        "USE_TECIO": "${USE_TECIO}"
+      }
+    }
+  ]
+}
+EOF
+  echo "CMakePresets.json created with default settings."
+}
+
+
 # Default global values
 COMMAND=""
-BUILD_TYPE=""
+BUILD_TYPE="RELEASE"
+USE_TECIO=false
 
 # Define allowed options for each command using regular arrays
-CMD_OPTIONS_COMPILE=("--build-type")
+CMD_OPTIONS_BUILD=("--use-tecio")
 
 # Parse options with getopts
 while getopts "hv:-:" opt; do
@@ -105,12 +131,12 @@ shift
 # Parse command-specific options
 while [[ $# -gt 0 ]]; do
     case "$1" in
-        --build-type=*)
-            [[ "$COMMAND" == "compile" ]] || { echo "Error: --build-type is only valid for 'compile' command"; exit 1; }
-            BUILD_TYPE="${1#*=}"
+        --use-tecio)
+            [[ "$COMMAND" == "build" ]] || { echo "Error: --use-tecio is only valid for 'build' command"; exit 1; }
+            USE_TECIO=true
             ;;
         *)
-            echo "Error: Unknown option '$1' for command '$COMMAND'. Valid options: ${CMD_OPTIONS[$COMMAND]}"
+            echo "Error: Unknown option '$1' for command '$COMMAND'. Valid options: ${CMD_OPTIONS_$COMMAND[@]}"
             exit 1
             ;;
     esac
@@ -125,10 +151,10 @@ case "$COMMAND" in
         # download Doxygen
         #./doxygen .Doxyfile
         define_path
-        rm -rf bin build && mkdir -p build
-        cd $DIR/build
-        cmake .. -DCMAKE_BUILD_TYPE=RELEASE -DUSE_TECIO=ON
-        make
+        rm -rf build
+        cmake -B build -DUSE_TECIO=$USE_TECIO -DCMAKE_BUILD_TYPE=$BUILD_TYPE || exit 1
+        cmake --build build || exit 1
+        write_presets
         ;;
     compile)
         if [[ -z "$BUILD_TYPE" ]]; then
