@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 2.8.12)
 
 # -------- Project metadata and language setup --------
-project(tecio LANGUAGES C CXX Fortran)
+project(tecio LANGUAGES CXX Fortran)
 
 # Default build type
 if (NOT CMAKE_BUILD_TYPE)
