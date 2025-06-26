@@ -118,6 +118,7 @@ BUILD_TYPE="RELEASE"
 USE_TECIO=false
 
 # Define allowed options for each command using regular arrays
+CMD=("build" "compile" "setvars")
 CMD_OPTIONS_build=("--compilers" "--use-tecio")
 
 # Parse options with getopts
@@ -144,6 +145,11 @@ if [[ $# -eq 0 ]]; then
 fi
 
 COMMAND="$1"
+# Check if the command is valid
+if [[ ! " ${CMD[@]} " =~ " ${COMMAND} " ]]; then
+    error "Unknown command '$COMMAND'"
+    usage
+fi
 shift
 
 # Parse command-specific options
