@@ -5,6 +5,7 @@ set -u  # Treat unset variables as an error
 
 PROGRAM=$(basename "$0")
 readonly DIR=$(pwd)
+BUILD_DIR="$DIR/build"
 VERBOSE=false
 
 function usage() {
@@ -21,6 +22,7 @@ Global Options:
 
 Commands:
   build                     Perform the full build
+    --compiler=<name>       Set compilers suit (intel,gnu)
     --use-tecio             Use TecIO
 
   compile                   Compile the program using the CMakePresets file
@@ -32,10 +34,21 @@ EOF
 }
 
 
-function log() {
+log() {
     if [ "$VERBOSE" = true ]; then
-        echo "$1"
+        # Bold and dim gray (ANSI escape: bold + color 90)
+        echo -e "\033[1;90m$1\033[0m"
     fi
+}
+
+error() {
+    # Bold red + [ERROR] tag, output to stderr
+    echo -e "\033[1;31m[ERROR] $1\033[0m" >&2
+}
+
+task() {
+    # Bold yellow + ==> tag, output to stdout
+    echo -e "\033[1;38;5;186m==> $1\033[0m"
 }
 
 
@@ -50,9 +63,7 @@ function download_extra () {
 
 
 function define_path () {
-  log "Defining paths..."
   rm -f .setvars.sh
-
   echo 'export ORIONDIR='$DIR >> .setvars.sh
   if [[ $SHELL == *"zsh"* ]]; then
     echo 'ORION () { '$DIR'/bin/app/converter $@; }' >> .setvars.sh
@@ -61,6 +72,7 @@ function define_path () {
     echo 'function ORION () { '$DIR'/bin/app/converter $@; }' >> .setvars.sh
     RCFILE=$HOME/.bashrc
   fi
+  log "RC file: $RCFILE"
   echo 'export -f ORION' >> .setvars.sh
   grep -v "ORION" $RCFILE > tmpfile && mv tmpfile $RCFILE
   echo 'source '$DIR'/.setvars.sh' >> $RCFILE
@@ -70,6 +82,9 @@ function define_path () {
 
 # Create default CMakePresets.json if it doesn't exist
 function write_presets() {
+  FC=$(grep '^CMAKE_Fortran_COMPILER:FILEPATH=' "$BUILD_DIR/CMakeCache.txt" | cut -d= -f2-)
+  CXX=$(grep '^CMAKE_CXX_COMPILER:FILEPATH=' "$BUILD_DIR/CMakeCache.txt" | cut -d= -f2-)
+
   cat <<EOF > CMakePresets.json
 {
   "version": 3,
@@ -84,23 +99,26 @@ function write_presets() {
       "binaryDir": "\${sourceDir}/build",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "${BUILD_TYPE}",
+        "CMAKE_Fortran_COMPILER": "${FC}",
+        "CMAKE_CXX_COMPILER": "${CXX}",
         "USE_TECIO": "${USE_TECIO}"
       }
     }
   ]
 }
 EOF
-  echo "CMakePresets.json created with default settings."
+  log "CMakePresets.json created with default settings."
 }
 
 
 # Default global values
 COMMAND=""
+COMPILERS=""
 BUILD_TYPE="RELEASE"
 USE_TECIO=false
 
 # Define allowed options for each command using regular arrays
-CMD_OPTIONS_BUILD=("--use-tecio")
+CMD_OPTIONS_build=("--compilers" "--use-tecio")
 
 # Parse options with getopts
 while getopts "hv:-:" opt; do
@@ -109,19 +127,19 @@ while getopts "hv:-:" opt; do
             case "$OPTARG" in
                 verbose) VERBOSE=true ;;
                 help) usage ;;
-                *) echo "Error: Unknown global option '--$OPTARG'"; usage ;;
+                *) error "Unknown global option '--$OPTARG'"; usage ;;
             esac
             ;;
         h) usage ;;
         v) VERBOSE=true ;;
-        *) echo "Error: Unknown global option '-$opt'"; usage ;;
+        *) error "Unknown global option '-$opt'"; usage ;;
     esac
 done
 shift $((OPTIND -1))
 
 # Ensure a command was provided
 if [[ $# -eq 0 ]]; then
-    echo "Error: No command provided!"
+    error "No command provided!"
     usage
 fi
 
@@ -131,12 +149,17 @@ shift
 # Parse command-specific options
 while [[ $# -gt 0 ]]; do
     case "$1" in
+        --compilers=*)
+            [[ "$COMMAND" == "build" ]] || { error " --compilers is only valid for 'build' command"; exit 1; }
+            COMPILERS="${1#*=}"
+            ;;      
         --use-tecio)
-            [[ "$COMMAND" == "build" ]] || { echo "Error: --use-tecio is only valid for 'build' command"; exit 1; }
+            [[ "$COMMAND" == "build" ]] || { error " --use-tecio is only valid for 'build' command"; exit 1; }
             USE_TECIO=true
             ;;
         *)
-            echo "Error: Unknown option '$1' for command '$COMMAND'. Valid options: ${CMD_OPTIONS_$COMMAND[@]}"
+            eval "opts=(\"\${CMD_OPTIONS_${COMMAND}[@]}\")"
+            error "Unknown option '$1' for command '$COMMAND'. Valid options: ${opts[@]}"
             exit 1
             ;;
     esac
@@ -147,31 +170,42 @@ done
 # Execute the selected command
 case "$COMMAND" in
     build)
-        log "Building project"
+
         # download Doxygen
         #./doxygen .Doxyfile
-        define_path
-        rm -rf build
-        cmake -B build -DUSE_TECIO=$USE_TECIO -DCMAKE_BUILD_TYPE=$BUILD_TYPE || exit 1
-        cmake --build build || exit 1
+
+        task "Configuring and building project"
+        log "Using TecIO: $USE_TECIO"
+        rm -rf $BUILD_DIR
+        if [[ $COMPILERS == "intel" ]]; then 
+            log "Using Intel compilers"
+            export FC="ifx"
+            export CXX="icpx"
+        elif [[ $COMPILERS == "gnu" ]]; then 
+            log "Using GNU compilers"
+            export FC="gfortran"
+            export CXX="g++"
+        fi
+        cmake -B $BUILD_DIR -DUSE_TECIO=$USE_TECIO -DCMAKE_BUILD_TYPE=$BUILD_TYPE || exit 1
+        cmake --build $BUILD_DIR || exit 1
+
+        task "Write CMakePresets.json"
         write_presets
+
+        task "Defining environment variables"
+        define_path
         ;;
     compile)
-        if [[ -z "$BUILD_TYPE" ]]; then
-            echo "Error: --build-type is required for 'compile' command!"
-            exit 1
-        fi
-        log "Compiling with build type: $BUILD_TYPE"
-        cd $DIR/build
-        cmake .. -DCMAKE_BUILD_TYPE=$BUILD_TYPE -DUSE_TECIO=ON
-        make
+        task "Compiling project using CMakePresets"
+        cmake --preset default || exit 1
+        cmake --build $BUILD_DIR || exit 1
         ;;
     setvars)
-        log "Setting project environment variables"
+        task "Setting project environment variables"
         define_path
         ;;
     *)
-        echo "Error: Unknown command '$COMMAND'"
+        error "Unknown command '$COMMAND'"
         usage
         ;;
 esac
