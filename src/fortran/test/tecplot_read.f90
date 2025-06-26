@@ -33,8 +33,6 @@ program tecplot_read_multiblock
     write(*,*) 'Block size    = ', data%block(i)%Ni, data%block(i)%Nj, data%block(i)%Nk
   enddo
 
-  print*, data%block(1)%vars(1,1,1,1)
-
   deallocate(data%block)
 
   write(*,*) '----------------------------------'
