@@ -7,11 +7,12 @@ PROGRAM=$(basename "$0")
 readonly DIR=$(pwd)
 BUILD_DIR="$DIR/build"
 VERBOSE=false
+project=ORION
 
 function usage() {
     cat <<EOF
 
-Install script for ORION
+Install script for $project
 
 Usage:
   $PROGRAM [GLOBAL_OPTIONS] COMMAND [COMMAND_OPTIONS]
@@ -27,7 +28,7 @@ Commands:
 
   compile                   Compile the program using the CMakePresets file
 
-  setvars                   Set project paths in environment variables
+  setvars                   Set $project paths in environment variables
 
 EOF
     exit 1
@@ -119,10 +120,10 @@ USE_TECIO=false
 
 # Define allowed options for each command using regular arrays
 CMD=("build" "compile" "setvars")
-CMD_OPTIONS_build=("--compilers" "--use-tecio")
+CMD_OPTIONS_build=("--compilers --use-tecio")
 
-# Parse options with getopts
-while getopts "hv:-:" opt; do
+# Parse global options
+while getopts "hv-:" opt; do
     case "$opt" in
         -)
             case "$OPTARG" in
@@ -133,7 +134,7 @@ while getopts "hv:-:" opt; do
             ;;
         h) usage ;;
         v) VERBOSE=true ;;
-        *) error "Unknown global option '-$opt'"; usage ;;
+        ?) error "Unknown global option '-$OPTARG'"; usage ;;
     esac
 done
 shift $((OPTIND -1))
@@ -180,8 +181,7 @@ case "$COMMAND" in
         # download Doxygen
         #./doxygen .Doxyfile
 
-        task "Configuring and building project"
-        log "Using TecIO: $USE_TECIO"
+        task "Configuring and building $project"
         rm -rf $BUILD_DIR
         if [[ $COMPILERS == "intel" ]]; then 
             log "Using Intel compilers"
@@ -192,23 +192,35 @@ case "$COMMAND" in
             export FC="gfortran"
             export CXX="g++"
         fi
+        log "Build dir: $BUILD_DIR"
+        log "Use TecIO: $USE_TECIO"
+        log "Build type: $BUILD_TYPE"
+        if [[ -z "${FC+x}" || -z "${CXX+x}" ]]; then
+          log "Compilers not set. CMake will decide."
+          log "Compilers: FC=$FC, CXX=$CXX"
+        fi
         cmake -B $BUILD_DIR -DUSE_TECIO=$USE_TECIO -DCMAKE_BUILD_TYPE=$BUILD_TYPE || exit 1
         cmake --build $BUILD_DIR || exit 1
+        log "[OK] Compilation successful"
 
         task "Write CMakePresets.json"
         write_presets
+        log "[OK] CMakePresets.json created"
 
         task "Defining environment variables"
         define_path
+        log "[OK] Environment variables defined"
         ;;
     compile)
-        task "Compiling project using CMakePresets"
+        task "Compiling $project using CMakePresets"
         cmake --preset default || exit 1
         cmake --build $BUILD_DIR || exit 1
+        log "[OK] Compilation successful"
         ;;
     setvars)
-        task "Setting project environment variables"
+        task "Setting $project environment variables"
         define_path
+        log "[OK] Environment variables defined"
         ;;
     *)
         error "Unknown command '$COMMAND'"
