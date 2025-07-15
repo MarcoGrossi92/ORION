@@ -58,6 +58,14 @@ echo $new_version > $VERSION_FILE
 git add $VERSION_FILE
 git commit -m "Bump version to $new_version"
 
+# Delete all local tags
+echo "Deleting all local tags..."
+git tag | xargs -r git tag -d
+
+# Delete all remote tags
+echo "Deleting all remote tags..."
+git ls-remote --tags origin | awk '/refs\/tags\// {print ":" $2}' | git push origin --delete --tags
+
 # Create a new Git tag
 git tag "v$new_version"
 
