@@ -64,7 +64,10 @@ git tag | xargs -r git tag -d
 
 # Delete all remote tags
 echo "Deleting all remote tags..."
-git ls-remote --tags origin | awk '/refs\/tags\// {print ":" $2}' | git push origin --delete --tags
+git ls-remote --tags origin | awk '/refs\/tags\// {print $2}' | while read -r tag; do
+  tag_name=${tag#refs/tags/}
+  git push origin ":refs/tags/$tag_name"
+done
 
 # Create a new Git tag
 git tag "v$new_version"
