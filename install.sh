@@ -197,6 +197,7 @@ case "$COMMAND" in
         log "Build type: $BUILD_TYPE"
         if [[ -z "${FC+x}" || -z "${CXX+x}" ]]; then
           log "Compilers not set. CMake will decide."
+        else
           log "Compilers: FC=$FC, CXX=$CXX"
         fi
         cmake -B $BUILD_DIR -DUSE_TECIO=$USE_TECIO -DCMAKE_BUILD_TYPE=$BUILD_TYPE || exit 1
