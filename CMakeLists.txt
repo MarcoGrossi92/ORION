@@ -27,7 +27,6 @@ INCLUDE(${CMAKE_MODULE_PATH}/SetCompilerID.cmake)
 # TecIO
 OPTION(USE_TECIO "Use TecIO" ON)
 if (USE_TECIO)
-  message(STATUS "Use TecIO")
   if (USE_MPI)
     set(basename "teciompi")
   else()
