@@ -58,12 +58,12 @@ if (NOT Boost_FOUND)
 endif()
 
 # -------- Executable --------
-add_executable(szcombine szcombine.cpp)
-if (WIN32)
-    target_link_libraries(szcombine tecio)
-else()
-    target_link_libraries(szcombine tecio pthread)
-endif()
+# add_executable(szcombine szcombine.cpp)
+# if (WIN32)
+#     target_link_libraries(szcombine tecio)
+# else()
+#     target_link_libraries(szcombine tecio pthread)
+# endif()
 
 # -------- Examples --------
 set(example_dirs
