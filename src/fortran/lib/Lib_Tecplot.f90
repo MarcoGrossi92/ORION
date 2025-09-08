@@ -17,59 +17,51 @@ module Lib_Tecplot
 
   public:: tec_write_structured_multiblock
   public:: tec_read_structured_multiblock
+  public:: tec_write_points_multivars
   public:: tec_read_points_multivars
 
 
 contains
 
-
+  ! Subroutine for computing the dimensions of the domain to be post-processed. 
   subroutine compute_dimensions(node,bc,Nx,Ny,Nz,gc,ni1,ni2,nj1,nj2,nk1,nk2,ci1,ci2,cj1,cj2,ck1,ck2)
-  !---------------------------------------------------------------------------------------------------------------------------------
-  ! Subroutine for computing the dimensions of the domain to be post-processed.
-  !---------------------------------------------------------------------------------------------------------------------------------
+    implicit none
+    logical, intent(in) :: node 
+    logical, intent(in) :: bc 
+    integer, intent(IN) :: Nx, Ny, Nz, gc          ! Block-level data.
+    integer, intent(OUT):: ni1,ni2,nj1,nj2,nk1,nk2 ! Bounds of dimensions of node-centered data.
+    integer, intent(OUT):: ci1,ci2,cj1,cj2,ck1,ck2 ! Bounds of dimensions of cell-centered data.
+    if (node) then
+      ni1 = 0 ; ni2 = Nx
+      nj1 = 0 ; nj2 = Ny
+      nk1 = 0 ; nk2 = Nz
 
-  !---------------------------------------------------------------------------------------------------------------------------------
-  implicit none
-  logical, intent(in) :: node 
-  logical, intent(in) :: bc 
-  integer, intent(IN) :: Nx, Ny, Nz, gc          ! Block-level data.
-  integer, intent(OUT):: ni1,ni2,nj1,nj2,nk1,nk2 ! Bounds of dimensions of node-centered data.
-  integer, intent(OUT):: ci1,ci2,cj1,cj2,ck1,ck2 ! Bounds of dimensions of cell-centered data.
-  !---------------------------------------------------------------------------------------------------------------------------------
-
-  !---------------------------------------------------------------------------------------------------------------------------------
-  if (node) then
-    ni1 = 0 ; ni2 = Nx
-    nj1 = 0 ; nj2 = Ny
-    nk1 = 0 ; nk2 = Nz
-
-    ci1 = 1 ; ci2 = Nx
-    cj1 = 1 ; cj2 = Ny
-    ck1 = 1 ; ck2 = Nz
-  else
-    if (bc) then
-      ni1 = 0 - gc ; ni2 = Nx + gc
-      nj1 = 0 - gc ; nj2 = Ny + gc
-      nk1 = 0 - gc ; nk2 = Nz + gc
-
-      ci1 = 1 - gc ; ci2 = Nz + gc
-      cj1 = 1 - gc ; cj2 = Ny + gc
-      ck1 = 1 - gc ; ck2 = Nz + gc
+      ci1 = 1 ; ci2 = Nx
+      cj1 = 1 ; cj2 = Ny
+      ck1 = 1 ; ck2 = Nz
     else
-      ni1 = 0      ; ni2 = Nx
-      nj1 = 0      ; nj2 = Ny
-      nk1 = 0      ; nk2 = Nz
+      if (bc) then
+        ni1 = 0 - gc ; ni2 = Nx + gc
+        nj1 = 0 - gc ; nj2 = Ny + gc
+        nk1 = 0 - gc ; nk2 = Nz + gc
 
-      ci1 = 1      ; ci2 = Nx
-      cj1 = 1      ; cj2 = Ny
-      ck1 = 1      ; ck2 = Nz
+        ci1 = 1 - gc ; ci2 = Nz + gc
+        cj1 = 1 - gc ; cj2 = Ny + gc
+        ck1 = 1 - gc ; ck2 = Nz + gc
+      else
+        ni1 = 0      ; ni2 = Nx
+        nj1 = 0      ; nj2 = Ny
+        nk1 = 0      ; nk2 = Nz
+
+        ci1 = 1      ; ci2 = Nx
+        cj1 = 1      ; cj2 = Ny
+        ck1 = 1      ; ck2 = Nz
+      endif
     endif
-  endif
-  ! If 2D domain -> nk = 0; ck = 1 
-  if (nk1+nk2==0) then
-    ck2 = 1; ck1 = 1
-  endif
-  !---------------------------------------------------------------------------------------------------------------------------------
+    ! If 2D domain -> nk = 0; ck = 1 
+    if (nk1+nk2==0) then
+      ck2 = 1; ck1 = 1
+    endif
   endsubroutine compute_dimensions
   !> @}
 
@@ -77,291 +69,277 @@ contains
   !> @{
   !> Function for writing ORION block data to Tecplot file.
   function tec_write_structured_multiblock(orion,varnames,time,filename,Nvars) result(err)
-  !---------------------------------------------------------------------------------------------------------------------------------
-  implicit none
-  type(orion_data), intent(in)              :: orion
-  character(len=*), intent(in), optional    :: varnames
-  real(R8P), intent(in), optional           :: time
-  character(len=*), intent(in)              :: filename !< File name of the output file.
-  integer, intent(in), optional             :: Nvars    !< Input number of variables saved.
-  logical :: meshonly
-  integer :: err
-# if defined(TECIO)
-  integer, external::                tecini142,    &     ! |
-                                     tecauxstr142, &     ! |
-                                     teczne142,    &     ! | Tecplot external functions.
-                                     tecdatd142,    &    ! |
-                                     tecend142           ! |
-# endif
-  character(1), parameter:: tecendrec = char(0) !< End-character for binary-record end.
-  character(500)::          tecvarname          !< Variables name for tecplot header file.
-  character(500)::          teczoneheader       !< Tecplot string of zone header.
-  character(500)::          tecvarform          !< Format for variables for tecplot file.
-  integer, allocatable::    tecvarloc(:)        !< Tecplot array of variables location.
-  character(500)::          tecvarlocstr        !< Tecplot string of variables location.
-  integer, allocatable::    tecnull(:)          !< Tecplot null array.
-  integer::                 tecunit             !< Free logic unit of tecplot file.
-  integer::                 Debug      = 0
-  integer::                 VIsDouble  = 0
-  integer::                 FileType   = 0
-  integer::                 fileFormat ! 0 == PLT, 1 == SZPLT
-  integer::                 Nvar                !< Internal number of variables saved.
-  integer::                 ndir                !< Internal number of dimensions.
-  integer::                 Nblocks             !< Number of blocks.
-  integer::                 b                   !< Counter.
-  integer::                 NvarTot
-  integer::                 gc
-  real(R8P)::               time_
-  !---------------------------------------------------------------------------------------------------------------------------------
-
-  !---------------------------------------------------------------------------------------------------------------------------------
-  ! Preliminary operations
-  FileType   = 0
-  Debug      = 0
-  VIsDouble  = 0
-  if (allocated(orion%block(1)%vars) .and. .not.present(Nvars)) then
-    meshonly = .false.
-    Nvar = size(orion%block(1)%vars,1)
-  elseif (allocated(orion%block(1)%vars) .and. present(Nvars)) then
-    meshonly = .false.
-    Nvar = Nvars
-  elseif (.not.allocated(orion%block(1)%vars)) then
-    meshonly = .true.
-    Nvar = 0
-  endif
-  Nblocks = size(orion%block)
-  ndir = size(orion%block(1)%mesh, 1)
-  gc = 1
-  ! allocating dynamic arrays
-  allocate(tecvarloc(1:ndir+Nvar))
-  allocate(tecnull(1:ndir+Nvar))
-  ! initializing tecplot variables
-  call tec_init()
-  ! time
-  if (present(time)) then
-    time_ = time
-  else
-    time_ = -10._R8P
-  endif
-  ! initializing tecplot file
-  select case(orion%tec%format)
-  case('binary')
-# if defined(TECIO)
-    if (index(filename,'.plt')>0) then
-      fileFormat = 0
-    elseif (index(filename,'.szplt')>0) then
-      fileFormat = 1
-    else
-      write(stderr,'(A)')'Tecplot binary file must end with ".plt" or ".szplt"'
-      return
-    endif
-    err = tecini142(tecendrec,trim(tecvarname)//tecendrec,trim(filename)//tecendrec,'.'//tecendrec,fileFormat,FileType,Debug,VIsDouble)
-    err = tecauxstr142("Time"//tecendrec,trim(str(n=time_))//tecendrec)
-# else
-    stop "You can not write in binary formato without compiling against TecIO"
-# endif
-  case('ascii')
-    open(newunit=tecunit,file=trim(filename))
-    write(tecunit,'(A)',iostat=err)trim(tecvarname)
-  end select
-  ! writing data blocks
-  do b=1,Nblocks
-    err = tec_blk_data(b = b)
-  enddo
-  ! finalizing tecplot file
-  select case(orion%tec%format)
-  case('binary')
-# if defined(TECIO)
-    err = tecend142()
-# endif
-  case('ascii')
-    close(tecunit)
-  end select
-  ! deallocating dynamic arrays
-  deallocate(tecvarloc)
-  deallocate(tecnull)
-  return
-  !---------------------------------------------------------------------------------------------------------------------------------
-  contains
-    subroutine tec_init()
-    !-------------------------------------------------------------------------------------------------------------------------------
-    ! Function for initializing Tecplot specific variables.
-    !-------------------------------------------------------------------------------------------------------------------------------
-
-    !-------------------------------------------------------------------------------------------------------------------------------
     implicit none
-    integer  :: s ! Counter.
-    !-------------------------------------------------------------------------------------------------------------------------------
-
-    !-------------------------------------------------------------------------------------------------------------------------------
-    if (.not.meshonly) then
-      NvarTot = ndir + Nvar
-    else
-      NvarTot = ndir
+    type(orion_data), intent(in)              :: orion
+    character(len=*), intent(in), optional    :: varnames
+    real(R8P), intent(in), optional           :: time
+    character(len=*), intent(in)              :: filename !< File name of the output file.
+    integer, intent(in), optional             :: Nvars    !< Input number of variables saved.
+    logical :: meshonly
+    integer :: err
+# if defined(TECIO)
+    integer, external::               tecini142,    &     ! |
+                                      tecauxstr142, &     ! |
+                                      teczne142,    &     ! | Tecplot external functions.
+                                      tecdatd142,   &     ! |
+                                      tecend142           ! |
+# endif
+    character(1), parameter:: tecendrec = char(0) !< End-character for binary-record end.
+    character(500)::          tecvarname          !< Variables name for tecplot header file.
+    character(500)::          teczoneheader       !< Tecplot string of zone header.
+    character(500)::          tecvarform          !< Format for variables for tecplot file.
+    integer, allocatable::    tecvarloc(:)        !< Tecplot array of variables location.
+    character(500)::          tecvarlocstr        !< Tecplot string of variables location.
+    integer, allocatable::    tecnull(:)          !< Tecplot null array.
+    integer::                 tecunit             !< Free logic unit of tecplot file.
+    integer::                 Debug      = 0
+    integer::                 VIsDouble  = 0
+    integer::                 FileType   = 0
+    integer::                 fileFormat ! 0 == PLT, 1 == SZPLT
+    integer::                 Nvar                !< Internal number of variables saved.
+    integer::                 ndir                !< Internal number of dimensions.
+    integer::                 Nblocks             !< Number of blocks.
+    integer::                 b                   !< Counter.
+    integer::                 NvarTot
+    integer::                 gc
+    real(R8P)::               time_
+  
+    ! Preliminary operations
+    FileType   = 0
+    Debug      = 1
+    VIsDouble  = 0
+    if (allocated(orion%block(1)%vars) .and. .not.present(Nvars)) then
+      meshonly = .false.
+      Nvar = size(orion%block(1)%vars,1)
+    elseif (allocated(orion%block(1)%vars) .and. present(Nvars)) then
+      meshonly = .false.
+      Nvar = Nvars
+    elseif (.not.allocated(orion%block(1)%vars)) then
+      meshonly = .true.
+      Nvar = 0
     endif
+    Nblocks = size(orion%block)
+    ndir = size(orion%block(1)%mesh, 1)
+    gc = 1
+    ! allocating dynamic arrays
+    allocate(tecvarloc(1:ndir+Nvar))
+    allocate(tecnull(1:ndir+Nvar))
+    ! initializing tecplot variables
+    call tec_init()
+    ! time
+    if (present(time)) then
+      time_ = time
+    else
+      time_ = -10._R8P
+    endif
+    ! initializing tecplot file
     select case(orion%tec%format)
     case('binary')
 #   if defined(TECIO)
-      ! header variables names
-      tecvarname = 'x y'
-      if (ndir>2) tecvarname = trim(tecvarname)//' z'
-      if (.not.meshonly) then
-        if (present(varnames)) then
-          tecvarname = trim(tecvarname)//' '//trim(varnames)
-        else
-          do s = 1, Nvar
-            tecvarname = trim(tecvarname)//' "var'//trim(str(.true.,s))//'"'
-          enddo
-        endif
-      endif
-      ! variables location
-      if (orion%tec%node) then
-        tecvarloc = 1
+      if (index(filename,'.plt')>0) then
+        fileFormat = 0
+      elseif (index(filename,'.szplt')>0) then
+        fileFormat = 1
       else
-        tecvarloc(1:ndir) = 1 ; tecvarloc(ndir+1:ndir+Nvar)= 0
+        write(stderr,'(A)')'Tecplot binary file must end with ".plt" or ".szplt"'
+        return
       endif
-      ! null array
-      tecnull = 0
+      err = tecini142(tecendrec,trim(tecvarname)//tecendrec,trim(filename)//tecendrec,'.'//tecendrec,fileFormat,FileType,Debug,VIsDouble)
+      err = tecauxstr142("Time"//tecendrec,trim(str(n=time_))//tecendrec)
 #   else
-    stop "You can not write in binary format without compiling against TecIO"
+      stop "You can not write in binary formato without compiling against TecIO"
 #   endif
     case('ascii')
-      ! header variables names
-      tecvarname = ' VARIABLES ="x" "y"'
-      if (ndir>2) tecvarname = trim(tecvarname)//' "z"'
+      open(newunit=tecunit,file=trim(filename))
+      write(tecunit,'(A)',iostat=err)trim(tecvarname)
+    end select
+    ! writing data blocks
+    do b=1,Nblocks
+      err = tec_blk_data(b = b)
+    enddo
+    ! finalizing tecplot file
+    select case(orion%tec%format)
+    case('binary')
+# if defined(TECIO)
+      err = tecend142()
+# endif
+    case('ascii')
+      close(tecunit)
+    end select
+    ! deallocating dynamic arrays
+    deallocate(tecvarloc)
+    deallocate(tecnull)
+
+  contains
+    subroutine tec_init()
+      implicit none
+      integer  :: s ! Counter.
       if (.not.meshonly) then
-        if (present(varnames)) then
-          tecvarname = trim(tecvarname)//' '//trim(varnames)
-        else
-          do s = 1, Nvar
-            tecvarname = trim(tecvarname)//' "var'//trim(str(.true.,s))//'"'
-          enddo
-        endif
-      endif
-      ! variables output format
-      if (.not.meshonly) then
-        write(tecvarform,'(A)')'('//trim(str(no_sign=.true.,n=Nvar))//'('//FR_P//',1X))'
+        NvarTot = ndir + Nvar
       else
-        write(tecvarform,'(A)')'('//trim(str(no_sign=.true.,n=3))//'('//FR_P//',1X))'
+        NvarTot = ndir
       endif
-      ! variables location
-      if (.not.meshonly) then
-        if (orion%tec%node) then
-          tecvarlocstr = ', VARLOCATION=([1-'//trim(str(.true.,NvarTot))//']=NODAL)'
-        else
-          if (Nvar==1) then
-            tecvarlocstr = ', VARLOCATION=([1-'//trim(str(.true.,ndir))//']=NODAL,['//trim(str(.true.,ndir+1))//']=CELLCENTERED)'
+      select case(orion%tec%format)
+      case('binary')
+#     if defined(TECIO)
+        ! header variables names
+        tecvarname = 'x'
+        if (ndir==2) tecvarname = trim(tecvarname)//' y'
+        if (ndir==3) tecvarname = trim(tecvarname)//' z'
+        if (.not.meshonly) then
+          if (present(varnames)) then
+            tecvarname = trim(tecvarname)//' '//trim(varnames)
           else
-            tecvarlocstr = ', VARLOCATION=([1-'//trim(str(.true.,ndir))//']=NODAL,['//trim(str(.true.,ndir+1))//'-'//trim(str(.true.,NvarTot))//']=CELLCENTERED)'
+            do s = 1, Nvar
+              tecvarname = trim(tecvarname)//' "var'//trim(str(.true.,s))//'"'
+            enddo
           endif
         endif
-      else
-        tecvarlocstr = ', VARLOCATION=([1-'//trim(str(.true.,ndir))//']=NODAL)'
-      endif
-    end select
-    !-------------------------------------------------------------------------------------------------------------------------------
+        ! variables location
+        if (orion%tec%node) then
+          tecvarloc = 1
+        else
+          tecvarloc(1:ndir) = 1 ; tecvarloc(ndir+1:ndir+Nvar)= 0
+        endif
+        ! null array
+        tecnull = 0
+#     else
+        stop "You can not write in binary format without compiling against TecIO"
+#     endif
+      case('ascii')
+        ! header variables names
+        tecvarname = ' VARIABLES ="x"'
+        if (ndir==2) tecvarname = trim(tecvarname)//' "y"'
+        if (ndir==3) tecvarname = trim(tecvarname)//' "z"'
+        if (.not.meshonly) then
+          if (present(varnames)) then
+            tecvarname = trim(tecvarname)//' '//trim(varnames)
+          else
+            do s = 1, Nvar
+              tecvarname = trim(tecvarname)//' "var'//trim(str(.true.,s))//'"'
+            enddo
+          endif
+        endif
+        ! variables output format
+        if (.not.meshonly) then
+          write(tecvarform,'(A)')'('//trim(str(no_sign=.true.,n=Nvar))//'('//FR_P//',1X))'
+        else
+          write(tecvarform,'(A)')'('//trim(str(no_sign=.true.,n=3))//'('//FR_P//',1X))'
+        endif
+        ! variables location
+        if (.not.meshonly) then
+          if (orion%tec%node) then
+            tecvarlocstr = ', VARLOCATION=([1-'//trim(str(.true.,NvarTot))//']=NODAL)'
+          else
+            if (Nvar==1) then
+              tecvarlocstr = ', VARLOCATION=([1-'//trim(str(.true.,ndir))//']=NODAL,['//trim(str(.true.,ndir+1))//']=CELLCENTERED)'
+            else
+              tecvarlocstr = ', VARLOCATION=([1-'//trim(str(.true.,ndir))//']=NODAL,['//trim(str(.true.,ndir+1))//'-'//trim(str(.true.,NvarTot))//']=CELLCENTERED)'
+            endif
+          endif
+        else
+          tecvarlocstr = ', VARLOCATION=([1-'//trim(str(.true.,ndir))//']=NODAL)'
+        endif
+      end select
     endsubroutine tec_init
 
     function tec_blk_data(b) result(err)
-    !-------------------------------------------------------------------------------------------------------------------------------
-    ! Function for writing block data.
-    !-------------------------------------------------------------------------------------------------------------------------------
+      implicit none
+      integer, intent(IN):: b           ! Block number.
+      integer:: err                     ! Error trapping flag: 0 no errors, >0 error occurs.
+      integer:: ni1,ni2,nj1,nj2,nk1,nk2 ! Bounds of dimensions of node-centered data.
+      integer:: ci1,ci2,cj1,cj2,ck1,ck2 ! Bounds of dimensions of cell-centered data.
+      integer:: nnode,ncell             ! Number of nodes and cells.
+      integer:: i,j,k,s                 ! Counters.
+      integer:: Nx, Ny, Nz
+      integer:: start
 
-    !-------------------------------------------------------------------------------------------------------------------------------
-    implicit none
-    integer, intent(IN):: b           ! Block number.
-    integer:: err                     ! Error trapping flag: 0 no errors, >0 error occurs.
-    integer:: ni1,ni2,nj1,nj2,nk1,nk2 ! Bounds of dimensions of node-centered data.
-    integer:: ci1,ci2,cj1,cj2,ck1,ck2 ! Bounds of dimensions of cell-centered data.
-    integer:: nnode,ncell             ! Number of nodes and cells.
-    integer:: i,j,k,s                 ! Counters.
-    integer:: Nx, Ny, Nz
-    integer:: start
-    !-------------------------------------------------------------------------------------------------------------------------------
-
-    !-------------------------------------------------------------------------------------------------------------------------------
-    Nx = size(orion%block(b)%mesh,2)-1; Ny = size(orion%block(b)%mesh,3)-1; Nz = size(orion%block(b)%mesh,4)-1
-    ! initialize the zone dimensions
-    call compute_dimensions(node=orion%tec%node,bc=orion%tec%bc,             &
-                            Nx=Nx,Ny=Ny,Nz=Nz,gc=gc,                         &
-                            ni1=ni1,ni2=ni2,nj1=nj1,nj2=nj2,nk1=nk1,nk2=nk2, &
-                            ci1=ci1,ci2=ci2,cj1=cj1,cj2=cj2,ck1=ck1,ck2=ck2)
-    nnode = (ni2-ni1+1)*(nj2-nj1+1)*(nk2-nk1+1)
-    ncell = (ci2-ci1+1)*(cj2-cj1+1)*(ck2-ck1+1)
-    ! writing the block data
-    select case(orion%tec%format)
-    case('binary')
-#   if defined(TECIO)
-      err = teczne142(trim(orion%block(b)%name)//tecendrec,         &
-                      0,                                            &
-                      ni2-ni1+1,                                    &
-                      nj2-nj1+1,                                    &
-                      nk2-nk1+1,                                    &
-                      0,                                            &
-                      0,                                            &
-                      0,                                            &
-                      time_,                                        &
-                      0,                                            &
-                      0,                                            &
-                      1,                                            & !1=>block,0=>point
-                      0,                                            &
-                      0,                                            &
-                      0,                                            &
-                      0,                                            &
-                      0,                                            &
-                      tecnull(1:nvar),                              &
-                      tecvarloc(1:nvar),                            &
-                      tecnull(1:nvar),                              &
-                      0)
-      err=tec_dat(N=nnode,dat=orion%block(b)%mesh(1,ni1:ni2,nj1:nj2,nk1:nk2))
-      err=tec_dat(N=nnode,dat=orion%block(b)%mesh(2,ni1:ni2,nj1:nj2,nk1:nk2))
-      if (ndir>2) &
-        err=tec_dat(N=nnode,dat=orion%block(b)%mesh(3,ni1:ni2,nj1:nj2,nk1:nk2))
-      if (.not.meshonly) then
-        start = 1
-        if (orion%tec%node) start = 0
-        if (ni2==0) ni2 = 1
-        if (nj2==0) nj2 = 1
-        if (nk2==0) nk2 = 1
-        ! Force values if 2D
-        if (ndir==2) then
-          nk1 = 1-start; nk2 = 1
+      Nx = size(orion%block(b)%mesh,2)-1; Ny = size(orion%block(b)%mesh,3)-1; Nz = size(orion%block(b)%mesh,4)-1
+      print*, nx, ny, nz
+      ! initialize the zone dimensions
+      call compute_dimensions(node=orion%tec%node,bc=orion%tec%bc,             &
+                              Nx=Nx,Ny=Ny,Nz=Nz,gc=gc,                         &
+                              ni1=ni1,ni2=ni2,nj1=nj1,nj2=nj2,nk1=nk1,nk2=nk2, &
+                              ci1=ci1,ci2=ci2,cj1=cj1,cj2=cj2,ck1=ck1,ck2=ck2)
+      nnode = (ni2-ni1+1)*(nj2-nj1+1)*(nk2-nk1+1)
+      ncell = (ci2-ci1+1)*(cj2-cj1+1)*(ck2-ck1+1)
+      print*, nnode, ncell
+      print*, ni1, ni2, nj1, nj2, nk1, nk2
+      print*, ci1, ci2, cj1, cj2, ck1, ck2
+      ! writing the block data
+      select case(orion%tec%format)
+      case('binary')
+#     if defined(TECIO)
+        err = teczne142(trim(orion%block(b)%name)//tecendrec,         &
+                        0,                                            &
+                        ni2-ni1+1,                                    &
+                        nj2-nj1+1,                                    &
+                        nk2-nk1+1,                                    &
+                        0,                                            &
+                        0,                                            &
+                        0,                                            &
+                        time_,                                        &
+                        0,                                            &
+                        0,                                            &
+                        1,                                            & !1=>block,0=>point
+                        0,                                            &
+                        0,                                            &
+                        0,                                            &
+                        0,                                            &
+                        0,                                            &
+                        tecnull(1:nvar),                              &
+                        tecvarloc(1:nvar),                            &
+                        tecnull(1:nvar),                              &
+                        0)
+        err=tec_dat(N=nnode,dat=orion%block(b)%mesh(1,ni1:ni2,nj1:nj2,nk1:nk2))
+        if (ndir==2) &
+          err=tec_dat(N=nnode,dat=orion%block(b)%mesh(2,ni1:ni2,nj1:nj2,nk1:nk2))
+        if (ndir==3) &
+          err=tec_dat(N=nnode,dat=orion%block(b)%mesh(3,ni1:ni2,nj1:nj2,nk1:nk2))
+        if (.not.meshonly) then
+          start = 1
+          if (orion%tec%node) start = 0
+          if (ni2==0) ni2 = 1
+          if (nj2==0) nj2 = 1
+          if (nk2==0) nk2 = 1
+          ! Force values if 2D
+          if (ndir==2) then
+            nk1 = 1-start; nk2 = 1
+          endif
+          do s=1,Nvar
+            err=tec_dat(N=ncell,dat=orion%block(b)%vars(s,ni1+start:ni2,nj1+start:nj2,nk1+start:nk2))
+          enddo
         endif
-        do s=1,Nvar
-          err=tec_dat(N=ncell,dat=orion%block(b)%vars(s,ni1+start:ni2,nj1+start:nj2,nk1+start:nk2))
-        enddo
-      endif
-#   endif
-    case('ascii')
-      ! tecplot zone header
-      teczoneheader = ' ZONE  T = '//trim(orion%block(b)%name)//            &
-                      ', I='//trim(str(no_sign=.true.,n=ni2-ni1+1))//       &
-                      ', J='//trim(str(no_sign=.true.,n=nj2-nj1+1))//       &
-                      ', K='//trim(str(no_sign=.true.,n=nk2-nk1+1))//       &
-                      ', DATAPACKING=BLOCK'//adjustl(trim(tecvarlocstr))
-      if (time_>0.0_R8P) &
-        teczoneheader = trim(teczoneheader)//', SOLUTIONTIME='//trim(str(no_sign=.true.,n=time_))
-      write(tecunit,'(A)',iostat=err)trim(teczoneheader)
-      write(tecunit,FR_P,iostat=err)(((orion%block(b)%mesh(1,i,j,k),i=ni1,ni2),j=nj1,nj2),k=nk1,nk2)
-      write(tecunit,FR_P,iostat=err)(((orion%block(b)%mesh(2,i,j,k),i=ni1,ni2),j=nj1,nj2),k=nk1,nk2)
-      if (ndir>2) &
-        write(tecunit,FR_P,iostat=err)(((orion%block(b)%mesh(3,i,j,k),i=ni1,ni2),j=nj1,nj2),k=nk1,nk2)
-      if (.not.meshonly) then
-        start = 1
-        if (orion%tec%node) start = 0
-        if (ni2==0) ni2 = 1
-        if (nj2==0) nj2 = 1
-        if (nk2==0) nk2 = 1
-        ! Force values if 2D
-        if (ndir==2) then
-          nk1 = 1-start; nk2 = 1
+#     endif
+      case('ascii')
+        ! tecplot zone header
+        teczoneheader = ' ZONE  T = '//trim(orion%block(b)%name)//            &
+                        ', I='//trim(str(no_sign=.true.,n=ni2-ni1+1))//       &
+                        ', J='//trim(str(no_sign=.true.,n=nj2-nj1+1))//       &
+                        ', K='//trim(str(no_sign=.true.,n=nk2-nk1+1))//       &
+                        ', DATAPACKING=BLOCK'//adjustl(trim(tecvarlocstr))
+        if (time_>0.0_R8P) &
+          teczoneheader = trim(teczoneheader)//', SOLUTIONTIME='//trim(str(no_sign=.true.,n=time_))
+        write(tecunit,'(A)',iostat=err)trim(teczoneheader)
+        write(tecunit,FR_P,iostat=err)(((orion%block(b)%mesh(1,i,j,k),i=ni1,ni2),j=nj1,nj2),k=nk1,nk2)
+        write(tecunit,FR_P,iostat=err)(((orion%block(b)%mesh(2,i,j,k),i=ni1,ni2),j=nj1,nj2),k=nk1,nk2)
+        if (ndir>2) &
+          write(tecunit,FR_P,iostat=err)(((orion%block(b)%mesh(3,i,j,k),i=ni1,ni2),j=nj1,nj2),k=nk1,nk2)
+        if (.not.meshonly) then
+          start = 1
+          if (orion%tec%node) start = 0
+          if (ni2==0) ni2 = 1
+          if (nj2==0) nj2 = 1
+          if (nk2==0) nk2 = 1
+          ! Force values if 2D
+          if (ndir==2) then
+            nk1 = 1-start; nk2 = 1
+          endif
+          do s=1,Nvar
+            write(tecunit,FR_P,iostat=err)(((orion%block(b)%vars(s,i,j,k),i=ni1+start,ni2),j=nj1+start,nj2),k=nk1+start,nk2)
+          enddo
         endif
-        do s=1,Nvar
-          write(tecunit,FR_P,iostat=err)(((orion%block(b)%vars(s,i,j,k),i=ni1+start,ni2),j=nj1+start,nj2),k=nk1+start,nk2)
-        enddo
-      endif
-    end select
-    !-------------------------------------------------------------------------------------------------------------------------------
+      end select
     endfunction tec_blk_data
 
 #   if defined(TECIO)
@@ -376,6 +354,84 @@ contains
 #   endif
 
   endfunction tec_write_structured_multiblock
+
+
+  function tec_write_points_multivars(orion,varnames,filename,Nvars) result(err)
+    implicit none
+    type(orion_data), intent(in)              :: orion
+    character(len=*), intent(in), optional    :: varnames
+    character(len=*), intent(in)              :: filename !< File name of the output file.
+    integer, intent(in), optional             :: Nvars    !< Input number of variables saved.
+    integer :: err
+    character(500)::          tecvarname          !< Variables name for tecplot header file.
+    character(500)::          teczoneheader       !< Tecplot string of zone header.
+    character(500)::          tecvarform          !< Format for variables for tecplot file.
+    integer::                 tecunit             !< Free logic unit of tecplot file.
+    integer::                 Nvar                !< Internal number of variables saved.
+    integer::                 Nblocks             !< Number of blocks.
+    integer::                 b                   !< Counter.
+  
+    ! Preliminary operations
+    if (allocated(orion%block(1)%vars) .and. .not.present(Nvars)) then
+      Nvar = size(orion%block(1)%vars,1)
+    elseif (allocated(orion%block(1)%vars) .and. present(Nvars)) then
+      Nvar = Nvars
+    elseif (.not.allocated(orion%block(1)%vars)) then
+      err = 1
+      return
+    endif
+    Nblocks = size(orion%block)
+
+    ! initializing tecplot variables
+    call tec_init()
+
+    ! initializing tecplot file
+    open(newunit=tecunit,file=trim(filename))
+    write(tecunit,'(A)',iostat=err)trim(tecvarname)
+    ! writing data blocks
+    do b=1,Nblocks
+      err = tec_blk_data(b = b)
+    enddo
+    ! finalizing tecplot file
+    close(tecunit)
+
+  contains
+    subroutine tec_init()
+      implicit none
+      integer  :: s ! Counter.
+      ! header variables names
+      tecvarname = ' VARIABLES ='
+      if (present(varnames)) then
+        tecvarname = trim(tecvarname)//' '//trim(varnames)
+      else
+        do s = 1, Nvar
+          tecvarname = trim(tecvarname)//' "var'//trim(str(.true.,s))//'"'
+        enddo
+      endif
+      ! variables output format
+      write(tecvarform,'(A)')'('//trim(str(no_sign=.true.,n=Nvar))//'('//FR_P//',1X))'
+    endsubroutine tec_init
+
+    function tec_blk_data(b) result(err)
+      implicit none
+      integer, intent(IN):: b           ! Block number.
+      integer:: err                     ! Error trapping flag: 0 no errors, >0 error occurs.
+      integer:: i
+      integer:: Nx
+
+      Nx = size(orion%block(b)%mesh,2)
+      ! tecplot zone header
+      teczoneheader = ' ZONE  T = '//trim(orion%block(b)%name)//     &
+                      ', I='//trim(str(no_sign=.true.,n=Nx))//       &
+                      ', F=POINT'
+      write(tecunit,'(A)',iostat=err)trim(teczoneheader)
+      do i = 1, Nx
+        write(tecunit,*,iostat=err) orion%block(b)%mesh(1,i,1,1), orion%block(b)%vars(1:nvar,i,1,1)
+      enddo
+    endfunction tec_blk_data
+
+  endfunction tec_write_points_multivars
+
 
   !> Function for reading ORION block data from Tecplot file.
   function tec_read_structured_multiblock(orion,filename) result(err)
@@ -940,7 +996,6 @@ contains
 
   end function tec_read_szplt
 # endif
-
 
 
   subroutine skip(u,n)

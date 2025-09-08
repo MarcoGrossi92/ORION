@@ -35,7 +35,7 @@ contains
     character(len=*), intent(in)    :: files(:)
     real(R8P), allocatable          :: x(:),y(:),z(:) ! Input geo arrays
     real(R8P), allocatable          :: v(:)           ! Input var arrays
-    character(256), allocatable     :: varnames(:), varname_scalar
+    character(256), allocatable     :: varnames(:)
     integer(I4P)                    :: Nblocks,nx1,nx2,ny1,ny2,nz1,nz2,nn,nc
     integer(I4P)                    :: b, i, j, k, n, p, err, start
 
@@ -120,6 +120,29 @@ contains
   end subroutine write_vtm
 
 
+  subroutine read_dat(orion,file)
+    implicit none
+    type(orion_data), intent(inout) :: orion
+    character(len=*), intent(in)    :: file
+    integer :: E_IO, ntry
+
+    do ntry = 1, 313
+      E_IO = tec_read_points_multivars(orion=orion,filename=trim(file),nvar=2)
+      if (E_IO/=0) then
+        if (allocated(orion%block)) deallocate(orion%block)
+      else
+        exit
+      endif
+    enddo
+
+    if (E_IO/=0) then
+      write(*,'(A)')' ERROR read Tecplot file'
+      stop
+    endif
+
+  end subroutine read_dat
+
+
   subroutine read_tec(orion,file)
     implicit none
     type(orion_data), intent(inout) :: orion
@@ -148,6 +171,21 @@ contains
     endif
 
   end subroutine write_tec
+
+
+  subroutine write_dat(orion,file,varname_scalar)
+    implicit none
+    type(orion_data), intent(inout) :: orion
+    character(len=*), intent(in)    :: file,varname_scalar
+    integer :: E_IO
+
+    E_IO = tec_write_points_multivars(orion=orion,varnames=varname_scalar,filename=trim(file))
+    if (E_IO/=0) then
+      write(*,'(A)')' ERROR write Tecplot file'
+      stop
+    endif
+
+  end subroutine write_dat
 
 
   subroutine read_p3d(orion,file)
@@ -188,9 +226,8 @@ program main
   use Lib_ORION_data
   implicit none
   type(orion_data)             :: data
-  integer                      :: b
+  integer                      :: b, st
   character(256)               :: infile, outfile, varname_scalar
-  character(256), allocatable  :: varnames(:)
 
   data%tec%format = 'binary'
   data%vtk%format = 'binary'
@@ -203,19 +240,23 @@ program main
   write(*,'(2A)')' - Output file : ',trim(outfile)
   write(*,*)
 
+  if (index(trim(infile),'.dat')>0) call read_dat(data,infile)
   if (index(trim(infile),'.tec')>0) call read_tec(data,infile)
   if (index(trim(infile),'.szplt')>0) call read_tec(data,infile)
   if (index(trim(infile),'.p3d')>0) call read_p3d(data,infile)
   if (index(trim(infile),'.vtm')>0) call read_vtm(data,infile)
 
   varname_scalar = ''
-  do b = 1, size(data%block(1)%vars)
+  st = 1
+  if (index(trim(outfile),'.dat')>0) st = 0
+  do b = st, size(data%block(1)%vars,1)
     varname_scalar = trim(varname_scalar)//' '//'var'//trim(str(.true.,b))
   enddo
   do b = 1, size(data%block)
     data%block(b)%name = 'Block'//trim(str(.true.,b))
   enddo
 
+  if (index(trim(outfile),'.dat')>0) call write_dat(data,outfile,varname_scalar)
   if (index(trim(outfile),'.tec')>0) call write_tec(data,outfile,varname_scalar)
   if (index(trim(outfile),'.szplt')>0) call write_tec(data,outfile,varname_scalar)
   if (index(trim(outfile),'.p3d')>0) call write_p3d(data,outfile)
@@ -259,18 +300,22 @@ contains
         infile = trim(adjustl(arg(11:)))
 
       elseif (index(arg, '--out-format=') > 0) then
-        if (index(outfile,'.tec')>0) data%tec%format = 'ascii'
-        if (index(outfile,'.szplt')>0) data%tec%format = 'binary'
         if (index(outfile,'.p3d')>0) data%p3d%format = trim(adjustl(arg(14:)))
         if (index(outfile,'.vtm')>0) data%vtk%format = trim(adjustl(arg(14:)))
 
       elseif (index(arg, '--in-format=') > 0) then
-        if (index(infile,'.tec')>0) data%tec%format = 'ascii'
-        if (index(infile,'.szplt')>0) data%tec%format = 'binary'
         if (index(infile,'.p3d')>0) data%p3d%format = trim(adjustl(arg(14:)))
         if (index(infile,'.vtm')>0) data%vtk%format = trim(adjustl(arg(14:)))
 
       end if
+
+      if (index(infile,'.dat')>0) data%tec%format = 'ascii'
+      if (index(infile,'.tec')>0) data%tec%format = 'ascii'
+      if (index(infile,'.szplt')>0) data%tec%format = 'binary'
+      if (index(outfile,'.dat')>0) data%tec%format = 'ascii'
+      if (index(outfile,'.tec')>0) data%tec%format = 'ascii'
+      if (index(outfile,'.szplt')>0) data%tec%format = 'binary'
+
     end do
 
   end subroutine
