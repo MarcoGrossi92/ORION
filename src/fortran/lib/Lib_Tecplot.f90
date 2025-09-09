@@ -255,7 +255,6 @@ contains
       integer:: start
 
       Nx = size(orion%block(b)%mesh,2)-1; Ny = size(orion%block(b)%mesh,3)-1; Nz = size(orion%block(b)%mesh,4)-1
-      print*, nx, ny, nz
       ! initialize the zone dimensions
       call compute_dimensions(node=orion%tec%node,bc=orion%tec%bc,             &
                               Nx=Nx,Ny=Ny,Nz=Nz,gc=gc,                         &
@@ -263,9 +262,6 @@ contains
                               ci1=ci1,ci2=ci2,cj1=cj1,cj2=cj2,ck1=ck1,ck2=ck2)
       nnode = (ni2-ni1+1)*(nj2-nj1+1)*(nk2-nk1+1)
       ncell = (ci2-ci1+1)*(cj2-cj1+1)*(ck2-ck1+1)
-      print*, nnode, ncell
-      print*, ni1, ni2, nj1, nj2, nk1, nk2
-      print*, ci1, ci2, cj1, cj2, ck1, ck2
       ! writing the block data
       select case(orion%tec%format)
       case('binary')
@@ -730,61 +726,32 @@ contains
     character(len=*), intent(in)                           :: filename
 
     integer i, j, k, cnt
-    character(256) programName
     character(256) inputFileName
     character(256) dataSetTitle, zoneTitle
-    character(256) name, val
-    character(256) macroFunctionCmd
-    character(256) textString, typeface, fontName, testFontName
     character(1024) varNames
-    character(1024) labelSet
     character, pointer :: stringPtr(:)
     integer nameLen, strLen
     integer(c_int8_t), allocatable :: int8Values(:)
     integer(c_int16_t), allocatable :: int16Values(:)
     integer(c_int32_t) :: numVars, var
     integer(c_int32_t) :: fileType
-    integer(c_int32_t) :: varType
-    integer(c_int32_t) :: fileFormat = 1 ! .szplt
+    integer(c_int32_t) :: vstart
     integer(c_int32_t) :: inputZone, numZones
     integer(c_int32_t) :: zoneType
-    integer(c_int32_t) :: strandID, faceNeighborMode
-    integer(c_int32_t) :: shareConnectivityFromZone
-    integer(c_int32_t) :: zero = 0
-    integer(c_int32_t) :: is64Bit
-    integer(c_int32_t) :: numItems, whichItem
-    integer(c_int32_t) :: numSets
-    integer(c_int32_t) :: numGeoms, geom, geomType, clipping
-    integer(c_int32_t) :: segment, ind
-    integer(c_int32_t) :: numTexts, text
-    integer(c_int32_t) :: boxColor, boxFillColor, boxType, anchor
-    integer(c_int32_t) :: isBold, isItalic, sizeUnits, font
+    integer(c_int32_t) :: strandID
     integer(c_int32_t), allocatable :: int32Values(:)
-    integer(c_int32_t), allocatable :: faceConnections32(:)
-    integer(c_int32_t), allocatable :: nodeMap32(:)
-    integer(c_int32_t), allocatable :: numSegPts(:)
-    integer(c_int64_t) :: numValues, numFaceValues
-    integer(c_int64_t) :: numFaceConnections
+    integer(c_int64_t) :: numValues
     integer(c_int64_t) :: iMax, jMax, kMax, ndir
-    integer(c_int64_t), allocatable :: faceConnections64(:)
     integer(c_int32_t), allocatable :: varTypes(:)
     integer(c_int32_t), allocatable :: passiveVarList(:)
     integer(c_int32_t), allocatable :: valueLocation(:)
     integer(c_int32_t), allocatable :: shareVarFromZone(:)
-    integer(c_int64_t), allocatable :: nodeMap64(:)
     real(c_float), allocatable :: floatValues(:)
     real(c_double) :: solutionTime
-    real(c_double) :: x, y, z, patternLength, lineThickness
-    real(c_double) :: arrowheadAngle, arrowheadSize
-    real(c_double) :: geomX, geomY, geomZ, width, height, squareSize
-    real(c_double) :: radius, horizontalAxis, verticalAxis
-    real(c_double) :: boxLineThickness, boxMargin, angle, lineSpacing
     real(c_double), allocatable :: doubleValues(:)
-    real(c_double), allocatable :: xGeomData(:), yGeomData(:), &
-                                  zGeomData(:)
     type(c_ptr) :: inputFileHandle = C_NULL_PTR
     type(c_ptr) :: stringCPtr = C_NULL_PTR
-    type(c_ptr) :: nameCPtr = C_NULL_PTR, valueCPtr = C_NULL_PTR
+    logical :: onlyNode
 
     inputFileName = trim(filename) // C_NULL_CHAR
 
@@ -831,34 +798,52 @@ contains
         call copyCharArrayToString(stringCPtr, &
             tecStringLength(stringCPtr), zoneTitle)
         call tecStringFree(stringCPtr)
+
+        orion%block(inputZone)%name = zoneTitle
         
         i = tecZoneGetIJK(inputFileHandle, inputZone, &
             iMax, jMax, kMax)
 
-        if (kMax>1) then
-          ndir = 3
-        else
-          ndir = 2
-        endif
-
         orion%block(inputZone)%Ni = iMax-1
         orion%block(inputZone)%Nj = jMax-1
         orion%block(inputZone)%Nk = kMax-1
-        orion%block(inputZone)%name = zoneTitle
-        allocate(orion%block(inputZone)%mesh(1:3,0:iMax-1,0:jMax-1,0:kMax-1))
-        allocate(orion%block(inputZone)%vars(1:numVars-ndir,1:iMax-1,1:jMax-1,1:max(1,kMax-1)))
 
+        if (jMax>1 .and. kMax>1) then
+          ndir = 3
+        elseif (jMax>1 .and. kMax==1) then
+          ndir = 2
+        elseif (jMax==1 .and. kMax==1) then
+          ndir = 1
+        endif
+
+        allocate(valueLocation(numVars))
+        do var = 1, numVars
+            i = tecZoneVarGetValueLocation(inputFileHandle, inputZone, &
+                var, valueLocation(var))
+        enddo
+
+        onlyNode = .false.
+        do var = 1, numVars
+          if (valueLocation(var)==1) onlyNode = .true.
+        enddo
+
+        allocate(orion%block(inputZone)%mesh(1:ndir,0:iMax-1,0:jMax-1,0:kMax-1))
+        if (onlyNode) then
+          vstart = 0
+          allocate(orion%block(inputZone)%vars(1:numVars-ndir,vstart:max(vstart,iMax-1),vstart:max(vstart,jMax-1),vstart:max(vstart,kMax-1)))
+        else
+          vstart = 1
+          allocate(orion%block(inputZone)%vars(1:numVars-ndir,vstart:max(vstart,iMax-1),vstart:max(vstart,jMax-1),vstart:max(vstart,kMax-1)))
+        endif
+        
         allocate(varTypes(numVars))
         allocate(passiveVarList(numVars))
-        allocate(valueLocation(numVars))
         allocate(shareVarFromZone(numVars))
         do var = 1, numVars
             i = tecZoneVarGetType(inputFileHandle, inputZone, &
                 var, varTypes(var))
             i = tecZoneVarIsPassive(inputFileHandle, inputZone, &
                 var, passiveVarList(var))
-            i = tecZoneVarGetValueLocation(inputFileHandle, inputZone, &
-                var, valueLocation(var))
             i = tecZoneVarGetSharedZone(inputFileHandle, inputZone, &
                 var, shareVarFromZone(var))
         enddo
@@ -890,7 +875,7 @@ contains
                     i = tecZoneVarGetFloatValues(inputFileHandle, &
                         inputZone, var, 1_c_int64_t, numValues, &
                         floatValues)
-                    if (valueLocation(var)==1) then
+                    if (valueLocation(var)==1 .and. var<=ndir) then
                       cnt = 1
                       do k = 0, kMax-1; do j = 0, jMax-1; do i = 0, iMax-1
                             orion%block(inputZone)%mesh(var,i,j,k) = floatValues(cnt)
@@ -898,7 +883,7 @@ contains
                       enddo; enddo; enddo
                     else
                       cnt = 1
-                      do k = 1, max(1,kMax-1); do j = 1, jMax-1; do i = 1, iMax-1
+                      do k = vstart, max(vstart,kMax-1); do j = vstart, max(vstart,jMax-1); do i = vstart, max(vstart,iMax-1)
                             orion%block(inputZone)%vars(var-ndir,i,j,k) = floatValues(cnt)
                             cnt = cnt + 1
                       enddo; enddo; enddo
@@ -917,7 +902,7 @@ contains
                       enddo; enddo; enddo
                     else
                       cnt = 1
-                      do k = 1,  max(1,kMax-1); do j = 1, jMax-1; do i = 1, iMax-1
+                       do k = vstart, max(vstart,kMax-1); do j = vstart, max(vstart,jMax-1); do i = vstart, max(vstart,iMax-1)
                             orion%block(inputZone)%vars(var-ndir,i,j,k) = floatValues(cnt)
                             cnt = cnt + 1
                       enddo; enddo; enddo
@@ -936,7 +921,7 @@ contains
                       enddo; enddo; enddo
                     else
                       cnt = 1
-                      do k = 1, max(1,kMax-1); do j = 1, jMax-1; do i = 1, iMax-1
+                       do k = vstart, max(vstart,kMax-1); do j = vstart, max(vstart,jMax-1); do i = vstart, max(vstart,iMax-1)
                             orion%block(inputZone)%vars(var-ndir,i,j,k) = floatValues(cnt)
                             cnt = cnt + 1
                       enddo; enddo; enddo
@@ -955,7 +940,7 @@ contains
                       enddo; enddo; enddo
                     else
                       cnt = 1
-                      do k = 1, max(1,kMax-1); do j = 1, jMax-1; do i = 1, iMax-1
+                       do k = vstart, max(vstart,kMax-1); do j = vstart, max(vstart,jMax-1); do i = vstart, max(vstart,iMax-1)
                             orion%block(inputZone)%vars(var-ndir,i,j,k) = floatValues(cnt)
                             cnt = cnt + 1
                       enddo; enddo; enddo
@@ -974,7 +959,7 @@ contains
                       enddo; enddo; enddo
                     else
                       cnt = 1
-                      do k = 1, kMax-1; do j = 1, jMax-1; do i = 1, iMax-1
+                       do k = vstart, max(vstart,kMax-1); do j = vstart, max(vstart,jMax-1); do i = vstart, max(vstart,iMax-1)
                             orion%block(inputZone)%vars(var-ndir,i,j,k) = floatValues(cnt)
                             cnt = cnt + 1
                       enddo; enddo; enddo
