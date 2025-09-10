@@ -184,7 +184,7 @@ contains
 #     if defined(TECIO)
         ! header variables names
         tecvarname = 'x'
-        if (ndir==2) tecvarname = trim(tecvarname)//' y'
+        if (ndir>=2) tecvarname = trim(tecvarname)//' y'
         if (ndir==3) tecvarname = trim(tecvarname)//' z'
         if (.not.meshonly) then
           if (present(varnames)) then
@@ -209,7 +209,7 @@ contains
       case('ascii')
         ! header variables names
         tecvarname = ' VARIABLES ="x"'
-        if (ndir==2) tecvarname = trim(tecvarname)//' "y"'
+        if (ndir>=2) tecvarname = trim(tecvarname)//' "y"'
         if (ndir==3) tecvarname = trim(tecvarname)//' "z"'
         if (.not.meshonly) then
           if (present(varnames)) then
@@ -288,7 +288,7 @@ contains
                         tecnull(1:nvar),                              &
                         0)
         err=tec_dat(N=nnode,dat=orion%block(b)%mesh(1,ni1:ni2,nj1:nj2,nk1:nk2))
-        if (ndir==2) &
+        if (ndir>=2) &
           err=tec_dat(N=nnode,dat=orion%block(b)%mesh(2,ni1:ni2,nj1:nj2,nk1:nk2))
         if (ndir==3) &
           err=tec_dat(N=nnode,dat=orion%block(b)%mesh(3,ni1:ni2,nj1:nj2,nk1:nk2))
@@ -318,7 +318,8 @@ contains
           teczoneheader = trim(teczoneheader)//', SOLUTIONTIME='//trim(str(no_sign=.true.,n=time_))
         write(tecunit,'(A)',iostat=err)trim(teczoneheader)
         write(tecunit,FR_P,iostat=err)(((orion%block(b)%mesh(1,i,j,k),i=ni1,ni2),j=nj1,nj2),k=nk1,nk2)
-        write(tecunit,FR_P,iostat=err)(((orion%block(b)%mesh(2,i,j,k),i=ni1,ni2),j=nj1,nj2),k=nk1,nk2)
+        if (ndir>1) &
+          write(tecunit,FR_P,iostat=err)(((orion%block(b)%mesh(2,i,j,k),i=ni1,ni2),j=nj1,nj2),k=nk1,nk2)
         if (ndir>2) &
           write(tecunit,FR_P,iostat=err)(((orion%block(b)%mesh(3,i,j,k),i=ni1,ni2),j=nj1,nj2),k=nk1,nk2)
         if (.not.meshonly) then
