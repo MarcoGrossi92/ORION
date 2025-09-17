@@ -824,7 +824,7 @@ contains
         enddo
 
         onlyNode = .false.
-        do var = 1, numVars
+        do var = ndir+1, numVars
           if (valueLocation(var)==1) onlyNode = .true.
         enddo
 
