@@ -759,6 +759,8 @@ contains
     ! Open the input file for reading
     i = tecFileReaderOpen(inputFileName, inputFileHandle)
 
+    if (i/=0) return
+
     ! Read info about the data set
     i = tecDataSetGetTitle(inputFileHandle, stringCPtr)
     call copyCharArrayToString(stringCPtr, &
