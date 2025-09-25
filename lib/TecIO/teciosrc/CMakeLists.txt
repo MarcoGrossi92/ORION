@@ -43,7 +43,7 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${BaseFlags}")
 
 # -------- Library source files --------
 file(GLOB mainFiles "*.cpp" "*.h")
-list(REMOVE_ITEM mainFiles "szcombine.cpp")
+list(FILTER mainFiles EXCLUDE REGEX "szcombine\\.cpp$")
 
 add_library(tecio STATIC ${mainFiles})
 add_library(tecio::tecio ALIAS tecio)
