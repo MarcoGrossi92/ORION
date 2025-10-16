@@ -107,13 +107,13 @@ def read_field(file_path,N,Nx,Ny,Nz,jumpline):
     MESH = open(file_path,"r")
     MESH = MESH.readlines()
 
-    var = [np.zeros((Nx, Ny, Nz)) for _ in range(N)]
+    var = [np.zeros((max(Nx,1), max(Ny,1), max(Nz,1))) for _ in range(N)]
     line = jumpline-2
 
     for v in range(N):
-        for k in range(Nz):
-            for j in range(Ny):
-                for i in range(Nx):
+        for k in range(max(Nz,1)):
+            for j in range(max(Ny,1)):
+                for i in range(max(Nx,1)):
                     line += 1
                     var[v][i,j,k] = float(MESH[line])
 
@@ -149,7 +149,7 @@ def read_TEC(file_path):
         jump += 3*(Nx+1)*(Ny+1)*(Nz+1)
         var = read_field(file_path,Nvar,Nx,Ny,Nz,jump)
         vb.append(var)
-        jump += Nvar*Nx*Ny*Nz+1
+        jump += Nvar*max(Nx,1)*max(Ny,1)*max(Nz,1)+1
 
     return xb, yb, zb, vb, variables['name']
 
