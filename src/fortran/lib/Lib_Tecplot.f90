@@ -462,7 +462,7 @@ contains
     integer :: err, end
     integer :: tecunit, ios, ios_prev, ios2
     integer :: i, j, k, d, b, b2, ck1, ck2
-    integer :: Ni(50), Nj(50), Nk(50), nskip(50)
+    integer, allocatable :: Ni(:), Nj(:), Nk(:), nskip(:)
     integer :: Nblocks, nlines, nvar, ndir
     character(500) :: line
     character(100) :: args(20), subargs(2)
@@ -482,13 +482,22 @@ contains
 
     rewind(tecunit)
     
-    ! Count blocks and their dimensions
-    ios = 0; Nblocks = 0; nlines = -1; b = 1; ios2 = 0; nskip = 0; ios_prev = 0; b2 = 1
+    ! Count blocks and allocate Ni, Nj, Nk, nskip
+    ios = 0; Nblocks = 0; nlines = -1
     do while(ios==0)
       read(tecunit,'(A)',iostat=ios) line
       nlines = nlines+1
       if (index(line,"ZONE")>0 .and. index(line,"ZONETYPE")==0) Nblocks = Nblocks+1
       if (index(line,"Zone")>0) Nblocks = Nblocks+1
+    enddo
+    allocate(Ni(Nblocks));allocate(Nj(Nblocks));allocate(Nk(Nblocks));allocate(Nskip(Nblocks));
+
+    rewind(tecunit)
+
+    ! Read blocks dimensions
+    ios = 0; b = 1; ios2 = 0; nskip = 0; ios_prev = 0; b2 = 1
+    do while(ios==0)
+      read(tecunit,'(A)',iostat=ios) line
       if (index(line,'I=')>0) then
         call parse(line,',',args)
         do i = 1, 6!size(args)
