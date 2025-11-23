@@ -12908,8 +12908,9 @@ end function
   character(len=*), intent(inout)   :: varnames
   character(len=*), intent(in)      :: vtspath, vtmpath
   real(R8P), intent(in), optional   :: time
+  real(R8P), allocatable            :: X(:), Y(:), Z(:)
   integer(I4P)                      :: mf(99), b, s
-  integer(I4P)                      :: nb,nn,nnvar,Nvar
+  integer(I4P)                      :: nb,nn,nnvar,Nvar,ndir,nz2
   integer(I4P)                      :: E_IO 
   logical                           :: meshonly
   character(len=4)                  :: location
@@ -12920,6 +12921,7 @@ end function
   !---------------------------------------------------------------------------------------------------------------------------------
   ! Preliminary operations
   nb = size(orion%block)
+  ndir = size(orion%block(1)%mesh,1)
   Nvar = 0
   meshonly = .true.
   if (allocated(orion%block(1)%vars)) then
@@ -12931,7 +12933,12 @@ end function
   call parse(varnames,' ',varname(1:Nvar))
   ! Block writing
   do b = 1, nb
-    associate (nx2 => orion%block(b)%Ni, ny2 => orion%block(b)%Nj, nz2 => orion%block(b)%Nk)
+    associate (nx2 => orion%block(b)%Ni, ny2 => orion%block(b)%Nj)
+    if (ndir==2) then
+      nz2 = 1
+    elseif (ndir==3) then
+      nz2 = orion%block(b)%Nk
+    endif
     nn=(nx2+1)*(ny2+1)*(nz2+1)
     nnvar=(nx2)*(ny2)*(nz2)
     E_IO = VTK_INI_XML(cf=mf(b),output_format=orion%vtk%format, filename=trim(vtspath)//trim(orion%block(b)%name)//'.vts', &
@@ -12941,10 +12948,26 @@ end function
       E_IO = VTK_FLD_XML(fld=time,fname='TIME')
       E_IO = VTK_FLD_XML(fld_action='close')
     endif
+    ! Use real Z if ndir==3, else set Z=0.0
+    allocate(X(nn)); allocate(Y(nn)); allocate(Z(nn))
+    if (ndir==2) then
+      X = reshape([ &
+          orion%block(b)%mesh(1,0:nx2,:,:), &
+          orion%block(b)%mesh(1,0:nx2,:,:) &
+      ], [nn])
+      Y = reshape([ &
+          orion%block(b)%mesh(2,0:nx2,:,:), &
+          orion%block(b)%mesh(2,0:nx2,:,:) &
+      ], [nn])
+      Z = 0.0_R8P
+    elseif (ndir==3) then
+      X = reshape(orion%block(b)%mesh(1,0:nx2,:,:),[nn])
+      Y = reshape(orion%block(b)%mesh(2,0:nx2,:,:),[nn])
+      Z = reshape(orion%block(b)%mesh(3,0:nx2,:,:),[nn])
+    endif
     E_IO = VTK_GEO_XML(cf=mf(b),nx1=0, nx2=nx2, ny1=0, ny2=ny2, nz1=0, nz2=nz2, NN=nn, &
-                       X=reshape(orion%block(b)%mesh(1,0:nx2,:,:),(/nn/)),        &
-                       Y=reshape(orion%block(b)%mesh(2,0:nx2,:,:),(/nn/)),        &
-                       Z=reshape(orion%block(b)%mesh(3,0:nx2,:,:),(/nn/)))
+                       X=X,  Y=Y, Z=Z)
+    deallocate(X); deallocate(Y); deallocate(Z)
     if (.not.meshonly) then
       E_IO = VTK_DAT_XML(cf=mf(b),var_location = location, var_block_action = 'open')
       do s = 1, Nvar
@@ -12983,8 +13006,8 @@ end function
   character(len=*), intent(in)      :: vtspath, vtmpath
   real(R8P), intent(out), optional  :: time
   integer(I4P)                      :: b, s, i, j, k
-  integer(I4P)                      :: Nblocks,nn,nu,nc,n
-  integer(I4P)                      :: nx1, nx2, ny1, ny2, nz1, nz2
+  integer(I4P)                      :: Nblocks,nn,nu,nc,n,ndir
+  integer(I4P)                      :: nx1, nx2, ny1, ny2, nz1, nz2, nz1_real, nz2_real
   integer(I4P)                      :: err, start, start_pos, end_pos
   character(256), allocatable       :: varnames(:)
   character(256)                    :: line, dummy_name(16)
@@ -13012,7 +13035,7 @@ end function
   enddo
   allocate(orion%block(1:Nblocks))
   orion%block(:)%name = dummy_name(1:Nblocks)
-  call read_variables_name(trim(vtspath)//trim(orion%block(b)%name)//'.vts',varnames,orion%vtk%node)
+  call read_variables_name(trim(vtspath)//trim(orion%block(1)%name)//'.vts',varnames,orion%vtk%node)
 
   ! Read VTS file
   do b = 1, Nblocks
@@ -13033,16 +13056,26 @@ end function
       start = 1
       orion%block(b)%Ni = nx2; orion%block(b)%Nj = ny2; orion%block(b)%Nk = nz2
     endif
-    allocate(orion%block(b)%mesh(1:3,nx1:nx2,ny1:ny2,nz1:nz2))
+    ndir = 3
+    if (sum(z)==0.0_R8P) ndir = 2
+    if (ndir==2) then
+      nz1_real = 0; nz2_real = 0
+    else
+      nz1_real = nz1; nz2_real = nz2
+    endif
+    allocate(orion%block(b)%mesh(1:ndir,nx1:nx2,ny1:ny2,nz1_real:nz2_real))
     n = 0
-    do k = nz1, nz2; do j = ny1, ny2; do i = nx1, nx2
+    do k = nz1_real, nz2_real; do j = ny1, ny2; do i = nx1, nx2
           n = n + 1
           orion%block(b)%mesh(1,i,j,k) = x(n)
           orion%block(b)%mesh(2,i,j,k) = y(n)
-          orion%block(b)%mesh(3,i,j,k) = z(n)
+          if (ndir==3) orion%block(b)%mesh(3,i,j,k) = z(n)
     enddo; enddo; enddo
     ! Variables field
-    allocate(orion%block(b)%vars(1:size(varnames)-1,nx1+start:nx2,ny1+start:ny2,nz1+start:nz2))
+    if (ndir==2) then
+      nz1_real = 1 - start; nz2_real = 1
+    endif
+    allocate(orion%block(b)%vars(1:size(varnames)-1,nx1+start:nx2,ny1+start:ny2,nz1_real+start:nz2_real))
     do s = 1, size(varnames)-1
       if (allocated(v)) deallocate(v)
       if (orion%vtk%node) then
@@ -13051,7 +13084,7 @@ end function
         err = VTK_VAR_XML_READ(var_location='cell', varname=trim(varnames(s+1)), NC_NN=nn, NCOMP=nc, var=v)    
       endif
       n = 0
-      do k = nz1+start, nz2; do j = ny1+start, ny2; do i = nx1+start, nx2
+      do k = nz1_real+start, nz2_real; do j = ny1+start, ny2; do i = nx1+start, nx2
             n = n + 1
             orion%block(b)%vars(s,i,j,k) = v(n)
       enddo; enddo; enddo
