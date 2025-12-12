@@ -68,14 +68,13 @@ contains
   !> @ingroup Lib_PostProcessingPublicProcedure
   !> @{
   !> Function for writing ORION block data to Tecplot file.
-  function tec_write_structured_multiblock(orion,varnames,time,filename,Nvars) result(err)
+  function tec_write_structured_multiblock(orion,varnames,filename,Nvars) result(err)
     implicit none
     type(orion_data), intent(in)              :: orion
     character(len=*), intent(in), optional    :: varnames
-    real(R8P), intent(in), optional           :: time
     character(len=*), intent(in)              :: filename !< File name of the output file.
     integer, intent(in), optional             :: Nvars    !< Input number of variables saved.
-    logical :: meshonly
+    logical :: meshonly, time_accurate
     integer :: err
 # if defined(TECIO)
     integer, external::               tecini142,    &     ! |
@@ -127,10 +126,11 @@ contains
     ! initializing tecplot variables
     call tec_init()
     ! time
-    if (present(time)) then
-      time_ = time
-    else
-      time_ = -10._R8P
+    time_accurate = .true.
+    time_ = orion%solutiontime
+    if (time_<0) then
+      time_ = abs(time_)
+      time_accurate = .false.
     endif
     ! initializing tecplot file
     select case(orion%tec%format)
@@ -314,8 +314,9 @@ contains
                         ', J='//trim(str(no_sign=.true.,n=nj2-nj1+1))//       &
                         ', K='//trim(str(no_sign=.true.,n=nk2-nk1+1))//       &
                         ', DATAPACKING=BLOCK'//adjustl(trim(tecvarlocstr))
-        if (time_>0.0_R8P) &
-          teczoneheader = trim(teczoneheader)//', SOLUTIONTIME='//trim(str(no_sign=.true.,n=time_))
+        
+        teczoneheader = trim(teczoneheader)//', SOLUTIONTIME='//trim(str(no_sign=.true.,n=time_))
+        if (.not. time_accurate) teczoneheader = trim(teczoneheader)//', STRANDID = 0'
         write(tecunit,'(A)',iostat=err)trim(teczoneheader)
         write(tecunit,FR_P,iostat=err)(((orion%block(b)%mesh(1,i,j,k),i=ni1,ni2),j=nj1,nj2),k=nk1,nk2)
         if (ndir>1) &
@@ -457,7 +458,7 @@ contains
     implicit none
     type(orion_data), intent(inout)                        :: orion
     character(len=*), intent(in)                           :: filename
-    real(R8P) :: dummy_float
+    real(R8P) :: dummy_float, solutiontime
     logical :: meshonly
     integer :: err, end
     integer :: tecunit, ios, ios_prev, ios2
@@ -532,6 +533,24 @@ contains
       orion%block(b)%Nj = Nj(b)-1
       orion%block(b)%Nk = Nk(b)-1
     enddo
+    rewind(tecunit)
+
+    ! Find solutiontime
+    ios = 0; solutiontime = -10._R8P;
+    do j=1,10
+      read(tecunit,'(A)',iostat=ios) line
+      if (index(line,'SOLUTIONTIME=')>0) then
+        call parse(line,',',args)
+        do i = 1, size(args)
+          if (index(args(i),'SOLUTIONTIME=')>0) then
+            call parse(args(i),'=',subargs)
+            read(subargs(2),FR_P) solutiontime
+          endif
+        enddo
+      endif
+      if (solutiontime>0.0_R8P) exit
+    enddo
+    orion%solutiontime = solutiontime
     rewind(tecunit)
 
     if (Nk(1)==1) then

@@ -38,6 +38,7 @@ module Lib_ORION_data
 
   type, public :: orion_data
     character(len=32), allocatable :: varnames(:)
+    real(R8P) :: solutiontime
     type(obj_block), allocatable :: block(:)
     type(Type_tec_Format) :: tec
     type(Type_vtk_Format) :: vtk
