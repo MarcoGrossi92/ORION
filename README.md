@@ -1,4 +1,4 @@
-# ORION - Ordinanary Repository for Input-Output Necessities
+# ORION - Ordinary Repository for Input-Output Necessities
 
 **IO manager of files containing structured multi-block fields**
 
