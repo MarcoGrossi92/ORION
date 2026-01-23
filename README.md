@@ -389,10 +389,6 @@ The script will:
 
 Note: Pushing is not required. The updated version is tagged in the repository and released automatically.
 
-## Author
-
-**Marco Grossi** (marco.grossi@uniroma1.it)
-
 ## Acknowledgements
 
 This project was developed starting from the following open-source projects:
