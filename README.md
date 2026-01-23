@@ -18,6 +18,7 @@ ORION is a comprehensive tool suite for reading and processing files of several 
 ## Table of Contents
 
 - [Requirements](#requirements)
+- [Platform Support](#platform-support)
 - [Installation](#installation)
 - [Building](#building)
 - [Usage](#usage)
@@ -52,6 +53,20 @@ ORION is a comprehensive tool suite for reading and processing files of several 
 - **PLOT3D**: 
   - Fortran API: NASA's structured grid format
   - Python API: Not available
+
+## Platform Support
+
+ORION has been successfully tested and verified to work on the following platforms:
+
+| Operating System | Fortran Compiler | Status |
+|------------------|------------------|--------|
+| macOS (Apple Silicon) | GNU | ✅ Tested |
+| Ubuntu (Linux) | GNU | ✅ Tested |
+| Ubuntu (Linux) | Intel | ✅ Tested |
+| OpenSUSE (Linux) | GNU | ✅ Tested |
+| OpenSUSE (Linux) | Intel | ✅ Tested |
+
+The project is designed to be portable and should work on other Unix-like systems (Linux, BSD, etc.) with compatible Fortran and C++ compilers. Windows users can use WSL2 (Windows Subsystem for Linux) or MSYS2/MinGW environments.
 
 ## Installation
 
