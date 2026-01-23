@@ -139,18 +139,26 @@ TecIO is automatically built and installed if not present:
 Set up the environment variables:
 
 ```bash
-source ./install.sh setvars
+./install.sh setvars
 ```
+
+Source of the bashrc or zshrc files
 
 ### Command-line Tools
 
 The project includes a command-line utility for conversion between Tecplot, VTK, and PLOT3D formats.
 
 ```bash
-ORION --help
+# Convert Tecplot to VTK
+ORION --input-format tecplot --input-file data.dat \
+      --output-format vtk --output-file output.vtk
+
+# Convert VTK to PLOT3D
+ORION --input-format vtk --input-file mesh.vtk \
+      --output-format plot3d --output-file grid.g
 ```
 
-### File Format Usage
+### API Usage
 
 For complete working examples, see the `src/fortran/test/` directory.
 
@@ -284,20 +292,6 @@ program write_plot3d
                       solution_file='solution.q', &
                       orion=IOfield)
 end program write_plot3d
-```
-
-#### Format Conversion
-
-Convert between formats using the command-line converter:
-
-```bash
-# Convert Tecplot to VTK
-ORION --input-format tecplot --input-file data.dat \
-      --output-format vtk --output-file output.vtk
-
-# Convert VTK to PLOT3D
-ORION --input-format vtk --input-file mesh.vtk \
-      --output-format plot3d --output-file grid.g
 ```
 
 ## Project Structure
