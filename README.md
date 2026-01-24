@@ -1,31 +1,33 @@
 # ORION - Ordinary Repository for Input-Output Necessities
 
-**IO manager of files containing structured multi-block fields**
+![License](https://img.shields.io/github/license/MarcoGrossi92/ORION)
+![Fortran](https://img.shields.io/badge/Fortran-90%2B-blue)
+![Python](https://img.shields.io/badge/Python-3.6%2B-yellow)
+![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20macOS-lightgrey)
 
-ORION is a comprehensive tool suite for reading and processing files of several formats with structured multi-block data. It provides both Fortran and Python interfaces for seamless integration into scientific computing workflows.
+ORION is a modular I/O toolkit for reading and writing structured, multi-block scientific data across multiple file formats.
+It provides Fortran and Python interfaces designed for seamless integration into high-performance and scientific computing workflows.
+In addition to its programmatic APIs, ORION includes a standalone utility for converting files between supported formats.
 
 ## Features
 
-- **Multi-format support**: Handle structured multi-block data in Tecplot, VTK, and PLOT3D formats
-  - **Fortran API**: Full support for Tecplot, VTK, and PLOT3D formats
-  - **Python API**: Support for Tecplot ASCII format
-- **Dual interfaces**: Native Fortran and Python implementations
-- **Format conversion**: Convert between Tecplot, VTK, and PLOT3D formats (Fortran API)
-- **Flexible compilation**: CMake-based build system with compiler and parallelization options
-- **MPI & OpenMP support**: Parallel processing capabilities for large datasets
-- **Tecplot integration**: Optional TecIO library support for enhanced functionality
+- **Language APIs**:
+  - Native Fortran API for high-performance applications
+  - Python API for scripting and post-processing workflows
+- **Format Conversion**:
+  - Standalone command-line tool to convert files between supported formats
 
 ## Table of Contents
 
 - [Requirements](#requirements)
 - [Platform Support](#platform-support)
 - [Installation](#installation)
-- [Building](#building)
 - [Usage](#usage)
 - [Project Structure](#project-structure)
 - [Contributing](#contributing)
 - [License](#license)
 - [Versioning](#versioning)
+- [Acknowledgements](#acknowledgements)
 
 ## Requirements
 
@@ -36,16 +38,10 @@ ORION is a comprehensive tool suite for reading and processing files of several 
 - **C++ compiler**: For TecIO support (optional)
 - **Python** >= 3.6 (for Python interface)
 
-### Optional Dependencies
-
-- **MPI**: For distributed memory parallelization
-- **OpenMP**: For shared memory parallelization
-- **TecIO**: For enhanced Tecplot file support (automatically built if not present)
-
 ### Supported File Formats
 
 - **Tecplot**: 
-  - Fortran API: Full support. Optional TecIO library for binary format support
+  - Fortran API: Full support. TecIO library for PLT and SZPLT binary formats support.
   - Python API: ASCII support
 - **VTK (Visualization Toolkit)**: 
   - Fortran API: Structured and unstructured mesh formats
@@ -70,19 +66,12 @@ The project is designed to be portable and should work on other Unix-like system
 
 ## Installation
 
-### Python Package Installation
+The installation process provides:
+- A Fortran static library linkable from external projects
+- A converter command-line tool
+- The Python module (optional)
 
-Install ORION via pip for Python support:
-
-```bash
-pip install ORION
-```
-
-This installs the Python interface with support for reading Tecplot ASCII files.
-
-### From Source
-
-#### Quick Start
+### Quick Start
 
 Clone the repository and run the installation script:
 
@@ -91,23 +80,6 @@ git clone https://github.com/MarcoGrossi92/ORION.git
 cd ORION
 ./install.sh build --compiler=gnu --use-tecio
 ```
-
-#### Manual Build
-
-The project uses CMake with presets for streamlined configuration:
-
-```bash
-# Configure the build
-cmake --preset default
-
-# Build the project
-cmake --build build/
-
-# Install (optional)
-cmake --install build/
-```
-
-## Building
 
 ### Build Options
 
@@ -126,40 +98,32 @@ The `install.sh` script provides several build options:
   - `--compiler=<name>`: Set compiler suite (intel, gnu)
   - `--use-tecio`: Enable TecIO support
 
-- **compile**: Compile using CMakePresets
+- **compile**: Compile using CMakePresets once the project has been already built
 
-- **setvars**: Set ORION environment variables
+- **setvars**: Set ORION environment variables to freely call the converter from a shell
 
-### Compiler Selection
+### Python Package Installation
 
-Set the compiler suite during build:
+Install ORION via pip for Python support:
 
 ```bash
-./install.sh build --compiler=gnu    # GNU compiler
-./install.sh build --compiler=intel  # Intel compiler
+pip install ORION
 ```
 
-### TecIO Support
+This installs the Python interface with support for reading Tecplot ASCII files.
 
-TecIO is automatically built and installed if not present:
+### Testing
+
+Run the test suite after full build:
 
 ```bash
-./install.sh build --use-tecio
+# Run Fortran tests
+./scripts/test.sh
 ```
 
 ## Usage
 
-### Environment Setup
-
-Set up the environment variables:
-
-```bash
-./install.sh setvars
-```
-
-Source of the bashrc or zshrc files
-
-### Command-line Tools
+### Command-line Converter Usage
 
 The project includes a command-line utility for conversion between Tecplot, VTK, and PLOT3D formats.
 
@@ -335,25 +299,6 @@ ORION/
 └── install.sh             # Installation script
 ```
 
-## Testing
-
-Run the test suite:
-
-```bash
-# Run Fortran tests
-./scripts/test.sh
-```
-
-## Documentation
-
-Generate Doxygen documentation:
-
-```bash
-doxygen .Doxyfile
-```
-
-Documentation is generated in the `doc/` directory.
-
 ## Contributing
 
 Contributions are welcome! Please follow these guidelines:
@@ -413,12 +358,6 @@ This project was developed starting from the following open-source projects:
 
 - **OFF** — Tecplot basic routines
   https://github.com/szaghi/OFF
-
-
-## Links
-
-- **Repository**: https://github.com/MarcoGrossi92/ORION
-- **Issues**: https://github.com/MarcoGrossi92/ORION/issues
 
 ## Support
 
