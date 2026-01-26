@@ -1,10 +1,12 @@
-!> @ingroup Library
+!> \addtogroup Library
 !> @{
-!> @defgroup Lib_TecplotLibrary Lib_Tecplot
+!> \defgroup Lib_TecplotLibrary Lib_Tecplot
 !> @}
 
-!> Pure Fortran (2003+) library to write data conforming the Tecplot standard
-!> @ingroup Lib_TecplotLibrary
+!> \brief Pure Fortran (2003+) library to write data conforming the Tecplot standard.
+!> \details Provides comprehensive routines for reading and writing Tecplot structured multiblock and point data files.
+!> Supports both ASCII and binary (with TecIO library) formats for ORION data structures.
+!> \ingroup Lib_TecplotLibrary
 module Lib_Tecplot
   use, intrinsic:: ISO_FORTRAN_ENV, only: stdout => OUTPUT_UNIT, stderr => ERROR_UNIT ! Standard output/error logical units.
   use IR_Precision
@@ -23,7 +25,14 @@ module Lib_Tecplot
 
 contains
 
-  ! Subroutine for computing the dimensions of the domain to be post-processed. 
+  !> \brief Compute domain dimensions for Tecplot output.
+  !> \details Calculates dimension bounds for node-centered and cell-centered data based on block size and boundary conditions.
+  !> \param[in] node Whether data is node-centered (.true.) or cell-centered (.false.)
+  !> \param[in] bc Whether boundary conditions are included
+  !> \param[in] Nx, Ny, Nz Block dimensions in each direction
+  !> \param[in] gc Ghost cell width
+  !> \param[out] ni1,ni2,nj1,nj2,nk1,nk2 Bounds for node-centered data
+  !> \param[out] ci1,ci2,cj1,cj2,ck1,ck2 Bounds for cell-centered data
   subroutine compute_dimensions(node,bc,Nx,Ny,Nz,gc,ni1,ni2,nj1,nj2,nk1,nk2,ci1,ci2,cj1,cj2,ck1,ck2)
     implicit none
     logical, intent(in) :: node 
@@ -65,9 +74,16 @@ contains
   endsubroutine compute_dimensions
   !> @}
 
-  !> @ingroup Lib_PostProcessingPublicProcedure
+  !> \ingroup Lib_PostProcessingPublicProcedure
   !> @{
-  !> Function for writing ORION block data to Tecplot file.
+  !> \brief Write ORION structured multiblock data to Tecplot file.
+  !> \details Exports ORION block data in Tecplot structured format (ASCII or binary).
+  !> Supports both node-centered and cell-centered data with optional boundary conditions.
+  !> \param[in] orion ORION data structure containing blocks to write
+  !> \param[in] varnames Variable names string (optional)
+  !> \param[in] filename Output file name (must end with .dat, .tec, .plt, or .szplt)
+  !> \param[in] Nvars Number of variables to write (optional, default: all)
+  !> \return err Error code (0 if successful)
   function tec_write_structured_multiblock(orion,varnames,filename,Nvars) result(err)
     implicit none
     type(orion_data), intent(in)              :: orion
@@ -354,12 +370,20 @@ contains
   endfunction tec_write_structured_multiblock
 
 
+  !> \brief Write ORION point data to Tecplot file.
+  !> \details Exports ORION point data in Tecplot point format.
+  !> Each block is written as a separate zone with point values.
+  !> \param[in] orion ORION data structure containing blocks to write
+  !> \param[in] varnames Variable names string (optional)
+  !> \param[in] filename Output file name
+  !> \param[in] Nvars Number of variables to write (optional)
+  !> \return err Error code (0 if successful)
   function tec_write_points_multivars(orion,varnames,filename,Nvars) result(err)
     implicit none
     type(orion_data), intent(in)              :: orion
     character(len=*), intent(in), optional    :: varnames
-    character(len=*), intent(in)              :: filename !< File name of the output file.
-    integer, intent(in), optional             :: Nvars    !< Input number of variables saved.
+    character(len=*), intent(in)              :: filename
+    integer, intent(in), optional             :: Nvars
     integer :: err
     character(500)::          tecvarname          !< Variables name for tecplot header file.
     character(500)::          teczoneheader       !< Tecplot string of zone header.
@@ -431,7 +455,12 @@ contains
   endfunction tec_write_points_multivars
 
 
-  !> Function for reading ORION block data from Tecplot file.
+  !> \brief Read ORION structured multiblock data from Tecplot file.
+  !> \details Reads Tecplot structured format files (ASCII or binary) into ORION data structure.
+  !> Automatically detects file format based on extension.
+  !> \param[inout] orion ORION data structure to fill with data
+  !> \param[in] filename Input file name (.dat, .tec, or .szplt)
+  !> \return err Error code (0 if successful)
   function tec_read_structured_multiblock(orion,filename) result(err)
     implicit none
     type(orion_data), intent(inout)                        :: orion
@@ -451,7 +480,12 @@ contains
   end function tec_read_structured_multiblock
 
 
-  !> Function for reading ORION block data from Tecplot ascii file.
+  !> \brief Read ORION structured multiblock data from Tecplot ASCII file.
+  !> \details Parses Tecplot ASCII format files and populates ORION data structure.
+  !> Handles variable extraction, block dimensions, and solution time.
+  !> \param[inout] orion ORION data structure to fill with data
+  !> \param[in] filename Input file name (.dat or .tec)
+  !> \return err Error code (0 if successful)
   function tec_read_ascii(orion,filename) result(err)
     use, intrinsic :: iso_fortran_env, only : iostat_end
     use strings, only: getvals, parse
@@ -595,7 +629,13 @@ contains
   end function tec_read_ascii
 
 
-  !> Function for reading ORION block data from Tecplot file.
+  !> \brief Read ORION point data from Tecplot file.
+  !> \details Reads Tecplot point format files into ORION data structure.
+  !> Each zone is treated as a separate block.
+  !> \param[inout] orion ORION data structure to fill with data
+  !> \param[in] nvar Number of variables in file
+  !> \param[in] filename Input file name
+  !> \return err Error code (0 if successful)
   function tec_read_points_multivars(orion,nvar,filename) result(err)
     use, intrinsic :: iso_fortran_env, only : iostat_end
     use strings, only: getvals, parse
@@ -685,6 +725,9 @@ contains
   end function tec_read_points_multivars
 
 
+  !> \brief Extract variable names from Tecplot VARIABLES line.
+  !> \param[inout] line Input line containing variable definitions
+  !> \param[out] variables Extracted variable names array
   subroutine read_variables(line,variables)
     implicit none
     character(len=*), intent(inout) :: line
@@ -726,7 +769,11 @@ contains
   end subroutine read_variables
 
 
-  ! Convenience to extract a returned C string to a FOrtran string
+  !> \brief Convert C character array to Fortran string.
+  !> \details Convenience routine for converting C pointers to Fortran strings in TecIO operations.
+  !> \param[in] charArray C pointer to character array
+  !> \param[in] length Length of character array
+  !> \param[out] string Output Fortran string
   subroutine copyCharArrayToString(charArray, length, string)
     use iso_c_binding, only : C_NULL_CHAR, c_ptr, c_f_pointer
     implicit none
@@ -748,6 +795,12 @@ contains
   end
 
 # if defined(TECIO)
+  !> \brief Read ORION structured multiblock data from Tecplot binary file (SZplt format).
+  !> \details Uses TecIO library to read compressed Tecplot binary format (.szplt).
+  !> Only compiled if TECIO is defined.
+  !> \param[inout] orion ORION data structure to fill with data
+  !> \param[in] filename Input file name (.szplt)
+  !> \return i Error code (0 if successful)
   function tec_read_szplt(orion,filename) result(i)
     use iso_c_binding
     implicit none
@@ -1014,6 +1067,9 @@ contains
 # endif
 
 
+  !> \brief Skip n lines in file unit u.
+  !> \param[in] u File unit number
+  !> \param[in] n Number of lines to skip
   subroutine skip(u,n)
     implicit none
     integer, intent(in) :: u, n
