@@ -1,0 +1,134 @@
+#-----------------------------------------------------------
+# Project
+#-----------------------------------------------------------
+
+PROJECT_NAME           = "ORION"
+PROJECT_BRIEF          = "Ordinary Repository for Input-Output Necessities"
+OUTPUT_DIRECTORY       = docs
+CREATE_SUBDIRS         = NO
+
+#-----------------------------------------------------------
+# Input
+#-----------------------------------------------------------
+
+INPUT                  = .
+FILE_PATTERNS          = *.f90 \
+                         *.f95 \
+                         *.f03 \
+                         *.f08 \
+                         *.F90 \
+                         *.md
+RECURSIVE              = YES
+
+EXCLUDE                = docs \
+                         build \
+                         .git
+
+USE_MDFILE_AS_MAINPAGE = README.md
+
+#-----------------------------------------------------------
+# Extraction
+#-----------------------------------------------------------
+
+OPTIMIZE_FOR_FORTRAN   = YES
+EXTRACT_ALL            = YES
+EXTRACT_PRIVATE        = NO
+HIDE_UNDOC_MEMBERS     = NO
+HIDE_UNDOC_CLASSES     = NO
+
+#-----------------------------------------------------------
+# Fortran specifics
+#-----------------------------------------------------------
+
+FORTRAN_COMMENT_AFTER  = 72
+FORTRAN_FREE_FORM      = YES
+
+#-----------------------------------------------------------
+# Source browsing
+#-----------------------------------------------------------
+
+SOURCE_BROWSER         = YES
+INLINE_SOURCES         = YES
+
+#-----------------------------------------------------------
+# HTML (GitHub Pages)
+#-----------------------------------------------------------
+
+GENERATE_HTML          = YES
+HTML_OUTPUT            = html
+HTML_DYNAMIC_MENUS     = YES
+GENERATE_TREEVIEW      = YES
+SEARCHENGINE           = NO
+
+#-----------------------------------------------------------
+# Graphs
+#-----------------------------------------------------------
+
+HAVE_DOT               = YES
+DOT_IMAGE_FORMAT       = svg
+INTERACTIVE_SVG        = YES
+CALL_GRAPH             = YES
+CALLER_GRAPH           = YES
+
+#-----------------------------------------------------------
+# Disable unused outputs
+#-----------------------------------------------------------
+
+GENERATE_LATEX         = NO
+GENERATE_MAN           = NO
+GENERATE_XML           = NO
+
+#-----------------------------------------------------------
+# Warnings
+#-----------------------------------------------------------
+
+WARNINGS               = YES
+WARN_IF_UNDOCUMENTED   = YES
+
+
+#-----------------------------------------------------------
+# Modern HTML theme (doxygen-awesome-css)
+#-----------------------------------------------------------
+
+# Use modern sidebar layout (disable old treeview)
+HTML_DYNAMIC_MENUS     = YES
+
+# Auto light/dark mode
+HTML_COLORSTYLE        = AUTO
+
+# Awesome CSS theme
+HTML_EXTRA_STYLESHEET  = docs/theme/doxygen-awesome.css \
+                         docs/theme/doxygen-awesome-sidebar-only.css
+
+# Optional but recommended JS features
+HTML_EXTRA_FILES       = docs/theme/doxygen-awesome-darkmode-toggle.js \
+                         docs/theme/doxygen-awesome-fragment-copy-button.js
+
+# Cleaner paths & titles
+FULL_PATH_NAMES        = NO
+SHORT_NAMES            = NO
+
+#-----------------------------------------------------------
+# Sidebar navigation index (no search-centric UX)
+#-----------------------------------------------------------
+
+# Enable generated index pages
+DISABLE_INDEX          = NO
+GENERATE_INDEX         = YES
+ALPHABETICAL_INDEX    = YES
+
+# Make indexes useful instead of search-heavy
+SHOW_FILES             = YES
+SHOW_MODULES           = YES
+
+# Fortran-friendly grouping
+GROUP_NESTED_COMPOUNDS = YES
+
+# Make module pages cleaner
+SORT_MEMBER_DOCS       = YES
+SORT_BRIEF_DOCS        = YES
+SORT_MEMBERS_CTORS_1ST = YES
+
+# Prefer public API visibility
+HIDE_FRIEND_COMPOUNDS  = YES
+

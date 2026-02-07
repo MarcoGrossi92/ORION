@@ -121,6 +121,13 @@ Run the test suite after full build:
 ./scripts/test.sh
 ```
 
+## Documentation
+
+📘 Full API documentation is available here:  
+https://MarcoGrossi92.github.io/ORION/
+
+Start with the **Modules** section to explore the Fortran API.
+
 ## Usage
 
 ### Command-line Converter Usage
