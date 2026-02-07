@@ -178,8 +178,8 @@ done
 case "$COMMAND" in
     build)
 
-        # download Doxygen
-        #./doxygen .Doxyfile
+        # Git submodules
+        git submodule update --init
 
         task "Configuring and building $project"
         rm -rf $BUILD_DIR
