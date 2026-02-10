@@ -178,9 +178,6 @@ done
 case "$COMMAND" in
     build)
 
-        # Git submodules
-        git submodule update --init
-
         task "Configuring and building $project"
         rm -rf $BUILD_DIR
         if [[ $COMPILERS == "intel" ]]; then 
