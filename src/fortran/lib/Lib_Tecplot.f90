@@ -163,7 +163,7 @@ contains
       err = tecini142(tecendrec,trim(tecvarname)//tecendrec,trim(filename)//tecendrec,'.'//tecendrec,fileFormat,FileType,Debug,VIsDouble)
       err = tecauxstr142("Time"//tecendrec,trim(str(n=time_))//tecendrec)
 #   else
-      stop "You can not write in binary formato without compiling against TecIO"
+      stop "You can not write in binary format without compiling against TecIO"
 #   endif
     case('ascii')
       open(newunit=tecunit,file=trim(filename))

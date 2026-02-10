@@ -1,5 +1,5 @@
-!> \brief Module for reading and writing PLOT3D (P3D) multiblock files.
-!> \details Provides routines to read and write multiblock mesh data in PLOT3D ASCII format for ORION data structures.
+! Module for reading and writing PLOT3D (P3D) multiblock files.
+! Provides routines to read and write multiblock mesh data in PLOT3D ASCII format for ORION data structures.
 module Lib_PLOT3D
   use, intrinsic:: ISO_FORTRAN_ENV, only: stdout => OUTPUT_UNIT, stderr => ERROR_UNIT
   use IR_Precision
@@ -10,14 +10,12 @@ module Lib_PLOT3D
   public:: p3d_read_multiblock
   public:: p3d_write_multiblock
 
-
 contains
 
-
-  !> \brief Write ORION mesh data to a PLOT3D multiblock ASCII file.
-  !> \param[in] orion    ORION data structure containing mesh blocks to write.
-  !> \param[in] filename Name of the output PLOT3D file.
-  !> \return err         Error code (0 if successful, nonzero otherwise).
+  ! Write ORION mesh data to a PLOT3D multiblock ASCII file.
+  ! [in]  orion    ORION data structure containing mesh blocks to write.
+  ! [in]  filename Name of the output PLOT3D file.
+  ! [out] err         Error code (0 if successful, nonzero otherwise).
   function p3d_write_multiblock(orion,filename) result(err)
     implicit none
     type(orion_data), intent(in)              :: orion
@@ -73,10 +71,10 @@ contains
   endfunction p3d_write_multiblock
 
 
-  !> \brief Read mesh data from a PLOT3D multiblock ASCII file into ORION data structure.
-  !> \param[inout] orion    ORION data structure to fill with mesh blocks.
-  !> \param[in] filename    Name of the input PLOT3D file.
-  !> \return err            Error code (0 if successful, nonzero otherwise).
+  ! Read mesh data from a PLOT3D multiblock ASCII file into ORION data structure.
+  ! [inout] orion     ORION data structure to fill with mesh blocks.
+  ! [in]    filename  Name of the input PLOT3D file.
+  ! [out]   err       Error code (0 if successful, nonzero otherwise).
   function p3d_read_multiblock(orion,filename) result(err)
     use, intrinsic :: iso_fortran_env, only : iostat_end
     use strings, only: getvals, parse
