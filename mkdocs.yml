@@ -1,0 +1,109 @@
+site_name: ORION Documentation
+site_url: https://MarcoGrossi92.github.io/ORION/
+site_description: Documentation for ORION - Ordinary Repository for Input-Output Necessities
+site_author: Marco Grossi
+repo_name: MarcoGrossi92/ORION
+repo_url: https://github.com/MarcoGrossi92/ORION
+edit_uri: edit/main/docs/
+
+# Copyright
+copyright: Copyright &copy; 2024 Marco Grossi
+
+# Theme configuration
+theme:
+  name: material
+  palette:
+    # Palette toggle for light mode
+    - scheme: default
+      primary: blue grey
+      accent: cyan
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    # Palette toggle for dark mode
+    - scheme: slate
+      primary: blue grey
+      accent: cyan
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  font:
+    text: Roboto
+    code: Roboto Mono
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.top
+    - navigation.tracking
+    - navigation.indexes
+    - search.suggest
+    - search.highlight
+    - content.tabs.link
+    - content.code.annotation
+    - content.code.copy
+  language: en
+  icon:
+    repo: fontawesome/brands/github
+
+# Extensions
+markdown_extensions:
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.superfences
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.details
+  - admonition
+  - tables
+  - attr_list
+  - md_in_html
+  - toc:
+      permalink: true
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+
+# Plugins
+plugins:
+  - search:
+      lang: en
+
+# Navigation
+nav:
+  - Home: index.md
+  
+  - Getting Started:
+    - getting-started/index.md
+    - Installation: getting-started/installation.md
+    - Quick Start: getting-started/quick-start.md
+  
+  - User Guide:
+    - user-guide/index.md
+    - Supported Formats: user-guide/supported-formats.md
+    - Command-line Converter: user-guide/converter.md
+    - Fortran API: user-guide/fortran-api.md
+    - Python API: user-guide/python-api.md
+  
+  - Development:
+    - development/index.md
+    - Contributing: development/contributing.md
+    - Versioning: development/versioning.md
+  
+  - About:
+    - about/index.md
+    - Acknowledgements: about/acknowledgements.md
+    - License: about/license.md
+
+# Extra
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/MarcoGrossi92/ORION
+
+# CSS customization (optional)
+extra_css:
+  - stylesheets/extra.css

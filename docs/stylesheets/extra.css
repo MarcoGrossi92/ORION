@@ -1,0 +1,26 @@
+/* Custom CSS for ORION Documentation */
+
+/* You can add custom styles here to override Material theme defaults */
+
+/* Example: Custom color for code blocks */
+/*
+.md-typeset code {
+    background-color: #f5f5f5;
+}
+*/
+
+/* Example: Custom styling for admonitions */
+/*
+.md-typeset .admonition.note {
+    border-left: 4px solid #448aff;
+}
+*/
+
+/* Example: Adjust heading styles */
+/*
+.md-typeset h1 {
+    color: #1976d2;
+}
+*/
+
+/* Add your custom styles below this line */

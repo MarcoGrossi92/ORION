@@ -1,34 +1,51 @@
-name: Doxygen Docs
+name: Deploy MkDocs Documentation
 
 on:
   push:
     branches: [ main ]
+  workflow_dispatch:
 
 permissions:
   contents: read
   pages: write
   id-token: write
 
+# Allow only one concurrent deployment
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
 jobs:
   build:
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-
-      - name: Install dependencies
+        
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+          
+      - name: Cache pip dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+            
+      - name: Install MkDocs and dependencies
         run: |
-          sudo apt-get update
-          sudo apt-get install -y doxygen graphviz
-
-      - name: Run Doxygen
-        run: doxygen Doxyfile
-
+          pip install mkdocs-material
+          
+      - name: Build MkDocs site
+        run: mkdocs build
+        
       - name: Upload GitHub Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: docs/html
+          path: site
 
   deploy:
     needs: build
@@ -36,7 +53,6 @@ jobs:
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
-
     steps:
       - name: Deploy to GitHub Pages
         id: deployment
