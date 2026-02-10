@@ -4,76 +4,25 @@
 ![Fortran](https://img.shields.io/badge/Fortran-90%2B-blue)
 ![Python](https://img.shields.io/badge/Python-3.6%2B-yellow)
 ![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20macOS-lightgrey)
+![GitHub Stars](https://img.shields.io/github/stars/MarcoGrossi92/ORION?style=social)
+![GitHub Forks](https://img.shields.io/github/forks/MarcoGrossi92/ORION?style=social)
+![GitHub Downloads](https://img.shields.io/github/downloads/MarcoGrossi92/ORION/total)
 
-ORION is a modular I/O toolkit for reading and writing structured, multi-block scientific data across multiple file formats.
-It provides Fortran and Python interfaces designed for seamless integration into high-performance and scientific computing workflows.
-In addition to its programmatic APIs, ORION includes a standalone utility for converting files between supported formats.
+A modular I/O toolkit for reading and writing structured, multi-block scientific data across multiple file formats. ORION provides both Fortran and Python interfaces designed for seamless integration into high-performance and scientific computing workflows.
 
 ## Features
 
-- **Language APIs**:
-  - Native Fortran API for high-performance applications
-  - Python API for scripting and post-processing workflows
-- **Format Conversion**:
-  - Standalone command-line tool to convert files between supported formats
+- **Multi-format Support**: Tecplot, VTK, and PLOT3D file formats
+- **Native Fortran API**: High-performance library for computational workflows
+- **Python Interface**: Convenient scripting and post-processing capabilities
+- **Command-line Converter**: Standalone utility for format conversion
+- **Cross-platform**: Tested on Linux and macOS with GNU and Intel compilers
 
-## Table of Contents
+## Quick Start
 
-- [Requirements](#requirements)
-- [Platform Support](#platform-support)
-- [Installation](#installation)
-- [Usage](#usage)
-- [Project Structure](#project-structure)
-- [Contributing](#contributing)
-- [License](#license)
-- [Versioning](#versioning)
-- [Acknowledgements](#acknowledgements)
+### Installation
 
-## Requirements
-
-### System Requirements
-
-- **CMake** >= 3.13
-- **Fortran compiler**: Intel, GNU, or compatible
-- **C++ compiler**: For TecIO support (optional)
-- **Python** >= 3.6 (for Python interface)
-
-### Supported File Formats
-
-- **Tecplot**: 
-  - Fortran API: Full support. TecIO library for PLT and SZPLT binary formats support.
-  - Python API: ASCII support
-- **VTK (Visualization Toolkit)**: 
-  - Fortran API: Structured and unstructured mesh formats
-  - Python API: Not available
-- **PLOT3D**: 
-  - Fortran API: NASA's structured grid format
-  - Python API: Not available
-
-## Platform Support
-
-ORION has been successfully tested and verified to work on the following platforms:
-
-| Operating System | Fortran Compiler | Status |
-|------------------|------------------|--------|
-| macOS (Apple Silicon) | GNU | ✅ Tested |
-| Ubuntu (Linux) | GNU | ✅ Tested |
-| Ubuntu (Linux) | Intel | ✅ Tested |
-| OpenSUSE (Linux) | GNU | ✅ Tested |
-| OpenSUSE (Linux) | Intel | ✅ Tested |
-
-The project is designed to be portable and should work on other Unix-like systems (Linux, BSD, etc.) with compatible Fortran and C++ compilers. Windows users can use WSL2 (Windows Subsystem for Linux) or MSYS2/MinGW environments.
-
-## Installation
-
-The installation process provides:
-- A Fortran static library linkable from external projects
-- A converter command-line tool
-- The Python module (optional)
-
-### Quick Start
-
-Clone the repository and run the installation script:
+Clone and build with a single command:
 
 ```bash
 git clone https://github.com/MarcoGrossi92/ORION.git
@@ -81,291 +30,63 @@ cd ORION
 ./install.sh build --compiler=gnu --use-tecio
 ```
 
-### Build Options
-
-The `install.sh` script provides several build options:
+For Python support, use this command in the ORION folder:
 
 ```bash
-./install.sh [GLOBAL_OPTIONS] COMMAND [COMMAND_OPTIONS]
+pip install .
 ```
 
-**Global Options:**
-- `-v, --verbose`: Enable verbose output
+### Basic Usage
 
-**Commands:**
-
-- **build**: Perform a full build
-  - `--compiler=<name>`: Set compiler suite (intel, gnu)
-  - `--use-tecio`: Enable TecIO support
-
-- **compile**: Compile using CMakePresets once the project has been already built
-
-- **setvars**: Set ORION environment variables to freely call the converter from a shell
-
-### Python Package Installation
-
-Install ORION via pip for Python support:
+**Convert files from command line:**
 
 ```bash
-pip install ORION
+ORION --input-format tecplot --input-file data.dat \
+      --output-format vtk --output-file output.vtk
 ```
 
-This installs the Python interface with support for reading Tecplot ASCII files.
+**Read data in Fortran:**
 
-### Testing
+```fortran
+use Lib_ORION_data
+use Lib_Tecplot
 
-Run the test suite after full build:
+type(ORION_data) :: IOfield
+integer :: E_IO
 
-```bash
-# Run Fortran tests
-./scripts/test.sh
+E_IO = tec_read_structured_multiblock(filename='data.tec', orion=IOfield)
+```
+
+**Read data in Python:**
+
+```python
+from ORION import read_TEC
+
+x, y, z, var, varnames = read_TEC('data.tec')
 ```
 
 ## Documentation
 
-📘 Full API documentation is available here:  
-https://MarcoGrossi92.github.io/ORION/
+📘 **Full documentation**: https://MarcoGrossi92.github.io/ORION/
 
-Start with the **Modules** section to explore the Fortran API.
-
-## Usage
-
-### Command-line Converter Usage
-
-The project includes a command-line utility for conversion between Tecplot, VTK, and PLOT3D formats.
-
-```bash
-# Convert Tecplot to VTK
-ORION --input-format tecplot --input-file data.dat \
-      --output-format vtk --output-file output.vtk
-
-# Convert VTK to PLOT3D
-ORION --input-format vtk --input-file mesh.vtk \
-      --output-format plot3d --output-file grid.g
-```
-
-### API Usage
-
-For complete working examples, see the `src/fortran/test/` directory.
-
-#### Tecplot ASCII Format
-
-**Reading (Fortran)**
-```fortran
-program read_tecplot
-  use Lib_ORION_data
-  use Lib_Tecplot
-  implicit none
-  type(ORION_data) :: IOfield
-  integer :: E_IO
-
-  ! Read Tecplot ASCII file
-  E_IO = tec_read_structured_multiblock(filename='data.dat', orion=IOfield)
-  if (E_IO == 0) then
-    print *, 'Successfully read file with variables:', IOfield%varnames
-  endif
-end program read_tecplot
-```
-
-**Writing (Fortran)**
-```fortran
-program write_tecplot
-  use Lib_ORION_data
-  use Lib_Tecplot
-  implicit none
-  type(ORION_data) :: IOfield
-  integer :: E_IO
-
-  ! Prepare data structure
-  ! IOfield%mesh populated with coordinates
-  ! IOfield%var populated with solution data
-  
-  ! Write Tecplot ASCII file
-  E_IO = tec_write_structured_multiblock(orion=IOfield, &
-                                        varnames='velocity,pressure', &
-                                        filename='output.dat')
-end program write_tecplot
-```
-
-**Reading (Python)**
-```python
-from ORION import read_TEC
-
-# Read Tecplot ASCII file
-x, y, z, var, varnames = read_TEC('data.dat')
-print(f"Variables: {varnames}")
-print(f"Mesh shape: {x.shape}")
-```
-
-#### VTK Format (Fortran only)
-
-**Reading**
-```fortran
-program read_vtk
-  use Lib_ORION_data
-  use Lib_VTK
-  implicit none
-  type(ORION_data) :: IOfield
-  integer :: E_IO
-
-  ! Read VTK structured/unstructured mesh
-  E_IO = vtk_read_file(filename='mesh.vtk', orion=IOfield)
-  if (E_IO == 0) then
-    print *, 'Successfully read VTK file'
-    print *, 'Number of points:', size(IOfield%mesh)
-  endif
-end program read_vtk
-```
-
-**Writing**
-```fortran
-program write_vtk
-  use Lib_ORION_data
-  use Lib_VTK
-  implicit none
-  type(ORION_data) :: IOfield
-  integer :: E_IO
-
-  ! Prepare data in IOfield
-  ! Set mesh coordinates and solution variables
-  
-  ! Write VTK file
-  E_IO = vtk_write_structured_multiblock(orion=IOfield, &
-                                        varnames='velocity,pressure,temperature', &
-                                        filename='output.vtk')
-  if (E_IO /= 0) then
-    print *, 'Error writing VTK file'
-  endif
-end program write_vtk
-```
-
-#### PLOT3D Format (Fortran only)
-
-**Reading**
-```fortran
-program read_plot3d
-  use Lib_ORION_data
-  use Lib_PLOT3D
-  implicit none
-  type(ORION_data) :: IOfield
-  integer :: E_IO
-
-  ! Read PLOT3D grid and solution files
-  E_IO = plot3d_read(grid_file='grid.g', &
-                     solution_file='solution.q', &
-                     orion=IOfield)
-  if (E_IO == 0) then
-    print *, 'Successfully read PLOT3D files'
-  endif
-end program read_plot3d
-```
-
-**Writing**
-```fortran
-program write_plot3d
-  use Lib_ORION_data
-  use Lib_PLOT3D
-  implicit none
-  type(ORION_data) :: IOfield
-  integer :: E_IO
-
-  ! Prepare data in IOfield
-  ! Set mesh coordinates in structured grid format
-  ! Set solution variables (density, momentum, energy, etc.)
-  
-  ! Write PLOT3D files
-  E_IO = plot3d_write(grid_file='grid.g', &
-                      solution_file='solution.q', &
-                      orion=IOfield)
-end program write_plot3d
-```
-
-## Project Structure
-
-```
-ORION/
-├── bin/                   # Compiled executables
-│   ├── app/               # Applications (converter, etc.)
-│   └── test/              # Test executables
-├── src/                   # Source code
-│   ├── fortran/           # Fortran implementation
-│   │   ├── app/           # Applications
-│   │   ├── lib/           # Fortran libraries
-│   │   └── test/          # Fortran tests
-│   └── python/            # Python interface
-│       ├── ORION/         # Python package
-│       └── test/          # Python tests
-├── lib/                   # External libraries
-│   └── TecIO/             # TecIO library (auto-built)
-├── cmake/                 # CMake modules
-├── doc/                   # Documentation (Doxygen)
-├── scripts/               # Utility scripts
-├── CMakeLists.txt         # Main CMake configuration
-├── CMakePresets.json      # CMake presets
-├── setup.py               # Python package configuration
-└── install.sh             # Installation script
-```
+Learn more about:
+- [Installation & Requirements](https://MarcoGrossi92.github.io/ORION/getting-started/installation/)
+- [Fortran API Guide](https://MarcoGrossi92.github.io/ORION/user-guide/fortran-api/)
+- [Python API Guide](https://MarcoGrossi92.github.io/ORION/user-guide/python-api/)
 
 ## Contributing
 
-Contributions are welcome! Please follow these guidelines:
-
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
+Contributions are welcome! Please see our [Contributing Guide](https://MarcoGrossi92.github.io/ORION/development/contributing/) for details on how to get started.
 
 ## License
 
-This project is licensed under the GNU General Public License v3.0 - see the [LICENSE](LICENSE) file for details.
-
-## Versioning
-
-This project follows [Semantic Versioning](https://semver.org/) (SemVer) for managing version numbers. Semantic Versioning is a widely adopted versioning scheme that conveys meaning about the underlying code and what has been modified.
-
-### Version Format
-
-The version number is structured as follows:
-
-```
-MAJOR.MINOR.PATCH
-```
-
-- **MAJOR**: Incremented when there are incompatible API changes
-- **MINOR**: Incremented when functionality is added in a backwards-compatible manner
-- **PATCH**: Incremented when backwards-compatible bug fixes are made
-
-For example, a version number of `1.2.3` indicates:
-- `1`: The first major version, with potential breaking changes since version `0.x.x`
-- `2`: The second minor update, adding new features without breaking existing ones
-- `3`: The third patch, fixing bugs in a backwards-compatible manner
-
-### Version Management
-
-Version numbers are automatically updated by running the following command after committing code changes:
-
-```bash
-./scripts/version_bump.sh --major|--minor|--patch
-```
-
-The script will:
-1. Update the version in all relevant files
-2. Tag the commit with the new version
-3. Prepare the release automatically
-
-Note: Pushing is not required. The updated version is tagged in the repository and released automatically.
-
-## Acknowledgements
-
-This project was developed starting from the following open-source projects:
-
-- **Lib_VTK_IO** — VTK basic routines
-  https://github.com/victorsndvg/Lib_VTK_IO
-
-- **OFF** — Tecplot basic routines
-  https://github.com/szaghi/OFF
+This project is licensed under the GNU General Public License v3.0. See [LICENSE](LICENSE) for details.
 
 ## Support
 
-For issues, feature requests, or questions, please open an issue on the [GitHub repository](https://github.com/MarcoGrossi92/ORION/issues).
+- **Issues & Feature Requests**: [GitHub Issues](https://github.com/MarcoGrossi92/ORION/issues)
+- **Documentation**: [https://MarcoGrossi92.github.io/ORION/](https://MarcoGrossi92.github.io/ORION/)
+
+---
+
+**Acknowledgements**: Built upon [Lib_VTK_IO](https://github.com/victorsndvg/Lib_VTK_IO) and [OFF](https://github.com/szaghi/OFF)
