@@ -4,9 +4,6 @@
 ![Fortran](https://img.shields.io/badge/Fortran-90%2B-blue)
 ![Python](https://img.shields.io/badge/Python-3.6%2B-yellow)
 ![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20macOS-lightgrey)
-![GitHub Stars](https://img.shields.io/github/stars/MarcoGrossi92/ORION?style=social)
-![GitHub Forks](https://img.shields.io/github/forks/MarcoGrossi92/ORION?style=social)
-![GitHub Downloads](https://img.shields.io/github/downloads/MarcoGrossi92/ORION/total)
 
 A modular I/O toolkit for reading and writing structured, multi-block scientific data across multiple file formats. ORION provides both Fortran and Python interfaces designed for seamless integration into high-performance and scientific computing workflows.
 
