@@ -47,24 +47,18 @@ ZONE T="Sample Block", I=5, J=5, K=5
 EOF
 ```
 
-Or download a real sample from the repository:
-
-```bash
-wget https://raw.githubusercontent.com/MarcoGrossi92/ORION/main/test/sample.dat
-```
-
 ### Step 3: Convert to VTK
 
 Now convert the Tecplot file to VTK format:
 
 ```bash
-ORION --input-format tecplot --input-file sample.dat \
+ORION --input-format tecplot --input-file sample.tec \
       --output-format vtk --output-file sample.vtk
 ```
 
 You should see output like:
 ```
-Reading Tecplot file: sample.dat
+Reading Tecplot file: sample.tec
 Writing VTK file: sample.vtk
 Conversion complete!
 ```

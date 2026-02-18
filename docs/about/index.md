@@ -26,6 +26,8 @@ Learn more about the ORION project, its history, contributors, and licensing.
 
 ## License
 
+This project is licensed under the GNU General Public License v3.0. See [License](license.md) for details.
+
 ## Recognition
 
 ORION builds upon the work of:

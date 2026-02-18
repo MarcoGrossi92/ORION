@@ -48,6 +48,7 @@ git checkout -b fix/your-bug-fix
 ```
 
 Use descriptive branch names:
+
 - `feature/add-hdf5-support`
 - `fix/tecplot-binary-crash`
 - `docs/improve-installation`
@@ -254,28 +255,23 @@ def process_array(data: np.ndarray, scale: float = 1.0) -> np.ndarray:
 
 When reporting bugs, include:
 
-1. **ORION version:**
-   ```bash
-   ORION --version
-   ```
-
-2. **System information:**
+1. **System information:**
    - OS and version
    - Compiler and version
    - Build configuration
 
-3. **Steps to reproduce:**
+2. **Steps to reproduce:**
    ```bash
    # Exact commands that trigger the bug
    ORION --input-format tecplot --input-file test.dat ...
    ```
 
-4. **Expected vs actual behavior:**
+3. **Expected vs actual behavior:**
    - What should happen
    - What actually happens
    - Error messages or output
 
-5. **Sample data** (if possible):
+4. **Sample data** (if possible):
    - Minimal example that reproduces the issue
 
 ### Feature Requests

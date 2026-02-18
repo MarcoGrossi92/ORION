@@ -36,6 +36,7 @@ theme:
     - navigation.top
     - navigation.tracking
     - navigation.indexes
+    - toc.integrate
     - search.suggest
     - search.highlight
     - content.tabs.link
@@ -88,7 +89,7 @@ nav:
     - Fortran API: user-guide/fortran-api.md
     - Python API: user-guide/python-api.md
   
-  - Development:
+  - Developer Guide:
     - development/index.md
     - Contributing: development/contributing.md
     - Versioning: development/versioning.md

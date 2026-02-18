@@ -7,6 +7,8 @@
 
 A modular I/O toolkit for reading and writing structured, multi-block scientific data across multiple file formats. ORION provides both Fortran and Python interfaces designed for seamless integration into high-performance and scientific computing workflows.
 
+**Acknowledgements**: Built upon [Lib_VTK_IO](https://github.com/victorsndvg/Lib_VTK_IO) and [OFF](https://github.com/szaghi/OFF)
+
 ## Features
 
 - **Multi-format Support**: Tecplot, VTK, and PLOT3D file formats
@@ -14,6 +16,10 @@ A modular I/O toolkit for reading and writing structured, multi-block scientific
 - **Python Interface**: Convenient scripting and post-processing capabilities
 - **Command-line Converter**: Standalone utility for format conversion
 - **Cross-platform**: Tested on Linux and macOS with GNU and Intel compilers
+
+## License
+
+This project is licensed under the GNU General Public License v3.0. See [LICENSE](LICENSE) for details.
 
 ## Quick Start
 
@@ -75,15 +81,4 @@ Learn more about:
 
 Contributions are welcome! Please see our [Contributing Guide](https://MarcoGrossi92.github.io/ORION/development/contributing/) for details on how to get started.
 
-## License
-
-This project is licensed under the GNU General Public License v3.0. See [LICENSE](LICENSE) for details.
-
-## Support
-
-- **Issues & Feature Requests**: [GitHub Issues](https://github.com/MarcoGrossi92/ORION/issues)
-- **Documentation**: [https://MarcoGrossi92.github.io/ORION/](https://MarcoGrossi92.github.io/ORION/)
-
 ---
-
-**Acknowledgements**: Built upon [Lib_VTK_IO](https://github.com/victorsndvg/Lib_VTK_IO) and [OFF](https://github.com/szaghi/OFF)
