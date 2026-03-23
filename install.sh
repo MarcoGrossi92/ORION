@@ -178,9 +178,6 @@ done
 case "$COMMAND" in
     build)
 
-        # download Doxygen
-        #./doxygen .Doxyfile
-
         task "Configuring and building $project"
         rm -rf $BUILD_DIR
         if [[ $COMPILERS == "intel" ]]; then 

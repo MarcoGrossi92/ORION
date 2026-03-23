@@ -20,7 +20,6 @@ save
 public:: VTK_INI_XML
 public:: VTK_FLD_XML
 public:: VTK_GEO_XML
-public:: VTK_CON_XML
 public:: VTK_DAT_XML
 public:: VTK_VAR_XML
 public:: VTK_END_XML
@@ -28,7 +27,6 @@ public:: VTK_END_XML
 public:: VTK_INI_XML_READ
 public:: VTK_FLD_XML_READ
 public:: VTK_GEO_XML_READ
-public:: VTK_CON_XML_READ
 public:: VTK_VAR_XML_READ
 public:: VTK_END_XML_READ
 ! functions for VTM XML
@@ -36,25 +34,9 @@ public:: VTM_INI_XML
 public:: VTM_BLK_XML
 public:: VTM_WRF_XML
 public:: VTM_END_XML
-! functions for PVTK XML
-public:: PVTK_INI_XML
-public:: PVTK_GEO_XML
-public:: PVTK_DAT_XML
-public:: PVTK_VAR_XML
-public:: PVTK_END_XML
-! functions for PVTK XML READ
-public:: PVTK_INI_XML_READ
-public:: PVTK_GEO_XML_READ
-public:: PVTK_VAR_XML_READ
-public:: PVTK_END_XML_READ
-! functions for PVD XML
-public:: PVD_INI_XML
-public:: PVD_DAT_XML
-public:: PVD_END_XML
 ! functions for VTK LEGACY
 public:: VTK_INI
 public:: VTK_GEO
-public:: VTK_CON
 public:: VTK_DAT
 public:: VTK_VAR
 public:: VTK_END
@@ -110,9 +92,6 @@ interface VTK_GEO_XML
   !>    - inputs are 3D-rank arrays: X[nx1:nx2,ny1:ny2,nz1:nz2],Y[nx1:nx2,ny1:ny2,nz1:nz2],Z[nx1:nx2,ny1:ny2,nz1:nz2];
   !>    - input is 1D-rank array (packed API): XYZ[1:3,1:NN];
   !>    - input is 3D-rank array (packed API): XYZ[1:3,nx1:nx2,ny1:ny2,nz1:nz2].
-  !>- For UnStructuredGrid there are 2 functions for each real kinds:
-  !>    - inputs are 1D arrays: X[1:NN],Y[1:NN],Z[1:NN];
-  !>    - input is 1D array (packed API): XYZ[1:3,1:NN].
   !>
   !> VTK_GEO_XML must be called after VTK_INI_XML. It saves the mesh geometry. The inputs that must be passed
   !> change depending on the topologies chosen. Not all VTK topologies have been implemented (*polydata* topologies are absent).
@@ -140,14 +119,6 @@ interface VTK_GEO_XML
   !> E_IO=VTK_GEO_XML(nx1,nx2,ny1,ny2,nz1,nz2,X,Y,Z)
   !>```
   !>
-  !>#### Unstructured grid calling
-  !>```fortran
-  !> integer(I4P):: Nn,Nc
-  !> real(R8P)::    X(1:Nn),Y(1:Nn),Z(1:Nn)
-  !> ...
-  !> E_IO=VTK_GEO_XML(Nn,Nc,X,Y,Z)
-  !>```
-  !>
   !>#### Closing piece calling
   !>```fortran
   !> E_IO=VTK_GEO_XML()
@@ -158,8 +129,6 @@ interface VTK_GEO_XML
                    VTK_GEO_XML_STRG_1DAP_R4,VTK_GEO_XML_STRG_3DAP_R4, & ! real(R4P) StructuredGrid, 1D/3D Arrays packed API
                    VTK_GEO_XML_RECT_R8,                               & ! real(R8P) RectilinearGrid
                    VTK_GEO_XML_RECT_R4,                               & ! real(R4P) RectilinearGrid
-                   VTK_GEO_XML_UNST_R8,VTK_GEO_XML_UNST_PACK_R4,      & ! real(R8P) UnstructuredGrid, standard and packed API
-                   VTK_GEO_XML_UNST_R4,VTK_GEO_XML_UNST_PACK_R8,      & ! real(R4P) UnstructuredGrid, standard and packed API
                    VTK_GEO_XML_CLOSEP                                   ! closing tag "Piece" function
 endinterface
 interface VTK_VAR_XML
@@ -280,25 +249,12 @@ interface VTK_GEO
   !> E_IO=VTK_GEO(Nx,Ny,Nz,X,Y,Z)
   !> ...
   !>```
-  !>
-  !>#### Unstructured grid calling
-  !>```fortran
-  !> integer(I4P):: NN
-  !> real(R4P)::    X(1:NN),Y(1:NN),Z(1:NN)
-  !> ...
-  !> E_IO=VTK_GEO(NN,X,Y,Z)
-  !> ...
-  !>```
-  module procedure VTK_GEO_UNST_R8,VTK_GEO_UNST_P_R8,         & ! real(R8P) UNSTRUCTURED_GRID, standard and packed API
-                   VTK_GEO_UNST_R4,VTK_GEO_UNST_P_R4,         & ! real(R4P) UNSTRUCTURED_GRID, standard and packed API
-                   VTK_GEO_STRP_R8,                           & ! real(R8P) STRUCTURED_POINTS
+  module procedure VTK_GEO_STRP_R8,                           & ! real(R8P) STRUCTURED_POINTS
                    VTK_GEO_STRP_R4,                           & ! real(R4P) STRUCTURED_POINTS
                    VTK_GEO_STRG_1DA_R8, VTK_GEO_STRG_3DA_R8,  & ! real(R8P) STRUCTURED_GRID 1D/3D arrays
                    VTK_GEO_STRG_1DAP_R8,VTK_GEO_STRG_3DAP_R8, & ! real(R8P) STRUCTURED_GRID 1D/3D arrays, packed API
                    VTK_GEO_STRG_1DA_R4, VTK_GEO_STRG_3DA_R4,  & ! real(R4P) STRUCTURED_GRID 1D/3D arrays
-                   VTK_GEO_STRG_1DAP_R4,VTK_GEO_STRG_3DAP_R4, & ! real(R4P) STRUCTURED_GRID 1D/3D arrays, packed API
-                   VTK_GEO_RECT_R8,                           & ! real(R8P) RECTILINEAR_GRID
-                   VTK_GEO_RECT_R4                              ! real(R4P) RECTILINEAR_GRID
+                   VTK_GEO_STRG_1DAP_R4,VTK_GEO_STRG_3DAP_R4    ! real(R4P) STRUCTURED_GRID 1D/3D arrays, packed API
 endinterface
 interface VTK_VAR
   !> Procedure for saving data variable(s) in VTK-legacy standard.
@@ -349,9 +305,6 @@ interface VTK_GEO_XML_READ
   !>    - inputs are 3D-rank arrays: X[nx1:nx2,ny1:ny2,nz1:nz2],Y[nx1:nx2,ny1:ny2,nz1:nz2],Z[nx1:nx2,ny1:ny2,nz1:nz2]; (Not tested!)
   !>    - input is 1D-rank array (packed API): XYZ[1:3,1:NN]; (Not tested!)
   !>    - input is 3D-rank array (packed API): XYZ[1:3,nx1:nx2,ny1:ny2,nz1:nz2]. (Not tested!)
-  !>- For UnStructuredGrid there are 2 functions for each real kinds:
-  !>    - inputs are 1D arrays: X[1:NN],Y[1:NN],Z[1:NN]; (Ok!)
-  !>    - input is 1D array (packed API): XYZ[1:3,1:NN]. (Not tested!)
   !>
   !> VTK_GEO_XML_READ must be called after VTK_INI_XML_READ. It reads the mesh geometry. The inputs that must be passed
   !> change depending on the topologies chosen. Not all VTK topologies have been implemented (*polydata* topologies are absent).
@@ -369,29 +322,9 @@ interface VTK_GEO_XML_READ
                    VTK_GEO_XML_STRG_1DA_R4_READ, VTK_GEO_XML_STRG_3DA_R4_READ, &! real(R4P) StructuredGrid, 1D/3D Arrays
                    VTK_GEO_XML_STRG_1DAP_R4_READ,VTK_GEO_XML_STRG_3DAP_R4_READ,&! real(R4P) StructuredGrid, 1D/3D Arrays packed API
                    VTK_GEO_XML_RECT_R8_READ,                                   &! real(R8P) RectilinearGrid
-                   VTK_GEO_XML_RECT_R4_READ,                                   &! real(R4P) RectilinearGrid
-                   VTK_GEO_XML_UNST_R8_READ,VTK_GEO_XML_UNST_PACK_R4_READ,     &! real(R8P) UnstructuredGrid, standard and packed API
-                   VTK_GEO_XML_UNST_R4_READ,VTK_GEO_XML_UNST_PACK_R8_READ       ! real(R4P) UnstructuredGrid, standard and packed API
+                   VTK_GEO_XML_RECT_R4_READ                                     ! real(R4P) RectilinearGrid
 endinterface
-interface PVD_DAT_XML
-  !> Procedure for saving data variable(s) in VTK-XML standard.
-  !>
-  !> PVD_DAT_XML is an interface to 6 different functions, depending on the datatype of the timestep
-  !>
-  !>### Examples of usage
-  !>
-  !>#### Calling PVD_DAT_XML
-  !>```fortran
-  !> integer(I4P):: timestep
-  !> ...
-  !> E_IO=PVD_DAT_XML('file.vtu,timestep)
-  !> ...
-  !>```
-  module procedure PVD_DAT_XML_R8,PVD_DAT_XML_R4, & ! real timestep
-                   PVD_DAT_XML_I8,PVD_DAT_XML_I4, & ! integer (I8 and I4) timestep
-                   PVD_DAT_XML_I2,PVD_DAT_XML_I1    ! integer (I2 and I1) timestep
 
-endinterface
 
 interface VTK_VAR_XML_READ
   !> Procedure for reading data variable(s) in VTK-XML standard.
@@ -966,7 +899,6 @@ contains
   !> Supported topologies are:
   !>- RectilinearGrid;
   !>- StructuredGrid;
-  !>- UnstructuredGrid.
   !>### Example of usage
   !>```fortran
   !> integer(I4P):: nx1,nx2,ny1,ny2,nz1,nz2
@@ -1020,8 +952,6 @@ contains
                  trim(str(n=nx1))//' '//trim(str(n=nx2))//' '//                             &
                  trim(str(n=ny1))//' '//trim(str(n=ny2))//' '//                             &
                  trim(str(n=nz1))//' '//trim(str(n=nz2))//'">'
-    case('UnstructuredGrid')
-      s_buffer = repeat(' ',vtk(rf)%indent)//'<'//trim(vtk(rf)%topology)//'>'
     endselect
     write(unit=vtk(rf)%u,fmt='(A)',iostat=E_IO)trim(s_buffer) ; vtk(rf)%indent = vtk(rf)%indent + 2
   case('RAW','BINARY-APPENDED')
@@ -1043,8 +973,6 @@ contains
                  trim(str(n=nx1))//' '//trim(str(n=nx2))//' '//                             &
                  trim(str(n=ny1))//' '//trim(str(n=ny2))//' '//                             &
                  trim(str(n=nz1))//' '//trim(str(n=nz2))//'">'
-    case('UnstructuredGrid')
-      s_buffer = repeat(' ',vtk(rf)%indent)//'<'//trim(vtk(rf)%topology)//'>'
     endselect
     write(unit=vtk(rf)%u,iostat=E_IO)trim(s_buffer)//end_rec ; vtk(rf)%indent = vtk(rf)%indent + 2
     ! opening the SCRATCH file used for appending raw binary data
@@ -1068,8 +996,6 @@ contains
                  trim(str(n=nx1))//' '//trim(str(n=nx2))//' '//                             &
                  trim(str(n=ny1))//' '//trim(str(n=ny2))//' '//                             &
                  trim(str(n=nz1))//' '//trim(str(n=nz2))//'">'
-    case('UnstructuredGrid')
-      s_buffer = repeat(' ',vtk(rf)%indent)//'<'//trim(vtk(rf)%topology)//'>'
     endselect
     write(unit=vtk(rf)%u,iostat=E_IO)trim(s_buffer)//end_rec ; vtk(rf)%indent = vtk(rf)%indent + 2
   endselect
@@ -2216,283 +2142,6 @@ contains
   !---------------------------------------------------------------------------------------------------------------------------------
   endfunction VTK_GEO_XML_RECT_R4
 
-  function VTK_GEO_XML_UNST_R8(NN,NC,X,Y,Z,cf) result(E_IO)
-  !---------------------------------------------------------------------------------------------------------------------------------
-  !> Function for saving mesh with \b UnstructuredGrid topology (R8P).
-  !---------------------------------------------------------------------------------------------------------------------------------
-  implicit none
-  integer(I4P), intent(IN)::           NN       !> Number of nodes.
-  integer(I4P), intent(IN)::           NC       !> Number of cells.
-  real(R8P),    intent(IN)::           X(1:NN)  !> X coordinates.
-  real(R8P),    intent(IN)::           Y(1:NN)  !> Y coordinates.
-  real(R8P),    intent(IN)::           Z(1:NN)  !> Z coordinates.
-  integer(I4P), intent(IN), optional:: cf       !> Current file index (for concurrent files IO).
-  integer(I4P)::                       E_IO     !> Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
-  character(len=maxlen)::              s_buffer !> Buffer string.
-  real(R8P), allocatable::             XYZa(:)  !> X, Y, Z coordinates.
-  integer(I1P), allocatable::          XYZp(:)  !> Packed data.
-  character(len=:), allocatable::      XYZ64    !> X, Y, Z coordinates encoded in base64.
-  integer(I4P)::                       rf       !> Real file index.
-  integer(I4P)::                       n1       !> Counter.
-  !---------------------------------------------------------------------------------------------------------------------------------
-
-  !---------------------------------------------------------------------------------------------------------------------------------
-  E_IO = -1_I4P
-  rf = f
-  if (present(cf)) then
-    rf = cf ; f = cf
-  endif
-  select case(vtk(rf)%f)
-  case(ascii)
-    s_buffer = repeat(' ',vtk(rf)%indent)//'<Piece NumberOfPoints="'//trim(str(n=NN))//'" NumberOfCells="'//trim(str(n=NC))//'">'
-    write(unit=vtk(rf)%u,fmt='(A)',iostat=E_IO)trim(s_buffer) ; vtk(rf)%indent = vtk(rf)%indent + 2
-    write(unit=vtk(rf)%u,fmt='(A)',iostat=E_IO)repeat(' ',vtk(rf)%indent)//'<Points>' ; vtk(rf)%indent = vtk(rf)%indent + 2
-    s_buffer = repeat(' ',vtk(rf)%indent)//'<DataArray type="Float64" NumberOfComponents="3" Name="Points" format="ascii">'
-    write(unit=vtk(rf)%u,fmt='(A)',iostat=E_IO)trim(s_buffer)
-    do n1=1,NN
-      write(unit=vtk(rf)%u,fmt='(A)',iostat=E_IO)repeat(' ',vtk(rf)%indent)//str(n=X(n1))//' '//str(n=Y(n1))//' '//str(n=Z(n1))
-    enddo
-    write(unit=vtk(rf)%u,fmt='(A)',iostat=E_IO)repeat(' ',vtk(rf)%indent)//'</DataArray>' ; vtk(rf)%indent = vtk(rf)%indent - 2
-    write(unit=vtk(rf)%u,fmt='(A)',iostat=E_IO)repeat(' ',vtk(rf)%indent)//'</Points>'
-  case(raw,bin_app)
-    s_buffer = repeat(' ',vtk(rf)%indent)//'<Piece NumberOfPoints="'//trim(str(n=NN))//'" NumberOfCells="'//trim(str(n=NC))//'">'
-    write(unit=vtk(rf)%u,iostat=E_IO)trim(s_buffer)//end_rec ; vtk(rf)%indent = vtk(rf)%indent + 2
-    write(unit=vtk(rf)%u,iostat=E_IO)repeat(' ',vtk(rf)%indent)//'<Points>'//end_rec ; vtk(rf)%indent = vtk(rf)%indent + 2
-    s_buffer = repeat(' ',vtk(rf)%indent)//                                                                  &
-               '<DataArray type="Float64" NumberOfComponents="3" Name="Points" format="appended" offset="'// &
-               trim(str(.true.,vtk(rf)%ioffset))//'"/>'
-    write(unit=vtk(rf)%u,iostat=E_IO)trim(s_buffer)//end_rec
-    call vtk(rf)%byte_update(N_Byte = 3*NN*BYR8P)
-    write(unit=vtk(rf)%ua,iostat=E_IO)vtk(rf)%N_Byte,'R8',3*NN
-    write(unit=vtk(rf)%ua,iostat=E_IO)(X(n1),Y(n1),Z(n1),n1=1,NN)
-    vtk(rf)%indent = vtk(rf)%indent - 2 ; write(unit=vtk(rf)%u,iostat=E_IO)repeat(' ',vtk(rf)%indent)//'</Points>'//end_rec
-  case(binary)
-    s_buffer = repeat(' ',vtk(rf)%indent)//'<Piece NumberOfPoints="'//trim(str(n=NN))//'" NumberOfCells="'//trim(str(n=NC))//'">'
-    write(unit=vtk(rf)%u,iostat=E_IO)trim(s_buffer)//end_rec ; vtk(rf)%indent = vtk(rf)%indent + 2
-    write(unit=vtk(rf)%u,iostat=E_IO)repeat(' ',vtk(rf)%indent)//'<Points>'//end_rec ; vtk(rf)%indent = vtk(rf)%indent + 2
-    s_buffer = repeat(' ',vtk(rf)%indent)//'<DataArray type="Float64" NumberOfComponents="3" Name="Points" format="binary">'
-    write(unit=vtk(rf)%u,iostat=E_IO)trim(s_buffer)//end_rec
-    allocate(XYZa(1:3*NN))
-    do n1 = 1,NN
-      XYZa(1+(n1-1)*3:1+(n1-1)*3+2)=[X(n1),Y(n1),Z(n1)]
-    enddo
-    call pack_data(a1=[int(3*NN*BYR8P,I4P)],a2=XYZa,packed=XYZp) ; deallocate(XYZa)
-    call b64_encode(n=XYZp,code=XYZ64) ; deallocate(XYZp)
-    write(unit=vtk(rf)%u,iostat=E_IO)repeat(' ',vtk(rf)%indent+2)//XYZ64//end_rec ; deallocate(XYZ64)
-    write(unit=vtk(rf)%u,iostat=E_IO)repeat(' ',vtk(rf)%indent)//'</DataArray>'//end_rec
-    vtk(rf)%indent = vtk(rf)%indent - 2 ; write(unit=vtk(rf)%u,iostat=E_IO)repeat(' ',vtk(rf)%indent)//'</Points>'//end_rec
-  endselect
-  return
-  !---------------------------------------------------------------------------------------------------------------------------------
-  endfunction VTK_GEO_XML_UNST_R8
-
-  function VTK_GEO_XML_UNST_PACK_R8(NN,NC,XYZ,cf) result(E_IO)
-  !---------------------------------------------------------------------------------------------------------------------------------
-  !> Function for saving mesh with \b UnstructuredGrid topology (R8P, packed API).
-  !---------------------------------------------------------------------------------------------------------------------------------
-  implicit none
-  integer(I4P), intent(IN)::           NN            !> Number of nodes.
-  integer(I4P), intent(IN)::           NC            !> Number of cells.
-  real(R8P),    intent(IN)::           XYZ(1:3,1:NN) !> X, Y, Z coordinates (packed API).
-  integer(I4P), intent(IN), optional:: cf            !> Current file index (for concurrent files IO).
-  integer(I4P)::                       E_IO          !> Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
-  character(len=maxlen)::              s_buffer      !> Buffer string.
-  real(R8P), allocatable::             XYZa(:)       !> X, Y, Z coordinates.
-  integer(I1P), allocatable::          XYZp(:)       !> Packed data.
-  character(len=:), allocatable::      XYZ64         !> X, Y, Z coordinates encoded in base64.
-  integer(I4P)::                       rf            !> Real file index.
-  integer(I4P)::                       n1            !> Counter.
-  !---------------------------------------------------------------------------------------------------------------------------------
-
-  !---------------------------------------------------------------------------------------------------------------------------------
-  E_IO = -1_I4P
-  rf = f
-  if (present(cf)) then
-    rf = cf ; f = cf
-  endif
-  select case(vtk(rf)%f)
-  case(ascii)
-    s_buffer = repeat(' ',vtk(rf)%indent)//'<Piece NumberOfPoints="'//trim(str(n=NN))//'" NumberOfCells="'//trim(str(n=NC))//'">'
-    write(unit=vtk(rf)%u,fmt='(A)',iostat=E_IO)trim(s_buffer) ; vtk(rf)%indent = vtk(rf)%indent + 2
-    write(unit=vtk(rf)%u,fmt='(A)',iostat=E_IO)repeat(' ',vtk(rf)%indent)//'<Points>' ; vtk(rf)%indent = vtk(rf)%indent + 2
-    s_buffer = repeat(' ',vtk(rf)%indent)//'<DataArray type="Float64" NumberOfComponents="3" Name="Points" format="ascii">'
-    write(unit=vtk(rf)%u,fmt='(A)',iostat=E_IO)trim(s_buffer)
-    do n1=1,NN
-      write(unit=vtk(rf)%u,fmt='(A)',iostat=E_IO)repeat(' ',vtk(rf)%indent)//&
-                                                 str(n=XYZ(1,n1))//' '//str(n=XYZ(2,n1))//' '//str(n=XYZ(3,n1))
-    enddo
-    write(unit=vtk(rf)%u,fmt='(A)',iostat=E_IO)repeat(' ',vtk(rf)%indent)//'</DataArray>' ; vtk(rf)%indent = vtk(rf)%indent - 2
-    write(unit=vtk(rf)%u,fmt='(A)',iostat=E_IO)repeat(' ',vtk(rf)%indent)//'</Points>'
-  case(raw,bin_app)
-    s_buffer = repeat(' ',vtk(rf)%indent)//'<Piece NumberOfPoints="'//trim(str(n=NN))//'" NumberOfCells="'//trim(str(n=NC))//'">'
-    write(unit=vtk(rf)%u,iostat=E_IO)trim(s_buffer)//end_rec ; vtk(rf)%indent = vtk(rf)%indent + 2
-    write(unit=vtk(rf)%u,iostat=E_IO)repeat(' ',vtk(rf)%indent)//'<Points>'//end_rec ; vtk(rf)%indent = vtk(rf)%indent + 2
-    s_buffer = repeat(' ',vtk(rf)%indent)//                                                                  &
-               '<DataArray type="Float64" NumberOfComponents="3" Name="Points" format="appended" offset="'// &
-               trim(str(.true.,vtk(rf)%ioffset))//'"/>'
-    write(unit=vtk(rf)%u,iostat=E_IO)trim(s_buffer)//end_rec
-    call vtk(rf)%byte_update(N_Byte = 3*NN*BYR8P)
-    write(unit=vtk(rf)%ua,iostat=E_IO)vtk(rf)%N_Byte,'R8',3*NN
-    write(unit=vtk(rf)%ua,iostat=E_IO)XYZ
-    vtk(rf)%indent = vtk(rf)%indent - 2 ; write(unit=vtk(rf)%u,iostat=E_IO)repeat(' ',vtk(rf)%indent)//'</Points>'//end_rec
-  case(binary)
-    s_buffer = repeat(' ',vtk(rf)%indent)//'<Piece NumberOfPoints="'//trim(str(n=NN))//'" NumberOfCells="'//trim(str(n=NC))//'">'
-    write(unit=vtk(rf)%u,iostat=E_IO)trim(s_buffer)//end_rec ; vtk(rf)%indent = vtk(rf)%indent + 2
-    write(unit=vtk(rf)%u,iostat=E_IO)repeat(' ',vtk(rf)%indent)//'<Points>'//end_rec ; vtk(rf)%indent = vtk(rf)%indent + 2
-    s_buffer = repeat(' ',vtk(rf)%indent)//'<DataArray type="Float64" NumberOfComponents="3" Name="Points" format="binary">'
-    write(unit=vtk(rf)%u,iostat=E_IO)trim(s_buffer)//end_rec
-    allocate(XYZa(1:3*NN))
-    do n1 = 1,NN
-      XYZa(1+(n1-1)*3:1+(n1-1)*3+2)=XYZ(1:3,n1)
-    enddo
-    call pack_data(a1=[int(3*NN*BYR8P,I4P)],a2=XYZa,packed=XYZp) ; deallocate(XYZa)
-    call b64_encode(n=XYZp,code=XYZ64) ; deallocate(XYZp)
-    write(unit=vtk(rf)%u,iostat=E_IO)repeat(' ',vtk(rf)%indent+2)//XYZ64//end_rec ; deallocate(XYZ64)
-    write(unit=vtk(rf)%u,iostat=E_IO)repeat(' ',vtk(rf)%indent)//'</DataArray>'//end_rec
-    vtk(rf)%indent = vtk(rf)%indent - 2 ; write(unit=vtk(rf)%u,iostat=E_IO)repeat(' ',vtk(rf)%indent)//'</Points>'//end_rec
-  endselect
-  return
-  !---------------------------------------------------------------------------------------------------------------------------------
-  endfunction VTK_GEO_XML_UNST_PACK_R8
-
-  function VTK_GEO_XML_UNST_R4(NN,NC,X,Y,Z,cf) result(E_IO)
-  !---------------------------------------------------------------------------------------------------------------------------------
-  !> Function for saving mesh with \b UnstructuredGrid topology (R4P).
-  !---------------------------------------------------------------------------------------------------------------------------------
-  implicit none
-  integer(I4P), intent(IN)::           NN       !> Number of nodes.
-  integer(I4P), intent(IN)::           NC       !> Number of cells.
-  real(R4P),    intent(IN)::           X(1:NN)  !> X coordinates.
-  real(R4P),    intent(IN)::           Y(1:NN)  !> Y coordinates.
-  real(R4P),    intent(IN)::           Z(1:NN)  !> Z coordinates.
-  integer(I4P), intent(IN), optional:: cf       !> Current file index (for concurrent files IO).
-  integer(I4P)::                       E_IO     !> Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
-  character(len=maxlen)::              s_buffer !> Buffer string.
-  real(R4P), allocatable::             XYZa(:)  !> X, Y, Z coordinates.
-  integer(I1P), allocatable::          XYZp(:)  !> Packed data.
-  character(len=:), allocatable::      XYZ64    !> X, Y, Z coordinates encoded in base64.
-  integer(I4P)::                       rf       !> Real file index.
-  integer(I4P)::                       n1       !> Counter.
-  !---------------------------------------------------------------------------------------------------------------------------------
-
-  !---------------------------------------------------------------------------------------------------------------------------------
-  E_IO = -1_I4P
-  rf = f
-  if (present(cf)) then
-    rf = cf ; f = cf
-  endif
-  select case(vtk(rf)%f)
-  case(ascii)
-    s_buffer = repeat(' ',vtk(rf)%indent)//'<Piece NumberOfPoints="'//trim(str(n=NN))//'" NumberOfCells="'//trim(str(n=NC))//'">'
-    write(unit=vtk(rf)%u,fmt='(A)',iostat=E_IO)trim(s_buffer) ; vtk(rf)%indent = vtk(rf)%indent + 2
-    write(unit=vtk(rf)%u,fmt='(A)',iostat=E_IO)repeat(' ',vtk(rf)%indent)//'<Points>' ; vtk(rf)%indent = vtk(rf)%indent + 2
-    s_buffer = repeat(' ',vtk(rf)%indent)//'<DataArray type="Float32" NumberOfComponents="3" Name="Points" format="ascii">'
-    write(unit=vtk(rf)%u,fmt='(A)',iostat=E_IO)trim(s_buffer)
-    do n1=1,NN
-      write(unit=vtk(rf)%u,fmt='(A)',iostat=E_IO)repeat(' ',vtk(rf)%indent)//str(n=X(n1))//' '//str(n=Y(n1))//' '//str(n=Z(n1))
-    enddo
-    write(unit=vtk(rf)%u,fmt='(A)',iostat=E_IO)repeat(' ',vtk(rf)%indent)//'</DataArray>' ; vtk(rf)%indent = vtk(rf)%indent - 2
-    write(unit=vtk(rf)%u,fmt='(A)',iostat=E_IO)repeat(' ',vtk(rf)%indent)//'</Points>'
-  case(raw,bin_app)
-    s_buffer = repeat(' ',vtk(rf)%indent)//'<Piece NumberOfPoints="'//trim(str(n=NN))//'" NumberOfCells="'//trim(str(n=NC))//'">'
-    write(unit=vtk(rf)%u,iostat=E_IO)trim(s_buffer)//end_rec ; vtk(rf)%indent = vtk(rf)%indent + 2
-    write(unit=vtk(rf)%u,iostat=E_IO)repeat(' ',vtk(rf)%indent)//'<Points>'//end_rec ; vtk(rf)%indent = vtk(rf)%indent + 2
-    s_buffer = repeat(' ',vtk(rf)%indent)//                                                                  &
-               '<DataArray type="Float32" NumberOfComponents="3" Name="Points" format="appended" offset="'// &
-               trim(str(.true.,vtk(rf)%ioffset))//'"/>'
-    write(unit=vtk(rf)%u,iostat=E_IO)trim(s_buffer)//end_rec
-    call vtk(rf)%byte_update(N_Byte = 3*NN*BYR4P)
-    write(unit=vtk(rf)%ua,iostat=E_IO)vtk(rf)%N_Byte,'R4',3*NN
-    write(unit=vtk(rf)%ua,iostat=E_IO)(X(n1),Y(n1),Z(n1),n1=1,NN)
-    vtk(rf)%indent = vtk(rf)%indent - 2 ; write(unit=vtk(rf)%u,iostat=E_IO)repeat(' ',vtk(rf)%indent)//'</Points>'//end_rec
-  case(binary)
-    s_buffer = repeat(' ',vtk(rf)%indent)//'<Piece NumberOfPoints="'//trim(str(n=NN))//'" NumberOfCells="'//trim(str(n=NC))//'">'
-    write(unit=vtk(rf)%u,iostat=E_IO)trim(s_buffer)//end_rec ; vtk(rf)%indent = vtk(rf)%indent + 2
-    write(unit=vtk(rf)%u,iostat=E_IO)repeat(' ',vtk(rf)%indent)//'<Points>'//end_rec ; vtk(rf)%indent = vtk(rf)%indent + 2
-    s_buffer = repeat(' ',vtk(rf)%indent)//'<DataArray type="Float32" NumberOfComponents="3" Name="Points" format="binary">'
-    write(unit=vtk(rf)%u,iostat=E_IO)trim(s_buffer)//end_rec
-    allocate(XYZa(1:3*NN))
-    do n1 = 1,NN
-      XYZa(1+(n1-1)*3:1+(n1-1)*3+2)=[X(n1),Y(n1),Z(n1)]
-    enddo
-    call pack_data(a1=[int(3*NN*BYR4P,I4P)],a2=XYZa,packed=XYZp) ; deallocate(XYZa)
-    call b64_encode(n=XYZp,code=XYZ64) ; deallocate(XYZp)
-    write(unit=vtk(rf)%u,iostat=E_IO)repeat(' ',vtk(rf)%indent+2)//XYZ64//end_rec ; deallocate(XYZ64)
-    write(unit=vtk(rf)%u,iostat=E_IO)repeat(' ',vtk(rf)%indent)//'</DataArray>'//end_rec
-    vtk(rf)%indent = vtk(rf)%indent - 2 ; write(unit=vtk(rf)%u,iostat=E_IO)repeat(' ',vtk(rf)%indent)//'</Points>'//end_rec
-  endselect
-  return
-  !---------------------------------------------------------------------------------------------------------------------------------
-  endfunction VTK_GEO_XML_UNST_R4
-
-  function VTK_GEO_XML_UNST_PACK_R4(NN,NC,XYZ,cf) result(E_IO)
-  !---------------------------------------------------------------------------------------------------------------------------------
-  !> Function for saving mesh with \b UnstructuredGrid topology (R4P, packed API).
-  !---------------------------------------------------------------------------------------------------------------------------------
-  implicit none
-  integer(I4P), intent(IN)::           NN            !> Number of nodes.
-  integer(I4P), intent(IN)::           NC            !> Number of cells.
-  real(R4P),    intent(IN)::           XYZ(1:3,1:NN) !> X, Y, Z coordinates (packed API).
-  integer(I4P), intent(IN), optional:: cf            !> Current file index (for concurrent files IO).
-  integer(I4P)::                       E_IO          !> Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
-  character(len=maxlen)::              s_buffer      !> Buffer string.
-  real(R4P), allocatable::             XYZa(:)       !> X, Y, Z coordinates.
-  integer(I1P), allocatable::          XYZp(:)       !> Packed data.
-  character(len=:), allocatable::      XYZ64         !> X, Y, Z coordinates encoded in base64.
-  integer(I4P)::                       rf            !> Real file index.
-  integer(I4P)::                       n1            !> Counter.
-  !---------------------------------------------------------------------------------------------------------------------------------
-
-  !---------------------------------------------------------------------------------------------------------------------------------
-  E_IO = -1_I4P
-  rf = f
-  if (present(cf)) then
-    rf = cf ; f = cf
-  endif
-  select case(vtk(rf)%f)
-  case(ascii)
-    s_buffer = repeat(' ',vtk(rf)%indent)//'<Piece NumberOfPoints="'//trim(str(n=NN))//'" NumberOfCells="'//trim(str(n=NC))//'">'
-    write(unit=vtk(rf)%u,fmt='(A)',iostat=E_IO)trim(s_buffer) ; vtk(rf)%indent = vtk(rf)%indent + 2
-    write(unit=vtk(rf)%u,fmt='(A)',iostat=E_IO)repeat(' ',vtk(rf)%indent)//'<Points>' ; vtk(rf)%indent = vtk(rf)%indent + 2
-    s_buffer = repeat(' ',vtk(rf)%indent)//'<DataArray type="Float32" NumberOfComponents="3" Name="Points" format="ascii">'
-    write(unit=vtk(rf)%u,fmt='(A)',iostat=E_IO)trim(s_buffer)
-    do n1=1,NN
-      write(unit=vtk(rf)%u,fmt='(A)',iostat=E_IO)repeat(' ',vtk(rf)%indent)//&
-                                                 str(n=XYZ(1,n1))//' '//str(n=XYZ(2,n1))//' '//str(n=XYZ(3,n1))
-    enddo
-    write(unit=vtk(rf)%u,fmt='(A)',iostat=E_IO)repeat(' ',vtk(rf)%indent)//'</DataArray>' ; vtk(rf)%indent = vtk(rf)%indent - 2
-    write(unit=vtk(rf)%u,fmt='(A)',iostat=E_IO)repeat(' ',vtk(rf)%indent)//'</Points>'
-  case(raw,bin_app)
-    s_buffer = repeat(' ',vtk(rf)%indent)//'<Piece NumberOfPoints="'//trim(str(n=NN))//'" NumberOfCells="'//trim(str(n=NC))//'">'
-    write(unit=vtk(rf)%u,iostat=E_IO)trim(s_buffer)//end_rec ; vtk(rf)%indent = vtk(rf)%indent + 2
-    write(unit=vtk(rf)%u,iostat=E_IO)repeat(' ',vtk(rf)%indent)//'<Points>'//end_rec ; vtk(rf)%indent = vtk(rf)%indent + 2
-    s_buffer = repeat(' ',vtk(rf)%indent)//                                                                  &
-               '<DataArray type="Float32" NumberOfComponents="3" Name="Points" format="appended" offset="'// &
-               trim(str(.true.,vtk(rf)%ioffset))//'"/>'
-    write(unit=vtk(rf)%u,iostat=E_IO)trim(s_buffer)//end_rec
-    call vtk(rf)%byte_update(N_Byte = 3*NN*BYR4P)
-    write(unit=vtk(rf)%ua,iostat=E_IO)vtk(rf)%N_Byte,'R4',3*NN
-    write(unit=vtk(rf)%ua,iostat=E_IO)XYZ
-    vtk(rf)%indent = vtk(rf)%indent - 2 ; write(unit=vtk(rf)%u,iostat=E_IO)repeat(' ',vtk(rf)%indent)//'</Points>'//end_rec
-  case(binary)
-    s_buffer = repeat(' ',vtk(rf)%indent)//'<Piece NumberOfPoints="'//trim(str(n=NN))//'" NumberOfCells="'//trim(str(n=NC))//'">'
-    write(unit=vtk(rf)%u,iostat=E_IO)trim(s_buffer)//end_rec ; vtk(rf)%indent = vtk(rf)%indent + 2
-    write(unit=vtk(rf)%u,iostat=E_IO)repeat(' ',vtk(rf)%indent)//'<Points>'//end_rec ; vtk(rf)%indent = vtk(rf)%indent + 2
-    s_buffer = repeat(' ',vtk(rf)%indent)//'<DataArray type="Float32" NumberOfComponents="3" Name="Points" format="binary">'
-    write(unit=vtk(rf)%u,iostat=E_IO)trim(s_buffer)//end_rec
-    allocate(XYZa(1:3*NN))
-    do n1 = 1,NN
-      XYZa(1+(n1-1)*3:1+(n1-1)*3+2)=XYZ(1:3,n1)
-    enddo
-    call pack_data(a1=[int(3*NN*BYR4P,I4P)],a2=XYZa,packed=XYZp) ; deallocate(XYZa)
-    call b64_encode(n=XYZp,code=XYZ64) ; deallocate(XYZp)
-    write(unit=vtk(rf)%u,iostat=E_IO)repeat(' ',vtk(rf)%indent+2)//XYZ64//end_rec ; deallocate(XYZ64)
-    write(unit=vtk(rf)%u,iostat=E_IO)repeat(' ',vtk(rf)%indent)//'</DataArray>'//end_rec
-    vtk(rf)%indent = vtk(rf)%indent - 2 ; write(unit=vtk(rf)%u,iostat=E_IO)repeat(' ',vtk(rf)%indent)//'</Points>'//end_rec
-  endselect
-  return
-  !---------------------------------------------------------------------------------------------------------------------------------
-  endfunction VTK_GEO_XML_UNST_PACK_R4
 
   function VTK_GEO_XML_CLOSEP(cf) result(E_IO)
   !---------------------------------------------------------------------------------------------------------------------------------
@@ -2521,163 +2170,6 @@ contains
   !---------------------------------------------------------------------------------------------------------------------------------
   endfunction VTK_GEO_XML_CLOSEP
 
-  function VTK_CON_XML(NC,connect,offset,cell_type,idx,cf) result(E_IO)
-  !---------------------------------------------------------------------------------------------------------------------------------
-  !> Function for saving mesh connectivity.
-  !>
-  !> Function that **must** be used when unstructured grid is used, it saves the connectivity of the unstructured gird.
-  !> @note The vector **connect** must follow the VTK-XML standard. It is passed as *assumed-shape array*
-  !> because its dimensions is related to the mesh dimensions in a complex way. Its dimensions can be calculated by the following
-  !> equation: \(dc = \sum\limits_{i = 1}^{NC} {nvertex_i }\).
-  !> Note that this equation is different from the legacy one. The XML connectivity convention is quite different from the
-  !> legacy standard.
-  !> As an example suppose we have a mesh composed by 2 cells, one hexahedron (8 vertices) and one pyramid with
-  !> square basis (5 vertices) and suppose that the basis of pyramid is constitute by a face of the hexahedron and so the two cells
-  !> share 4 vertices. The above equation gives \(dc=8+5=13\). The connectivity vector for this mesh can be:
-  !>
-  !>##### first cell
-  !>+ connect(1)  = 0 identification flag of \(1^\circ\) vertex of first cell
-  !>+ connect(2)  = 1 identification flag of \(2^\circ\) vertex of first cell
-  !>+ connect(3)  = 2 identification flag of \(3^\circ\) vertex of first cell
-  !>+ connect(4)  = 3 identification flag of \(4^\circ\) vertex of first cell
-  !>+ connect(5)  = 4 identification flag of \(5^\circ\) vertex of first cell
-  !>+ connect(6)  = 5 identification flag of \(6^\circ\) vertex of first cell
-  !>+ connect(7)  = 6 identification flag of \(7^\circ\) vertex of first cell
-  !>+ connect(8)  = 7 identification flag of \(8^\circ\) vertex of first cell
-  !>
-  !>##### second cell
-  !>+ connect(9 ) = 0 identification flag of \(1^\circ\) vertex of second cell
-  !>+ connect(10) = 1 identification flag of \(2^\circ\) vertex of second cell
-  !>+ connect(11) = 2 identification flag of \(3^\circ\) vertex of second cell
-  !>+ connect(12) = 3 identification flag of \(4^\circ\) vertex of second cell
-  !>+ connect(13) = 8 identification flag of \(5^\circ\) vertex of second cell
-  !>
-  !> Therefore this connectivity vector convention is more simple than the legacy convention, now we must create also the
-  !> *offset* vector that contains the data now missing in the *connect* vector. The offset
-  !> vector for this mesh can be:
-  !>
-  !>##### first cell
-  !>+ offset(1) = 8  => summ of nodes of \(1^\circ\) cell
-  !>
-  !>##### second cell
-  !>+ offset(2) = 13 => summ of nodes of \(1^\circ\) and \(2^\circ\) cells
-  !>
-  !> The value of every cell-offset can be calculated by the following equation: \(offset_c=\sum\limits_{i=1}^{c}{nvertex_i}\)
-  !> where \(offset_c\) is the value of \(c^{th}\) cell and \(nvertex_i\) is the number of vertices of \(i^{th}\) cell.
-  !> The function VTK_CON_XML does not calculate the connectivity and offset vectors: it writes the connectivity and offset
-  !> vectors conforming the VTK-XML standard, but does not calculate them.
-  !> The vector variable *cell\_type* must conform the VTK-XML standard (see the file VTK-Standard at the
-  !> Kitware homepage) that is the same of the legacy standard. It contains the
-  !> *type* of each cells. For the above example this vector is:
-  !>
-  !>##### first cell
-  !>+ cell\_type(1) = 12 hexahedron type of first cell
-  !>
-  !>##### second cell
-  !>+ cell\_type(2) = 14 pyramid type of second cell
-  !---------------------------------------------------------------------------------------------------------------------------------
-  implicit none
-  integer(I4P), intent(IN)::           NC            !> Number of cells.
-  integer(I4P), intent(IN)::           connect(1:)   !> Mesh connectivity.
-  integer(I4P), intent(IN)::           offset(1:NC)  !> Cell offset.
-  integer(I1P), intent(IN)::           cell_type(1:) !> VTK cell type.
-  integer(I1P), intent(IN), optional:: idx           !> Id offset to convert Fortran (first id 1) to C (first id 0) standards.
-  integer(I4P), intent(IN), optional:: cf            !> Current file index (for concurrent files IO).
-  integer(I4P)::                       E_IO          !> Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
-  character(len=maxlen)::              s_buffer      !> Buffer string.
-  integer(I1P), allocatable::          cocp(:)       !> Packed data.
-  character(len=:), allocatable::      coc64         !> Data encoded in base64.
-  integer(I1P)::                       incr          !> Actual id offset increment.
-  integer(I4P)::                       rf            !> Real file index.
-  integer(I4P)::                       n1            !> Counter.
-  integer(I8P)::                       Ncocp         !> Dimension of cocp, packed data.
-  !---------------------------------------------------------------------------------------------------------------------------------
-
-  !---------------------------------------------------------------------------------------------------------------------------------
-  E_IO = -1_I4P
-  rf = f
-  if (present(cf)) then
-    rf = cf ; f = cf
-  endif
-  incr = 0_I1P
-  if (present(idx)) then
-    incr = idx
-  endif
-  select case(vtk(rf)%f)
-  case(ascii)
-    write(unit=vtk(rf)%u,fmt='(A)',iostat=E_IO)repeat(' ',vtk(rf)%indent)//'<Cells>' ; vtk(rf)%indent = vtk(rf)%indent + 2
-    write(unit=vtk(rf)%u,fmt='(A)',iostat=E_IO)repeat(' ',vtk(rf)%indent)//&
-                                               '<DataArray type="Int32" Name="connectivity" format="ascii">'
-    write(unit=vtk(rf)%u,fmt=FI4P, iostat=E_IO)(connect(n1)+incr,n1=1,offset(NC))
-    write(unit=vtk(rf)%u,fmt='(A)',iostat=E_IO)repeat(' ',vtk(rf)%indent)//'</DataArray>'
-    write(unit=vtk(rf)%u,fmt='(A)',iostat=E_IO)repeat(' ',vtk(rf)%indent)//'<DataArray type="Int32" Name="offsets" format="ascii">'
-    write(unit=vtk(rf)%u,fmt=FI4P, iostat=E_IO)(offset(n1),n1=1,NC)
-    write(unit=vtk(rf)%u,fmt='(A)',iostat=E_IO)repeat(' ',vtk(rf)%indent)//'</DataArray>'
-    write(unit=vtk(rf)%u,fmt='(A)',iostat=E_IO)repeat(' ',vtk(rf)%indent)//'<DataArray type="Int8" Name="types" format="ascii">'
-    if (lbound(cell_type,dim=1)==ubound(cell_type,dim=1)) then
-      write(unit=vtk(rf)%u,fmt=FI1P, iostat=E_IO)(cell_type(1),n1=1,NC)
-    else
-      write(unit=vtk(rf)%u,fmt=FI1P, iostat=E_IO)(cell_type(n1),n1=1,NC)
-    endif
-    write(unit=vtk(rf)%u,fmt='(A)',iostat=E_IO)repeat(' ',vtk(rf)%indent)//'</DataArray>' ; vtk(rf)%indent = vtk(rf)%indent - 2
-    write(unit=vtk(rf)%u,fmt='(A)',iostat=E_IO)repeat(' ',vtk(rf)%indent)//'</Cells>'
-  case(raw,bin_app)
-    write(unit=vtk(rf)%u,iostat=E_IO)repeat(' ',vtk(rf)%indent)//'<Cells>'//end_rec ; vtk(rf)%indent = vtk(rf)%indent + 2
-    s_buffer = repeat(' ',vtk(rf)%indent)//'<DataArray type="Int32" Name="connectivity" format="appended" offset="'// &
-               trim(str(.true.,vtk(rf)%ioffset))//'"/>'
-    write(unit=vtk(rf)%u,iostat=E_IO)trim(s_buffer)//end_rec
-    call vtk(rf)%byte_update(N_Byte = offset(NC)*BYI4P)
-    write(unit=vtk(rf)%ua,iostat=E_IO)vtk(rf)%N_Byte,'I4',offset(NC)
-    write(unit=vtk(rf)%ua,iostat=E_IO)(connect(n1)+incr,n1=1,offset(NC))
-    s_buffer = repeat(' ',vtk(rf)%indent)//'<DataArray type="Int32" Name="offsets" format="appended" offset="'// &
-               trim(str(.true.,vtk(rf)%ioffset))//'"/>'
-    write(unit=vtk(rf)%u,iostat=E_IO)trim(s_buffer)//end_rec
-    call vtk(rf)%byte_update(N_Byte = NC*BYI4P)
-    write(unit=vtk(rf)%ua,iostat=E_IO)vtk(rf)%N_Byte,'I4',NC
-    write(unit=vtk(rf)%ua,iostat=E_IO)(offset(n1),n1=1,NC)
-    s_buffer = repeat(' ',vtk(rf)%indent)//'<DataArray type="Int8" Name="types" format="appended" offset="'// &
-               trim(str(.true.,vtk(rf)%ioffset))//'"/>'
-    write(unit=vtk(rf)%u,iostat=E_IO)trim(s_buffer)//end_rec
-    call vtk(rf)%byte_update(N_Byte = NC*BYI1P)
-    write(unit=vtk(rf)%ua,iostat=E_IO)vtk(rf)%N_Byte,'I1',NC
-    if (lbound(cell_type,dim=1)==ubound(cell_type,dim=1)) then
-      write(unit=vtk(rf)%ua,iostat=E_IO)(cell_type(1),n1=1,NC)
-    else
-      write(unit=vtk(rf)%ua,iostat=E_IO)(cell_type(n1),n1=1,NC)
-    endif
-    vtk(rf)%indent = vtk(rf)%indent - 2 ; write(unit=vtk(rf)%u,iostat=E_IO)repeat(' ',vtk(rf)%indent)//'</Cells>'//end_rec
-  case(binary)
-    write(unit=vtk(rf)%u,iostat=E_IO)repeat(' ',vtk(rf)%indent)//'<Cells>'//end_rec ; vtk(rf)%indent = vtk(rf)%indent + 2
-    write(unit=vtk(rf)%u,iostat=E_IO)repeat(' ',vtk(rf)%indent)//&
-                                     '<DataArray type="Int32" Name="connectivity" format="binary">'//end_rec
-    Ncocp=size(transfer([int(offset(NC)*BYI4P,I4P),connect],cocp),kind=I8P)
-    if (allocated(cocp)) deallocate(cocp) ; allocate(cocp(1:Ncocp))
-    cocp = transfer([int(offset(NC)*BYI4P,I4P),connect],cocp)
-    call b64_encode(n=cocp,code=coc64)
-    deallocate(cocp)
-    write(unit=vtk(rf)%u,iostat=E_IO)repeat(' ',vtk(rf)%indent+2)//coc64//end_rec
-    write(unit=vtk(rf)%u,iostat=E_IO)repeat(' ',vtk(rf)%indent)//'</DataArray>'//end_rec
-    write(unit=vtk(rf)%u,iostat=E_IO)repeat(' ',vtk(rf)%indent)//'<DataArray type="Int32" Name="offsets" format="binary">'//end_rec
-    Ncocp=size(transfer([int(NC*BYI4P,I4P),offset],cocp),kind=I8P) ; if (allocated(cocp)) deallocate(cocp) ; allocate(cocp(1:Ncocp))
-    cocp = transfer([int(NC*BYI4P,I4P),offset],cocp)
-    call b64_encode(n=cocp,code=coc64)
-    deallocate(cocp)
-    write(unit=vtk(rf)%u,iostat=E_IO)repeat(' ',vtk(rf)%indent+2)//coc64//end_rec
-    write(unit=vtk(rf)%u,iostat=E_IO)repeat(' ',vtk(rf)%indent)//'</DataArray>'//end_rec
-    write(unit=vtk(rf)%u,iostat=E_IO)repeat(' ',vtk(rf)%indent)//'<DataArray type="Int8" Name="types" format="binary">'//end_rec
-    if (lbound(cell_type,dim=1)==ubound(cell_type,dim=1)) then
-      call pack_data(a1=[int(NC*BYI1P,I4P)],a2=[(cell_type(1),n1=1,NC)],packed=cocp)
-    else
-      call pack_data(a1=[int(NC*BYI1P,I4P)],a2=cell_type,packed=cocp)
-    endif
-    call b64_encode(n=cocp,code=coc64) ; deallocate(cocp)
-    write(unit=vtk(rf)%u,iostat=E_IO)repeat(' ',vtk(rf)%indent+2)//coc64//end_rec ; deallocate(coc64)
-    write(unit=vtk(rf)%u,iostat=E_IO)repeat(' ',vtk(rf)%indent)//'</DataArray>'//end_rec ; vtk(rf)%indent = vtk(rf)%indent - 2
-    write(unit=vtk(rf)%u,iostat=E_IO)repeat(' ',vtk(rf)%indent)//'</Cells>'//end_rec
-  endselect
-  return
-  !---------------------------------------------------------------------------------------------------------------------------------
-  endfunction VTK_CON_XML
 
   function VTK_DAT_XML(var_location,var_block_action,cf) result(E_IO)
   !---------------------------------------------------------------------------------------------------------------------------------
@@ -5117,213 +4609,6 @@ contains
   !---------------------------------------------------------------------------------------------------------------------------------
   endfunction VTM_END_XML
 
-  function PVTK_INI_XML(filename,mesh_topology,tp,cf,nx1,nx2,ny1,ny2,nz1,nz2) result(E_IO)
-  !---------------------------------------------------------------------------------------------------------------------------------
-  !> Function for initializing parallel (partitioned) VTK-XML file.
-  !---------------------------------------------------------------------------------------------------------------------------------
-  implicit none
-  character(*), intent(IN)::            filename      !> File name.
-  character(*), intent(IN)::            mesh_topology !> Mesh topology.
-  character(*), intent(IN)::            tp            !> Type of geometry representation (Float32, Float64, ecc).
-  integer(I4P), intent(OUT), optional:: cf            !> Current file index (for concurrent files IO).
-  integer(I4P), intent(IN),  optional:: nx1           !> Initial node of x axis.
-  integer(I4P), intent(IN),  optional:: nx2           !> Final node of x axis.
-  integer(I4P), intent(IN),  optional:: ny1           !> Initial node of y axis.
-  integer(I4P), intent(IN),  optional:: ny2           !> Final node of y axis.
-  integer(I4P), intent(IN),  optional:: nz1           !> Initial node of z axis.
-  integer(I4P), intent(IN),  optional:: nz2           !> Final node of z axis.
-  integer(I4P)::                        E_IO          !> Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
-  character(len=maxlen)::               s_buffer      !> Buffer string.
-  integer(I4P)::                        rf            !> Real file index.
-  !---------------------------------------------------------------------------------------------------------------------------------
-
-  !---------------------------------------------------------------------------------------------------------------------------------
-  E_IO = -1_I4P
-  if (.not.ir_initialized) call IR_Init
-  if (.not.b64_initialized) call b64_init
-  call vtk_update(act='add',cf=rf,Nvtk=Nvtk,vtk=vtk)
-  f = rf
-  if (present(cf)) cf = rf
-  vtk(rf)%topology = trim(mesh_topology)
-  open(unit=Get_Unit(vtk(rf)%u),file=trim(filename),&
-       form='FORMATTED',access='SEQUENTIAL',action='WRITE',status='REPLACE',iostat=E_IO)
-  write(unit=vtk(rf)%u,fmt='(A)',iostat=E_IO)'<?xml version="1.0"?>'
-  if (endian==endianL) then
-    s_buffer = '<VTKFile type="'//trim(vtk(rf)%topology)//'" version="0.1" byte_order="LittleEndian">'
-  else
-    s_buffer = '<VTKFile type="'//trim(vtk(rf)%topology)//'" version="0.1" byte_order="BigEndian">'
-  endif
-  write(unit=vtk(rf)%u,fmt='(A)',iostat=E_IO)trim(s_buffer) ; vtk(rf)%indent = 2
-  select case(trim(vtk(rf)%topology))
-  case('PRectilinearGrid')
-    s_buffer = repeat(' ',vtk(rf)%indent)//'<'//trim(vtk(rf)%topology)//' WholeExtent="'//&
-               trim(str(n=nx1))//' '//trim(str(n=nx2))//' '//                             &
-               trim(str(n=ny1))//' '//trim(str(n=ny2))//' '//                             &
-               trim(str(n=nz1))//' '//trim(str(n=nz2))//'" GhostLevel="#">'
-    write(unit=vtk(rf)%u,fmt='(A)',iostat=E_IO)trim(s_buffer) ; vtk(rf)%indent = vtk(rf)%indent + 2
-    write(unit=vtk(rf)%u,fmt='(A)',iostat=E_IO)repeat(' ',vtk(rf)%indent)//'<PCoordinates>' ; vtk(rf)%indent = vtk(rf)%indent + 2
-    write(unit=vtk(rf)%u,fmt='(A)',iostat=E_IO)repeat(' ',vtk(rf)%indent)//'<PDataArray type="'//trim(tp)//'"/>'
-    write(unit=vtk(rf)%u,fmt='(A)',iostat=E_IO)repeat(' ',vtk(rf)%indent)//'<PDataArray type="'//trim(tp)//'"/>'
-    write(unit=vtk(rf)%u,fmt='(A)',iostat=E_IO)repeat(' ',vtk(rf)%indent)//'<PDataArray type="'//trim(tp)//'"/>'
-    vtk(rf)%indent = vtk(rf)%indent - 2 ; write(unit=vtk(rf)%u,fmt='(A)',iostat=E_IO)repeat(' ',vtk(rf)%indent)//'</PCoordinates>'
-  case('PStructuredGrid')
-    s_buffer = repeat(' ',vtk(rf)%indent)//'<'//trim(vtk(rf)%topology)//' WholeExtent="'//&
-               trim(str(n=nx1))//' '//trim(str(n=nx2))//' '//                             &
-               trim(str(n=ny1))//' '//trim(str(n=ny2))//' '//                             &
-               trim(str(n=nz1))//' '//trim(str(n=nz2))//'" GhostLevel="#">'
-    write(unit=vtk(rf)%u,fmt='(A)',iostat=E_IO)trim(s_buffer) ; vtk(rf)%indent = vtk(rf)%indent + 2
-    write(unit=vtk(rf)%u,fmt='(A)',iostat=E_IO)repeat(' ',vtk(rf)%indent)//'<PPoints>' ; vtk(rf)%indent = vtk(rf)%indent + 2
-    s_buffer = repeat(' ',vtk(rf)%indent)//'<PDataArray type="'//trim(tp)//'" NumberOfComponents="3" Name="Points"/>'
-    write(unit=vtk(rf)%u,fmt='(A)',iostat=E_IO)trim(s_buffer)
-    vtk(rf)%indent = vtk(rf)%indent - 2 ; write(unit=vtk(rf)%u,fmt='(A)',iostat=E_IO)repeat(' ',vtk(rf)%indent)//'</PPoints>'
-  case('PUnstructuredGrid')
-    s_buffer = repeat(' ',vtk(rf)%indent)//'<'//trim(vtk(rf)%topology)//' GhostLevel="0">'
-    write(unit=vtk(rf)%u,fmt='(A)',iostat=E_IO)trim(s_buffer) ; vtk(rf)%indent = vtk(rf)%indent + 2
-    write(unit=vtk(rf)%u,fmt='(A)',iostat=E_IO)repeat(' ',vtk(rf)%indent)//'<PPoints>' ; vtk(rf)%indent = vtk(rf)%indent + 2
-    s_buffer = repeat(' ',vtk(rf)%indent)//'<PDataArray type="'//trim(tp)//'" NumberOfComponents="3" Name="Points"/>'
-    write(unit=vtk(rf)%u,fmt='(A)',iostat=E_IO)trim(s_buffer)
-    vtk(rf)%indent = vtk(rf)%indent - 2 ; write(unit=vtk(rf)%u,fmt='(A)',iostat=E_IO)repeat(' ',vtk(rf)%indent)//'</PPoints>'
-  endselect
-  return
-  !---------------------------------------------------------------------------------------------------------------------------------
-  endfunction PVTK_INI_XML
-
-  function PVTK_GEO_XML(source,cf,nx1,nx2,ny1,ny2,nz1,nz2) result(E_IO)
-  !---------------------------------------------------------------------------------------------------------------------------------
-  !> Function for saving piece geometry source for parallel (partitioned) VTK-XML file.
-  !---------------------------------------------------------------------------------------------------------------------------------
-  implicit none
-  character(*), intent(IN)::           source   !> Source file name containing the piece data.
-  integer(I4P), intent(IN), optional:: cf       !> Current file index (for concurrent files IO).
-  integer(I4P), intent(IN), optional:: nx1      !> Initial node of x axis.
-  integer(I4P), intent(IN), optional:: nx2      !> Final node of x axis.
-  integer(I4P), intent(IN), optional:: ny1      !> Initial node of y axis.
-  integer(I4P), intent(IN), optional:: ny2      !> Final node of y axis.
-  integer(I4P), intent(IN), optional:: nz1      !> Initial node of z axis.
-  integer(I4P), intent(IN), optional:: nz2      !> Final node of z axis.
-  integer(I4P)::                       E_IO     !> Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
-  character(len=maxlen)::              s_buffer !> Buffer string.
-  integer(I4P)::                       rf       !> Real file index.
-  !---------------------------------------------------------------------------------------------------------------------------------
-
-  !---------------------------------------------------------------------------------------------------------------------------------
-  E_IO = -1_I4P
-  rf = f
-  if (present(cf)) then
-    rf = cf ; f = cf
-  endif
-  select case (vtk(rf)%topology)
-  case('PRectilinearGrid','PStructuredGrid')
-    s_buffer = repeat(' ',vtk(rf)%indent)//'<Piece Extent="'// &
-               trim(str(n=nx1))//' '//trim(str(n=nx2))//' '// &
-               trim(str(n=ny1))//' '//trim(str(n=ny2))//' '// &
-               trim(str(n=nz1))//' '//trim(str(n=nz2))//'" Source="'//trim(source)//'"/>'
-    write(unit=vtk(rf)%u,fmt='(A)',iostat=E_IO)trim(s_buffer)
-  case('PUnstructuredGrid')
-    write(unit=vtk(rf)%u,fmt='(A)',iostat=E_IO)repeat(' ',vtk(rf)%indent)//'<Piece Source="'//trim(source)//'"/>'
-  endselect
-  return
-  !---------------------------------------------------------------------------------------------------------------------------------
-  endfunction PVTK_GEO_XML
-
-  function PVTK_DAT_XML(var_location,var_block_action,cf) result(E_IO)
-  !---------------------------------------------------------------------------------------------------------------------------------
-  !> Function for initializing/finalizing the saving of data associated to the mesh.
-  !>
-  !> Function that **must** be called before saving the data related to geometric mesh, this function initializes the
-  !> saving of data variables indicating the *type* (node or cell centered) of variables that will be saved.
-  !---------------------------------------------------------------------------------------------------------------------------------
-  implicit none
-  character(*), intent(IN)::           var_location     !> Location of saving variables: CELL or NODE centered.
-  character(*), intent(IN)::           var_block_action !> Variables block action: OPEN or CLOSE block.
-  integer(I4P), intent(IN), optional:: cf               !> Current file index (for concurrent files IO).
-  integer(I4P)::                       E_IO             !> Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
-  integer(I4P)::                       rf               !> Real file index.
-  !---------------------------------------------------------------------------------------------------------------------------------
-
-  !---------------------------------------------------------------------------------------------------------------------------------
-  E_IO = -1_I4P
-  rf = f
-  if (present(cf)) then
-    rf = cf ; f = cf
-  endif
-  select case(trim(Upper_Case(var_location)))
-  case('CELL')
-    select case(trim(Upper_Case(var_block_action)))
-    case('OPEN')
-      write(unit=vtk(rf)%u,fmt='(A)',iostat=E_IO)repeat(' ',vtk(rf)%indent)//'<PCellData>' ; vtk(rf)%indent = vtk(rf)%indent + 2
-    case('CLOSE')
-      vtk(rf)%indent = vtk(rf)%indent - 2 ; write(unit=vtk(rf)%u,fmt='(A)',iostat=E_IO)repeat(' ',vtk(rf)%indent)//'</PCellData>'
-    endselect
-  case('NODE')
-    select case(trim(Upper_Case(var_block_action)))
-    case('OPEN')
-      write(unit=vtk(rf)%u,fmt='(A)',iostat=E_IO)repeat(' ',vtk(rf)%indent)//'<PPointData>' ; vtk(rf)%indent = vtk(rf)%indent + 2
-    case('CLOSE')
-      vtk(rf)%indent = vtk(rf)%indent - 2 ; write(unit=vtk(rf)%u,fmt='(A)',iostat=E_IO)repeat(' ',vtk(rf)%indent)//'</PPointData>'
-    endselect
-  endselect
-  return
-  !---------------------------------------------------------------------------------------------------------------------------------
-  endfunction PVTK_DAT_XML
-
-  function PVTK_VAR_XML(varname,tp,cf,Nc) result(E_IO)
-  !---------------------------------------------------------------------------------------------------------------------------------
-  !> Function for saving variable associated to nodes or cells geometry.
-  !---------------------------------------------------------------------------------------------------------------------------------
-  implicit none
-  character(*), intent(IN)::           varname  !> Variable name.
-  character(*), intent(IN)::           tp       !> Type of data representation (Float32, Float64, ecc).
-  integer(I4P), intent(IN), optional:: cf       !> Current file index (for concurrent files IO).
-  integer(I4P), intent(IN), optional:: Nc       !> Number of components of variable.
-  integer(I4P)::                       E_IO     !> Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
-  character(len=maxlen)::              s_buffer !> Buffer string.
-  integer(I4P)::                       rf       !> Real file index.
-  !---------------------------------------------------------------------------------------------------------------------------------
-
-  !---------------------------------------------------------------------------------------------------------------------------------
-  E_IO = -1_I4P
-  rf = f
-  if (present(cf)) then
-    rf = cf ; f = cf
-  endif
-  if (present(Nc)) then
-    s_buffer = repeat(' ',vtk(rf)%indent)//'<PDataArray type="'//trim(tp)//'" Name="'//trim(varname)//&
-               '" NumberOfComponents="'//trim(str(.true.,Nc))//'"/>'
-  else
-    s_buffer = repeat(' ',vtk(rf)%indent)//'<PDataArray type="'//trim(tp)//'" Name="'//trim(varname)//'"/>'
-  endif
-  write(unit=vtk(rf)%u,fmt='(A)',iostat=E_IO)trim(s_buffer)
-  return
-  !---------------------------------------------------------------------------------------------------------------------------------
-  endfunction PVTK_VAR_XML
-
-  function PVTK_END_XML(cf) result(E_IO)
-  !---------------------------------------------------------------------------------------------------------------------------------
-  !> Function for finalizing the parallel (partitioned) VTK-XML file.
-  !---------------------------------------------------------------------------------------------------------------------------------
-  implicit none
-  integer(I4P), intent(INOUT), optional:: cf   !> Current file index (for concurrent files IO).
-  integer(I4P)::                          E_IO !> Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
-  integer(I4P)::                          rf   !> Real file index.
-  !---------------------------------------------------------------------------------------------------------------------------------
-
-  !---------------------------------------------------------------------------------------------------------------------------------
-  E_IO = -1_I4P
-  rf = f
-  if (present(cf)) then
-    rf = cf ; f = cf
-  endif
-  vtk(rf)%indent = vtk(rf)%indent - 2
-  write(unit=vtk(rf)%u,fmt='(A)',iostat=E_IO)repeat(' ',vtk(rf)%indent)//'</'//trim(vtk(rf)%topology)//'>'
-  write(unit=vtk(rf)%u,fmt='(A)',iostat=E_IO)'</VTKFile>'
-  close(unit=vtk(rf)%u,iostat=E_IO)
-  call vtk_update(act='remove',cf=rf,Nvtk=Nvtk,vtk=vtk)
-  f = rf
-  if (present(cf)) cf = rf
-  return
-  !---------------------------------------------------------------------------------------------------------------------------------
-  endfunction PVTK_END_XML
 
   function VTK_INI(output_format,filename,title,mesh_topology,cf) result(E_IO)
   !---------------------------------------------------------------------------------------------------------------------------------
@@ -5333,7 +4618,7 @@ contains
   !>
   !>### Usage
   !>```fortran
-  !> E_IO=VTK_INI('Binary','example.vtk','VTK legacy file','UNSTRUCTURED_GRID')
+  !> E_IO=VTK_INI('Binary','example.vtk','VTK legacy file','STRUCTURED_GRID')
   !>```
   !---------------------------------------------------------------------------------------------------------------------------------
   implicit none
@@ -5792,337 +5077,6 @@ contains
   !---------------------------------------------------------------------------------------------------------------------------------
   endfunction VTK_GEO_STRG_3DAP_R4
 
-  function VTK_GEO_RECT_R8(Nx,Ny,Nz,X,Y,Z,cf) result(E_IO)
-  !---------------------------------------------------------------------------------------------------------------------------------
-  !> Function for saving mesh with RECTILINEAR_GRID topology (R8P).
-  !---------------------------------------------------------------------------------------------------------------------------------
-  implicit none
-  integer(I4P), intent(IN)::           Nx       !> Number of nodes in x direction.
-  integer(I4P), intent(IN)::           Ny       !> Number of nodes in y direction.
-  integer(I4P), intent(IN)::           Nz       !> Number of nodes in z direction.
-  real(R8P),    intent(IN)::           X(1:Nx)  !> X coordinates.
-  real(R8P),    intent(IN)::           Y(1:Ny)  !> Y coordinates.
-  real(R8P),    intent(IN)::           Z(1:Nz)  !> Z coordinates.
-  integer(I4P), intent(IN), optional:: cf       !> Current file index (for concurrent files IO).
-  integer(I4P)::                       E_IO     !> Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
-  integer(I4P)::                       rf       !> Real file index.
-  integer(I4P)::                       n1       !> Counter.
-  !---------------------------------------------------------------------------------------------------------------------------------
-
-  !---------------------------------------------------------------------------------------------------------------------------------
-  E_IO = -1_I4P
-  rf = f
-  if (present(cf)) then
-    rf = cf ; f = cf
-  endif
-  select case(vtk(rf)%f)
-  case(ascii)
-    write(vtk(rf)%u,'(A)',iostat=E_IO)'DIMENSIONS '//trim(str(.true.,Nx))//' '//trim(str(.true.,Ny))//' '//trim(str(.true.,Nz))
-    write(vtk(rf)%u,'(A)',iostat=E_IO)'X_COORDINATES '//trim(str(.true.,Nx))//' double'
-    do n1=1,Nx
-      write(vtk(rf)%u,'(A)',iostat=E_IO)str(n=X(n1))
-    enddo
-    write(vtk(rf)%u,'(A)',iostat=E_IO)'Y_COORDINATES '//trim(str(.true.,Ny))//' double'
-    do n1=1,Ny
-      write(vtk(rf)%u,'(A)',iostat=E_IO)str(n=Y(n1))
-    enddo
-    write(vtk(rf)%u,'(A)',iostat=E_IO)'Z_COORDINATES '//trim(str(.true.,Nz))//' double'
-    do n1=1,Nz
-      write(vtk(rf)%u,'(A)',iostat=E_IO)str(n=Z(n1))
-    enddo
-  case(raw)
-    write(vtk(rf)%u,iostat=E_IO)'DIMENSIONS '//trim(str(.true.,Nx))//' '//trim(str(.true.,Ny))//' '//trim(str(.true.,Nz))//end_rec
-    write(vtk(rf)%u,iostat=E_IO)'X_COORDINATES '//trim(str(.true.,Nx))//' double'//end_rec
-    write(vtk(rf)%u,iostat=E_IO)X
-    write(vtk(rf)%u,iostat=E_IO)end_rec
-    write(vtk(rf)%u,iostat=E_IO)'Y_COORDINATES '//trim(str(.true.,Ny))//' double'//end_rec
-    write(vtk(rf)%u,iostat=E_IO)Y
-    write(vtk(rf)%u,iostat=E_IO)end_rec
-    write(vtk(rf)%u,iostat=E_IO)'Z_COORDINATES '//trim(str(.true.,Nz))//' double'//end_rec
-    write(vtk(rf)%u,iostat=E_IO)Z
-    write(vtk(rf)%u,iostat=E_IO)end_rec
-  endselect
-  return
-  !---------------------------------------------------------------------------------------------------------------------------------
-  endfunction VTK_GEO_RECT_R8
-
-  function VTK_GEO_RECT_R4(Nx,Ny,Nz,X,Y,Z,cf) result(E_IO)
-  !---------------------------------------------------------------------------------------------------------------------------------
-  !> Function for saving mesh with RECTILINEAR_GRID topology (R4P).
-  !---------------------------------------------------------------------------------------------------------------------------------
-  implicit none
-  integer(I4P), intent(IN)::           Nx       !> Number of nodes in x direction.
-  integer(I4P), intent(IN)::           Ny       !> Number of nodes in y direction.
-  integer(I4P), intent(IN)::           Nz       !> Number of nodes in z direction.
-  real(R4P),    intent(IN)::           X(1:Nx)  !> X coordinates.
-  real(R4P),    intent(IN)::           Y(1:Ny)  !> Y coordinates.
-  real(R4P),    intent(IN)::           Z(1:Nz)  !> Z coordinates.
-  integer(I4P), intent(IN), optional:: cf       !> Current file index (for concurrent files IO).
-  integer(I4P)::                       E_IO     !> Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
-  integer(I4P)::                       rf       !> Real file index.
-  integer(I4P)::                       n1       !> Counter.
-  !---------------------------------------------------------------------------------------------------------------------------------
-
-  !---------------------------------------------------------------------------------------------------------------------------------
-  E_IO = -1_I4P
-  rf = f
-  if (present(cf)) then
-    rf = cf ; f = cf
-  endif
-  select case(vtk(rf)%f)
-  case(ascii)
-    write(vtk(rf)%u,'(A)',iostat=E_IO)'DIMENSIONS '//trim(str(.true.,Nx))//' '//trim(str(.true.,Ny))//' '//trim(str(.true.,Nz))
-    write(vtk(rf)%u,'(A)',iostat=E_IO)'X_COORDINATES '//trim(str(.true.,Nx))//' float'
-    do n1=1,Nx
-      write(vtk(rf)%u,'(A)',iostat=E_IO)str(n=X(n1))
-    enddo
-    write(vtk(rf)%u,'(A)',iostat=E_IO)'Y_COORDINATES '//trim(str(.true.,Ny))//' float'
-    do n1=1,Ny
-      write(vtk(rf)%u,'(A)',iostat=E_IO)str(n=Y(n1))
-    enddo
-    write(vtk(rf)%u,'(A)',iostat=E_IO)'Z_COORDINATES '//trim(str(.true.,Nz))//' float'
-    do n1=1,Nz
-      write(vtk(rf)%u,'(A)',iostat=E_IO)str(n=Z(n1))
-    enddo
-  case(raw)
-    write(vtk(rf)%u,iostat=E_IO)'DIMENSIONS '//trim(str(.true.,Nx))//' '//trim(str(.true.,Ny))//' '//trim(str(.true.,Nz))//end_rec
-    write(vtk(rf)%u,iostat=E_IO)'X_COORDINATES '//trim(str(.true.,Nx))//' float'//end_rec
-    write(vtk(rf)%u,iostat=E_IO)X
-    write(vtk(rf)%u,iostat=E_IO)end_rec
-    write(vtk(rf)%u,iostat=E_IO)'Y_COORDINATES '//trim(str(.true.,Ny))//' float'//end_rec
-    write(vtk(rf)%u,iostat=E_IO)Y
-    write(vtk(rf)%u,iostat=E_IO)end_rec
-    write(vtk(rf)%u,iostat=E_IO)'Z_COORDINATES '//trim(str(.true.,Nz))//' float'//end_rec
-    write(vtk(rf)%u,iostat=E_IO)Z
-    write(vtk(rf)%u,iostat=E_IO)end_rec
-  endselect
-  return
-  !---------------------------------------------------------------------------------------------------------------------------------
-  endfunction VTK_GEO_RECT_R4
-
-  function VTK_GEO_UNST_R8(NN,X,Y,Z,cf) result(E_IO)
-  !---------------------------------------------------------------------------------------------------------------------------------
-  !> Function for saving mesh with UNSTRUCTURED_GRID topology (R8P).
-  !---------------------------------------------------------------------------------------------------------------------------------
-  implicit none
-  integer(I4P), intent(IN)::           NN       !> Number of nodes.
-  real(R8P),    intent(IN)::           X(1:)    !> X coordinates of all nodes [1:NN].
-  real(R8P),    intent(IN)::           Y(1:)    !> Y coordinates of all nodes [1:NN].
-  real(R8P),    intent(IN)::           Z(1:)    !> Z coordinates of all nodes [1:NN].
-  integer(I4P), intent(IN), optional:: cf       !> Current file index (for concurrent files IO).
-  integer(I4P)::                       E_IO     !> Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
-  integer(I4P)::                       rf       !> Real file index.
-  integer(I4P)::                       n1       !> Counter.
-  !---------------------------------------------------------------------------------------------------------------------------------
-
-  !---------------------------------------------------------------------------------------------------------------------------------
-  E_IO = -1_I4P
-  rf = f
-  if (present(cf)) then
-    rf = cf ; f = cf
-  endif
-  select case(vtk(rf)%f)
-  case(ascii)
-    write(unit=vtk(rf)%u,fmt='(A)',iostat=E_IO)'POINTS '//str(.true.,NN)//' double'
-    do n1=1,NN
-      write(unit=vtk(rf)%u,fmt='(A)',iostat=E_IO)str(n=X(n1))//' '//str(n=Y(n1))//' '//str(n=Z(n1))
-    enddo
-  case(raw)
-    write(unit=vtk(rf)%u,iostat=E_IO)'POINTS '//str(.true.,NN)//' double'//end_rec
-    write(unit=vtk(rf)%u,iostat=E_IO)(X(n1),Y(n1),Z(n1),n1=1,NN)
-    write(unit=vtk(rf)%u,iostat=E_IO)end_rec
-  endselect
-  return
-  !---------------------------------------------------------------------------------------------------------------------------------
-  endfunction VTK_GEO_UNST_R8
-
-  function VTK_GEO_UNST_P_R8(NN,XYZ,cf) result(E_IO)
-  !---------------------------------------------------------------------------------------------------------------------------------
-  !> Function for saving mesh with UNSTRUCTURED_GRID topology (R8P, packed API).
-  !---------------------------------------------------------------------------------------------------------------------------------
-  implicit none
-  integer(I4P), intent(IN)::           NN         !> Number of nodes.
-  real(R8P),    intent(IN)::           XYZ(1:,1:) !> X, Y and Z coordinates of all nodes [1:3,1:NN].
-  integer(I4P), intent(IN), optional:: cf         !> Current file index (for concurrent files IO).
-  integer(I4P)::                       E_IO       !> Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
-  integer(I4P)::                       rf         !> Real file index.
-  integer(I4P)::                       n1         !> Counter.
-  !---------------------------------------------------------------------------------------------------------------------------------
-
-  !---------------------------------------------------------------------------------------------------------------------------------
-  E_IO = -1_I4P
-  rf = f
-  if (present(cf)) then
-    rf = cf ; f = cf
-  endif
-  select case(vtk(rf)%f)
-  case(ascii)
-    write(unit=vtk(rf)%u,fmt='(A)',iostat=E_IO)'POINTS '//str(.true.,NN)//' double'
-    do n1=1,NN
-      write(unit=vtk(rf)%u,fmt='(A)',iostat=E_IO)str(n=XYZ(1,n1))//' '//str(n=XYZ(2,n1))//' '//str(n=XYZ(3,n1))
-    enddo
-  case(raw)
-    write(unit=vtk(rf)%u,iostat=E_IO)'POINTS '//str(.true.,NN)//' double'//end_rec
-    write(unit=vtk(rf)%u,iostat=E_IO)XYZ
-    write(unit=vtk(rf)%u,iostat=E_IO)end_rec
-  endselect
-  return
-  !---------------------------------------------------------------------------------------------------------------------------------
-  endfunction VTK_GEO_UNST_P_R8
-
-  function VTK_GEO_UNST_R4(NN,X,Y,Z,cf) result(E_IO)
-  !---------------------------------------------------------------------------------------------------------------------------------
-  !> Function for saving mesh with UNSTRUCTURED_GRID topology (R4P).
-  !---------------------------------------------------------------------------------------------------------------------------------
-  implicit none
-  integer(I4P), intent(IN)::           NN       !> number of nodes.
-  real(R4P),    intent(IN)::           X(1:)    !> X coordinates of all nodes [1:NN].
-  real(R4P),    intent(IN)::           Y(1:)    !> Y coordinates of all nodes [1:NN].
-  real(R4P),    intent(IN)::           Z(1:)    !> Z coordinates of all nodes [1:NN].
-  integer(I4P), intent(IN), optional:: cf       !> Current file index (for concurrent files IO).
-  integer(I4P)::                       E_IO     !> Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
-  integer(I4P)::                       rf       !> Real file index.
-  integer(I4P)::                       n1       !> counter.
-  !---------------------------------------------------------------------------------------------------------------------------------
-
-  !---------------------------------------------------------------------------------------------------------------------------------
-  E_IO = -1_I4P
-  rf = f
-  if (present(cf)) then
-    rf = cf ; f = cf
-  endif
-  select case(vtk(rf)%f)
-  case(ascii)
-    write(unit=vtk(rf)%u,fmt='(A)',iostat=E_IO)'POINTS '//str(.true.,NN)//' float'
-    do n1=1,NN
-      write(unit=vtk(rf)%u,fmt='(A)',iostat=E_IO)str(n=X(n1))//' '//str(n=Y(n1))//' '//str(n=Z(n1))
-    enddo
-  case(raw)
-    write(unit=vtk(rf)%u,iostat=E_IO)'POINTS '//str(.true.,NN)//' float'//end_rec
-    write(unit=vtk(rf)%u,iostat=E_IO)(X(n1),Y(n1),Z(n1),n1=1,NN)
-    write(unit=vtk(rf)%u,iostat=E_IO)end_rec
-  endselect
-  return
-  !---------------------------------------------------------------------------------------------------------------------------------
-  endfunction VTK_GEO_UNST_R4
-
-  function VTK_GEO_UNST_P_R4(NN,XYZ,cf) result(E_IO)
-  !---------------------------------------------------------------------------------------------------------------------------------
-  !> Function for saving mesh with UNSTRUCTURED_GRID topology (R4P, packed API).
-  !---------------------------------------------------------------------------------------------------------------------------------
-  implicit none
-  integer(I4P), intent(IN)::           NN         !> number of nodes.
-  real(R4P),    intent(IN)::           XYZ(1:,1:) !> X, Y and Z coordinates of all nodes [1:3,1:NN].
-  integer(I4P), intent(IN), optional:: cf         !> Current file index (for concurrent files IO).
-  integer(I4P)::                       E_IO       !> Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
-  integer(I4P)::                       rf         !> Real file index.
-  integer(I4P)::                       n1         !> counter.
-  !---------------------------------------------------------------------------------------------------------------------------------
-
-  !---------------------------------------------------------------------------------------------------------------------------------
-  E_IO = -1_I4P
-  rf = f
-  if (present(cf)) then
-    rf = cf ; f = cf
-  endif
-  select case(vtk(rf)%f)
-  case(ascii)
-    write(unit=vtk(rf)%u,fmt='(A)',iostat=E_IO)'POINTS '//str(.true.,NN)//' float'
-    do n1=1,NN
-      write(unit=vtk(rf)%u,fmt='(A)',iostat=E_IO)str(n=XYZ(1,n1))//' '//str(n=XYZ(2,n1))//' '//str(n=XYZ(3,n1))
-    enddo
-  case(raw)
-    write(unit=vtk(rf)%u,iostat=E_IO)'POINTS '//str(.true.,NN)//' float'//end_rec
-    write(unit=vtk(rf)%u,iostat=E_IO)XYZ
-    write(unit=vtk(rf)%u,iostat=E_IO)end_rec
-  endselect
-  return
-  !---------------------------------------------------------------------------------------------------------------------------------
-  endfunction VTK_GEO_UNST_P_R4
-
-  function VTK_CON(NC,connect,cell_type,cf) result(E_IO)
-  !---------------------------------------------------------------------------------------------------------------------------------
-  !> Function for saving mesh connectivity.
-  !>
-  !> Function that **must** be used when unstructured grid is used, it saves the connectivity of the unstructured gird.
-  !> @note The vector **connect** must follow the VTK-legacy standard. It is passed as *assumed-shape* array
-  !> because its dimensions is related to the mesh dimensions in a complex way. Its dimensions can be calculated by the following
-  !> equation: \(dc = NC + \sum\limits_{i = 1}^{NC} {nvertex_i }\)
-  !> where \(dc\) is connectivity vector dimension and \(nvertex_i\) is the number of vertices of \(i^{th}\) cell. The VTK-
-  !> legacy standard for the mesh connectivity is quite obscure at least at first sight. It is more simple analyzing an example.
-  !> Suppose we have a mesh composed by 2 cells, one hexahedron (8 vertices) and one pyramid with square basis (5 vertices) and
-  !> suppose that the basis of pyramid is constitute by a face of the hexahedron and so the two cells share 4 vertices.
-  !> The above equation !> gives \(dc=2+8+5=15\). The connectivity vector for this mesh can be:
-  !>
-  !>##### first cell
-  !>+ connect(1)  = 8 number of vertices of first cell
-  !>+ connect(2)  = 0 identification flag of \(1^\circ\) vertex of first cell
-  !>+ connect(3)  = 1 identification flag of \(2^\circ\) vertex of first cell
-  !>+ connect(4)  = 2 identification flag of \(3^\circ\) vertex of first cell
-  !>+ connect(5)  = 3 identification flag of \(4^\circ\) vertex of first cell
-  !>+ connect(6)  = 4 identification flag of \(5^\circ\) vertex of first cell
-  !>+ connect(7)  = 5 identification flag of \(6^\circ\) vertex of first cell
-  !>+ connect(8)  = 6 identification flag of \(7^\circ\) vertex of first cell
-  !>+ connect(9)  = 7 identification flag of \(8^\circ\) vertex of first cell
-  !>
-  !>##### second cell
-  !>+ connect(10) = 5 number of vertices of first cell
-  !>+ connect(11) = 0 identification flag of \(1^\circ\) vertex of second cell
-  !>+ connect(12) = 1 identification flag of \(2^\circ\) vertex of second cell
-  !>+ connect(13) = 2 identification flag of \(3^\circ\) vertex of second cell
-  !>+ connect(14) = 3 identification flag of \(4^\circ\) vertex of second cell
-  !>+ connect(15) = 8 identification flag of \(5^\circ\) vertex of second cell
-  !>
-  !> Note that the first 4 identification flags of pyramid vertices as the same of the first 4 identification flags of
-  !> the hexahedron because the two cells share this face. It is also important to note that the identification flags start
-  !> form $0$ value: this is impose to the VTK standard. The function VTK_CON does not calculate the connectivity vector: it
-  !> writes the connectivity vector conforming the VTK standard, but does not calculate it.
-  !> The vector variable *cell\_type* must conform the VTK-legacy standard (see the file VTK-Standard at the
-  !> Kitware homepage). It contains the *type* of each cells. For the above example this vector is:
-  !>
-  !>##### first cell
-  !> cell_type(1) = 12 hexahedron type of first cell
-  !>
-  !>##### second cell
-  !> cell_type(2) = 14 pyramid type of second cell
-  !---------------------------------------------------------------------------------------------------------------------------------
-  implicit none
-  integer(I4P), intent(IN)::           NC              !> Number of cells.
-  integer(I4P), intent(IN)::           connect(:)      !> Mesh connectivity.
-  integer(I4P), intent(IN)::           cell_type(1:NC) !> VTK cell type.
-  integer(I4P), intent(IN), optional:: cf              !> Current file index (for concurrent files IO).
-  integer(I4P)::                       E_IO            !> Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
-  character(len=maxlen)::              s_buffer        !> Buffer string.
-  integer(I4P)::                       ncon            !> Dimension of connectivity vector.
-  integer(I4P)::                       rf              !> Real file index.
-  !---------------------------------------------------------------------------------------------------------------------------------
-
-  !---------------------------------------------------------------------------------------------------------------------------------
-  E_IO = -1_I4P
-  rf = f
-  if (present(cf)) then
-    rf = cf ; f = cf
-  endif
-  ncon = size(connect,1)
-  select case(vtk(rf)%f)
-  case(ascii)
-    write(unit=vtk(rf)%u,fmt='(A,2'//FI4P//')',iostat=E_IO)'CELLS ',NC,ncon
-    write(unit=vtk(rf)%u,fmt=FI4P,             iostat=E_IO)connect
-    write(unit=vtk(rf)%u,fmt='(A,'//FI4P//')', iostat=E_IO)'CELL_TYPES ',NC
-    write(unit=vtk(rf)%u,fmt=FI4P,             iostat=E_IO)cell_type
-  case(raw)
-    write(s_buffer,      fmt='(A,2'//FI4P//')',iostat=E_IO)'CELLS ',NC,ncon
-    write(unit=vtk(rf)%u,                      iostat=E_IO)trim(s_buffer)//end_rec
-    write(unit=vtk(rf)%u,                      iostat=E_IO)connect
-    write(unit=vtk(rf)%u,                      iostat=E_IO)end_rec
-    write(s_buffer,      fmt='(A,'//FI4P//')', iostat=E_IO)'CELL_TYPES ',NC
-    write(unit=vtk(rf)%u,                      iostat=E_IO)trim(s_buffer)//end_rec
-    write(unit=vtk(rf)%u,                      iostat=E_IO)cell_type
-    write(unit=vtk(rf)%u,                      iostat=E_IO)end_rec
-  endselect
-  return
-  !---------------------------------------------------------------------------------------------------------------------------------
-  endfunction VTK_CON
 
   function VTK_DAT(NC_NN,var_location,cf) result(E_IO)
   !---------------------------------------------------------------------------------------------------------------------------------
@@ -6516,265 +5470,6 @@ contains
   !---------------------------------------------------------------------------------------------------------------------------------
   endfunction VTK_END
 
-
-  function PVD_INI_XML(filename,cf) result(E_IO)
-  !---------------------------------------------------------------------------------------------------------------------------------
-  !> Function for initializing timed PVD-XML file.
-  !---------------------------------------------------------------------------------------------------------------------------------
-  implicit none
-  character(*), intent(IN)           :: filename      !> File name.
-  integer(I4P), intent(OUT), optional:: cf            !> Current file index (for concurrent files IO).
-  integer(I4P)                       :: E_IO          !> Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
-  character(len=maxlen)              :: s_buffer      !> Buffer string.
-  integer(I4P)                       :: rf            !> Real file index.
-  !---------------------------------------------------------------------------------------------------------------------------------
-
-  !---------------------------------------------------------------------------------------------------------------------------------
-  E_IO = -1_I4P
-  if (.not.ir_initialized) call IR_Init
-  if (.not.b64_initialized) call b64_init
-  call vtk_update(act='add',cf=rf,Nvtk=Nvtk,vtk=vtk)
-  f = rf
-  if (present(cf)) cf = rf
-
-  open(unit=Get_Unit(vtk(rf)%u),file=trim(filename),&
-       form='FORMATTED',access='SEQUENTIAL',action='WRITE',status='REPLACE',iostat=E_IO)
-
-  write(unit=vtk(rf)%u,fmt='(A)',iostat=E_IO)'<?xml version="1.0"?>'
-  if (endian==endianL) then
-    s_buffer = '<VTKFile type="Collection" version="0.1" byte_order="LittleEndian">'
-  else
-    s_buffer = '<VTKFile type="Collection" version="0.1" byte_order="BigEndian">'
-  endif
-  write(unit=vtk(rf)%u,fmt='(A)',iostat=E_IO)trim(s_buffer) ; vtk(rf)%indent = 2
-  write(unit=vtk(rf)%u,fmt='(A)',iostat=E_IO)repeat(' ',vtk(rf)%indent)//'<Collection>'
-  vtk(rf)%indent = vtk(rf)%indent + 2
-
-
-  end function PVD_INI_XML
-
-
-  function PVD_DAT_XML_R8(filename,timestep, part, cf) result(E_IO) !group, part, cf) result(E_IO)
-  !---------------------------------------------------------------------------------------------------------------------------------
-  !> Function for saving of PVD data associated to the sequence of VTK files
-  !---------------------------------------------------------------------------------------------------------------------------------
-  implicit none
-  character(*), intent(IN)           :: filename     !> Location of saving variables: CELL or NODE centered.
-  real(R8P),    intent(IN)           :: timestep     !> Timestep index
-  integer(I4P), intent(IN), optional :: part         !> Part index
-  integer(I4P), intent(IN), optional :: cf           !> Current file index (for concurrent files IO).
-  integer(I4P)                       :: E_IO         !> Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
-  integer(I4P)                       :: rf           !> Real file index.
-  integer(I4P)                       :: rp           !> Real part index.
-  !---------------------------------------------------------------------------------------------------------------------------------
-
-  !---------------------------------------------------------------------------------------------------------------------------------
-  E_IO = -1_I4P
-  rf = f
-  if (present(cf)) then
-    rf = cf ; f = cf
-  endif
-
-  rp = 0
-  if (present(part)) rp = part
-
-  write(unit=vtk(rf)%u,fmt='(A)',iostat=E_IO)repeat(' ',vtk(rf)%indent)//&
-         '<DataSet timestep="'//trim(str(n=timestep))//'" group="" part="'//trim(str(n=rp))//'" file="'//trim(filename)//'"/>'
-
-  return
-  !---------------------------------------------------------------------------------------------------------------------------------
-  end function PVD_DAT_XML_R8
-
-
-  function PVD_DAT_XML_R4(filename,timestep, part, cf) result(E_IO) !group, part, cf) result(E_IO)
-  !---------------------------------------------------------------------------------------------------------------------------------
-  !> Function for saving of PVD data associated to the sequence of VTK files
-  !---------------------------------------------------------------------------------------------------------------------------------
-  implicit none
-  character(*), intent(IN)           :: filename     !> Location of saving variables: CELL or NODE centered.
-  real(R4P),    intent(IN)           :: timestep     !> Timestep index
-  integer(I4P), intent(IN), optional :: part         !> Part index
-  integer(I4P), intent(IN), optional :: cf           !> Current file index (for concurrent files IO).
-  integer(I4P)                       :: E_IO         !> Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
-  integer(I4P)                       :: rf           !> Real file index.
-  integer(I4P)                       :: rp           !> Real part index.
-  !---------------------------------------------------------------------------------------------------------------------------------
-
-  !---------------------------------------------------------------------------------------------------------------------------------
-  E_IO = -1_I4P
-  rf = f
-  if (present(cf)) then
-    rf = cf ; f = cf
-  endif
-
-  rp = 0
-  if (present(part)) rp = part
-
-  write(unit=vtk(rf)%u,fmt='(A)',iostat=E_IO)repeat(' ',vtk(rf)%indent)//&
-         '<DataSet timestep="'//trim(str(n=timestep))//'" group="" part="'//trim(str(n=rp))//'" file="'//trim(filename)//'"/>'
-
-  return
-  !---------------------------------------------------------------------------------------------------------------------------------
-  end function PVD_DAT_XML_R4
-
-
-  function PVD_DAT_XML_I8(filename,timestep, part, cf) result(E_IO) !group, part, cf) result(E_IO)
-  !---------------------------------------------------------------------------------------------------------------------------------
-  !> Function for saving of PVD data associated to the sequence of VTK files
-  !---------------------------------------------------------------------------------------------------------------------------------
-  implicit none
-  character(*), intent(IN)           :: filename     !> Location of saving variables: CELL or NODE centered.
-  integer(I8P), intent(IN)           :: timestep     !> Timestep index
-  integer(I4P), intent(IN), optional :: part         !> Part index
-  integer(I4P), intent(IN), optional :: cf           !> Current file index (for concurrent files IO).
-  integer(I4P)                       :: E_IO         !> Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
-  integer(I4P)                       :: rf           !> Real file index.
-  integer(I4P)                       :: rp           !> Real part index.
-  !---------------------------------------------------------------------------------------------------------------------------------
-
-  !---------------------------------------------------------------------------------------------------------------------------------
-  E_IO = -1_I4P
-  rf = f
-  if (present(cf)) then
-    rf = cf ; f = cf
-  endif
-
-  rp = 0
-  if (present(part)) rp = part
-
-  write(unit=vtk(rf)%u,fmt='(A)',iostat=E_IO)repeat(' ',vtk(rf)%indent)//&
-         '<DataSet timestep="'//trim(str(n=timestep))//'" group="" part="'//trim(str(n=rp))//'" file="'//trim(filename)//'"/>'
-
-  return
-  !---------------------------------------------------------------------------------------------------------------------------------
-  end function PVD_DAT_XML_I8
-
-  function PVD_DAT_XML_I4(filename,timestep, part, cf) result(E_IO) !group, part, cf) result(E_IO)
-  !---------------------------------------------------------------------------------------------------------------------------------
-  !> Function for saving of PVD data associated to the sequence of VTK files
-  !---------------------------------------------------------------------------------------------------------------------------------
-  implicit none
-  character(*), intent(IN)           :: filename     !> Location of saving variables: CELL or NODE centered.
-  integer(I4P), intent(IN)           :: timestep     !> Timestep index
-  integer(I4P), intent(IN), optional :: part         !> Part index
-  integer(I4P), intent(IN), optional :: cf           !> Current file index (for concurrent files IO).
-  integer(I4P)                       :: E_IO         !> Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
-  integer(I4P)                       :: rf           !> Real file index.
-  integer(I4P)                       :: rp           !> Real part index.
-  !---------------------------------------------------------------------------------------------------------------------------------
-
-  !---------------------------------------------------------------------------------------------------------------------------------
-  E_IO = -1_I4P
-  rf = f
-  if (present(cf)) then
-    rf = cf ; f = cf
-  endif
-
-  rp = 0
-  if (present(part)) rp = part
-
-  write(unit=vtk(rf)%u,fmt='(A)',iostat=E_IO)repeat(' ',vtk(rf)%indent)//&
-         '<DataSet timestep="'//trim(str(n=timestep))//'" group="" part="'//trim(str(n=rp))//'" file="'//trim(filename)//'"/>'
-
-  return
-  !---------------------------------------------------------------------------------------------------------------------------------
-  end function PVD_DAT_XML_I4
-
-
-  function PVD_DAT_XML_I2(filename,timestep, part, cf) result(E_IO) !group, part, cf) result(E_IO)
-  !---------------------------------------------------------------------------------------------------------------------------------
-  !> Function for saving of PVD data associated to the sequence of VTK files
-  !---------------------------------------------------------------------------------------------------------------------------------
-  implicit none
-  character(*), intent(IN)           :: filename     !> Location of saving variables: CELL or NODE centered.
-  integer(I2P), intent(IN)           :: timestep     !> Timestep index
-  integer(I4P), intent(IN), optional :: part         !> Part index
-  integer(I4P), intent(IN), optional :: cf           !> Current file index (for concurrent files IO).
-  integer(I4P)                       :: E_IO         !> Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
-  integer(I4P)                       :: rf           !> Real file index.
-  integer(I4P)                       :: rp           !> Real part index.
-  !---------------------------------------------------------------------------------------------------------------------------------
-
-  !---------------------------------------------------------------------------------------------------------------------------------
-  E_IO = -1_I4P
-  rf = f
-  if (present(cf)) then
-    rf = cf ; f = cf
-  endif
-
-  rp = 0
-  if (present(part)) rp = part
-
-  write(unit=vtk(rf)%u,fmt='(A)',iostat=E_IO)repeat(' ',vtk(rf)%indent)//&
-         '<DataSet timestep="'//trim(str(n=timestep))//'" group="" part="'//trim(str(n=rp))//'" file="'//trim(filename)//'"/>'
-
-  return
-  !---------------------------------------------------------------------------------------------------------------------------------
-  end function PVD_DAT_XML_I2
-
-
-  function PVD_DAT_XML_I1(filename,timestep, part, cf) result(E_IO) !group, part, cf) result(E_IO)
-  !---------------------------------------------------------------------------------------------------------------------------------
-  !> Function for saving of PVD data associated to the sequence of VTK files
-  !---------------------------------------------------------------------------------------------------------------------------------
-  implicit none
-  character(*), intent(IN)           :: filename     !> Location of saving variables: CELL or NODE centered.
-  integer(I1P), intent(IN)           :: timestep     !> Timestep index
-  integer(I4P), intent(IN), optional :: part         !> Part index
-  integer(I4P), intent(IN), optional :: cf           !> Current file index (for concurrent files IO).
-  integer(I4P)                       :: E_IO         !> Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
-  integer(I4P)                       :: rf           !> Real file index.
-  integer(I4P)                       :: rp           !> Real part index.
-  !---------------------------------------------------------------------------------------------------------------------------------
-
-  !---------------------------------------------------------------------------------------------------------------------------------
-  E_IO = -1_I4P
-  rf = f
-  if (present(cf)) then
-    rf = cf ; f = cf
-  endif
-
-  rp = 0
-  if (present(part)) rp = part
-
-  write(unit=vtk(rf)%u,fmt='(A)',iostat=E_IO)repeat(' ',vtk(rf)%indent)//&
-         '<DataSet timestep="'//trim(str(n=timestep))//'" group="" part="'//trim(str(n=rp))//'" file="'//trim(filename)//'"/>'
-
-  return
-  !---------------------------------------------------------------------------------------------------------------------------------
-  end function PVD_DAT_XML_I1
-
-
-  function PVD_END_XML(cf) result(E_IO)
-  !---------------------------------------------------------------------------------------------------------------------------------
-  !> Function for finalizing the PVD-XML file.
-  !---------------------------------------------------------------------------------------------------------------------------------
-  implicit none
-  integer(I4P), intent(INOUT), optional:: cf   !> Current file index (for concurrent files IO).
-  integer(I4P)::                          E_IO !> Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done.
-  integer(I4P)::                          rf   !> Real file index.
-  !---------------------------------------------------------------------------------------------------------------------------------
-
-  !---------------------------------------------------------------------------------------------------------------------------------
-  E_IO = -1_I4P
-  rf = f
-  if (present(cf)) then
-    rf = cf ; f = cf
-  endif
-
-  vtk(rf)%indent = vtk(rf)%indent - 2
-  write(unit=vtk(rf)%u,fmt='(A)',iostat=E_IO)repeat(' ',vtk(rf)%indent)//'</Collection>'
-  write(unit=vtk(rf)%u,fmt='(A)',iostat=E_IO)'</VTKFile>'
-
-  close(unit=vtk(rf)%u,iostat=E_IO)
-  call vtk_update(act='remove',cf=rf,Nvtk=Nvtk,vtk=vtk)
-  f = rf
-  if (present(cf)) cf = rf
-  
-  return
-  !---------------------------------------------------------------------------------------------------------------------------------
-  end function PVD_END_XML
-
   !---------------------------------------------------------------------------------------------------------------------------------
   ! PUBLIC FUNTIONS TO IMPORT VTK FILES
   !---------------------------------------------------------------------------------------------------------------------------------
@@ -6791,7 +5486,6 @@ contains
   !> Supported topologies are:
   !>- RectilinearGrid; (Not tested!)
   !>- StructuredGrid; (Not tested!)
-  !>- UnstructuredGrid. (Not tested!)
   !>### Example of usage
   !>```fortran
   !> integer(I4P):: nx1,nx2,ny1,ny2,nz1,nz2
@@ -6839,7 +5533,7 @@ contains
     vtk(rf)%f = ascii
 
     select case(trim(vtk(rf)%topology))
-      case('RectilinearGrid', 'StructuredGrid', 'UnstructuredGrid')
+      case('RectilinearGrid', 'StructuredGrid')
 
         open(unit=Get_Unit(vtk(rf)%u),file=trim(filename),status='old', &
              form='UNFORMATTED',access='STREAM',action='READ', &
@@ -6873,7 +5567,7 @@ contains
   case('BINARY')
     vtk(rf)%f = binary
     select case(trim(vtk(rf)%topology))
-      case('RectilinearGrid', 'StructuredGrid', 'UnstructuredGrid')
+      case('RectilinearGrid', 'StructuredGrid')
 
         open(unit=Get_Unit(vtk(rf)%u),file=trim(filename),status='old', &
              form='UNFORMATTED',access='STREAM',action='READ', &
@@ -6907,7 +5601,7 @@ contains
   case('RAW')
     vtk(rf)%f = raw
     select case(trim(vtk(rf)%topology))
-      case('RectilinearGrid', 'StructuredGrid', 'UnstructuredGrid')
+      case('RectilinearGrid', 'StructuredGrid')
 
         open(unit=Get_Unit(vtk(rf)%u),file=trim(filename),status='old', &
              form='UNFORMATTED',access='STREAM',action='READ', &
@@ -6970,436 +5664,9 @@ contains
   end function VTK_INI_XML_READ
 
 
-  function VTK_GEO_XML_UNST_R4_READ(NN,NC,X,Y,Z,npiece,cf) result(E_IO)
-  !---------------------------------------------------------------------------------------------------------------------------------
-  !> Function for reading mesh with \b UnstructuredGrid topology (R8P).
-  !---------------------------------------------------------------------------------------------------------------------------------
-  integer(I4P),           intent(OUT) :: NN       !> number of nodes
-  integer(I4P),           intent(OUT) :: NC       !> number of cells
-  real(R4P), allocatable, intent(OUT) :: X(:)     !> x coordinates
-  real(R4P), allocatable, intent(OUT) :: Y(:)     !> y coordinates
-  real(R4P), allocatable, intent(OUT) :: Z(:)     !> z coordinates
-  integer(I4P), optional, intent(IN)  :: npiece   !> Number of the piece to read (by default: 1)
-  integer(I4P), optional, intent(IN)  :: cf       !> Current file index (for concurrent files IO).
-  integer(I4P)                        :: E_IO     !> Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done
-  integer(I4P)                        :: rf       !> Real file index.
-  character(len=:),allocatable        :: s_buffer !> Buffer string.
-  character(len=:), allocatable       :: fmt
-  character(len=:), allocatable       :: type
-  character(len=:), allocatable       :: data
-  integer(I4P)                        :: np, i, offs, N_Byte, pos, s
-  integer(I1P), allocatable           :: dI1P(:)
-  real(R4P), allocatable              :: XYZp(:)
-  !---------------------------------------------------------------------------------------------------------------------------------
-
-  !---------------------------------------------------------------------------------------------------------------------------------
-  rf = f
-  if (present(cf)) then
-    rf = cf ; f = cf
-  endif
-  np = 1_I4P; if (present(npiece)) np = npiece
-  E_IO = -1_I4P
-  select case(vtk(rf)%f)         
-
-    case(ascii)
-
-      rewind(unit=vtk(rf)%u, iostat=E_IO)
-      E_IO = move(inside='UnstructuredGrid', to_find='Piece', repeat=np, cf=rf, buffer=s_buffer) ! find the 'np' piece
-      inquire(unit=vtk(rf)%u, pos=pos, iostat=E_IO) !annotate the current position in the file
-      call get_int(buffer=s_buffer, attrib='NumberOfPoints', val=NN, E_IO=E_IO)
-      if(E_IO == 0) then
-        call get_int(buffer=s_buffer, attrib='NumberOfCells', val=NC, E_IO=E_IO)
-        E_IO = search(from=pos, inside='Points', to_find='DataArray', with_attribute='Name', of_value='Points', &
-                      buffer=s_buffer,content=data)
-        call get_char(buffer=s_buffer, attrib='format', val=fmt,  E_IO=E_IO)
-        call get_char(buffer=s_buffer, attrib='type', val=type,  E_IO=E_IO)
-        if (trim(adjustlt(Upper_Case(fmt)))/='ASCII' .or. &
-            trim(adjustlt(Upper_Case(type)))/='FLOAT32') then
-          E_IO = -1_I4P 
-        else
-          allocate(X(NN), Y(NN), Z(NN), stat=E_IO)
-          read(data, fmt=*, iostat=E_IO) (X(i), Y(i), Z(i), i=1,NN) !get ascii array
-        endif
-        if(allocated(data)) deallocate(data)
-      endif
-
-    case(binary)
-
-      rewind(unit=vtk(rf)%u, iostat=E_IO)
-      E_IO = move(inside='UnstructuredGrid', to_find='Piece', repeat=np, cf=rf, buffer=s_buffer) ! find the 'np' piece
-      call get_int(buffer=s_buffer, attrib='NumberOfPoints', val=NN, E_IO=E_IO)
-      if(E_IO == 0) then
-        call get_int(buffer=s_buffer, attrib='NumberOfCells', val=NC, E_IO=E_IO)
-        E_IO = search(inside='Points', to_find='DataArray', with_attribute='Name', of_value='Points', &
-                      buffer=s_buffer,content=data)
-        call get_char(buffer=s_buffer,  attrib='type', val=type, E_IO=E_IO)
-        call get_char(buffer=s_buffer, attrib='format', val=fmt,  E_IO=E_IO)
-        if (trim(adjustlt(Upper_Case(fmt)))/='BINARY' .or. &
-            trim(adjustlt(Upper_Case(type)))/='FLOAT32') then
-          E_IO = -1_I4P !stop 'Format not implemented'
-        else
-          ! Decode base64 packed data
-          data=trim(adjustlt(data))
-          allocate(dI1P(3*NN*int(BYR4P,I4P)+int(BYI4P,I4P)))
-          call b64_decode(code=data,n=dI1P); if(allocated(data)) deallocate(data)
-          ! Unpack data [1xI4P,3*NNxR4P]
-          N_byte =  transfer(dI1P(1:int(BYI4P,I4P)),N_byte)
-          s = size(transfer(dI1P(int(BYI4P,I4P)+1:),XYZp)); allocate(XYZp(1:s))
-          XYZp = transfer(dI1P(int(BYI4P,I4P)+1:),XYZp); if(allocated(dI1P)) deallocate(dI1P)
-          allocate(X(NN), Y(NN), Z(NN), stat=E_IO)
-          do i=1,NN; X(i)=XYZp(i*3-2); Y(i)=XYZp(i*3-1); Z(i)=XYZp(i*3); enddo
-          if(allocated(XYZp)) deallocate(XYZp)
-        endif
-      endif
-
-    case(raw)
-
-      rewind(unit=vtk(rf)%u, iostat=E_IO)
-      E_IO = move(inside='UnstructuredGrid', to_find='Piece', repeat=np, cf=rf, buffer=s_buffer) ! find the 'np' piece
-      inquire(unit=vtk(rf)%u, pos=pos, iostat=E_IO) !annotate the current position in the file
-      call get_int(buffer=s_buffer, attrib='NumberOfPoints', val=NN, E_IO=E_IO)
-      if(E_IO == 0) then
-        call get_int(buffer=s_buffer, attrib='NumberOfCells', val=NC, E_IO=E_IO)
-        E_IO = search(from=pos, inside='Points', to_find='DataArray', with_attribute='Name', of_value='Points', &
-                      buffer=s_buffer)
-        call get_int(buffer=s_buffer,  attrib='offset', val=offs, E_IO=E_IO)
-        call get_char(buffer=s_buffer, attrib='format', val=fmt,  E_IO=E_IO)
-        call get_char(buffer=s_buffer, attrib='type', val=type,  E_IO=E_IO)
-        if (trim(adjustlt(Upper_Case(fmt)))/='APPENDED' .or. &
-            trim(adjustlt(Upper_Case(type)))/='FLOAT32') then
-          E_IO = -1_I4P 
-        else
-          allocate(X(NN), Y(NN), Z(NN), stat=E_IO)
-          read(unit=vtk(rf)%u, iostat=E_IO, pos = vtk(rf)%ioffset+offs) N_Byte, (X(i), Y(i), Z(i), i=1,NN) !get appended array
-        endif
-      endif
-    end select
-  !---------------------------------------------------------------------------------------------------------------------------------
-  end function VTK_GEO_XML_UNST_R4_READ
-
-
-  function VTK_GEO_XML_UNST_R8_READ(NN,NC,X,Y,Z,npiece,cf) result(E_IO)
-  !---------------------------------------------------------------------------------------------------------------------------------
-  !> Function for reading mesh with \b UnstructuredGrid topology (R8P).
-  !---------------------------------------------------------------------------------------------------------------------------------
-  integer(I4P),           intent(OUT) :: NN       !> number of nodes
-  integer(I4P),           intent(OUT) :: NC       !> number of cells
-  real(R8P), allocatable, intent(OUT) :: X(:)     !> x coordinates
-  real(R8P), allocatable, intent(OUT) :: Y(:)     !> y coordinates
-  real(R8P), allocatable, intent(OUT) :: Z(:)     !> z coordinates
-  integer(I4P), optional, intent(IN)  :: npiece   !> Number of the piece to read (by default: 1)
-  integer(I4P), optional, intent(IN)  :: cf       !> Current file index (for concurrent files IO).
-  integer(I4P)                        :: E_IO     !> Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done
-  integer(I4P)                        :: rf       !> Real file index.
-  character(len=:),allocatable        :: s_buffer !> Buffer string.
-  character(len=:), allocatable       :: fmt
-  character(len=:), allocatable       :: type
-  character(len=:), allocatable       :: data
-  integer(I4P)                        :: np, i, offs, N_Byte, pos, s
-  integer(I1P), allocatable           :: dI1P(:)
-  real(R8P), allocatable              :: XYZp(:)
-  !---------------------------------------------------------------------------------------------------------------------------------
-
-  !---------------------------------------------------------------------------------------------------------------------------------
-  rf = f
-  if (present(cf)) then
-    rf = cf ; f = cf
-  endif
-  np = 1_I4P; if (present(npiece)) np = npiece
-  E_IO = -1_I4P
-  select case(vtk(rf)%f)         
-
-    case(ascii)
-
-      rewind(unit=vtk(rf)%u, iostat=E_IO)
-      E_IO = move(inside='UnstructuredGrid', to_find='Piece', repeat=np, cf=rf, buffer=s_buffer) ! find the 'np' piece
-      inquire(unit=vtk(rf)%u, pos=pos, iostat=E_IO) !annotate the current position in the file
-      call get_int(buffer=s_buffer, attrib='NumberOfPoints', val=NN, E_IO=E_IO)
-      if(E_IO == 0) then
-        call get_int(buffer=s_buffer, attrib='NumberOfCells', val=NC, E_IO=E_IO)
-        E_IO = search(from=pos, inside='Points', to_find='DataArray', with_attribute='Name', of_value='Points', &
-                      buffer=s_buffer,content=data)
-        call get_char(buffer=s_buffer, attrib='format', val=fmt,  E_IO=E_IO)
-        call get_char(buffer=s_buffer, attrib='type', val=type,  E_IO=E_IO)
-        if (trim(adjustlt(Upper_Case(fmt)))/='ASCII' .or. &
-            trim(adjustlt(Upper_Case(type)))/='FLOAT64') then
-          E_IO = -1_I4P 
-        else
-          allocate(X(NN), Y(NN), Z(NN), stat=E_IO)
-          read(data, fmt=*, iostat=E_IO) (X(i), Y(i), Z(i), i=1,NN) !get ascii array
-        endif
-        if(allocated(data)) deallocate(data)
-      endif
-
-    case(binary)
-
-      rewind(unit=vtk(rf)%u, iostat=E_IO)
-      E_IO = move(inside='UnstructuredGrid', to_find='Piece', repeat=np, cf=rf, buffer=s_buffer) ! find the 'np' piece
-      call get_int(buffer=s_buffer, attrib='NumberOfPoints', val=NN, E_IO=E_IO)
-      if(E_IO == 0) then
-        call get_int(buffer=s_buffer, attrib='NumberOfCells', val=NC, E_IO=E_IO)
-        E_IO = search(inside='Points', to_find='DataArray', with_attribute='Name', of_value='Points', &
-                      buffer=s_buffer,content=data)
-        call get_char(buffer=s_buffer,  attrib='type', val=type, E_IO=E_IO)
-        call get_char(buffer=s_buffer, attrib='format', val=fmt,  E_IO=E_IO)
-        if (trim(adjustlt(Upper_Case(fmt)))/='BINARY' .or. &
-            trim(adjustlt(Upper_Case(type)))/='FLOAT64') then
-          E_IO = -1_I4P !stop 'Format not implemented'
-        else
-          ! Decode base64 packed data
-          data=trim(adjustlt(data))
-          allocate(dI1P(3*NN*int(BYR8P,I4P)+int(BYI4P,I4P)))
-          call b64_decode(code=data,n=dI1P); if(allocated(data)) deallocate(data)
-          ! Unpack data [1xI4P,3*NNxR8P]
-          N_byte =  transfer(dI1P(1:int(BYI4P,I4P)),N_byte)
-          s = size(transfer(dI1P(int(BYI4P,I4P)+1:),XYZp)); allocate(XYZp(1:s))
-          XYZp = transfer(dI1P(int(BYI4P,I4P)+1:),XYZp); if(allocated(dI1P)) deallocate(dI1P)
-          allocate(X(NN), Y(NN), Z(NN), stat=E_IO)
-          do i=1,NN; X(i)=XYZp(i*3-2); Y(i)=XYZp(i*3-1); Z(i)=XYZp(i*3); enddo
-          if(allocated(XYZp)) deallocate(XYZp)
-        endif
-      endif
-
-    case(raw)
-
-      rewind(unit=vtk(rf)%u, iostat=E_IO)
-      E_IO = move(inside='UnstructuredGrid', to_find='Piece', repeat=np, cf=rf, buffer=s_buffer) ! find the 'np' piece
-      inquire(unit=vtk(rf)%u, pos=pos, iostat=E_IO) !annotate the current position in the file
-      call get_int(buffer=s_buffer, attrib='NumberOfPoints', val=NN, E_IO=E_IO)
-      if(E_IO == 0) then
-        call get_int(buffer=s_buffer, attrib='NumberOfCells', val=NC, E_IO=E_IO)
-        E_IO = search(from=pos, inside='Points', to_find='DataArray', with_attribute='Name', of_value='Points', &
-                      buffer=s_buffer)
-        call get_int(buffer=s_buffer,  attrib='offset', val=offs, E_IO=E_IO)
-        call get_char(buffer=s_buffer, attrib='format', val=fmt,  E_IO=E_IO)
-        call get_char(buffer=s_buffer, attrib='type', val=type,  E_IO=E_IO)
-        if (trim(adjustlt(Upper_Case(fmt)))/='APPENDED' .or. &
-            trim(adjustlt(Upper_Case(type)))/='FLOAT64') then
-          E_IO = -1_I4P 
-        else
-          allocate(X(NN), Y(NN), Z(NN), stat=E_IO)
-          read(unit=vtk(rf)%u, iostat=E_IO, pos = vtk(rf)%ioffset+offs) N_Byte, (X(i), Y(i), Z(i), i=1,NN) !get appended array
-        endif
-      endif
-    end select
-  !---------------------------------------------------------------------------------------------------------------------------------
-  end function VTK_GEO_XML_UNST_R8_READ
-
-  function VTK_GEO_XML_UNST_PACK_R4_READ(NN,NC,XYZ,npiece,cf) result(E_IO)
-  !---------------------------------------------------------------------------------------------------------------------------------
-  !> Function for reading mesh with \b UnstructuredGrid topology (R8P).
-  !---------------------------------------------------------------------------------------------------------------------------------
-  integer(I4P),           intent(OUT) :: NN       !> number of nodes
-  integer(I4P),           intent(OUT) :: NC       !> number of cells
-  real(R4P), allocatable, intent(OUT) :: XYZ(:,:)   !> Coordinates
-  integer(I4P), optional, intent(IN)  :: npiece   !> Number of the piece to read (by default: 1)
-  integer(I4P), optional, intent(IN)  :: cf       !> Current file index (for concurrent files IO).
-  integer(I4P)                        :: E_IO     !> Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done
-  integer(I4P)                        :: rf       !> Real file index.
-  character(len=:),allocatable        :: s_buffer !> Buffer string.
-  character(len=:), allocatable       :: fmt
-  character(len=:), allocatable       :: type
-  character(len=:), allocatable       :: data
-  integer(I4P)                        :: np, i, j, offs, N_Byte, pos, s
-  integer(I1P), allocatable           :: dI1P(:)
-  real(R4P), allocatable              :: XYZp(:)
-  !---------------------------------------------------------------------------------------------------------------------------------
-
-  !---------------------------------------------------------------------------------------------------------------------------------
-  rf = f
-  if (present(cf)) then
-    rf = cf ; f = cf
-  endif
-  np = 1_I4P; if (present(npiece)) np = npiece
-  E_IO = -1_I4P
-  select case(vtk(rf)%f)         
-
-    case(ascii)
-
-      rewind(unit=vtk(rf)%u, iostat=E_IO)
-      E_IO = move(inside='UnstructuredGrid', to_find='Piece', repeat=np, cf=rf, buffer=s_buffer) ! find the 'np' piece
-      inquire(unit=vtk(rf)%u, pos=pos, iostat=E_IO) !annotate the current position in the file
-      call get_int(buffer=s_buffer, attrib='NumberOfPoints', val=NN, E_IO=E_IO)
-      if(E_IO == 0) then
-        call get_int(buffer=s_buffer, attrib='NumberOfCells', val=NC, E_IO=E_IO)
-        E_IO = search(from=pos, inside='Points', to_find='DataArray', with_attribute='Name', of_value='Points', &
-                      buffer=s_buffer,content=data)
-        call get_char(buffer=s_buffer, attrib='format', val=fmt,  E_IO=E_IO)
-        call get_char(buffer=s_buffer, attrib='type', val=type,  E_IO=E_IO)
-        if (trim(adjustlt(Upper_Case(fmt)))/='ASCII' .or. &
-            trim(adjustlt(Upper_Case(type)))/='FLOAT32') then
-          E_IO = -1_I4P 
-        else
-          allocate(XYZ(3,NN), stat=E_IO)
-          read(data, fmt=*, iostat=E_IO) ((XYZ(i,j),i=1,3),j=1,NN) !get ascii array
-        endif
-        if(allocated(data)) deallocate(data)
-      endif
-
-    case(binary)
-
-      rewind(unit=vtk(rf)%u, iostat=E_IO)
-      E_IO = move(inside='UnstructuredGrid', to_find='Piece', repeat=np, cf=rf, buffer=s_buffer) ! find the 'np' piece
-      call get_int(buffer=s_buffer, attrib='NumberOfPoints', val=NN, E_IO=E_IO)
-      if(E_IO == 0) then
-        call get_int(buffer=s_buffer, attrib='NumberOfCells', val=NC, E_IO=E_IO)
-        E_IO = search(inside='Points', to_find='DataArray', with_attribute='Name', of_value='Points', &
-                      buffer=s_buffer,content=data)
-        call get_char(buffer=s_buffer,  attrib='type', val=type, E_IO=E_IO)
-        call get_char(buffer=s_buffer, attrib='format', val=fmt,  E_IO=E_IO)
-        if (trim(adjustlt(Upper_Case(fmt)))/='BINARY' .or. &
-            trim(adjustlt(Upper_Case(type)))/='FLOAT32') then
-          E_IO = -1_I4P !stop 'Format not implemented'
-        else
-          ! Decode base64 packed data
-          data=trim(adjustlt(data))
-          allocate(dI1P(3*NN*int(BYR4P,I4P)+int(BYI4P,I4P)))
-          call b64_decode(code=data,n=dI1P); if(allocated(data)) deallocate(data)
-          ! Unpack data [1xI4P,3*NNxR4P]
-          N_byte =  transfer(dI1P(1:int(BYI4P,I4P)),N_byte)
-          s = size(transfer(dI1P(int(BYI4P,I4P)+1:),XYZp)); allocate(XYZp(1:s))
-          XYZp = transfer(dI1P(int(BYI4P,I4P)+1:),XYZp); if(allocated(dI1P)) deallocate(dI1P)
-          allocate(XYZ(3,NN), stat=E_IO)
-          XYZ = reshape(XYZp,(/3,NN/))
-          if(allocated(XYZp)) deallocate(XYZp)
-        endif
-      endif
-
-    case(raw)
-
-      rewind(unit=vtk(rf)%u, iostat=E_IO)
-      E_IO = move(inside='UnstructuredGrid', to_find='Piece', repeat=np, cf=rf, buffer=s_buffer) ! find the 'np' piece
-      inquire(unit=vtk(rf)%u, pos=pos, iostat=E_IO) !annotate the current position in the file
-      call get_int(buffer=s_buffer, attrib='NumberOfPoints', val=NN, E_IO=E_IO)
-      if(E_IO == 0) then
-        call get_int(buffer=s_buffer, attrib='NumberOfCells', val=NC, E_IO=E_IO)
-        E_IO = search(from=pos, inside='Points', to_find='DataArray', with_attribute='Name', of_value='Points', &
-                      buffer=s_buffer)
-        call get_int(buffer=s_buffer,  attrib='offset', val=offs, E_IO=E_IO)
-        call get_char(buffer=s_buffer, attrib='format', val=fmt,  E_IO=E_IO)
-        call get_char(buffer=s_buffer, attrib='type', val=type,  E_IO=E_IO)
-        if (trim(adjustlt(Upper_Case(fmt)))/='APPENDED' .or. &
-            trim(adjustlt(Upper_Case(type)))/='FLOAT32') then
-          E_IO = -1_I4P 
-        else
-          allocate(XYZ(3,NN), stat=E_IO)
-          read(unit=vtk(rf)%u, iostat=E_IO, pos = vtk(rf)%ioffset+offs) N_Byte, ((XYZ(i,j),i=1,3),j=1,NN) !get appended array
-        endif
-      endif
-    end select
-  !---------------------------------------------------------------------------------------------------------------------------------
-  end function VTK_GEO_XML_UNST_PACK_R4_READ
-
-
-  function VTK_GEO_XML_UNST_PACK_R8_READ(NN,NC,XYZ,npiece,cf) result(E_IO)
-  !---------------------------------------------------------------------------------------------------------------------------------
-  !> Function for reading mesh with \b UnstructuredGrid topology (R8P).
-  !---------------------------------------------------------------------------------------------------------------------------------
-  integer(I4P),           intent(OUT) :: NN       !> number of nodes
-  integer(I4P),           intent(OUT) :: NC       !> number of cells
-  real(R8P), allocatable, intent(OUT) :: XYZ(:,:)   !> Coordinates
-  integer(I4P), optional, intent(IN)  :: npiece   !> Number of the piece to read (by default: 1)
-  integer(I4P), optional, intent(IN)  :: cf       !> Current file index (for concurrent files IO).
-  integer(I4P)                        :: E_IO     !> Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done
-  integer(I4P)                        :: rf       !> Real file index.
-  character(len=:),allocatable        :: s_buffer !> Buffer string.
-  character(len=:), allocatable       :: fmt
-  character(len=:), allocatable       :: type
-  character(len=:), allocatable       :: data
-  integer(I4P)                        :: np, i, j, offs, N_Byte, pos, s
-  integer(I1P), allocatable           :: dI1P(:)
-  real(R8P), allocatable              :: XYZp(:)
-  !---------------------------------------------------------------------------------------------------------------------------------
-
-  !---------------------------------------------------------------------------------------------------------------------------------
-  rf = f
-  if (present(cf)) then
-    rf = cf ; f = cf
-  endif
-  np = 1_I4P; if (present(npiece)) np = npiece
-  E_IO = -1_I4P
-  select case(vtk(rf)%f)         
-
-    case(ascii)
-
-      rewind(unit=vtk(rf)%u, iostat=E_IO)
-      E_IO = move(inside='UnstructuredGrid', to_find='Piece', repeat=np, cf=rf, buffer=s_buffer) ! find the 'np' piece
-      inquire(unit=vtk(rf)%u, pos=pos, iostat=E_IO) !annotate the current position in the file
-      call get_int(buffer=s_buffer, attrib='NumberOfPoints', val=NN, E_IO=E_IO)
-      if(E_IO == 0) then
-        call get_int(buffer=s_buffer, attrib='NumberOfCells', val=NC, E_IO=E_IO)
-        E_IO = search(from=pos, inside='Points', to_find='DataArray', with_attribute='Name', of_value='Points', &
-                      buffer=s_buffer,content=data)
-        call get_char(buffer=s_buffer, attrib='format', val=fmt,  E_IO=E_IO)
-        call get_char(buffer=s_buffer, attrib='type', val=type,  E_IO=E_IO)
-        if (trim(adjustlt(Upper_Case(fmt)))/='ASCII' .or. &
-            trim(adjustlt(Upper_Case(type)))/='FLOAT64') then
-          E_IO = -1_I4P 
-        else
-          allocate(XYZ(3,NN), stat=E_IO)
-          read(data, fmt=*, iostat=E_IO) ((XYZ(i,j),i=1,3),j=1,NN) !get ascii array
-        endif
-        if(allocated(data)) deallocate(data)
-      endif
-
-    case(binary)
-
-      rewind(unit=vtk(rf)%u, iostat=E_IO)
-      E_IO = move(inside='UnstructuredGrid', to_find='Piece', repeat=np, cf=rf, buffer=s_buffer) ! find the 'np' piece
-      call get_int(buffer=s_buffer, attrib='NumberOfPoints', val=NN, E_IO=E_IO)
-      if(E_IO == 0) then
-        call get_int(buffer=s_buffer, attrib='NumberOfCells', val=NC, E_IO=E_IO)
-        E_IO = search(inside='Points', to_find='DataArray', with_attribute='Name', of_value='Points', &
-                      buffer=s_buffer,content=data)
-        call get_char(buffer=s_buffer,  attrib='type', val=type, E_IO=E_IO)
-        call get_char(buffer=s_buffer, attrib='format', val=fmt,  E_IO=E_IO)
-        if (trim(adjustlt(Upper_Case(fmt)))/='BINARY' .or. &
-            trim(adjustlt(Upper_Case(type)))/='FLOAT64') then
-          E_IO = -1_I4P !stop 'Format not implemented'
-        else
-          ! Decode base64 packed data
-          data=trim(adjustlt(data))
-          allocate(dI1P(3*NN*int(BYR8P,I4P)+int(BYI4P,I4P)))
-          call b64_decode(code=data,n=dI1P); if(allocated(data)) deallocate(data)
-          ! Unpack data [1xI4P,3*NNxR8P]
-          N_byte =  transfer(dI1P(1:int(BYI4P,I4P)),N_byte)
-          s = size(transfer(dI1P(int(BYI4P,I4P)+1:),XYZp)); allocate(XYZp(1:s))
-          XYZp = transfer(dI1P(int(BYI4P,I4P)+1:),XYZp); if(allocated(dI1P)) deallocate(dI1P)
-          allocate(XYZ(3,NN), stat=E_IO)
-          XYZ = reshape(XYZp,(/3,NN/))
-          if(allocated(XYZp)) deallocate(XYZp)
-        endif
-      endif
-
-    case(raw)
-
-      rewind(unit=vtk(rf)%u, iostat=E_IO)
-      E_IO = move(inside='UnstructuredGrid', to_find='Piece', repeat=np, cf=rf, buffer=s_buffer) ! find the 'np' piece
-      inquire(unit=vtk(rf)%u, pos=pos, iostat=E_IO) !annotate the current position in the file
-      call get_int(buffer=s_buffer, attrib='NumberOfPoints', val=NN, E_IO=E_IO)
-      if(E_IO == 0) then
-        call get_int(buffer=s_buffer, attrib='NumberOfCells', val=NC, E_IO=E_IO)
-        E_IO = search(from=pos, inside='Points', to_find='DataArray', with_attribute='Name', of_value='Points', &
-                      buffer=s_buffer)
-        call get_int(buffer=s_buffer,  attrib='offset', val=offs, E_IO=E_IO)
-        call get_char(buffer=s_buffer, attrib='format', val=fmt,  E_IO=E_IO)
-        call get_char(buffer=s_buffer, attrib='type', val=type,  E_IO=E_IO)
-        if (trim(adjustlt(Upper_Case(fmt)))/='APPENDED' .or. &
-            trim(adjustlt(Upper_Case(type)))/='FLOAT64') then
-          E_IO = -1_I4P 
-        else
-          allocate(XYZ(3,NN), stat=E_IO)
-          read(unit=vtk(rf)%u, iostat=E_IO, pos = vtk(rf)%ioffset+offs) N_Byte, ((XYZ(i,j),i=1,3),j=1,NN) !get appended array
-        endif
-      endif
-    end select
-  !---------------------------------------------------------------------------------------------------------------------------------
-  end function VTK_GEO_XML_UNST_PACK_R8_READ
-
-
   function VTK_GEO_XML_STRG_1DA_R4_READ(nx1,nx2,ny1,ny2,nz1,nz2,NN,X,Y,Z,npiece,cf) result(E_IO)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !> Function for reading mesh with \b UnstructuredGrid topology (R8P).
+  !> Function for reading mesh with \b StructuredGrid topology (R8P).
   !---------------------------------------------------------------------------------------------------------------------------------
   integer(I4P),           intent(OUT) :: nx1      !> Initial node of x axis.
   integer(I4P),           intent(OUT) :: nx2      !> Final node of x axis.
@@ -7523,7 +5790,7 @@ contains
 
   function VTK_GEO_XML_STRG_1DA_R8_READ(nx1,nx2,ny1,ny2,nz1,nz2,NN,X,Y,Z,npiece,cf) result(E_IO)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !> Function for reading mesh with \b UnstructuredGrid topology (R8P).
+  !> Function for reading mesh with \b StructuredGrid topology (R8P).
   !---------------------------------------------------------------------------------------------------------------------------------
   integer(I4P),           intent(OUT) :: nx1      !> Initial node of x axis.
   integer(I4P),           intent(OUT) :: nx2      !> Final node of x axis.
@@ -7647,7 +5914,7 @@ contains
 
   function VTK_GEO_XML_STRG_1DAP_R4_READ(nx1,nx2,ny1,ny2,nz1,nz2,NN,XYZ,npiece,cf) result(E_IO)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !> Function for reading mesh with \b UnstructuredGrid topology (R8P).
+  !> Function for reading mesh with \b StructuredGrid topology (R4P).
   !---------------------------------------------------------------------------------------------------------------------------------
   integer(I4P),           intent(OUT) :: nx1      !> Initial node of x axis.
   integer(I4P),           intent(OUT) :: nx2      !> Final node of x axis.
@@ -7769,7 +6036,7 @@ contains
 
   function VTK_GEO_XML_STRG_1DAP_R8_READ(nx1,nx2,ny1,ny2,nz1,nz2,NN,XYZ,npiece,cf) result(E_IO)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !> Function for reading mesh with \b UnstructuredGrid topology (R8P).
+  !> Function for reading mesh with \b StructuredGrid topology (R8P).
   !---------------------------------------------------------------------------------------------------------------------------------
   integer(I4P),           intent(OUT) :: nx1      !> Initial node of x axis.
   integer(I4P),           intent(OUT) :: nx2      !> Final node of x axis.
@@ -7891,7 +6158,7 @@ contains
 
   function VTK_GEO_XML_STRG_3DA_R4_READ(nx1,nx2,ny1,ny2,nz1,nz2,NN,X,Y,Z,npiece,cf) result(E_IO)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !> Function for reading mesh with \b UnstructuredGrid topology (R8P).
+  !> Function for reading mesh with \b StructuredGrid topology (R4P).
   !---------------------------------------------------------------------------------------------------------------------------------
   integer(I4P),           intent(OUT) :: nx1      !> Initial node of x axis.
   integer(I4P),           intent(OUT) :: nx2      !> Final node of x axis.
@@ -8018,7 +6285,7 @@ contains
 
   function VTK_GEO_XML_STRG_3DA_R8_READ(nx1,nx2,ny1,ny2,nz1,nz2,NN,X,Y,Z,npiece,cf) result(E_IO)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !> Function for reading mesh with \b UnstructuredGrid topology (R8P).
+  !> Function for reading mesh with \b StructuredGrid topology (R8P).
   !---------------------------------------------------------------------------------------------------------------------------------
   integer(I4P),           intent(OUT) :: nx1      !> Initial node of x axis.
   integer(I4P),           intent(OUT) :: nx2      !> Final node of x axis.
@@ -8144,7 +6411,7 @@ contains
 
   function VTK_GEO_XML_STRG_3DAP_R4_READ(nx1,nx2,ny1,ny2,nz1,nz2,NN,XYZ,npiece,cf) result(E_IO)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !> Function for reading mesh with \b UnstructuredGrid topology (R8P).
+  !> Function for reading mesh with \b StructuredGrid topology (R4P).
   !---------------------------------------------------------------------------------------------------------------------------------
   integer(I4P),           intent(OUT) :: nx1      !> Initial node of x axis.
   integer(I4P),           intent(OUT) :: nx2      !> Final node of x axis.
@@ -8266,7 +6533,7 @@ contains
 
   function VTK_GEO_XML_STRG_3DAP_R8_READ(nx1,nx2,ny1,ny2,nz1,nz2,NN,XYZ,npiece,cf) result(E_IO)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !> Function for reading mesh with \b UnstructuredGrid topology (R8P).
+  !> Function for reading mesh with \b StructuredGrid topology (R8P).
   !---------------------------------------------------------------------------------------------------------------------------------
   integer(I4P),           intent(OUT) :: nx1      !> Initial node of x axis.
   integer(I4P),           intent(OUT) :: nx2      !> Final node of x axis.
@@ -8389,7 +6656,7 @@ contains
 
   function VTK_GEO_XML_RECT_R4_READ(nx1,nx2,ny1,ny2,nz1,nz2,X,Y,Z,npiece,cf) result(E_IO)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !> Function for reading mesh with \b UnstructuredGrid topology (R8P).
+  !> Function for reading mesh with \b RectilinearGrid topology (R8P).
   !---------------------------------------------------------------------------------------------------------------------------------
   integer(I4P),           intent(OUT) :: nx1      !> Initial node of x axis.
   integer(I4P),           intent(OUT) :: nx2      !> Final node of x axis.
@@ -8586,7 +6853,7 @@ contains
 
   function VTK_GEO_XML_RECT_R8_READ(nx1,nx2,ny1,ny2,nz1,nz2,X,Y,Z,npiece,cf) result(E_IO)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !> Function for reading mesh with \b UnstructuredGrid topology (R8P).
+  !> Function for reading mesh with \b RectilinearGrid topology (R8P).
   !---------------------------------------------------------------------------------------------------------------------------------
   integer(I4P),           intent(OUT) :: nx1      !> Initial node of x axis.
   integer(I4P),           intent(OUT) :: nx2      !> Final node of x axis.
@@ -8782,216 +7049,6 @@ contains
   end function VTK_GEO_XML_RECT_R8_READ
 
 
-  function VTK_CON_XML_READ(NC,connect,offset,cell_type, npiece, cf) result(E_IO)
-  !---------------------------------------------------------------------------------------------------------------------------------
-  !> Function for reading mesh connectivity.
-  !>
-  !> Function that **must** be used when unstructured grid is used, it reads the connectivity of the unstructured grid.
-  !> @note The vector **connect** follows the VTK-XML standard. 
-  !>
-  !> The function VTK_CON_XML does not calculate the connectivity and offset vectors: it reads the connectivity and offset
-  !> vectors conforming the VTK-XML standard, but does not calculate them.
-  !> The vector variable *cell\_type* must conform the VTK-XML standard (see the file VTK-Standard at the
-  !> Kitware homepage) that is the same of the legacy standard. It contains the
-  !> *type* of each cells. 
-  !---------------------------------------------------------------------------------------------------------------------------------
-  integer(I4P),              intent(OUT) :: NC           !> number of cells
-  integer(I4P), allocatable, intent(OUT) :: connect(:)   !> mesh connectivity
-  integer(I4P), allocatable, intent(OUT) :: offset(:)    !> cell offset
-  integer(I1P), allocatable, intent(OUT) :: cell_type(:) !> VTK cell type
-  integer(I4P), optional,    intent(IN)  :: npiece       !> Number of the piece to read (by default: 1)
-  integer(I4P), optional,    intent(IN)  :: cf           !> Current file index (for concurrent files IO).
-  integer(I4P)                           :: E_IO         !> Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done
-  integer(I4P)                           :: rf           !> Real file index.
-  character(len=:), allocatable          :: s_buffer     !> Buffer string.
-  character(len=:), allocatable          :: fmt
-  character(len=:), allocatable          :: type
-  character(len=:), allocatable          :: data
-  integer(I4P)                           :: np, pos, offs, N_Byte, s
-  integer(I1P), allocatable              :: dI1P(:)
-  !---------------------------------------------------------------------------------------------------------------------------------
-
-  !---------------------------------------------------------------------------------------------------------------------------------  
-  rf = f
-  if (present(cf)) then
-    rf = cf ; f = cf
-  endif
-  np = 1_I4P; if (present(npiece)) np = npiece
-  E_IO = -1_I4P
-  select case(vtk(rf)%f)         
-
-    case(ascii)
-      rewind(unit=vtk(rf)%u, iostat=E_IO)
-      E_IO = move(inside='UnstructuredGrid', to_find='Piece', repeat=np, buffer=s_buffer)
-      inquire(unit=vtk(rf)%u, pos=pos, iostat=E_IO) !annotate the current position in the file
-      call get_int(buffer=s_buffer, attrib='NumberOfCells', val=NC, E_IO=E_IO)
-      ! get ascii array offsets
-      allocate(offset(NC), stat=E_IO)
-      E_IO = search(from=pos,inside='Cells', to_find='DataArray', with_attribute='Name', of_value='Offsets', &
-                    buffer=s_buffer, content=data)
-      call get_char(buffer=s_buffer, attrib='format', val=fmt, E_IO=E_IO)
-      call get_char(buffer=s_buffer, attrib='type', val=type, E_IO=E_IO)
-      if (trim(adjustlt(Upper_Case(fmt)))/='ASCII' .or. &
-          trim(adjustlt(Upper_Case(type)))/='INT32') then
-        E_IO = -1_I4P
-      else
-        read(data, fmt=*, iostat=E_IO) offset 
-        ! get ascii array cell_type
-        allocate(cell_type(NC), stat=E_IO)
-        E_IO = search(from=pos,inside='Cells', to_find='DataArray', with_attribute='Name', of_value='Types', &
-                      buffer=s_buffer, content=data)
-        call get_char(buffer=s_buffer, attrib='format', val=fmt, E_IO=E_IO)
-        call get_char(buffer=s_buffer, attrib='type', val=type, E_IO=E_IO)
-        if (trim(adjustlt(Upper_Case(fmt)))/='ASCII' .or. &
-            trim(adjustlt(Upper_Case(type)))/='INT8') then
-          E_IO = -1_I4P
-        else
-          read(data, fmt=*, iostat=E_IO) cell_type
-          ! get ascii array connect
-          allocate(connect(offset(NC)), stat=E_IO)
-          E_IO = search(from=pos,inside='Cells', to_find='DataArray', with_attribute='Name', of_value='Connectivity', &
-                        buffer=s_buffer, content=data)
-          call get_char(buffer=s_buffer, attrib='format', val=fmt, E_IO=E_IO)
-          call get_char(buffer=s_buffer, attrib='type', val=type, E_IO=E_IO)
-          if (trim(adjustlt(Upper_Case(fmt)))/='ASCII' .or. &
-              trim(adjustlt(Upper_Case(type)))/='INT32') then
-            E_IO = -1_I4P
-          else
-            read(data, fmt=*, iostat=E_IO) connect 
-          endif
-        endif
-        if(allocated(data)) deallocate(data)
-      endif
-
-    case(binary)
-      rewind(unit=vtk(rf)%u, iostat=E_IO)
-      E_IO = move(inside='UnstructuredGrid', to_find='Piece', repeat=np, buffer=s_buffer)
-      inquire(unit=vtk(rf)%u, pos=pos, iostat=E_IO) !annotate the current position in the file
-      call get_int(buffer=s_buffer, attrib='NumberOfCells', val=NC, E_IO=E_IO)
-      ! get binary array offsets
-!      allocate(offset(NC), stat=E_IO)
-      E_IO = search(from=pos,inside='Cells', to_find='DataArray', with_attribute='Name', of_value='Offsets', &
-                    buffer=s_buffer, content=data)
-      call get_char(buffer=s_buffer, attrib='format', val=fmt, E_IO=E_IO)
-      call get_char(buffer=s_buffer, attrib='type', val=type, E_IO=E_IO)
-      if (trim(adjustlt(Upper_Case(fmt)))/='BINARY' .or. &
-          trim(adjustlt(Upper_Case(type)))/='INT32') then
-        E_IO = -1_I4P
-      else
-        ! Decode packed base64 data
-        data=trim(adjustlt(data))
-        allocate(dI1P(NC*int(BYI4P,I4P)+int(BYI4P,I4P)))
-        call b64_decode(code=data,n=dI1P); if(allocated(data)) deallocate(data)
-        ! Unpack data [1xI4P,3*NNxR8P]
-        N_byte =  transfer(dI1P(1:int(BYI4P,I4P)),N_byte)
-        s = size(transfer(dI1P(int(BYI4P,I4P)+1:),offset)); allocate(offset(1:s))
-        offset = transfer(dI1P(int(BYI4P,I4P)+1:),offset); if(allocated(dI1P)) deallocate(dI1P)
-        ! get binary array cell_type
-        E_IO = search(from=pos,inside='Cells', to_find='DataArray', with_attribute='Name', of_value='Types', &
-                      buffer=s_buffer, content=data)
-        call get_char(buffer=s_buffer, attrib='format', val=fmt, E_IO=E_IO)
-        call get_char(buffer=s_buffer, attrib='type', val=type, E_IO=E_IO)
-        if (trim(adjustlt(Upper_Case(fmt)))/='BINARY' .or. &
-            trim(adjustlt(Upper_Case(type)))/='INT8') then
-          E_IO = -1_I4P
-        else
-          ! Decode packed base64 data
-          data=trim(adjustlt(data))
-          allocate(dI1P(NC*int(BYI1P,I4P)+int(BYI4P,I4P)))
-          call b64_decode(code=data,n=dI1P); if(allocated(data)) deallocate(data)
-          ! Unpack data [1xI4P,NcxI1P]
-          N_byte =  transfer(dI1P(1:int(BYI4P,I4P)),N_byte)
-          s = size(transfer(dI1P(int(BYI4P,I4P)+1:),cell_type)); allocate(cell_type(1:s))
-          cell_type = transfer(dI1P(int(BYI4P,I4P)+1:),cell_type); if(allocated(dI1P)) deallocate(dI1P)
-          ! get binary array connect
-          E_IO = search(from=pos,inside='Cells', to_find='DataArray', with_attribute='Name', of_value='Connectivity', &
-                        buffer=s_buffer, content=data)
-          call get_char(buffer=s_buffer, attrib='format', val=fmt, E_IO=E_IO)
-          call get_char(buffer=s_buffer, attrib='type', val=type, E_IO=E_IO)
-          if (trim(adjustlt(Upper_Case(fmt)))/='BINARY' .or. &
-              trim(adjustlt(Upper_Case(type)))/='INT32') then
-            E_IO = -1_I4P
-          else
-            data=trim(adjustlt(data))
-            allocate(dI1P(offset(NC)*int(BYI4P,I4P)+int(BYI4P,I4P)))
-            call b64_decode(code=data,n=dI1P); if(allocated(data)) deallocate(data)
-            ! Unpack data [1xI4P,offset(Nc)xI1P]
-            N_byte =  transfer(dI1P(1:int(BYI4P,I4P)),N_byte)
-            s = size(transfer(dI1P(int(BYI4P,I4P)+1:),connect)); allocate(connect(1:s))
-            connect = transfer(dI1P(int(BYI4P,I4P)+1:),connect); if(allocated(dI1P)) deallocate(dI1P)
-          endif
-        endif
-        if(allocated(data)) deallocate(data)
-      endif
-
-    case(raw)
-
-      rewind(unit=vtk(rf)%u, iostat=E_IO)
-      E_IO = move(inside='UnstructuredGrid', to_find='Piece', repeat=np, buffer=s_buffer)
-      inquire(unit=vtk(rf)%u, pos=pos, iostat=E_IO) !annotate the current position in the file
-      call get_int(buffer=s_buffer, attrib='NumberOfCells', val=NC, E_IO=E_IO)
-      ! get appended array offsets
-      allocate(offset(NC), stat=E_IO)
-      E_IO = search(from=pos,inside='Cells', to_find='DataArray', with_attribute='Name', of_value='Offsets', &
-                    buffer=s_buffer)
-      call get_int(buffer=s_buffer, attrib='offset', val=offs, E_IO=E_IO)
-      call get_char(buffer=s_buffer, attrib='format', val=fmt, E_IO=E_IO)
-      call get_char(buffer=s_buffer, attrib='type', val=type, E_IO=E_IO)
-      if (trim(adjustlt(Upper_Case(fmt)))/='APPENDED' .or. &
-          trim(adjustlt(Upper_Case(type)))/='INT32') then
-        E_IO = -1_I4P
-      else
-        read(unit=vtk(rf)%u, iostat=E_IO, pos = vtk(rf)%ioffset+offs) N_Byte, offset 
-        ! get appended array cell_type
-        allocate(cell_type(NC), stat=E_IO)
-        E_IO = search(from=pos,inside='Cells', to_find='DataArray', with_attribute='Name', of_value='Types', &
-                      buffer=s_buffer)
-        call get_int(buffer=s_buffer,attrib='offset', val=offs, E_IO=E_IO)
-        call get_char(buffer=s_buffer, attrib='format', val=fmt, E_IO=E_IO)
-        call get_char(buffer=s_buffer, attrib='type', val=type, E_IO=E_IO)
-        if (trim(adjustlt(Upper_Case(fmt)))/='APPENDED' .or. &
-            trim(adjustlt(Upper_Case(type)))/='INT8') then
-          E_IO = -1_I4P
-        else
-          read(unit=vtk(rf)%u, iostat=E_IO, pos = vtk(rf)%ioffset+offs) N_Byte, cell_type 
-          ! get appended array connect
-          allocate(connect(offset(NC)), stat=E_IO)
-          E_IO = search(from=pos,inside='Cells', to_find='DataArray', with_attribute='Name', of_value='Connectivity', &
-                        buffer=s_buffer)
-          call get_int(buffer=s_buffer, attrib='offset', val=offs, E_IO=E_IO)
-          call get_char(buffer=s_buffer, attrib='format', val=fmt, E_IO=E_IO)
-          call get_char(buffer=s_buffer, attrib='type', val=type, E_IO=E_IO)
-          if (trim(adjustlt(Upper_Case(fmt)))/='APPENDED' .or. &
-              trim(adjustlt(Upper_Case(type)))/='INT32') then
-            E_IO = -1_I4P
-          else
-            read(unit=vtk(rf)%u, iostat=E_IO, pos = vtk(rf)%ioffset+offs) N_Byte, connect 
-          endif
-        endif
-      endif
-
-  end select
-  !---------------------------------------------------------------------------------------------------------------------------------
-end function
-
-!  module procedure VTK_VAR_XML_SCAL_1DA_R8,VTK_VAR_XML_SCAL_3DA_R8, & ! real(R8P)    scalar    1D/3D array
-!                   VTK_VAR_XML_SCAL_1DA_R4,VTK_VAR_XML_SCAL_3DA_R4, & ! real(R4P)    scalar    1D/3D array
-!                   VTK_VAR_XML_SCAL_1DA_I8,VTK_VAR_XML_SCAL_3DA_I8, & ! integer(I8P) scalar    1D/3D array
-!                   VTK_VAR_XML_SCAL_1DA_I4,VTK_VAR_XML_SCAL_3DA_I4, & ! integer(I4P) scalar    1D/3D array
-!                   VTK_VAR_XML_SCAL_1DA_I2,VTK_VAR_XML_SCAL_3DA_I2, & ! integer(I2P) scalar    1D/3D array
-!                   VTK_VAR_XML_SCAL_1DA_I1,VTK_VAR_XML_SCAL_3DA_I1, & ! integer(I1P) scalar    1D/3D array
-!                   VTK_VAR_XML_VECT_1DA_R8,VTK_VAR_XML_VECT_3DA_R8, & ! real(R8P)    vectorial 1D/3D arrays
-!                   VTK_VAR_XML_VECT_1DA_R4,VTK_VAR_XML_VECT_3DA_R4, & ! real(R4P)    vectorial 1D/3D arrays
-!                   VTK_VAR_XML_VECT_1DA_I8,VTK_VAR_XML_VECT_3DA_I8, & ! integer(I8P) vectorial 1D/3D arrays
-!                   VTK_VAR_XML_VECT_1DA_I4,VTK_VAR_XML_VECT_3DA_I4, & ! integer(I4P) vectorial 1D/3D arrays
-!                   VTK_VAR_XML_VECT_1DA_I2,VTK_VAR_XML_VECT_3DA_I2, & ! integer(I2P) vectorial 1D/3D arrays
-!                   VTK_VAR_XML_VECT_1DA_I1,VTK_VAR_XML_VECT_3DA_I1, & ! integer(I1P) vectorial 1D/3D arrays
-!                   VTK_VAR_XML_LIST_1DA_R8,VTK_VAR_XML_LIST_3DA_R8, & ! real(R8P)    list      1D/3D array
-!                   VTK_VAR_XML_LIST_1DA_R4,VTK_VAR_XML_LIST_3DA_R4, & ! real(R4P)    list      1D/3D array
-!                   VTK_VAR_XML_LIST_1DA_I8,VTK_VAR_XML_LIST_3DA_I8, & ! integer(I4P) list      1D/3D array
-!                   VTK_VAR_XML_LIST_1DA_I4,VTK_VAR_XML_LIST_3DA_I4, & ! integer(I4P) list      1D/3D array
-!                   VTK_VAR_XML_LIST_1DA_I2,VTK_VAR_XML_LIST_3DA_I2, & ! integer(I2P) list      1D/3D array
-!                   VTK_VAR_XML_LIST_1DA_I1,VTK_VAR_XML_LIST_3DA_I1    ! integer(I1P) list      1D/3D array
 !-----------------------------------------------------------------------------------------------------------------------------------
   function VTK_VAR_XML_HEADER_READ(var_loc,varname,NC_NN,NCOMP,nx1,nx2,ny1,ny2,nz1,nz2,fmt,type,data,offs,npiece,cf)  result(E_IO)
   !---------------------------------------------------------------------------------------------------------------------------------
@@ -9047,8 +7104,6 @@ end function
             if(present(ny1)) ny1=y1; if(present(ny2)) ny2=y2
             if(present(nz1)) nz1=z1; if(present(nz2)) nz2=z2
           endif
-        case('UnstructuredGrid')
-          call get_int(buffer=s_buffer, attrib='NumberOfPoints', val=NC_NN, E_IO=E_IO)
       end select
       E_IO = search(from=pos, inside='PointData', to_find='DataArray', with_attribute='Name', of_value=varname, &
                     buffer=s_buffer, content=aux)
@@ -9065,8 +7120,6 @@ end function
             if(present(ny1)) ny1=y1; if(present(ny2)) ny2=y2
             if(present(nz1)) nz1=z1; if(present(nz2)) nz2=z2
           endif
-        case('UnstructuredGrid')
-          call get_int(buffer=s_buffer, attrib='NumberOfCells', val=NC_NN, E_IO=E_IO)
       end select
       E_IO = search(from=pos, inside='CellData', to_find='DataArray', with_attribute='Name', of_value=varname, &
                     buffer=s_buffer, content=aux)
@@ -12663,238 +10716,6 @@ end function
   end select
   !---------------------------------------------------------------------------------------------------------------------------------
   end function VTK_END_XML_READ
-
-  function PVTK_INI_XML_READ(filename,mesh_topology,npieces,nnodefields,ncellfields, nx1,nx2,ny1,ny2,nz1,nz2,cf) result(E_IO)
-  !---------------------------------------------------------------------------------------------------------------------------------
-  !> Procedure for initializing PVTK-XML file when reading.
-  !>
-  !> Supported topologies are:
-  !>- PRectilinearGrid;
-  !>- PStructuredGrid; 
-  !>- PUnstructuredGrid. 
-  !>### Example of usage
-  !>```fortran
-  !> integer(I4P):: nx1,nx2,ny1,ny2,nz1,nz2
-  !> ...
-  !> E_IO = PVTK_INI_XML_READ('XML_PVTK.pvtr','RectilinearGrid',nx1=nx1,nx2=nx2,ny1=ny1,ny2=ny2,nz1=nz1,nz2=nz2,cf=rf)
-  !> ...
-  !>```
-  !> Note that the file extension is necessary in the file name. The XML standard has different extensions for each
-  !> different topologies (e.g. *vtr* for rectilinear topology). See the VTK-standard file for more information.
-  !---------------------------------------------------------------------------------------------------------------------------------
-  character(*), intent(IN)            :: filename       !> file name
-  character(*), intent(IN)            :: mesh_topology  !> mesh topology
-  integer(I4P), intent(OUT), optional :: npieces        !> Number of pieces stored in the file
-  integer(I4P), intent(OUT), optional :: nnodefields    !> Number of pieces stored in the file
-  integer(I4P), intent(OUT), optional :: ncellfields    !> Number of pieces stored in the file
-  integer(I4P), intent(OUT), optional :: nx1            !> Initial node of x axis.
-  integer(I4P), intent(OUT), optional :: nx2            !> Final node of x axis.
-  integer(I4P), intent(OUT), optional :: ny1            !> Initial node of y axis.
-  integer(I4P), intent(OUT), optional :: ny2            !> Final node of y axis.
-  integer(I4P), intent(OUT), optional :: nz1            !> Initial node of z axis.
-  integer(I4P), intent(OUT), optional :: nz2            !> Final node of z axis.
-  integer(I4P), intent(OUT), optional :: cf             !> Current file index (for concurrent files IO).
-  integer(I4P)                        :: rf             !> Real file index.
-  character(len=:),allocatable        :: s_buffer       !> Buffer string.
-  integer(I4P)                        :: E_IO           !> Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done
-  character(len=:),allocatable        :: aux
-  integer(I4P), dimension(6)          :: rn             !> Real node ranges in WholeExtent [nx1,nx2,ny1,ny2,nz1,nz2]
-  logical                             :: fexist
-  !---------------------------------------------------------------------------------------------------------------------------------
-
-  !---------------------------------------------------------------------------------------------------------------------------------
-  E_IO = -1_I4P
-  if (.not.ir_initialized) call IR_Init
-  if (.not.b64_initialized) call b64_init
-  call vtk_update(act='add',cf=rf,Nvtk=Nvtk,vtk=vtk)
-  f = rf
-  if (present(cf)) cf = rf
-  vtk(rf)%topology = trim(mesh_topology)
-
-  inquire( file=trim(filename), exist=fexist ); if(.not. fexist) return
-
-  vtk(rf)%f = ascii
-
-  open(unit=Get_Unit(vtk(rf)%u),file=trim(filename),status='old', &
-       form='UNFORMATTED',access='STREAM',action='READ', &
-       iostat=E_IO, position='REWIND')
-
-  select case(trim(vtk(rf)%topology))
-    case('PRectilinearGrid', 'PStructuredGrid')
-      ! Get WholeExtent
-      E_IO = move(inside='VTKFile', to_find=trim(vtk(rf)%topology), cf=rf,buffer=s_buffer)
-      call get_char(buffer=s_buffer, attrib='WholeExtent', val=aux, E_IO=E_IO)
-      if(E_IO == 0) then
-        read(aux,*) rn
-        if(present(nx1)) nx1 = rn(1); if(present(nx2)) nx2 = rn(2)
-        if(present(ny1)) ny1 = rn(3); if(present(ny2)) ny2 = rn(4)
-        if(present(nz1)) nz1 = rn(5); if(present(nz2)) nz2 = rn(6)
-      endif
-  end select
-
-  ! count the pieces
-  if(present(npieces)) then
-    rewind(unit=vtk(rf)%u, iostat=E_IO)
-    npieces = 0
-    do
-      E_IO = read_record(s_buffer, cf=rf); if(E_IO /= 0) exit
-      s_buffer = trim(adjustl(Upper_Case(s_buffer)))
-      if (index(s_buffer, '</'//trim(Upper_Case(vtk(rf)%topology))) > 0) exit !end of ASCII header section found
-      if (index(s_buffer, '<PIECE') > 0) npieces = npieces + 1
-    enddo
-  endif
-
-  ! count the node fields
-  if(present(nnodefields)) then
-    nnodefields = 0
-    rewind(unit=vtk(rf)%u, iostat=E_IO)
-    if(move(inside=trim(vtk(rf)%topology), to_find='PPointData', cf=rf,buffer=s_buffer) == 0) then
-      do
-        if(read_record(s_buffer, cf=rf) /= 0 ) exit
-        s_buffer = trim(adjustl(Upper_Case(s_buffer)))
-        if (index(s_buffer, '</PPOINTDATA') > 0) exit !end of PCellData section found
-        if (index(s_buffer, '<PDATAARRAY') > 0) nnodefields = nnodefields + 1
-      enddo
-    endif
-  endif
-
-  ! count the cell fields
-  if(present(ncellfields)) then
-    ncellfields = 0
-    rewind(unit=vtk(rf)%u, iostat=E_IO)
-    if(move(inside=trim(vtk(rf)%topology), to_find='PCellData', cf=rf,buffer=s_buffer) == 0) then
-      do
-        if(read_record(s_buffer, cf=rf) /= 0 ) exit
-        s_buffer = trim(adjustl(Upper_Case(s_buffer)))
-        if (index(s_buffer, '</PCELLDATA') > 0) exit !end of PCellData section found
-        if (index(s_buffer, '<PDATAARRAY') > 0) ncellfields = ncellfields + 1
-      enddo
-    endif
-  endif
-  !---------------------------------------------------------------------------------------------------------------------------------
-  end function PVTK_INI_XML_READ
-
-
-  function PVTK_GEO_XML_READ(npiece,cf,source,nx1,nx2,ny1,ny2,nz1,nz2) result(E_IO)
-  !---------------------------------------------------------------------------------------------------------------------------------
-  !> Function for close an opened VTK file.
-  !---------------------------------------------------------------------------------------------------------------------------------
-  integer(I4P), intent(IN),  optional    :: npiece         !> Number of pieces stored in the file
-  integer(I4P), intent(IN),  optional    :: cf             !> Current file index (for concurrent files IO).
-  character(:), intent(OUT), allocatable :: source         !> Source file name
-  integer(I4P), intent(OUT), optional    :: nx1            !> Initial node of x axis.
-  integer(I4P), intent(OUT), optional    :: nx2            !> Final node of x axis.
-  integer(I4P), intent(OUT), optional    :: ny1            !> Initial node of y axis.
-  integer(I4P), intent(OUT), optional    :: ny2            !> Final node of y axis.
-  integer(I4P), intent(OUT), optional    :: nz1            !> Initial node of z axis.
-  integer(I4P), intent(OUT), optional    :: nz2            !> Final node of z axis.
-  integer(I4P)                           :: rf             !> Real file index.
-  integer(I4P)                           :: np             !> Real piece number
-  character(len=:),allocatable           :: s_buffer       !> Buffer string.
-  integer(I4P)                           :: E_IO           !> Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done
-  integer(I4P), dimension(6)             :: rn             !> Real node ranges in Extent [nx1,nx2,ny1,ny2,nz1,nz2]
-  character(len=:),allocatable           :: aux
-  !---------------------------------------------------------------------------------------------------------------------------------
-
-  !---------------------------------------------------------------------------------------------------------------------------------
-  E_IO = -1_I4P
-  rf = f
-  if (present(cf)) then
-    rf = cf ; f = cf
-  endif
-  np = 1_I4P; if (present(npiece)) np = npiece
-  select case(trim(vtk(rf)%topology))
-    case('PRectilinearGrid', 'PStructuredGrid', 'PUnstructuredGrid')
-      ! Get Extent
-      rewind(unit=vtk(rf)%u, iostat=E_IO)
-      E_IO = move(inside=trim(vtk(rf)%topology), to_find='Piece', repeat=np, upper=.false., cf=rf, buffer=s_buffer) ! find the 'np' piece
-      call get_char(buffer=s_buffer, attrib='Source', val=source, case='lower', E_IO=E_IO)
-      select case(trim(vtk(rf)%topology))
-        case('PRectilinearGrid', 'PStructuredGrid')
-          call get_char(buffer=s_buffer, attrib='Extent', val=aux, case='lower', E_IO=E_IO)
-          if(E_IO == 0) then
-            read(aux,*) rn
-            if(present(nx1)) nx1 = rn(1); if(present(nx2)) nx2 = rn(2)
-            if(present(ny1)) ny1 = rn(3); if(present(ny2)) ny2 = rn(4)
-            if(present(nz1)) nz1 = rn(5); if(present(nz2)) nz2 = rn(6)
-          endif
-      end select
-  end select
-  !---------------------------------------------------------------------------------------------------------------------------------
-  end function PVTK_GEO_XML_READ
-
-
-  function PVTK_VAR_XML_READ(var_location, nfield, cf, name, type, NCOMP) result(E_IO)
-  !---------------------------------------------------------------------------------------------------------------------------------
-  !> Function for close an opened VTK file.
-  !---------------------------------------------------------------------------------------------------------------------------------
-  character(*), intent(IN)                         :: var_location   !> Location of saving variables: CELL or NODE centered.
-  integer(I4P), intent(IN),               optional :: nfield         !> Number of pieces stored in the file
-  integer(I4P), intent(IN),               optional :: cf             !> Current file index (for concurrent files IO).
-  character(:), intent(OUT), allocatable, optional :: name           !> Field name
-  character(:), intent(OUT), allocatable, optional :: type           !> Field data type
-  integer(I4P), intent(OUT),              optional :: NCOMP          !> Field number of components
-  integer(I4P)                                     :: rf             !> Real file index.
-  integer(I4P)                                     :: nf             !> Real number of field
-  character(len=:),allocatable                     :: s_buffer       !> Buffer string.
-  integer(I4P)                                     :: E_IO           !> Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done
-  !---------------------------------------------------------------------------------------------------------------------------------
-
-  !---------------------------------------------------------------------------------------------------------------------------------
-  E_IO = -1_I4P
-  rf = f
-  if (present(cf)) then
-    rf = cf ; f = cf
-  endif
-
-  nf = 1; if(present(nfield)) nf = nfield
-
-  select case(trim(Upper_Case(var_location)))
-    case('NODE')
-      rewind(unit=vtk(rf)%u, iostat=E_IO)
-      E_IO = move(inside='PPointData', to_find='PDataArray', repeat=nf, cf=rf,buffer=s_buffer)
-      if(E_IO == 0) then
-        if(present(NCOMP)) NCOMP = 1
-        if(present(NCOMP)) call get_int(buffer=s_buffer, attrib='NumberOfComponents', val=NCOMP, E_IO=E_IO)
-        if(present(type)) call get_char(buffer=s_buffer, attrib='type', val=type, E_IO=E_IO)
-        if(present(name)) call get_char(buffer=s_buffer, attrib='Name', val=name, E_IO=E_IO)
-      endif
-
-    case('CELL')
-      rewind(unit=vtk(rf)%u, iostat=E_IO)
-      E_IO = move(inside='PPointData', to_find='PDataArray', repeat=nf, cf=rf,buffer=s_buffer)
-      if(E_IO == 0) then
-        if(present(NCOMP)) NCOMP = 1
-        if(present(NCOMP)) call get_int(buffer=s_buffer, attrib='NumberOfComponents', val=NCOMP, E_IO=E_IO)
-        if(present(type)) call get_char(buffer=s_buffer, attrib='type', val=type, E_IO=E_IO)
-        if(present(name)) call get_char(buffer=s_buffer, attrib='Name', val=name, E_IO=E_IO)
-      endif
-
-  end select
-  !---------------------------------------------------------------------------------------------------------------------------------
-  end function PVTK_VAR_XML_READ
-
-  function PVTK_END_XML_READ(cf) result(E_IO)
-  !---------------------------------------------------------------------------------------------------------------------------------
-  !> Function for close an opened VTK file.
-  !---------------------------------------------------------------------------------------------------------------------------------
-  integer(I4P), optional :: cf
-  integer(I4P)           :: rf
-  integer(I4P)           :: E_IO 
-  logical                :: fopen
-  !---------------------------------------------------------------------------------------------------------------------------------
-
-  !---------------------------------------------------------------------------------------------------------------------------------
-  rf = f 
-  if (present(cf)) rf = cf
-  
-  select case(vtk(rf)%f)
-  case(ascii,binary,raw)
-    inquire(unit=vtk(rf)%u, opened=fopen,iostat=E_IO) 
-    if(fopen) close(unit=vtk(rf)%u, iostat=E_IO)
-  end select
-  !---------------------------------------------------------------------------------------------------------------------------------
-  end function PVTK_END_XML_READ
 
 
   function vtk_write_structured_multiblock(vtspath,vtmpath,orion,varnames,time) result(E_IO)

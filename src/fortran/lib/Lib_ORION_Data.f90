@@ -1,10 +1,5 @@
-!> @ingroup Library
-!> @{
-!> @defgroup Lib_ORION_dataLibrary Lib_ORION_data
-!> @}
 
-!> Module to store the ORION main data structure
-!> @ingroup Lib_ORION_dataLibrary
+! Module to store the ORION main data structure
 module Lib_ORION_data
   use IR_Precision
   implicit none
@@ -13,43 +8,50 @@ module Lib_ORION_data
 
   public :: copyORION
 
+  ! Structure for Tecplot file format options.
   type :: Type_tec_Format
-    character(6):: extension = '.tec'    !> File extension.
-    character(6):: format    = 'binary'  !> Binary or ascii file.
-    logical     :: node      = .false.   !> Node or cell data location.
-    logical     :: bc        = .false.   !> Saving or not boundary conditions cells.
+    character(6):: extension = '.tec'    ! File extension
+    character(6):: format    = 'binary'  ! Binary or ascii file
+    logical     :: node      = .false.   ! Node or cell data location
+    logical     :: bc        = .false.   ! Saving or not boundary conditions cells
   endtype Type_tec_Format
 
+  ! Structure for VTK file format options
   type :: Type_vtk_Format
-    character(6):: format    = 'binary'  !> Binary or ascii file.
-    logical     :: node      = .false.   !> Node or cell data location.
+    character(6):: format    = 'binary'  ! Binary or ascii file
+    logical     :: node      = .false.   ! Node or cell data location
   endtype Type_vtk_Format
 
+  ! Structure for P3D file format options
   type :: Type_p3d_Format
-    character(6):: format    = 'binary'  !> Binary or ascii file.
+    character(6):: format    = 'binary'  ! Binary or ascii file
   endtype Type_p3d_Format
 
+  ! Structure representing a computational block
   type :: obj_block
-    character(len=128) :: name
-    integer :: Ni, Nj, Nk
-    real(R8P), dimension(:,:,:,:), allocatable :: mesh
-    real(R8P), dimension(:,:,:,:), allocatable :: vars
+    character(len=128) :: name         ! Block name
+    integer :: Ni, Nj, Nk              ! Block dimensions
+    real(R8P), dimension(:,:,:,:), allocatable :: mesh  ! Mesh coordinates
+    real(R8P), dimension(:,:,:,:), allocatable :: vars  ! Solution variables
   end type obj_block
 
+  ! Main ORION data structure
+  ! Contains all relevant data for an ORION simulation, including variable names, solution time, blocks, and file format options.
   type, public :: orion_data
-    character(len=32), allocatable :: varnames(:)
-    real(R8P) :: solutiontime
-    type(obj_block), allocatable :: block(:)
-    type(Type_tec_Format) :: tec
-    type(Type_vtk_Format) :: vtk
-    type(Type_p3d_Format) :: p3d
+    character(len=32), allocatable :: varnames(:)  ! Names of solution variables
+    real(R8P) :: solutiontime                      ! Solution time
+    type(obj_block), allocatable :: block(:)       ! Array of computational blocks
+    type(Type_tec_Format) :: tec                   ! Tecplot format options
+    type(Type_vtk_Format) :: vtk                   ! VTK format options
+    type(Type_p3d_Format) :: p3d                   ! P3D format options
   endtype orion_data
 
 contains
 
+  ! Deep copy of an ORION data structure.
   subroutine copyORION(a,b)
-    type(orion_data), intent(in)  :: a
-    type(orion_data), intent(out) :: b
+    type(orion_data), intent(in)  :: a  ! Source data
+    type(orion_data), intent(out) :: b  ! Destination data
     integer :: i
 
     ! Copy non-allocatable members
@@ -80,7 +82,6 @@ contains
       b%varnames = a%varnames
     endif
  
-
     ! Copy each block
     do i = 1, size(a%block)
       b%block(i)%name = a%block(i)%name

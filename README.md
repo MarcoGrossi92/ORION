@@ -1,30 +1,84 @@
-# ORION
+# ORION - Ordinary Repository for Input-Output Necessities
 
-## Versioning
+![License](https://img.shields.io/github/license/MarcoGrossi92/ORION)
+![Fortran](https://img.shields.io/badge/Fortran-90%2B-blue)
+![Python](https://img.shields.io/badge/Python-3.6%2B-yellow)
+![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20macOS-lightgrey)
 
-This project follows [Semantic Versioning](https://semver.org/) (SemVer) for managing version numbers. Semantic Versioning is a widely adopted versioning scheme that conveys meaning about the underlying code and what has been modified.
+A modular I/O toolkit for reading and writing structured, multi-block scientific data across multiple file formats. ORION provides both Fortran and Python interfaces designed for seamless integration into high-performance and scientific computing workflows.
 
-### Version Format
+**Acknowledgements**: Built upon [Lib_VTK_IO](https://github.com/victorsndvg/Lib_VTK_IO) and [OFF](https://github.com/szaghi/OFF)
 
-The version number is structured as follows:
+## Features
 
-MAJOR.MINOR.PATCH
+- **Multi-format Support**: Tecplot, VTK, and PLOT3D file formats
+- **Native Fortran API**: High-performance library for computational workflows
+- **Python Interface**: Convenient scripting and post-processing capabilities
+- **Command-line Converter**: Standalone utility for format conversion
+- **Cross-platform**: Tested on Linux and macOS with GNU and Intel compilers
 
-- **MAJOR**: Incremented when there are incompatible API changes.
-- **MINOR**: Incremented when functionality is added in a backwards-compatible manner.
-- **PATCH**: Incremented when backwards-compatible bug fixes are made.
+## License
 
-For example, a version number of `1.2.3` indicates:
-- `1`: The first major version, with potential breaking changes since version `0.x.x`.
-- `2`: The second minor update, adding new features without breaking existing ones.
-- `3`: The third patch, fixing bugs in a backwards-compatible manner.
+This project is licensed under the GNU General Public License v3.0. See [LICENSE](LICENSE) for details.
 
-### How Versioning is Managed
+## Quick Start
 
-Version numbers are automatically updated running the following command AFTER committing the code changes:
+### Installation
+
+Clone and build with a single command:
 
 ```bash
-./scripts/version_bump.sh --major|--minor|--patch
+git clone https://github.com/MarcoGrossi92/ORION.git
+cd ORION
+./install.sh build --compiler=gnu --use-tecio
 ```
 
-Pushing is not required. The updated version is tagged in the repository and released automatically.
+For Python support, use this command in the ORION folder:
+
+```bash
+pip install .
+```
+
+### Basic Usage
+
+**Convert files from command line:**
+
+```bash
+ORION --input-format tecplot --input-file data.dat \
+      --output-format vtk --output-file output.vtk
+```
+
+**Read data in Fortran:**
+
+```fortran
+use Lib_ORION_data
+use Lib_Tecplot
+
+type(ORION_data) :: IOfield
+integer :: E_IO
+
+E_IO = tec_read_structured_multiblock(filename='data.tec', orion=IOfield)
+```
+
+**Read data in Python:**
+
+```python
+from ORION import read_TEC
+
+x, y, z, var, varnames = read_TEC('data.tec')
+```
+
+## Documentation
+
+📘 **Full documentation**: https://MarcoGrossi92.github.io/ORION/
+
+Learn more about:
+- [Installation & Requirements](https://MarcoGrossi92.github.io/ORION/getting-started/installation/)
+- [Fortran API Guide](https://MarcoGrossi92.github.io/ORION/user-guide/fortran-api/)
+- [Python API Guide](https://MarcoGrossi92.github.io/ORION/user-guide/python-api/)
+
+## Contributing
+
+Contributions are welcome! Please see our [Contributing Guide](https://MarcoGrossi92.github.io/ORION/development/contributing/) for details on how to get started.
+
+---

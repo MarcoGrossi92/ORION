@@ -30,8 +30,7 @@ var/
 *.egg
 
 # doc files
-doc/html
-doc/latex
+docs/html
 
 # Fortran module files
 *.mod
