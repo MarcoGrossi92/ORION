@@ -36,9 +36,9 @@ contains
       nj1 = 0 ; nj2 = Ny
       nk1 = 0 ; nk2 = Nz
 
-      ci1 = 1 ; ci2 = Nx
-      cj1 = 1 ; cj2 = Ny
-      ck1 = 1 ; ck2 = Nz
+      ci1 = 0 ; ci2 = Nx
+      cj1 = 0 ; cj2 = Ny
+      ck1 = 0 ; ck2 = Nz
     else
       if (bc) then
         ni1 = 0 - gc ; ni2 = Nx + gc
@@ -460,15 +460,16 @@ contains
     character(len=*), intent(in)                           :: filename
     real(R8P) :: dummy_float, solutiontime
     logical :: meshonly
-    integer :: err, end
+    integer :: err, start
     integer :: tecunit, ios, ios_prev, ios2
-    integer :: i, j, k, d, b, b2, ck1, ck2
+    integer :: i, j, k, d, b, b2
     integer, allocatable :: Ni(:), Nj(:), Nk(:), nskip(:)
     integer :: Nblocks, nlines, nvar, ndir
     character(500) :: line
     character(100) :: args(20), subargs(2)
 
     meshonly = .false.
+    orion%tec%node = .true.
 
     ! Open file
     open(newunit=tecunit,file=trim(filename),status='old',action='read',iostat=err)
@@ -483,7 +484,7 @@ contains
 
     rewind(tecunit)
     
-    ! Count blocks and allocate Ni, Nj, Nk, nskip
+    ! Count blocks and total data lines
     ios = 0; Nblocks = 0; nlines = -1
     do while(ios==0)
       read(tecunit,'(A)',iostat=ios) line
@@ -515,6 +516,8 @@ contains
             read(subargs(2),'(I5)') Nk(b)
           endif
         enddo
+        ! Keyword-based detection on the zone header line
+        if (index(line,'CELLCENTERED')>0) orion%tec%node = .false.
         b = b+1
       endif
        ! Count not-floating lines
@@ -559,32 +562,67 @@ contains
       ndir = 3
     endif
 
-    ! Count variables
+    ! Numerical inference of nodal vs cell-centered.
+    ! After subtracting mesh lines, check whether the remaining data lines
+    ! divide cleanly by the nodal point count or the cell count.
+    ! This overrides the keyword check when the answer is unambiguous.
+    block
+      integer :: ndata_rem, nodal_pts, cell_pts, b_
+      ndata_rem = nlines - sum(nskip)
+      do b_ = 1, Nblocks
+        ndata_rem = ndata_rem - ndir*Ni(b_)*Nj(b_)*Nk(b_)
+      enddo
+      if (ndata_rem > 0) then
+        nodal_pts = 0
+        cell_pts  = 0
+        do b_ = 1, Nblocks
+          nodal_pts = nodal_pts + Ni(b_)*Nj(b_)*Nk(b_)
+          cell_pts  = cell_pts  + (Ni(b_)-1)*(Nj(b_)-1)*max(Nk(b_)-1, 1)
+        enddo
+        if (nodal_pts > 0 .and. cell_pts > 0) then
+          if (mod(ndata_rem,cell_pts)==0 .and. mod(ndata_rem,nodal_pts)/=0) then
+            orion%tec%node = .false.
+          elseif (mod(ndata_rem,nodal_pts)==0 .and. mod(ndata_rem,cell_pts)/=0) then
+            orion%tec%node = .true.
+          endif
+          ! If both divide evenly, the keyword result (above) is kept as tiebreaker.
+        endif
+      endif
+    end block
+
+    ! Set start limit for reading variables
+    if (orion%tec%node) then
+      start = 0
+    else
+      start = 1
+    endif
+
+    ! Count variables: subtract mesh coordinate lines, then divide by points-per-variable.
+    ! Points per variable for block b: (Ni-start+1)*(Nj-start+1)*max(Nk-start+1,1)
+    ! where start=0 for nodal (range 0:Ni) and start=1 for cell-centered (range 1:Ni).
     Nvar = nlines-sum(nskip)
     do b = 1, Nblocks
       nvar = nvar-ndir*((orion%block(b)%Ni+1)*(orion%block(b)%Nj+1)*(orion%block(b)%Nk+1))
     enddo
-    nvar = nvar/(sum(orion%block(:)%Ni*orion%block(:)%Nj*max(orion%block(:)%Nk,1)))
+    d = 0
+    do b = 1, Nblocks
+      d = d + (orion%block(b)%Ni - start + 1) * (orion%block(b)%Nj - start + 1) * max(orion%block(b)%Nk - start + 1, 1)
+    enddo
+    if (d > 0) nvar = nvar / d
     if (nvar==0) meshonly = .true.
 
     ! Read all
-    end = 0; if (orion%tec%node) end = 1
     do b = 1, Nblocks
       allocate(orion%block(b)%mesh(1:ndir,0:orion%block(b)%Ni,0:orion%block(b)%Nj,0:orion%block(b)%Nk))
-      if (.not.meshonly) allocate(orion%block(b)%vars(1:nvar,1:orion%block(b)%Ni,1:orion%block(b)%Nj,1:max(orion%block(b)%Nk,1)))
+      if (.not.meshonly) allocate(orion%block(b)%vars(1:nvar,start:orion%block(b)%Ni,start:orion%block(b)%Nj,start:max(orion%block(b)%Nk,start)))
       call skip(tecunit,nskip(b))
       do d = 1, ndir
         do k = 0, orion%block(b)%Nk; do j = 0, orion%block(b)%Nj; do i = 0, orion%block(b)%Ni
               read(tecunit,*,iostat=err) orion%block(b)%mesh(d,i,j,k)
         enddo; enddo; enddo
       enddo
-      if (ndir==2) then
-        ck1 = 1; ck2 = 1
-      else
-        ck1 = 1; ck2 = orion%block(b)%Nk + end
-      endif
       do d = 1, nvar
-        do k = ck1, ck2; do j = 1, orion%block(b)%Nj+end; do i = 1, orion%block(b)%Ni+end
+        do k = start, max(orion%block(b)%Nk,start); do j = start, orion%block(b)%Nj; do i = start, orion%block(b)%Ni
               read(tecunit,*,iostat=err) orion%block(b)%vars(d,i,j,k)
         enddo; enddo; enddo
       enddo
