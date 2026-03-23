@@ -12914,7 +12914,7 @@ end function
   integer(I4P)                      :: E_IO 
   logical                           :: meshonly
   character(len=4)                  :: location
-  character(len=len_trim(varnames)) :: varname(20)
+  character(len=len_trim(varnames)) :: varname(200)
   character(len=len_trim(vtspath))  :: newvtspath
   !---------------------------------------------------------------------------------------------------------------------------------
 
@@ -13010,7 +13010,7 @@ end function
   integer(I4P)                      :: nx1, nx2, ny1, ny2, nz1, nz2, nz1_real, nz2_real
   integer(I4P)                      :: err, start, start_pos, end_pos
   character(256), allocatable       :: varnames(:)
-  character(256)                    :: line, dummy_name(16)
+  character(128)                    :: line, dummy_name(16)
   real(R8P), allocatable            :: x(:),y(:),z(:) ! Input geo arrays
   real(R8P), allocatable            :: v(:)           ! Input var arrays
   !---------------------------------------------------------------------------------------------------------------------------------
