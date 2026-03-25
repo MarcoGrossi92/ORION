@@ -127,10 +127,10 @@ def read_TEC(file_path):
     dimensions = read_dimensions(file_path)
 
     # Displaying the result
-    print("Number of Variables:", variables['number'])
-    print("Variables:", variables['name'])
-    print("Block Dimensions:", dimensions)
-    print()
+    # print("Number of Variables:", variables['number'])
+    # print("Variables:", variables['name'])
+    # print("Block Dimensions:", dimensions)
+    # print()
 
     xb = []; yb = []; zb = []; vb = []
 
