@@ -100,7 +100,7 @@ contains
                                       tecend142           ! |
 # endif
     character(1), parameter:: tecendrec = char(0) !< End-character for binary-record end.
-    character(500)::          tecvarname          !< Variables name for tecplot header file.
+    character(len=:), allocatable :: tecvarname    !< Variables name for tecplot header file.
     character(500)::          teczoneheader       !< Tecplot string of zone header.
     character(500)::          tecvarform          !< Format for variables for tecplot file.
     integer, allocatable::    tecvarloc(:)        !< Tecplot array of variables location.
@@ -385,7 +385,7 @@ contains
     character(len=*), intent(in)              :: filename
     integer, intent(in), optional             :: Nvars
     integer :: err
-    character(500)::          tecvarname          !< Variables name for tecplot header file.
+    character(len=:), allocatable :: tecvarname    !< Variables name for tecplot header file.
     character(500)::          teczoneheader       !< Tecplot string of zone header.
     character(500)::          tecvarform          !< Format for variables for tecplot file.
     integer::                 tecunit             !< Free logic unit of tecplot file.
@@ -499,7 +499,7 @@ contains
     integer :: i, j, k, d, b, b2
     integer, allocatable :: Ni(:), Nj(:), Nk(:), nskip(:)
     integer :: Nblocks, nlines, nvar, ndir
-    character(500) :: line
+    character(len=:), allocatable :: line
     character(100) :: args(20), subargs(2)
 
     meshonly = .false.
@@ -511,7 +511,7 @@ contains
 
     ios = 0
     do while(ios==0)
-      read(tecunit,'(A)',iostat=ios) line
+      call readline(tecunit, line, ios)
       call read_variables(line, orion%varnames)
       if (allocated(orion%varnames)) exit
     enddo
@@ -521,7 +521,7 @@ contains
     ! Count blocks and total data lines
     ios = 0; Nblocks = 0; nlines = -1
     do while(ios==0)
-      read(tecunit,'(A)',iostat=ios) line
+      call readline(tecunit, line, ios)
       nlines = nlines+1
       if (index(line,"ZONE")>0 .and. index(line,"ZONETYPE")==0) Nblocks = Nblocks+1
       if (index(line,"Zone")>0) Nblocks = Nblocks+1
@@ -533,7 +533,7 @@ contains
     ! Read blocks dimensions
     ios = 0; b = 1; ios2 = 0; nskip = 0; ios_prev = 0; b2 = 1
     do while(ios==0)
-      read(tecunit,'(A)',iostat=ios) line
+      call readline(tecunit, line, ios)
       if (index(line,'I=')>0) then
         call parse(line,',',args)
         do i = 1, 6!size(args)
@@ -575,7 +575,7 @@ contains
     ! Find solutiontime
     ios = 0; solutiontime = -10._R8P;
     do j=1,10
-      read(tecunit,'(A)',iostat=ios) line
+      call readline(tecunit, line, ios)
       if (index(line,'SOLUTIONTIME=')>0) then
         call parse(line,',',args)
         do i = 1, size(args)
@@ -687,7 +687,7 @@ contains
     integer :: i, j, k, b
     integer :: Nzones, nlines
     integer, allocatable :: nskip(:)
-    character(500) :: line
+    character(len=:), allocatable :: line
     character(100) :: args(20), subargs(2)
 
     ! Open file
@@ -697,7 +697,7 @@ contains
     ! Count blocks and allocate data
     ios = 0; Nzones = 0; nlines = -1
     do while(ios==0)
-      read(tecunit,'(A)',iostat=ios) line
+      call readline(tecunit, line, ios)
       nlines = nlines+1
       if (index(line,"ZONE")>0 .and. index(line,"ZONETYPE")==0) then
         Nzones = Nzones+1
@@ -714,7 +714,7 @@ contains
     ios = 0; b = 0
     do
       do while (index(line,'I=')==0 .and. ios/=iostat_end)
-        read(tecunit,'(A)',iostat=ios) line
+        call readline(tecunit, line, ios)
       enddo
       if (ios==iostat_end) exit
       b = b+1
@@ -736,7 +736,7 @@ contains
     allocate(nskip(Nzones))
     nskip = 0; ios = 0; b = 1; ios_prev = 0
     do
-      read(tecunit,'(A)',iostat=ios) line
+      call readline(tecunit, line, ios)
       if (ios==iostat_end) exit
       read(line,*,iostat=ios) dummy_float
       if ((ios==0 .and. index(line,'DATA')>0) .or. ios/=0) then
@@ -1114,5 +1114,36 @@ contains
     integer :: i
     do i = 1, n; read(u,*); enddo
   end subroutine skip
+
+
+  !> \brief Read a line of arbitrary length from a formatted sequential file.
+  !> \details Uses non-advancing I/O (F2003) to accumulate chunks into an
+  !>          allocatable string. Same pattern as fortran-lang/stdlib getline.
+  !> \param[in]  unit File unit number
+  !> \param[out] line Allocatable string containing the full line
+  !> \param[out] ios  I/O status (0 = success, iostat_end = end of file)
+  subroutine readline(unit, line, ios)
+    use, intrinsic :: iso_fortran_env, only : iostat_eor
+    implicit none
+    integer, intent(in) :: unit
+    character(len=:), allocatable, intent(out) :: line
+    integer, intent(out) :: ios
+    character(len=512) :: buffer
+    integer :: sz
+
+    line = ''
+    do
+      read(unit, '(A)', advance='no', size=sz, iostat=ios) buffer
+      if (ios == iostat_eor) then
+        line = line // buffer(:sz)
+        ios = 0
+        return
+      elseif (ios /= 0) then
+        line = line // buffer(:sz)
+        return
+      endif
+      line = line // buffer
+    end do
+  end subroutine readline
 
   end module Lib_Tecplot
