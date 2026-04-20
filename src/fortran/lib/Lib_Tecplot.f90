@@ -496,7 +496,7 @@ contains
     logical :: meshonly
     integer :: err, start
     integer :: tecunit, ios, ios_prev, ios2
-    integer :: i, j, k, d, b, b2
+    integer :: i, j, k, d, b
     integer, allocatable :: Ni(:), Nj(:), Nk(:), nskip(:)
     integer :: Nblocks, nlines, nvar, ndir
     character(len=:), allocatable :: line
@@ -531,11 +531,12 @@ contains
     rewind(tecunit)
 
     ! Read blocks dimensions
-    ios = 0; b = 1; ios2 = 0; nskip = 0; ios_prev = 0; b2 = 1
+    ios = 0; b = 0; ios2 = 0; nskip = 0; ios_prev = 0
     do while(ios==0)
       call readline(tecunit, line, ios)
       if (index(line,'I=')>0) then
         call parse(line,',',args)
+        b = b + 1
         do i = 1, 6!size(args)
           if (index(args(i),'I=')>0) then
             call parse(args(i),'=',subargs)
@@ -552,15 +553,16 @@ contains
         enddo
         ! Keyword-based detection on the zone header line
         if (index(line,'CELLCENTERED')>0) orion%tec%node = .false.
-        b = b+1
       endif
        ! Count not-floating lines
       read(line,*,iostat=ios2) dummy_float
       if ( (ios2==0 .and. index(line,'DATA')>0) .or. ios2/=0 ) then
-        nskip(b2) = nskip(b2)+1
+        if (b > 0 .and. b <= Nblocks) nskip(b) = nskip(b)+1
         ios2 = 1
       endif
-      if (ios2==0 .and. ios_prev/=0) b2 = b2+1
+      if (ios2==0 .and. ios_prev/=0 .and. b > 0 .and. b <= Nblocks) then
+        ! This line starts data for current block
+      endif
       ios_prev = ios2
     enddo
     ! Allocate data
