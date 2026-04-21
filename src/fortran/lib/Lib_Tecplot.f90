@@ -100,7 +100,7 @@ contains
                                       tecend142           ! |
 # endif
     character(1), parameter:: tecendrec = char(0) !< End-character for binary-record end.
-    character(len=:), allocatable :: tecvarname    !< Variables name for tecplot header file.
+    character(1000)::         tecvarname          !< Variables name for tecplot header file.
     character(500)::          teczoneheader       !< Tecplot string of zone header.
     character(500)::          tecvarform          !< Format for variables for tecplot file.
     integer, allocatable::    tecvarloc(:)        !< Tecplot array of variables location.
@@ -385,7 +385,7 @@ contains
     character(len=*), intent(in)              :: filename
     integer, intent(in), optional             :: Nvars
     integer :: err
-    character(len=:), allocatable :: tecvarname    !< Variables name for tecplot header file.
+    character(1000)::         tecvarname          !< Variables name for tecplot header file.
     character(500)::          teczoneheader       !< Tecplot string of zone header.
     character(500)::          tecvarform          !< Format for variables for tecplot file.
     integer::                 tecunit             !< Free logic unit of tecplot file.
@@ -496,10 +496,10 @@ contains
     logical :: meshonly
     integer :: err, start
     integer :: tecunit, ios, ios_prev, ios2
-    integer :: i, j, k, d, b
+    integer :: i, j, k, d, b, b2
     integer, allocatable :: Ni(:), Nj(:), Nk(:), nskip(:)
     integer :: Nblocks, nlines, nvar, ndir
-    character(len=:), allocatable :: line
+    character(1000) :: line
     character(100) :: args(20), subargs(2)
 
     meshonly = .false.
@@ -511,7 +511,7 @@ contains
 
     ios = 0
     do while(ios==0)
-      call readline(tecunit, line, ios)
+      read(tecunit,'(A)',iostat=ios) line
       call read_variables(line, orion%varnames)
       if (allocated(orion%varnames)) exit
     enddo
@@ -521,7 +521,7 @@ contains
     ! Count blocks and total data lines
     ios = 0; Nblocks = 0; nlines = -1
     do while(ios==0)
-      call readline(tecunit, line, ios)
+      read(tecunit,'(A)',iostat=ios) line
       nlines = nlines+1
       if (index(line,"ZONE")>0 .and. index(line,"ZONETYPE")==0) Nblocks = Nblocks+1
       if (index(line,"Zone")>0) Nblocks = Nblocks+1
@@ -531,12 +531,11 @@ contains
     rewind(tecunit)
 
     ! Read blocks dimensions
-    ios = 0; b = 0; ios2 = 0; nskip = 0; ios_prev = 0
+    ios = 0; b = 1; ios2 = 0; nskip = 0; ios_prev = 0; b2 = 1
     do while(ios==0)
-      call readline(tecunit, line, ios)
+      read(tecunit,'(A)',iostat=ios) line
       if (index(line,'I=')>0) then
         call parse(line,',',args)
-        b = b + 1
         do i = 1, 6!size(args)
           if (index(args(i),'I=')>0) then
             call parse(args(i),'=',subargs)
@@ -553,16 +552,15 @@ contains
         enddo
         ! Keyword-based detection on the zone header line
         if (index(line,'CELLCENTERED')>0) orion%tec%node = .false.
+        b = b+1
       endif
        ! Count not-floating lines
       read(line,*,iostat=ios2) dummy_float
       if ( (ios2==0 .and. index(line,'DATA')>0) .or. ios2/=0 ) then
-        if (b > 0 .and. b <= Nblocks) nskip(b) = nskip(b)+1
+        if (b2 <= Nblocks) nskip(b2) = nskip(b2)+1
         ios2 = 1
       endif
-      if (ios2==0 .and. ios_prev/=0 .and. b > 0 .and. b <= Nblocks) then
-        ! This line starts data for current block
-      endif
+      if (ios2==0 .and. ios_prev/=0) b2 = b2+1
       ios_prev = ios2
     enddo
     ! Allocate data
@@ -577,7 +575,7 @@ contains
     ! Find solutiontime
     ios = 0; solutiontime = -10._R8P;
     do j=1,10
-      call readline(tecunit, line, ios)
+      read(tecunit,'(A)',iostat=ios) line
       if (index(line,'SOLUTIONTIME=')>0) then
         call parse(line,',',args)
         do i = 1, size(args)
@@ -689,7 +687,7 @@ contains
     integer :: i, j, k, b
     integer :: Nzones, nlines
     integer, allocatable :: nskip(:)
-    character(len=:), allocatable :: line
+    character(1000) :: line
     character(100) :: args(20), subargs(2)
 
     ! Open file
@@ -699,7 +697,7 @@ contains
     ! Count blocks and allocate data
     ios = 0; Nzones = 0; nlines = -1
     do while(ios==0)
-      call readline(tecunit, line, ios)
+      read(tecunit,'(A)',iostat=ios) line
       nlines = nlines+1
       if (index(line,"ZONE")>0 .and. index(line,"ZONETYPE")==0) then
         Nzones = Nzones+1
@@ -716,7 +714,7 @@ contains
     ios = 0; b = 0
     do
       do while (index(line,'I=')==0 .and. ios/=iostat_end)
-        call readline(tecunit, line, ios)
+      read(tecunit,'(A)',iostat=ios) line
       enddo
       if (ios==iostat_end) exit
       b = b+1
@@ -738,7 +736,7 @@ contains
     allocate(nskip(Nzones))
     nskip = 0; ios = 0; b = 1; ios_prev = 0
     do
-      call readline(tecunit, line, ios)
+      read(tecunit,'(A)',iostat=ios) line
       if (ios==iostat_end) exit
       read(line,*,iostat=ios) dummy_float
       if ((ios==0 .and. index(line,'DATA')>0) .or. ios/=0) then
@@ -1124,6 +1122,7 @@ contains
   !> \param[in]  unit File unit number
   !> \param[out] line Allocatable string containing the full line
   !> \param[out] ios  I/O status (0 = success, iostat_end = end of file)
+  !> Not used for compatibility issues with gfortran
   subroutine readline(unit, line, ios)
     use, intrinsic :: iso_fortran_env, only : iostat_eor
     implicit none
