@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 2.8.12)
+cmake_minimum_required(VERSION 3.20)
 
 # -------- Project metadata and language setup --------
 project(tecio LANGUAGES CXX Fortran)
@@ -9,7 +9,8 @@ if (NOT CMAKE_BUILD_TYPE)
 endif ()
 
 # -------- Boost detection and fallback --------
-find_package(Boost)
+
+find_package(Boost QUIET)
 if (Boost_FOUND)
     include_directories(${Boost_INCLUDE_DIR})
 else()
