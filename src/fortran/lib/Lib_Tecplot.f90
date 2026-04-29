@@ -121,7 +121,7 @@ contains
   
     ! Preliminary operations
     FileType   = 0
-    Debug      = 1
+    Debug      = 0
     VIsDouble  = 0
     if (allocated(orion%block(1)%vars) .and. .not.present(Nvars)) then
       meshonly = .false.
@@ -157,6 +157,7 @@ contains
       elseif (index(filename,'.szplt')>0) then
         fileFormat = 1
       else
+        write(stderr,'(A)')'File name to be written = "'//trim(filename)//'"'
         write(stderr,'(A)')'Tecplot binary file must end with ".plt" or ".szplt"'
         return
       endif
