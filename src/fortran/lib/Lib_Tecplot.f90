@@ -558,7 +558,12 @@ contains
        ! Count not-floating lines
       read(line,*,iostat=ios2) dummy_float
       if ( (ios2==0 .and. index(line,'DATA')>0) .or. ios2/=0 ) then
-        if (b2 <= Nblocks) nskip(b2) = nskip(b2)+1
+        ! Guard b2 against the post-data EOF empty-line increment: the block
+        ! counter b2 reaches Nblocks+1 after the last block's data, and the
+        ! trailing empty record read at EOF would index nskip(Nblocks+1),
+        ! one past the allocation -> heap corruption (latent; benign for small
+        ! state vectors, fatal for larger ones e.g. RSM nprim=9). G-10 upstream
+        if (b2 <= size(nskip)) nskip(b2) = nskip(b2)+1
         ios2 = 1
       endif
       if (ios2==0 .and. ios_prev/=0) b2 = b2+1
