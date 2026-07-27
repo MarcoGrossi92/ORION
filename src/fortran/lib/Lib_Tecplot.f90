@@ -772,40 +772,80 @@ contains
     character(len=*), intent(inout) :: line
     character(len=32), allocatable, intent(out) :: variables(:)
     character(len=32) :: variables_(150)
-    integer :: nvar, start, end_pos
+    integer :: nvar, i, L, q2
 
     nvar = 0
 
-    ! Find the position of "VARIABLES"
-    if (index(line, 'VARIABLES') > 0) then
-        ! Remove the "VARIABLES =" part from the line
-        line = trim(adjustl(line(index(line, '=')+1:)))
+    ! Require a VARIABLES header
+    if (index(line, 'VARIABLES') <= 0) return
 
-        ! Loop to extract each variable name
-        do while (len_trim(line) > 0)
-            ! Find the start and end positions of the variable name
-            start = index(line, '"') + 1
-            end_pos = index(line(start+1:), '"') + start
+    ! Remove the "VARIABLES =" part from the line
+    line = trim(adjustl(line(index(line, '=')+1:)))
+    L = len_trim(line)
 
-            ! Store the variable name in the array
+    if (index(line(1:L), '"') > 0) then
+      ! Quoted names. Scan quote-delimited tokens; robust to names separated by
+      ! spaces/commas AND to adjacent quotes with no separator (e.g. "a""b").
+      i = 1
+      do while (i <= L)
+        if (line(i:i) == '"') then
+          q2 = i + 1
+          do while (q2 <= L)
+            if (line(q2:q2) == '"') exit
+            q2 = q2 + 1
+          end do
+          if (q2 > i + 1) then          ! non-empty token
             nvar = nvar + 1
-            variables_(nvar) = trim(line(start:end_pos-1))
-
-            ! Remove the extracted variable from the line
-            if (index(line(end_pos+1:), ',') > 0 .or. index(line(end_pos+1:), ' ') > 0) then
-                line = trim(adjustl(line(end_pos+2:)))
-            else
-                line = ''
-            end if
-        end do
+            variables_(nvar) = trim(line(i+1:q2-1))
+          end if
+          i = q2 + 1
+        else
+          i = i + 1
+        end if
+      end do
     else
-      return
+      ! Unquoted names separated by blanks or commas
+      call split_tokens(line(1:L), variables_, nvar)
     end if
-    
+
     allocate(character(32)::variables(1:nvar))
     variables = variables_(1:nvar)
 
   end subroutine read_variables
+
+
+  !> Split a string into whitespace/comma-separated tokens.
+  subroutine split_tokens(str, tokens, ntok)
+    implicit none
+    character(len=*), intent(in)  :: str
+    character(len=32), intent(out):: tokens(:)
+    integer,          intent(out) :: ntok
+    integer :: i, L, s
+    logical :: in_tok
+
+    ntok = 0
+    in_tok = .false.
+    s = 1
+    L = len(str)
+    do i = 1, L
+      if (str(i:i) == ' ' .or. str(i:i) == ',' .or. str(i:i) == char(9)) then
+        if (in_tok) then
+          ntok = ntok + 1
+          tokens(ntok) = str(s:i-1)
+          in_tok = .false.
+        end if
+      else
+        if (.not. in_tok) then
+          s = i
+          in_tok = .true.
+        end if
+      end if
+    end do
+    if (in_tok) then
+      ntok = ntok + 1
+      tokens(ntok) = str(s:L)
+    end if
+  end subroutine split_tokens
 
 
   !> \brief Convert C character array to Fortran string.
