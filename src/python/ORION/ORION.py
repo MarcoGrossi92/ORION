@@ -120,11 +120,42 @@ def read_field(file_path,N,Nx,Ny,Nz,jumpline):
     return var
 
 
+def zone_data_starts(file_path):
+    """Return the 1-based line number at which each zone's numeric data begins.
+
+    A zone is identified by its dimension line (the one carrying ``I=``); its
+    data starts at the first subsequent line that parses as a number.  Scanning
+    for the start of every zone (rather than assuming a fixed number of header
+    lines between zones) makes the reader robust to multi-zone files where each
+    zone repeats a ``ZONE T=...`` / ``I=...`` / ``DATAPACKING=...`` header block.
+    """
+    with open(file_path, 'r') as file:
+        lines = file.readlines()
+
+    starts = []
+    n = len(lines)
+    idx = 0
+    while idx < n:
+        if re.search(r'\bI\s*=', lines[idx]):
+            j = idx + 1
+            while j < n:
+                try:
+                    float(lines[j].strip())
+                    break
+                except ValueError:
+                    j += 1
+            starts.append(j + 1)   # 1-based, matching read_geometry's convention
+            idx = j
+        else:
+            idx += 1
+    return starts
+
+
 def read_TEC(file_path):
 
     variables = read_variables(file_path)
-    lines_before_float = count_lines_before_float(file_path)
     dimensions = read_dimensions(file_path)
+    data_starts = zone_data_starts(file_path)
 
     # Displaying the result
     # print("Number of Variables:", variables['number'])
@@ -135,21 +166,22 @@ def read_TEC(file_path):
     xb = []; yb = []; zb = []; vb = []
 
     # Read mesh
-    jump = 0
     Nb = len(dimensions)
     Nvar = variables['number']-3
-    x = []; y = []; z = []
     for b in range(Nb):
         Nx = dimensions[b][0]-1
         Ny = dimensions[b][1]-1
         Nz = dimensions[b][2]-1
-        if b==0: jump += lines_before_float
-        [xn,yn,zn] = read_geometry(file_path,Nx,Ny,Nz,jump)
+
+        # Geometry (X, Y, Z) begins at this zone's first data line; the field
+        # variables follow immediately after in BLOCK packing.
+        geom_jump = data_starts[b]
+        [xn,yn,zn] = read_geometry(file_path,Nx,Ny,Nz,geom_jump)
         xb.append(xn); yb.append(yn); zb.append(zn)
-        jump += 3*(Nx+1)*(Ny+1)*(Nz+1)
-        var = read_field(file_path,Nvar,Nx,Ny,Nz,jump)
+
+        field_jump = geom_jump + 3*(Nx+1)*(Ny+1)*(Nz+1)
+        var = read_field(file_path,Nvar,Nx,Ny,Nz,field_jump)
         vb.append(var)
-        jump += Nvar*max(Nx,1)*max(Ny,1)*max(Nz,1)+1
 
     return xb, yb, zb, vb, variables['name']
 
