@@ -225,15 +225,44 @@ program main
   use functions
   use Lib_ORION_data
   implicit none
-  type(orion_data)             :: data
-  integer                      :: b, st
-  character(256)               :: infile, outfile, varname_scalar
+  type(orion_data)              :: data
+  integer                       :: b, st
+  ! Deferred length so any path fits, and initialised so the extension tests
+  ! below never read an undefined string.
+  character(len=:), allocatable :: infile, outfile
+  character(256)                :: varname_scalar
+
+  infile  = ''
+  outfile = ''
 
   data%tec%format = 'binary'
   data%vtk%format = 'binary'
   data%p3d%format = 'ascii'
 
   call command_line_argument()
+
+  ! Fail loudly rather than reading the input and writing nothing.
+  if (len_trim(infile)==0) then
+    write(*,'(A)')' ERROR no input file given (--in-file=<file>)'
+    stop 1
+  endif
+  if (len_trim(outfile)==0) then
+    write(*,'(A)')' ERROR no output file given (--out-file=<file>)'
+    stop 1
+  endif
+  ! An unrecognised extension used to fall through every branch: the input was
+  ! never read and the first size() query below then dereferenced an
+  ! unallocated block.
+  if (.not.known_format(infile)) then
+    write(*,'(2A)')' ERROR unsupported input format: ',trim(infile)
+    write(*,'(A)') ' Supported extensions: .dat .tec .szplt .p3d .vtm'
+    stop 1
+  endif
+  if (.not.known_format(outfile)) then
+    write(*,'(2A)')' ERROR unsupported output format: ',trim(outfile)
+    write(*,'(A)') ' Supported extensions: .dat .tec .szplt .p3d .vtm'
+    stop 1
+  endif
 
   write(*,*)
   write(*,'(2A)')' - Input file  : ',trim(infile)
@@ -269,10 +298,28 @@ program main
 contains
 
 
+  !> Does the file name carry an extension the converter handles?
+  logical function known_format(file)
+    implicit none
+    character(len=*), intent(in) :: file
+
+    known_format = index(file,'.dat')   > 0 .or. &
+                   index(file,'.tec')   > 0 .or. &
+                   index(file,'.szplt') > 0 .or. &
+                   index(file,'.p3d')   > 0 .or. &
+                   index(file,'.vtm')   > 0
+
+  end function known_format
+
+
   subroutine command_line_argument()
     implicit none
-    character(99):: arg
-    integer :: arg_count, i
+    ! Deferred length: a fixed-size buffer silently truncated any argument
+    ! longer than itself, so a long --out-file= path lost its extension, no
+    ! write branch matched, and the run read the whole input and reported
+    ! "Done!" having written nothing.
+    character(len=:), allocatable :: arg
+    integer :: arg_count, i, arglen
 
     ! Get the number of command-line arguments
     arg_count = COMMAND_ARGUMENT_COUNT()
@@ -284,7 +331,10 @@ contains
 
     ! Loop through each command-line argument
     do i = 1, arg_count
-      ! Get the i-th command-line argument
+      ! Get the i-th command-line argument, sized to fit
+      call GET_COMMAND_ARGUMENT(i, length=arglen)
+      if (allocated(arg)) deallocate(arg)
+      allocate(character(len=arglen) :: arg)
       call GET_COMMAND_ARGUMENT(i, arg)
 
       ! Check for different command-line options
