@@ -4,6 +4,9 @@
 ![Fortran](https://img.shields.io/badge/Fortran-90%2B-blue)
 ![Python](https://img.shields.io/badge/Python-3.6%2B-yellow)
 ![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20macOS-lightgrey)
+<!-- TODO(release): after the first Zenodo release, replace CONCEPT_ID with the
+     concept DOI (the one that always resolves to the latest version):
+![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.CONCEPT_ID.svg) -->
 
 A modular I/O toolkit for reading and writing structured, multi-block scientific data across multiple file formats. ORION provides both Fortran and Python interfaces designed for seamless integration into high-performance and scientific computing workflows.
 
@@ -76,6 +79,20 @@ Learn more about:
 - [Installation & Requirements](https://MarcoGrossi92.github.io/ORION/getting-started/installation/)
 - [Fortran API Guide](https://MarcoGrossi92.github.io/ORION/user-guide/fortran-api/)
 - [Python API Guide](https://MarcoGrossi92.github.io/ORION/user-guide/python-api/)
+
+## Citation
+
+If you use ORION in your research, please cite it. Machine-readable metadata
+lives in [`CITATION.cff`](CITATION.cff) — GitHub renders a **"Cite this
+repository"** button from it, and Zenodo reads
+[`.zenodo.json`](.zenodo.json) when archiving each release.
+
+<!-- TODO(release): once the first DOI is minted, paste the ready-made BibTeX
+     from the Zenodo record here, and cite the *concept* DOI so readers always
+     reach the latest version. -->
+
+See [AUTHORS.md](AUTHORS.md) for authorship and [CHANGELOG.md](CHANGELOG.md)
+for release history.
 
 ## Contributing
 

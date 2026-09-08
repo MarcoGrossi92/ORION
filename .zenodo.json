@@ -1,0 +1,56 @@
+{
+  "upload_type": "software",
+  "title": "ORION: Ordinary Repository for Input-Output Necessities",
+  "description": "<p>ORION is a modular I/O toolkit for reading and writing structured, multi-block scientific data across multiple file formats. It provides both Fortran and Python interfaces, plus a standalone command-line converter, designed for integration into high-performance and scientific computing workflows.</p><p><strong>Supported formats:</strong> Tecplot (ASCII, and binary via TecIO), VTK and PLOT3D.</p><p><strong>Documentation:</strong> <a href=\"https://MarcoGrossi92.github.io/ORION/\">MarcoGrossi92.github.io/ORION</a></p><p>ORION builds upon Lib_VTK_IO (BSD-3-Clause) and OFF (GPL-3.0).</p>",
+  "access_right": "open",
+  "license": "gpl-3.0-only",
+  "creators": [
+    {
+      "name": "Grossi, Marco"
+    }
+  ],
+  "contributors": [
+    {
+      "name": "Montanari, Alessandro",
+      "type": "Other"
+    },
+    {
+      "name": "Zolla, Paolo Maria",
+      "type": "Other"
+    }
+  ],
+  "keywords": [
+    "scientific computing",
+    "computational fluid dynamics",
+    "file format conversion",
+    "post-processing",
+    "structured multi-block grids",
+    "Tecplot",
+    "VTK",
+    "PLOT3D",
+    "Fortran",
+    "Python"
+  ],
+  "related_identifiers": [
+    {
+      "identifier": "https://github.com/MarcoGrossi92/ORION",
+      "relation": "isSupplementTo",
+      "scheme": "url"
+    },
+    {
+      "identifier": "https://MarcoGrossi92.github.io/ORION/",
+      "relation": "isDocumentedBy",
+      "scheme": "url"
+    },
+    {
+      "identifier": "https://github.com/szaghi/OFF",
+      "relation": "isDerivedFrom",
+      "scheme": "url"
+    },
+    {
+      "identifier": "https://github.com/victorsndvg/Lib_VTK_IO",
+      "relation": "isDerivedFrom",
+      "scheme": "url"
+    }
+  ]
+}

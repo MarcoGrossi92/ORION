@@ -1,0 +1,6 @@
+# Documentation toolchain for ORION
+# Preview: zensical serve   |   Build: zensical build
+#
+# Zensical is pre-1.0 and moving fast, so the upper bound is deliberate:
+# 0.0.x releases may introduce breaking changes. Bump after testing a build.
+zensical>=0.0.59,<0.1

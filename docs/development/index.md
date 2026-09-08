@@ -201,13 +201,13 @@ def test_read_tecplot_missing_file():
 
 ```bash
 # Install dependencies
-pip install mkdocs-material mkdocs-git-revision-date-localized-plugin
+pip install -r docs/requirements.txt
 
-# Serve locally
-mkdocs serve
+# Serve locally with live reload
+zensical serve
 
-# Build static site
-mkdocs build
+# Build static site into site/
+zensical build
 ```
 
 ---

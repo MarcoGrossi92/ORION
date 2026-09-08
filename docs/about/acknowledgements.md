@@ -43,25 +43,16 @@ TecIO enables ORION to work with high-performance binary Tecplot formats, essent
 
 ## Documentation Tools
 
-### MkDocs
+### Zensical
 
 **Static Site Generator**
 
-- **Website:** [mkdocs.org](https://www.mkdocs.org)
-- **License:** BSD-2-Clause
-- **Contribution:** Documentation site generation
-
-MkDocs transforms ORION's documentation into a beautiful, searchable website.
-
-### Material for MkDocs
-
-**Modern Documentation Theme**
-
-- **Website:** [squidfunk.github.io/mkdocs-material](https://squidfunk.github.io/mkdocs-material/)
+- **Website:** [zensical.org](https://zensical.org)
 - **License:** MIT
-- **Contribution:** Professional documentation theme with advanced features
+- **Contribution:** Documentation site generation and theme
 
-Material for MkDocs provides the sleek, modern interface for ORION's documentation.
+Zensical, built by the creators of Material for MkDocs, transforms ORION's
+documentation into a fast, searchable website.
 
 <!-- ## Institutional Support
 
@@ -77,7 +68,7 @@ ORION respects all licenses of dependencies and foundations:
 
 - **GPL v3.0** - ORION's license, compatible with OFF
 - **BSD Licenses** - Lib_VTK_IO, NumPy, CMake
-- **MIT License** - Material for MkDocs
+- **MIT License** - Zensical
 - **Tecplot License** - TecIO library
 
 See the [License](license.md) page for ORION's full license text.

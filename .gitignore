@@ -32,5 +32,9 @@ var/
 # doc files
 docs/html
 
+# Documentation build (Zensical)
+site/
+.zensical/
+
 # Fortran module files
 *.mod
