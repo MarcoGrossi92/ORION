@@ -359,12 +359,31 @@ contains
 
 #   if defined(TECIO)
     ! Function interface for using "tecdat" function.
-    function tec_dat(N,dat) result(err) 
+    !
+    ! The callers hand over a section with a FIXED first index of a rank-4 array
+    ! (mesh(1,...), vars(s,...)), which is strided, not contiguous. Declaring
+    ! `dat` with an explicit shape would therefore make the compiler pack it
+    ! into a temporary at the call -- and ifort puts array temporaries on the
+    ! STACK, so any block above ~350k points blew the default 8 MB limit and the
+    ! writer died with SIGSEGV. The dummy is assumed-shape (and deliberately NOT
+    ! contiguous) so the section arrives as a descriptor with no copy, and the
+    ! contiguous buffer TecIO needs is built here, on the heap.
+    function tec_dat(N,dat) result(err)
       implicit none
-      integer, intent(IN) :: N        ! Number of data to save.
-      real(8), intent(IN) :: dat(1:N) ! Data to save.
-      integer :: err                  ! Error trapping flag: 0 no errors, >0 error occurs.
-      err = tecdatd142(N,dat)
+      integer,   intent(IN)  :: N          ! Number of data to save.
+      real(R8P), intent(IN)  :: dat(:,:,:) ! Data to save.
+      real(R8P), allocatable :: buff(:)    ! Contiguous copy handed to TecIO.
+      integer :: err                       ! Error trapping flag: 0 no errors, >0 error occurs.
+      integer :: i,j,k,n_                  ! Counters.
+      allocate(buff(1:N))
+      ! Array element order: i fastest, then j, then k -- the order tecdat expects.
+      n_ = 0
+      do k=1,size(dat,3); do j=1,size(dat,2); do i=1,size(dat,1)
+        n_ = n_ + 1
+        buff(n_) = dat(i,j,k)
+      enddo; enddo; enddo
+      err = tecdatd142(N,buff)
+      deallocate(buff)
     endfunction tec_dat
 #   endif
 
