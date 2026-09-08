@@ -461,18 +461,28 @@ contains
   !> Automatically detects file format based on extension.
   !> \param[inout] orion ORION data structure to fill with data
   !> \param[in] filename Input file name (.dat, .tec, or .szplt)
+  !> \param[in] zone_mask Optional per-zone selector: variable data is read only
+  !>            for zones whose entry is .true.  Coordinates are always read.
+  !> \param[in] dims_only Optional; if .true. read only the zone headers.
   !> \return err Error code (0 if successful)
-  function tec_read_structured_multiblock(orion,filename) result(err)
+  !> \note Only the .szplt path honours zone_mask and dims_only -- the ASCII
+  !>       format has no per-zone index, so a caller cannot learn a zone's
+  !>       dimensions without reading it.  The ASCII reader therefore ignores
+  !>       both arguments and performs a full read, which is correct but not
+  !>       lean; callers that care must check the extension first.
+  function tec_read_structured_multiblock(orion,filename,zone_mask,dims_only) result(err)
     implicit none
     type(orion_data), intent(inout)                        :: orion
     character(len=*), intent(in)                           :: filename
+    logical,          intent(in), optional                 :: zone_mask(:)
+    logical,          intent(in), optional                 :: dims_only
     integer :: err
 
     if (index(filename,'.dat')>0 .or. index(filename,'.tec')>0) then
       err = tec_read_ascii(orion,filename)
     elseif (index(filename,'.szplt')>0) then
 #     if defined(TECIO)
-      err = tec_read_szplt(orion,filename)
+      err = tec_read_szplt(orion,filename,zone_mask,dims_only)
 #     else
       stop "You can not read in binary format without compiling against TecIO"
 #     endif
@@ -880,12 +890,30 @@ contains
   !> Only compiled if TECIO is defined.
   !> \param[inout] orion ORION data structure to fill with data
   !> \param[in] filename Input file name (.szplt)
+  !> \param[in] zone_mask Optional per-zone selector, indexed by zone number.
+  !>            Where .false., the zone's %vars is left with the correct
+  !>            variable count and no cells, and its variable data is never
+  !>            read.  Coordinates are read for every zone regardless.
+  !> \param[in] dims_only Optional; if .true. only zone headers are read --
+  !>            names, dimensions and the variable count.  No %mesh is
+  !>            allocated and no data of any kind is read.
+  !> \details The two optional arguments exist so that an MPI caller can size
+  !>          and partition the domain before committing memory to it: call once
+  !>          with dims_only to learn every zone's extent, decide which zones
+  !>          this rank owns, then call again with zone_mask.  Without them
+  !>          every rank materialises the whole file, which costs O(nranks x
+  !>          filesize) of read traffic and O(full domain) of memory per rank.
+  !>          %vars is kept allocated with zero cells rather than deallocated
+  !>          so that size(...,1) queries for the variable count keep working
+  !>          on every zone; an empty allocatable costs nothing.
   !> \return i Error code (0 if successful)
-  function tec_read_szplt(orion,filename) result(i)
+  function tec_read_szplt(orion,filename,zone_mask,dims_only) result(i)
     use iso_c_binding
     implicit none
     type(orion_data), intent(inout)                        :: orion
     character(len=*), intent(in)                           :: filename
+    logical,          intent(in), optional                 :: zone_mask(:)
+    logical,          intent(in), optional                 :: dims_only
 
     integer i, j, k, cnt
     character(256) inputFileName
@@ -914,6 +942,10 @@ contains
     type(c_ptr) :: inputFileHandle = C_NULL_PTR
     type(c_ptr) :: stringCPtr = C_NULL_PTR
     logical :: onlyNode
+    logical :: headers_only, want_data, is_coord
+
+    headers_only = .false.
+    if (present(dims_only)) headers_only = dims_only
 
     inputFileName = trim(filename) // C_NULL_CHAR
 
@@ -949,10 +981,18 @@ contains
     i = tecFileGetType(inputFileHandle, fileType)
     i = tecDataSetGetNumZones(inputFileHandle, numZones)
 
+    ! A caller doing the two-pass dims-then-data read arrives here a second
+    ! time with %block already allocated from the header pass.
+    if (allocated(orion%block)) deallocate(orion%block)
     allocate(orion%block(1:numZones))
 
     ! Zones
     do inputZone = 1, numZones
+        want_data = .true.
+        if (present(zone_mask)) then
+          if (inputZone <= size(zone_mask)) want_data = zone_mask(inputZone)
+        endif
+
         i = tecZoneGetType(inputFileHandle, inputZone, zoneType)
         if (zoneType == 6 .or. zoneType == 7) &
             stop "Unsupported inputZone type."
@@ -991,15 +1031,28 @@ contains
           if (valueLocation(var)==1) onlyNode = .true.
         enddo
 
-        allocate(orion%block(inputZone)%mesh(1:ndir,0:iMax-1,0:jMax-1,0:kMax-1))
         if (onlyNode) then
           vstart = 0
-          allocate(orion%block(inputZone)%vars(1:numVars-ndir,vstart:max(vstart,iMax-1),vstart:max(vstart,jMax-1),vstart:max(vstart,kMax-1)))
         else
           vstart = 1
-          allocate(orion%block(inputZone)%vars(1:numVars-ndir,vstart:max(vstart,iMax-1),vstart:max(vstart,jMax-1),vstart:max(vstart,kMax-1)))
         endif
-        
+
+        if (.not. headers_only) &
+          allocate(orion%block(inputZone)%mesh(1:ndir,0:iMax-1,0:jMax-1,0:kMax-1))
+
+        if (want_data .and. .not. headers_only) then
+          allocate(orion%block(inputZone)%vars(1:numVars-ndir,vstart:max(vstart,iMax-1),vstart:max(vstart,jMax-1),vstart:max(vstart,kMax-1)))
+        else
+          ! Variable count only
+          allocate(orion%block(inputZone)%vars(1:numVars-ndir,1:0,1:0,1:0))
+        endif
+
+        if (headers_only) then
+          deallocate(valueLocation)
+          cycle
+        endif
+
+
         allocate(varTypes(numVars))
         allocate(passiveVarList(numVars))
         allocate(shareVarFromZone(numVars))
@@ -1029,8 +1082,12 @@ contains
 
         ! Read and write inputZone data
         do var = 1, numVars
+            ! Coordinates land in %mesh and are needed on every rank
+            is_coord = (valueLocation(var)==1 .and. var<=ndir)
+            if (.not. want_data .and. .not. is_coord) cycle
+
             if (passiveVarList(var) == 0 .and. &
-                  shareVarFromZone(var) == 0) then            
+                  shareVarFromZone(var) == 0) then
                 i = tecZoneVarGetNumValues(inputFileHandle, &
                           inputZone, var, numValues)
                 select case (varTypes(var))
@@ -1058,16 +1115,16 @@ contains
                     i = tecZoneVarGetDoubleValues(inputFileHandle, &
                         inputZone, var, 1_c_int64_t, numValues, &
                         doubleValues)
-                    if (valueLocation(var)==1) then
+                    if (is_coord) then
                       cnt = 1
                       do k = 0, kMax-1; do j = 0, jMax-1; do i = 0, iMax-1
-                            orion%block(inputZone)%mesh(var,i,j,k) = floatValues(cnt)
+                            orion%block(inputZone)%mesh(var,i,j,k) = doubleValues(cnt)
                             cnt = cnt + 1
                       enddo; enddo; enddo
                     else
                       cnt = 1
                        do k = vstart, max(vstart,kMax-1); do j = vstart, max(vstart,jMax-1); do i = vstart, max(vstart,iMax-1)
-                            orion%block(inputZone)%vars(var-ndir,i,j,k) = floatValues(cnt)
+                            orion%block(inputZone)%vars(var-ndir,i,j,k) = doubleValues(cnt)
                             cnt = cnt + 1
                       enddo; enddo; enddo
                     endif
@@ -1077,16 +1134,16 @@ contains
                     i = tecZoneVarGetInt32Values(inputFileHandle, &
                         inputZone, var, 1_c_int64_t, numValues, &
                         int32Values)
-                    if (valueLocation(var)==1) then
+                    if (is_coord) then
                       cnt = 1
                       do k = 0, kMax-1; do j = 0, jMax-1; do i = 0, iMax-1
-                            orion%block(inputZone)%mesh(var,i,j,k) = floatValues(cnt)
+                            orion%block(inputZone)%mesh(var,i,j,k) = int32Values(cnt)
                             cnt = cnt + 1
                       enddo; enddo; enddo
                     else
                       cnt = 1
                        do k = vstart, max(vstart,kMax-1); do j = vstart, max(vstart,jMax-1); do i = vstart, max(vstart,iMax-1)
-                            orion%block(inputZone)%vars(var-ndir,i,j,k) = floatValues(cnt)
+                            orion%block(inputZone)%vars(var-ndir,i,j,k) = int32Values(cnt)
                             cnt = cnt + 1
                       enddo; enddo; enddo
                     endif
@@ -1096,16 +1153,16 @@ contains
                     i = tecZoneVarGetInt16Values(inputFileHandle, &
                         inputZone, var, 1_c_int64_t, numValues, &
                         int16Values)
-                    if (valueLocation(var)==1) then
+                    if (is_coord) then
                       cnt = 1
                       do k = 0, kMax-1; do j = 0, jMax-1; do i = 0, iMax-1
-                            orion%block(inputZone)%mesh(var,i,j,k) = floatValues(cnt)
+                            orion%block(inputZone)%mesh(var,i,j,k) = int16Values(cnt)
                             cnt = cnt + 1
                       enddo; enddo; enddo
                     else
                       cnt = 1
                        do k = vstart, max(vstart,kMax-1); do j = vstart, max(vstart,jMax-1); do i = vstart, max(vstart,iMax-1)
-                            orion%block(inputZone)%vars(var-ndir,i,j,k) = floatValues(cnt)
+                            orion%block(inputZone)%vars(var-ndir,i,j,k) = int16Values(cnt)
                             cnt = cnt + 1
                       enddo; enddo; enddo
                     endif
@@ -1115,16 +1172,16 @@ contains
                     i = tecZoneVarGetUInt8Values(inputFileHandle, &
                         inputZone, var, 1_c_int64_t, numValues, &
                         int8Values)
-                    if (valueLocation(var)==1) then
+                    if (is_coord) then
                       cnt = 1
                       do k = 0, max(1,kMax-1); do j = 0, jMax-1; do i = 0, iMax-1
-                            orion%block(inputZone)%mesh(var,i,j,k) = floatValues(cnt)
+                            orion%block(inputZone)%mesh(var,i,j,k) = int8Values(cnt)
                             cnt = cnt + 1
                       enddo; enddo; enddo
                     else
                       cnt = 1
                        do k = vstart, max(vstart,kMax-1); do j = vstart, max(vstart,jMax-1); do i = vstart, max(vstart,iMax-1)
-                            orion%block(inputZone)%vars(var-ndir,i,j,k) = floatValues(cnt)
+                            orion%block(inputZone)%vars(var-ndir,i,j,k) = int8Values(cnt)
                             cnt = cnt + 1
                       enddo; enddo; enddo
                     endif

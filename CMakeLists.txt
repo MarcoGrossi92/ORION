@@ -64,8 +64,7 @@ if (USE_TECIO)
   include_directories(${CMAKE_CURRENT_SOURCE_DIR}/lib/TecIO/${basename}src)
   if (NOT USE_MPI)
     # With CXX linker lstdc++ is not needed, but with Fortran it is.
-    # set(LINKLIBS -lpthread -lm -lstdc++)
-    set(LINKLIBS -lpthread)
+    set(LINKLIBS -lpthread -lm -lstdc++)
   endif()
 endif()
 

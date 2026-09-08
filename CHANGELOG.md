@@ -10,7 +10,31 @@ Each tagged release is archived on Zenodo and receives its own DOI. See
 
 ## [Unreleased]
 
-Changes on `main` since `v1.5.5`.
+Changes on `main` since `v1.6.0`.
+
+### Added
+
+- Optional `zone_mask` and `dims_only` arguments to
+  `tec_read_structured_multiblock` and `tec_read_szplt`. `dims_only` reads only
+  the zone headers -- names, dimensions and variable count -- without
+  allocating a mesh; `zone_mask` reads variable data only for the selected
+  zones, coordinates always. Together they let an MPI caller size and partition
+  a file before committing memory to it, instead of every rank materialising
+  the whole domain. Honoured by the `.szplt` path only: the ASCII format has no
+  per-zone index, so its reader ignores both and performs a full read.
+
+### Fixed
+
+- TecIO is now linked through the target matching the selected flavour
+  (`tecio` or `teciompi`) instead of a hard-coded `tecio::tecio`, so MPI builds
+  resolve.
+- The app and test executables set `LINKER_LANGUAGE Fortran`. Linking C++ TecIO
+  otherwise made CMake choose the CXX linker, which does not provide the entry
+  point of an Intel Fortran main program.
+- Restored `-lm -lstdc++` in `LINKLIBS` for serial TecIO builds; the Fortran
+  linker needs them even though the CXX linker does not.
+
+## [1.6.0] - 2026-09-08
 
 ### Added
 

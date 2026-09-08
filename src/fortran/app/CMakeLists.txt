@@ -11,4 +11,7 @@ target_include_directories(${APP}
 )
 set_target_properties(${APP} PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/bin/app/
+    # TecIO is C++, so linking it makes CMake pick the CXX linker, which does
+    # not provide the entry point of an Intel Fortran main program.
+    LINKER_LANGUAGE Fortran
 )
