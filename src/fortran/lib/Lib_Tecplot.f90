@@ -540,33 +540,73 @@ contains
     integer, allocatable :: Ni(:), Nj(:), Nk(:)
     character(1000) :: line
     character(1000) :: header
+    character(10000) :: variables_header
+    character(1000) :: vline
+    logical :: found_variables
 
     ! Persistent tokenizer state. This is deliberately line-based only at the lexical
     ! level: next_value() returns the next numeric token, irrespective of line breaks.
     character(1000) :: data_line
     integer :: data_pos
-    logical :: have_data_line
+    logical :: have_data_line, exists
 
     meshonly = .false.
     orion%tec%node = .true.
     solutiontime = -10._R8P
     err = 0
 
+    ! Inquire file existence
+    inquire(file=trim(filename),exist=exists)
+    if (.not.exists) then
+      err = 2724
+      return
+    endif
+
     ! Open file
     open(newunit=tecunit,file=trim(filename),status='old',action='read',iostat=err)
     if (err/=0) return
 
     ! -----------------------------------------------------------------------------
-    ! Read variable names from the VARIABLES header.
+    ! Read variable names from the VARIABLES header. Tecplot permits the
+    ! variable declarations to span multiple physical lines, e.g.
+    !
+    !   VARIABLES = "x"
+    !   "y"
+    !   "z"
+    !
+    ! Collect the complete header up to the first ZONE line before parsing it.
     ! -----------------------------------------------------------------------------
+    variables_header = ''
+    found_variables = .false.
     ios = 0
     do while (ios==0)
       read(tecunit,'(A)',iostat=ios) line
       if (ios/=0) exit
-      call read_variables(line,orion%varnames)
-      if (allocated(orion%varnames)) exit
+
+      if (index(upper_case(line),'VARIABLES')>0) then
+        variables_header = trim(line)
+        found_variables = .true.
+
+        ! Continue through subsequent header lines until the first ZONE.
+        do
+          read(tecunit,'(A)',iostat=ios) vline
+          if (ios/=0) exit
+          if (is_zone_header(vline)) exit
+          if (len_trim(vline)>0) then
+            variables_header = trim(variables_header)//' '//trim(vline)
+          endif
+        enddo
+        exit
+      endif
     enddo
 
+    if (.not.found_variables) then
+      err = 1
+      close(tecunit)
+      return
+    endif
+
+    call read_variables(variables_header,orion%varnames)
     if (.not.allocated(orion%varnames)) then
       err = 1
       close(tecunit)
@@ -906,18 +946,32 @@ contains
     subroutine get_integer_keyword(text,key,out)
       character(len=*), intent(in) :: text,key
       integer, intent(out) :: out
-      integer :: p, q, ios_
+      integer :: p, q, r, ios_, n
       character(100) :: token
       out = 0
       p = index(text,key)
       if (p<=0) return
-      q = p+len(key)
-      token = ' '
+
+      ! Skip optional whitespace between the keyword and its value, e.g.
+      !   K=2
+      !   K=  2
+      !   K = 2
+      q = p + len(key)
       do while (q<=len_trim(text))
-        if (text(q:q)==',' .or. text(q:q)==' ' .or. text(q:q)==char(9)) exit
-        if (q-p>=len(token)) exit
-        token(q-p:q-p) = text(q:q)
-        q = q+1
+        if (text(q:q)/=' ' .and. text(q:q)/=char(9)) exit
+        q = q + 1
+      enddo
+      if (q>len_trim(text)) return
+
+      token = ' '
+      n = 0
+      r = q
+      do while (r<=len_trim(text))
+        if (text(r:r)==',' .or. text(r:r)==' ' .or. text(r:r)==char(9)) exit
+        n = n + 1
+        if (n>len(token)) exit
+        token(n:n) = text(r:r)
+        r = r + 1
       enddo
       read(token,*,iostat=ios_) out
     endsubroutine get_integer_keyword
