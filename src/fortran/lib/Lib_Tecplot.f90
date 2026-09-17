@@ -516,184 +516,478 @@ contains
   !> \param[inout] orion ORION data structure to fill with data
   !> \param[in] filename Input file name (.dat or .tec)
   !> \return err Error code (0 if successful)
+  !> \brief Read ORION structured multiblock data from Tecplot ASCII file.
+  !> \details Parses Tecplot ASCII structured zones using whitespace-separated numeric tokens.
+  !> Supports both BLOCK and POINT data packing; physical line breaks are irrelevant to the
+  !> numerical data stream. Nodal and cell-centered variables are supported for BLOCK data.
+  !> POINT data is supported when all variables are nodal.
   function tec_read_ascii(orion,filename) result(err)
     use, intrinsic :: iso_fortran_env, only : iostat_end
-    use strings, only: getvals, parse
     implicit none
-    type(orion_data), intent(inout)                        :: orion
-    character(len=*), intent(in)                           :: filename
-    real(R8P) :: dummy_float, solutiontime
-    logical :: meshonly
-    integer :: err, start
-    integer :: tecunit, ios, ios_prev, ios2
-    integer :: i, j, k, d, b, b2
-    integer, allocatable :: Ni(:), Nj(:), Nk(:), nskip(:)
-    integer :: Nblocks, nlines, nvar, ndir
+    type(orion_data), intent(inout) :: orion
+    character(len=*), intent(in)    :: filename
+
+    real(R8P) :: solutiontime, value
+    logical   :: meshonly, zone_node
+    integer   :: err
+    integer   :: tecunit, ios
+    integer   :: i, j, k, d, b, s
+    integer   :: Nblocks, nvar, ndir
+    integer   :: Imax, Jmax, Kmax
+    integer   :: start
+    integer   :: nmesh, nsol
+    logical, allocatable :: zone_point(:), zone_node_arr(:)
+    integer, allocatable :: Ni(:), Nj(:), Nk(:)
     character(1000) :: line
-    character(100) :: args(20), subargs(2)
+    character(1000) :: header
+
+    ! Persistent tokenizer state. This is deliberately line-based only at the lexical
+    ! level: next_value() returns the next numeric token, irrespective of line breaks.
+    character(1000) :: data_line
+    integer :: data_pos
+    logical :: have_data_line
 
     meshonly = .false.
     orion%tec%node = .true.
+    solutiontime = -10._R8P
+    err = 0
 
     ! Open file
     open(newunit=tecunit,file=trim(filename),status='old',action='read',iostat=err)
     if (err/=0) return
 
+    ! -----------------------------------------------------------------------------
+    ! Read variable names from the VARIABLES header.
+    ! -----------------------------------------------------------------------------
     ios = 0
-    do while(ios==0)
+    do while (ios==0)
       read(tecunit,'(A)',iostat=ios) line
-      call read_variables(line, orion%varnames)
+      if (ios/=0) exit
+      call read_variables(line,orion%varnames)
       if (allocated(orion%varnames)) exit
     enddo
 
-    rewind(tecunit)
-    
-    ! Count blocks and total data lines
-    ios = 0; Nblocks = 0; nlines = -1
-    do while(ios==0)
-      read(tecunit,'(A)',iostat=ios) line
-      nlines = nlines+1
-      if (index(line,"ZONE")>0 .and. index(line,"ZONETYPE")==0) Nblocks = Nblocks+1
-      if (index(line,"Zone")>0) Nblocks = Nblocks+1
-    enddo
-    allocate(Ni(Nblocks));allocate(Nj(Nblocks));allocate(Nk(Nblocks));allocate(Nskip(Nblocks));
-
-    rewind(tecunit)
-
-    ! Read blocks dimensions
-    ios = 0; b = 1; ios2 = 0; nskip = 0; ios_prev = 0; b2 = 1
-    do while(ios==0)
-      read(tecunit,'(A)',iostat=ios) line
-      if (index(line,'I=')>0) then
-        call parse(line,',',args)
-        do i = 1, 6!size(args)
-          if (index(args(i),'I=')>0) then
-            call parse(args(i),'=',subargs)
-            read(subargs(2),*) Ni(b)
-          endif
-          if (index(args(i),'J=')>0) then
-            call parse(args(i),'=',subargs)
-            read(subargs(2),*) Nj(b)
-          endif
-          if (index(args(i),'K=')>0) then
-            call parse(args(i),'=',subargs)
-            read(subargs(2),*) Nk(b)
-          endif
-        enddo
-        ! Keyword-based detection on the zone header line
-        if (index(line,'CELLCENTERED')>0) orion%tec%node = .false.
-        b = b+1
-      endif
-       ! Count not-floating lines
-      read(line,*,iostat=ios2) dummy_float
-      if ( (ios2==0 .and. index(line,'DATA')>0) .or. ios2/=0 ) then
-        ! Guard b2 against the post-data EOF empty-line increment
-        if (b2 <= size(nskip)) nskip(b2) = nskip(b2)+1
-        ios2 = 1
-      endif
-      if (ios2==0 .and. ios_prev/=0) b2 = b2+1
-      ios_prev = ios2
-    enddo
-    ! Allocate data
-    allocate(orion%block(1:Nblocks))
-    do b = 1, Nblocks
-      orion%block(b)%Ni = Ni(b)-1
-      orion%block(b)%Nj = Nj(b)-1
-      orion%block(b)%Nk = Nk(b)-1
-    enddo
-    rewind(tecunit)
-
-    ! Find solutiontime
-    ios = 0; solutiontime = -10._R8P;
-    do j=1,10
-      read(tecunit,'(A)',iostat=ios) line
-      if (index(line,'SOLUTIONTIME=')>0) then
-        call parse(line,',',args)
-        do i = 1, size(args)
-          if (index(args(i),'SOLUTIONTIME=')>0) then
-            call parse(args(i),'=',subargs)
-            read(subargs(2),FR_P) solutiontime
-          endif
-        enddo
-      endif
-      if (solutiontime>0.0_R8P) exit
-    enddo
-    orion%solutiontime = solutiontime
-    rewind(tecunit)
-
-    if (Nk(1)==1) then
-      ndir = 2
-    else
-      ndir = 3
+    if (.not.allocated(orion%varnames)) then
+      err = 1
+      close(tecunit)
+      return
     endif
 
-    ! Numerical inference of nodal vs cell-centered.
-    ! After subtracting mesh lines, check whether the remaining data lines
-    ! divide cleanly by the nodal point count or the cell count.
-    ! This overrides the keyword check when the answer is unambiguous.
-    block
-      integer :: ndata_rem, nodal_pts, cell_pts, b_
-      ndata_rem = nlines - sum(nskip)
-      do b_ = 1, Nblocks
-        ndata_rem = ndata_rem - ndir*Ni(b_)*Nj(b_)*Nk(b_)
-      enddo
-      if (ndata_rem > 0) then
-        nodal_pts = 0
-        cell_pts  = 0
-        do b_ = 1, Nblocks
-          nodal_pts = nodal_pts + Ni(b_)*Nj(b_)*Nk(b_)
-          cell_pts  = cell_pts  + (Ni(b_)-1)*(Nj(b_)-1)*max(Nk(b_)-1, 1)
-        enddo
-        if (nodal_pts > 0 .and. cell_pts > 0) then
-          if (mod(ndata_rem,cell_pts)==0 .and. mod(ndata_rem,nodal_pts)/=0) then
-            orion%tec%node = .false.
-          elseif (mod(ndata_rem,nodal_pts)==0 .and. mod(ndata_rem,cell_pts)/=0) then
-            orion%tec%node = .true.
-          endif
-          ! If both divide evenly, the keyword result (above) is kept as tiebreaker.
-        endif
-      endif
-    end block
+    rewind(tecunit)
 
-    ! Set start limit for reading variables
+    ! -----------------------------------------------------------------------------
+    ! First pass: locate all structured zones and read their dimensions/packing.
+    ! A zone header may span several physical lines. We regard the first subsequent
+    ! line whose first token is numeric as the beginning of the data section.
+    ! -----------------------------------------------------------------------------
+    Nblocks = 0
+    ios = 0
+    do while (ios==0)
+      read(tecunit,'(A)',iostat=ios) line
+      if (ios/=0) exit
+      if (is_zone_header(line)) Nblocks = Nblocks + 1
+    enddo
+
+    if (Nblocks<=0) then
+      err = 1
+      close(tecunit)
+      return
+    endif
+
+    allocate(Ni(Nblocks),Nj(Nblocks),Nk(Nblocks),zone_point(Nblocks),zone_node_arr(Nblocks))
+    Ni = 0; Nj = 0; Nk = 1
+    zone_point = .false.
+    zone_node_arr = .true.
+
+    rewind(tecunit)
+    b = 0
+    ios = 0
+    do while (ios==0)
+      read(tecunit,'(A)',iostat=ios) line
+      if (ios/=0) exit
+      if (.not.is_zone_header(line)) cycle
+
+      b = b + 1
+      header = trim(line)
+
+      ! Gather continuation header lines until the first numeric data line.
+      do
+        read(tecunit,'(A)',iostat=ios) line
+        if (ios/=0) exit
+        if (line_is_numeric_start(line)) then
+          data_line = line
+          data_pos = 1
+          have_data_line = .true.
+          exit
+        endif
+        header = trim(header)//' '//trim(line)
+      enddo
+
+      call parse_zone_header(header,Ni(b),Nj(b),Nk(b),zone_point(b),zone_node_arr(b),solutiontime)
+      if (err/=0) exit
+
+      ! We have already consumed the first data line. Consume its tokens below
+      ! only through the second pass; the first pass does not need the values.
+      have_data_line = .false.
+    enddo
+
+    if (err/=0 .or. b/=Nblocks) then
+      if (err==0) err = 1
+      close(tecunit)
+      return
+    endif
+
+    orion%solutiontime = solutiontime
+
+    ! All existing ORION structured storage assumes the same centering for all
+    ! non-coordinate variables. Keep that model, but derive it from the zone headers.
+    ! The current ORION structured representation has one common centering for
+    ! all solution variables, so reject files mixing centering between zones.
+    if (any(zone_node_arr .neqv. zone_node_arr(1))) then
+      err = 1
+      close(tecunit)
+      return
+    endif
+    zone_node = zone_node_arr(1)
+    orion%tec%node = zone_node
     if (orion%tec%node) then
       start = 0
     else
       start = 1
     endif
 
-    ! Count variables: subtract mesh coordinate lines, then divide by points-per-variable.
-    ! Points per variable for block b: (Ni-start+1)*(Nj-start+1)*max(Nk-start+1,1)
-    ! where start=0 for nodal (range 0:Ni) and start=1 for cell-centered (range 1:Ni).
-    Nvar = nlines-sum(nskip)
+    ndir = 3
+    if (Nk(1)==1) ndir = 2
+    if (Nj(1)==1 .and. Nk(1)==1) ndir = 1
+
     do b = 1, Nblocks
-      nvar = nvar-ndir*((orion%block(b)%Ni+1)*(orion%block(b)%Nj+1)*(orion%block(b)%Nk+1))
+      if ((Nk(b)==1 .and. ndir==3) .or. &
+          (Nk(b)>1 .and. ndir<3) .or. &
+          (Nj(b)==1 .and. ndir>1)) then
+        err = 1
+        close(tecunit)
+        return
+      endif
     enddo
-    d = 0
-    do b = 1, Nblocks
-      d = d + (orion%block(b)%Ni - start + 1) * (orion%block(b)%Nj - start + 1) * max(orion%block(b)%Nk - start + 1, 1)
-    enddo
-    if (d > 0) nvar = nvar / d
+
+    if (size(orion%varnames)<ndir) then
+      err = 1
+      close(tecunit)
+      return
+    endif
+    nvar = size(orion%varnames) - ndir
     if (nvar==0) meshonly = .true.
 
-    ! Read all
+    ! POINT packing with mixed nodal/cell-centered variables has no single common
+    ! point count for all variables. The current ORION representation assumes a
+    ! common storage location, so require nodal data for POINT zones.
+    if (any(zone_point) .and. .not.orion%tec%node) then
+      err = 1
+      close(tecunit)
+      return
+    endif
+
+    ! Allocate ORION blocks once the zone geometry is known.
+    allocate(orion%block(1:Nblocks))
     do b = 1, Nblocks
-      allocate(orion%block(b)%mesh(1:ndir,0:orion%block(b)%Ni,0:orion%block(b)%Nj,0:orion%block(b)%Nk))
-      if (.not.meshonly) allocate(orion%block(b)%vars(1:nvar,start:orion%block(b)%Ni,start:orion%block(b)%Nj,start:max(orion%block(b)%Nk,start)))
-      call skip(tecunit,nskip(b))
-      do d = 1, ndir
-        do k = 0, orion%block(b)%Nk; do j = 0, orion%block(b)%Nj; do i = 0, orion%block(b)%Ni
-              read(tecunit,*,iostat=err) orion%block(b)%mesh(d,i,j,k)
-        enddo; enddo; enddo
-      enddo
-      do d = 1, nvar
-        do k = start, max(orion%block(b)%Nk,start); do j = start, orion%block(b)%Nj; do i = start, orion%block(b)%Ni
-              read(tecunit,*,iostat=err) orion%block(b)%vars(d,i,j,k)
-        enddo; enddo; enddo
-      enddo
+      orion%block(b)%Ni = Ni(b)-1
+      orion%block(b)%Nj = Nj(b)-1
+      orion%block(b)%Nk = Nk(b)-1
     enddo
 
+    ! -----------------------------------------------------------------------------
+    ! Second pass: read the numerical stream. No line counting is used here.
+    ! next_value() lexes whitespace/comma-separated values from arbitrary physical
+    ! lines, so both of these are equivalent:
+    !
+    !   X1 X2 X3 X4 ...
+    !
+    ! and
+    !
+    !   X1
+    !   X2
+    !   X3
+    !   X4
+    !
+    ! -----------------------------------------------------------------------------
+    rewind(tecunit)
+    have_data_line = .false.
+    b = 0
+    ios = 0
+
+    do while (ios==0 .and. b<Nblocks)
+      read(tecunit,'(A)',iostat=ios) line
+      if (ios/=0) exit
+      if (.not.is_zone_header(line)) cycle
+
+      b = b + 1
+      header = trim(line)
+
+      ! Find the first data line for this zone while collecting continuation header lines.
+      do
+        read(tecunit,'(A)',iostat=ios) line
+        if (ios/=0) exit
+        if (line_is_numeric_start(line)) then
+          data_line = line
+          data_pos = 1
+          have_data_line = .true.
+          exit
+        endif
+        header = trim(header)//' '//trim(line)
+      enddo
+
+      ! Header was already parsed in the first pass. Use the stored dimensions/packing.
+      Imax = Ni(b)
+      Jmax = Nj(b)
+      Kmax = Nk(b)
+
+      allocate(orion%block(b)%mesh(1:ndir,0:Imax-1,0:Jmax-1,0:Kmax-1))
+      if (.not.meshonly) then
+        allocate(orion%block(b)%vars(1:nvar,start:max(start,Imax-1), &
+                                     start:max(start,Jmax-1),start:max(start,Kmax-1)))
+      endif
+
+      if (zone_point(b)) then
+        ! Tecplot POINT: one complete variable tuple per node.
+        do k = 0, Kmax-1
+          do j = 0, Jmax-1
+            do i = 0, Imax-1
+              do d = 1, ndir
+                call next_value(tecunit,value,err)
+                if (err/=0) exit
+                orion%block(b)%mesh(d,i,j,k) = value
+              enddo
+              if (err/=0) exit
+              do s = 1, nvar
+                call next_value(tecunit,value,err)
+                if (err/=0) exit
+                orion%block(b)%vars(s,i,j,k) = value
+              enddo
+              if (err/=0) exit
+            enddo
+            if (err/=0) exit
+          enddo
+          if (err/=0) exit
+        enddo
+      else
+        ! Tecplot BLOCK: one complete field after another.
+        do d = 1, ndir
+          do k = 0, Kmax-1
+            do j = 0, Jmax-1
+              do i = 0, Imax-1
+                call next_value(tecunit,value,err)
+                if (err/=0) exit
+                orion%block(b)%mesh(d,i,j,k) = value
+              enddo
+              if (err/=0) exit
+            enddo
+            if (err/=0) exit
+          enddo
+          if (err/=0) exit
+        enddo
+
+        if (.not.meshonly) then
+          do s = 1, nvar
+            do k = start, max(start,Kmax-1)
+              do j = start, Jmax-1
+                do i = start, Imax-1
+                  call next_value(tecunit,value,err)
+                  if (err/=0) exit
+                  orion%block(b)%vars(s,i,j,k) = value
+                enddo
+                if (err/=0) exit
+              enddo
+              if (err/=0) exit
+            enddo
+            if (err/=0) exit
+          enddo
+        endif
+      endif
+
+      if (err/=0) exit
+
+      ! Reset lexical state before searching for the next ZONE header.
+      have_data_line = .false.
+      data_pos = 1
+    enddo
+
+    if (err==0 .and. b/=Nblocks) err = 1
+
     close(tecunit)
+
+  contains
+
+    logical function is_zone_header(text)
+      character(len=*), intent(in) :: text
+      character(len=len(text)) :: u
+      u = upper_case(text)
+      is_zone_header = (index(adjustl(u),'ZONE')==1)
+    endfunction is_zone_header
+
+    logical function line_is_numeric_start(text)
+      character(len=*), intent(in) :: text
+      character(1000) :: t
+      character(100) :: tok
+      integer :: p, q, ios_
+      t = adjustl(text)
+      if (len_trim(t)==0) then
+        line_is_numeric_start = .false.
+        return
+      endif
+      p = 1
+      do while (p<=len_trim(t))
+        if (t(p:p)/=' ' .and. t(p:p)/=char(9) .and. t(p:p)/=',') exit
+        p = p+1
+      enddo
+      if (p>len_trim(t)) then
+        line_is_numeric_start = .false.
+        return
+      endif
+      q = p
+      do while (q<=len_trim(t))
+        if (t(q:q)==' ' .or. t(q:q)==char(9) .or. t(q:q)==',') exit
+        q = q+1
+      enddo
+      tok = ' '
+      tok(1:min(len(tok),q-p)) = t(p:q-1)
+      read(tok,*,iostat=ios_) value
+      line_is_numeric_start = (ios_==0)
+    endfunction line_is_numeric_start
+
+    subroutine parse_zone_header(text,I_,J_,K_,point_,node_,time_)
+      character(len=*), intent(in) :: text
+      integer, intent(out) :: I_,J_,K_
+      logical, intent(out) :: point_,node_
+      real(R8P), intent(inout) :: time_
+      character(1000) :: u
+      character(1000) :: work
+      character(100) :: token
+      integer :: p, q, ios_, iv
+
+      I_ = 0; J_ = 0; K_ = 1
+      point_ = .false.
+      node_ = .true.
+
+      u = upper_case(text)
+      work = u
+
+      call get_integer_keyword(work,'I=',I_)
+      call get_integer_keyword(work,'J=',J_)
+      call get_integer_keyword(work,'K=',K_)
+
+      if (index(work,'DATAPACKING=POINT')>0 .or. index(work,'F=POINT')>0) then
+        point_ = .true.
+      elseif (index(work,'DATAPACKING=BLOCK')>0 .or. index(work,'F=BLOCK')>0) then
+        point_ = .false.
+      else
+        ! Tecplot's default is POINT for some contexts; for structured zones the
+        ! writer in this library emits BLOCK, so retain BLOCK as the safe default.
+        point_ = .false.
+      endif
+
+      if (index(work,'CELLCENTERED')>0) node_ = .false.
+      if (index(work,'NODAL')>0 .and. index(work,'CELLCENTERED')==0) node_ = .true.
+
+      p = index(work,'SOLUTIONTIME=')
+      if (p>0) then
+        q = p + len('SOLUTIONTIME=')
+        token = ' '
+        iv = 0
+        do while (q<=len_trim(work) .and. iv<len(token))
+          if (work(q:q)==',' .or. work(q:q)==' ' .or. work(q:q)==char(9)) exit
+          iv = iv+1
+          token(iv:iv) = work(q:q)
+          q = q+1
+        enddo
+        read(token,*,iostat=ios_) time_
+      endif
+    endsubroutine parse_zone_header
+
+    subroutine get_integer_keyword(text,key,out)
+      character(len=*), intent(in) :: text,key
+      integer, intent(out) :: out
+      integer :: p, q, ios_
+      character(100) :: token
+      out = 0
+      p = index(text,key)
+      if (p<=0) return
+      q = p+len(key)
+      token = ' '
+      do while (q<=len_trim(text))
+        if (text(q:q)==',' .or. text(q:q)==' ' .or. text(q:q)==char(9)) exit
+        if (q-p>=len(token)) exit
+        token(q-p:q-p) = text(q:q)
+        q = q+1
+      enddo
+      read(token,*,iostat=ios_) out
+    endsubroutine get_integer_keyword
+
+    subroutine next_value(unit,x,istat)
+      integer, intent(in) :: unit
+      real(R8P), intent(out) :: x
+      integer, intent(out) :: istat
+      character(1000) :: t
+      character(100) :: tok
+      integer :: p, q, L, ios_
+
+      istat = 0
+      do
+        if (.not.have_data_line .or. data_pos>len_trim(data_line)) then
+          read(unit,'(A)',iostat=ios_) t
+          if (ios_==iostat_end) then
+            istat = 1
+            return
+          elseif (ios_/=0) then
+            istat = ios_
+            return
+          endif
+          data_line = t
+          data_pos = 1
+          have_data_line = .true.
+        endif
+
+        L = len_trim(data_line)
+        do while (data_pos<=L)
+          if (data_line(data_pos:data_pos)/=' ' .and. &
+              data_line(data_pos:data_pos)/=char(9) .and. &
+              data_line(data_pos:data_pos)/=',') exit
+          data_pos = data_pos+1
+        enddo
+
+        if (data_pos>L) then
+          have_data_line = .false.
+          cycle
+        endif
+
+        q = data_pos
+        do while (q<=L)
+          if (data_line(q:q)==' ' .or. data_line(q:q)==char(9) .or. data_line(q:q)==',') exit
+          q = q+1
+        enddo
+
+        tok = ' '
+        tok(1:min(len(tok),q-data_pos)) = data_line(data_pos:q-1)
+        data_pos = q
+        read(tok,*,iostat=ios_) x
+        if (ios_==0) return
+
+        ! A non-numeric token in the data stream is a malformed file.
+        istat = 1
+        return
+      enddo
+    endsubroutine next_value
+
+    function upper_case(text) result(out)
+      character(len=*), intent(in) :: text
+      character(len=len(text)) :: out
+      integer :: q, code
+      out = text
+      do q = 1, len(text)
+        code = iachar(out(q:q))
+        if (code>=iachar('a') .and. code<=iachar('z')) &
+          out(q:q) = achar(code-iachar('a')+iachar('A'))
+      enddo
+    endfunction upper_case
 
   end function tec_read_ascii
 
