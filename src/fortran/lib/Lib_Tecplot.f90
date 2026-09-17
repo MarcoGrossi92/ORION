@@ -548,19 +548,15 @@ contains
     ! level: next_value() returns the next numeric token, irrespective of line breaks.
     character(1000) :: data_line
     integer :: data_pos
-    logical :: have_data_line, exists
+    integer :: physical_line_number
+    integer :: data_line_number
+    integer(kind=8) :: data_value_number
+    logical :: have_data_line
 
     meshonly = .false.
     orion%tec%node = .true.
     solutiontime = -10._R8P
     err = 0
-
-    ! Inquire file existence
-    inquire(file=trim(filename),exist=exists)
-    if (.not.exists) then
-      err = 2724
-      return
-    endif
 
     ! Open file
     open(newunit=tecunit,file=trim(filename),status='old',action='read',iostat=err)
@@ -601,6 +597,7 @@ contains
     enddo
 
     if (.not.found_variables) then
+      write(stderr,'(A)') 'TECPLOT ASCII READ ERROR: VARIABLES header not found.'
       err = 1
       close(tecunit)
       return
@@ -608,6 +605,9 @@ contains
 
     call read_variables(variables_header,orion%varnames)
     if (.not.allocated(orion%varnames)) then
+      write(stderr,'(A)') 'TECPLOT ASCII READ ERROR: no variables found in VARIABLES header.'
+      write(stderr,'(A)') 'Header collected as:'
+      write(stderr,'(A)') trim(variables_header)
       err = 1
       close(tecunit)
       return
@@ -645,25 +645,39 @@ contains
     do while (ios==0)
       read(tecunit,'(A)',iostat=ios) line
       if (ios/=0) exit
+      physical_line_number = physical_line_number + 1
       if (.not.is_zone_header(line)) cycle
 
       b = b + 1
       header = trim(line)
+      data_value_number = 0_8
+      data_line_number = 0
 
       ! Gather continuation header lines until the first numeric data line.
       do
         read(tecunit,'(A)',iostat=ios) line
         if (ios/=0) exit
+        physical_line_number = physical_line_number + 1
         if (line_is_numeric_start(line)) then
           data_line = line
           data_pos = 1
           have_data_line = .true.
+          data_line_number = physical_line_number
           exit
         endif
         header = trim(header)//' '//trim(line)
       enddo
 
       call parse_zone_header(header,Ni(b),Nj(b),Nk(b),zone_point(b),zone_node_arr(b),solutiontime)
+      if (Ni(b)<=0 .or. Nj(b)<=0 .or. Nk(b)<=0) then
+        write(stderr,'(/,A)') 'TECPLOT ASCII READ ERROR: invalid zone dimensions.'
+        write(stderr,'(A,I0)') 'Zone : ', b
+        write(stderr,'(A,I0,A,I0,A,I0)') 'I=',Ni(b),' J=',Nj(b),' K=',Nk(b)
+        write(stderr,'(A)') 'Zone header:'
+        write(stderr,'(A)') trim(header)
+        err = 1
+        exit
+      endif
       if (err/=0) exit
 
       ! We have already consumed the first data line. Consume its tokens below
@@ -752,6 +766,10 @@ contains
     ! -----------------------------------------------------------------------------
     rewind(tecunit)
     have_data_line = .false.
+    data_pos = 1
+    physical_line_number = 0
+    data_line_number = 0
+    data_value_number = 0_8
     b = 0
     ios = 0
 
@@ -798,6 +816,7 @@ contains
                 orion%block(b)%mesh(d,i,j,k) = value
               enddo
               if (err/=0) exit
+              d = ndir + 1
               do s = 1, nvar
                 call next_value(tecunit,value,err)
                 if (err/=0) exit
@@ -827,6 +846,7 @@ contains
         enddo
 
         if (.not.meshonly) then
+          d = ndir + 1
           do s = 1, nvar
             do k = start, max(start,Kmax-1)
               do j = start, Jmax-1
@@ -977,55 +997,171 @@ contains
     endsubroutine get_integer_keyword
 
     subroutine next_value(unit,x,istat)
+      use, intrinsic :: iso_fortran_env, only : iostat_end
       integer, intent(in) :: unit
       real(R8P), intent(out) :: x
       integer, intent(out) :: istat
+
       character(1000) :: t
-      character(100) :: tok
-      integer :: p, q, L, ios_
+      character(100)  :: tok
+      integer :: p, q, L, ios_, token_len
 
       istat = 0
+
       do
-        if (.not.have_data_line .or. data_pos>len_trim(data_line)) then
+        ! -----------------------------------------------------------------------
+        ! Fetch another physical line only when the current line has no more
+        ! numeric tokens. Tecplot ASCII data are whitespace-separated; line
+        ! breaks have no semantic meaning for the numerical data stream.
+        ! -----------------------------------------------------------------------
+        if (.not.have_data_line .or. data_pos > len_trim(data_line)) then
           read(unit,'(A)',iostat=ios_) t
-          if (ios_==iostat_end) then
+
+          if (ios_ == iostat_end) then
+            write(stderr,'(/,A)') &
+              '=============================================================='
+            write(stderr,'(A)') &
+              'TECPLOT ASCII READ ERROR: unexpected end of file.'
+            write(stderr,'(A,I0)') 'Zone               : ', b
+            write(stderr,'(A,A)') 'Packing            : ', &
+              merge('POINT','BLOCK',zone_point(b))
+            write(stderr,'(A,I0)') 'Physical line      : ', data_line_number
+            write(stderr,'(A,I0)') 'Numeric value #    : ', data_value_number + 1_8
+            if (d <= ndir) then
+              write(stderr,'(A,I0)') 'Coordinate variable: ', d
+            else
+              write(stderr,'(A,I0)') 'Solution variable  : ', s
+            endif
+            write(stderr,'(A,I0)') 'i                  : ', i
+            write(stderr,'(A,I0)') 'j                  : ', j
+            write(stderr,'(A,I0)') 'k                  : ', k
+            write(stderr,'(A)') &
+              'Expected another numeric value, but EOF was reached.'
+            write(stderr,'(A)') &
+              '=============================================================='
             istat = 1
             return
-          elseif (ios_/=0) then
+
+          elseif (ios_ /= 0) then
+            write(stderr,'(/,A)') &
+              '=============================================================='
+            write(stderr,'(A)') &
+              'TECPLOT ASCII READ ERROR: failure reading a data line.'
+            write(stderr,'(A,I0)') 'Zone               : ', b
+            write(stderr,'(A,I0)') 'Physical line      : ', physical_line_number + 1
+            write(stderr,'(A,I0)') 'Fortran IOSTAT     : ', ios_
+            write(stderr,'(A,I0)') 'Numeric value #    : ', data_value_number + 1_8
+            write(stderr,'(A,I0)') 'i                  : ', i
+            write(stderr,'(A,I0)') 'j                  : ', j
+            write(stderr,'(A,I0)') 'k                  : ', k
+            write(stderr,'(A)') &
+              '=============================================================='
             istat = ios_
             return
           endif
+
+          physical_line_number = physical_line_number + 1
+          data_line_number = physical_line_number
           data_line = t
           data_pos = 1
           have_data_line = .true.
         endif
 
+        ! -----------------------------------------------------------------------
+        ! Skip whitespace and commas.
+        ! -----------------------------------------------------------------------
         L = len_trim(data_line)
-        do while (data_pos<=L)
-          if (data_line(data_pos:data_pos)/=' ' .and. &
-              data_line(data_pos:data_pos)/=char(9) .and. &
-              data_line(data_pos:data_pos)/=',') exit
-          data_pos = data_pos+1
+        do while (data_pos <= L)
+          if (data_line(data_pos:data_pos) /= ' ' .and. &
+              data_line(data_pos:data_pos) /= char(9) .and. &
+              data_line(data_pos:data_pos) /= ',') exit
+          data_pos = data_pos + 1
         enddo
 
-        if (data_pos>L) then
+        if (data_pos > L) then
           have_data_line = .false.
           cycle
         endif
 
-        q = data_pos
-        do while (q<=L)
-          if (data_line(q:q)==' ' .or. data_line(q:q)==char(9) .or. data_line(q:q)==',') exit
-          q = q+1
+        ! -----------------------------------------------------------------------
+        ! Extract one whitespace/comma-delimited token.
+        ! -----------------------------------------------------------------------
+        p = data_pos
+        q = p
+        do while (q <= L)
+          if (data_line(q:q) == ' ' .or. &
+              data_line(q:q) == char(9) .or. &
+              data_line(q:q) == ',') exit
+          q = q + 1
         enddo
 
-        tok = ' '
-        tok(1:min(len(tok),q-data_pos)) = data_line(data_pos:q-1)
-        data_pos = q
-        read(tok,*,iostat=ios_) x
-        if (ios_==0) return
+        token_len = q - p
+        if (token_len <= 0) then
+          data_pos = q + 1
+          cycle
+        endif
 
-        ! A non-numeric token in the data stream is a malformed file.
+        if (token_len > len(tok)) then
+          write(stderr,'(/,A)') &
+            '=============================================================='
+          write(stderr,'(A)') &
+            'TECPLOT ASCII READ ERROR: numeric token is too long.'
+          write(stderr,'(A,I0)') 'Zone               : ', b
+          write(stderr,'(A,A)') 'Packing            : ', &
+            merge('POINT','BLOCK',zone_point(b))
+          write(stderr,'(A,I0)') 'Physical line      : ', data_line_number
+          write(stderr,'(A,I0)') 'Numeric value #    : ', data_value_number + 1_8
+          write(stderr,'(A,I0)') 'i                  : ', i
+          write(stderr,'(A,I0)') 'j                  : ', j
+          write(stderr,'(A,I0)') 'k                  : ', k
+          if (d <= ndir) then
+            write(stderr,'(A,I0)') 'Coordinate variable: ', d
+          else
+            write(stderr,'(A,I0)') 'Solution variable  : ', s
+          endif
+          write(stderr,'(A,I0)') 'Token length       : ', token_len
+          write(stderr,'(A)') 'Complete line      : '//trim(data_line)
+          write(stderr,'(A)') &
+            '=============================================================='
+          istat = 1
+          return
+        endif
+
+        tok = ' '
+        tok(1:token_len) = data_line(p:q-1)
+        data_pos = q
+
+        read(tok,*,iostat=ios_) x
+        if (ios_ == 0) then
+          data_value_number = data_value_number + 1_8
+          return
+        endif
+
+        ! -----------------------------------------------------------------------
+        ! Non-numeric token in the data stream.
+        ! -----------------------------------------------------------------------
+        write(stderr,'(/,A)') &
+          '=============================================================='
+        write(stderr,'(A)') &
+          'TECPLOT ASCII READ ERROR: invalid numeric token.'
+        write(stderr,'(A,I0)') 'Zone               : ', b
+        write(stderr,'(A,A)') 'Packing            : ', &
+          merge('POINT','BLOCK',zone_point(b))
+        write(stderr,'(A,I0)') 'Physical line      : ', data_line_number
+        write(stderr,'(A,I0)') 'Numeric value #    : ', data_value_number + 1_8
+        write(stderr,'(A,I0)') 'i                  : ', i
+        write(stderr,'(A,I0)') 'j                  : ', j
+        write(stderr,'(A,I0)') 'k                  : ', k
+        if (d <= ndir) then
+          write(stderr,'(A,I0)') 'Coordinate variable: ', d
+        else
+          write(stderr,'(A,I0)') 'Solution variable  : ', s
+        endif
+        write(stderr,'(A)') 'Bad token          : "'//trim(tok)//'"'
+        write(stderr,'(A,I0)') 'Column             : ', p
+        write(stderr,'(A)') 'Complete line      : '//trim(data_line)
+        write(stderr,'(A)') &
+          '=============================================================='
         istat = 1
         return
       enddo
