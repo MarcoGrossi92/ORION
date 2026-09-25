@@ -123,6 +123,7 @@ contains
     FileType   = 0
     Debug      = 0
     VIsDouble  = 0
+    if (orion%tec%double) VIsDouble = 1   ! 64-bit storage in .plt/.szplt (the data are handed to TecIO as double anyway)
     if (allocated(orion%block(1)%vars) .and. .not.present(Nvars)) then
       meshonly = .false.
       Nvar = size(orion%block(1)%vars,1)
