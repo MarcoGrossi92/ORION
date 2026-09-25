@@ -1542,7 +1542,7 @@ contains
     character(256) dataSetTitle, zoneTitle
     character(1024) varNames
     character, pointer :: stringPtr(:)
-    integer nameLen, strLen
+    integer nameLen, strLen, q0, q1
     integer(c_int8_t), allocatable :: int8Values(:)
     integer(c_int16_t), allocatable :: int16Values(:)
     integer(c_int32_t) :: numVars, var
@@ -1583,11 +1583,30 @@ contains
     call tecStringFree(stringCPtr)
     i = tecDataSetGetNumVars(inputFileHandle, numVars)
 
+    ! Export the variable names to the caller, coordinates included, with the
+    ! same convention as the ASCII reader (size(orion%varnames) = ndir + nvar),
+    ! so that the bands of a .szplt file can be identified by name.
+    if (allocated(orion%varnames)) deallocate(orion%varnames)
+    allocate(orion%varnames(numVars))
+    orion%varnames = ' '
     strLen = 0
     do var = 1, numVars
         i = tecVarGetName(inputFileHandle, var, stringCPtr)
         nameLen = tecStringLength(stringCPtr)
         call c_f_pointer(stringCPtr, stringPtr, [nameLen])
+        ! a name written from a quoted list keeps its quotes in the file: drop one
+        ! enclosing pair, as the ASCII reader does
+        q0 = 1
+        q1 = nameLen
+        if (nameLen >= 2) then
+            if (stringPtr(1) == '"' .and. stringPtr(nameLen) == '"') then
+                q0 = 2
+                q1 = nameLen - 1
+            endif
+        endif
+        do j = q0, min(q1, q0 + len(orion%varnames) - 1)
+            orion%varnames(var)(j-q0+1:j-q0+1) = stringPtr(j)
+        enddo
         if (var .gt. 1) then
             strLen = strLen + 1
             varNames(strLen : strLen) = ','
