@@ -535,7 +535,6 @@ contains
     integer   :: Nblocks, nvar, ndir
     integer   :: Imax, Jmax, Kmax
     integer   :: start
-    integer   :: nmesh, nsol
     logical, allocatable :: zone_point(:), zone_node_arr(:)
     integer, allocatable :: Ni(:), Nj(:), Nk(:)
     character(1000) :: line
@@ -1278,57 +1277,175 @@ contains
   end function tec_read_points_multivars
 
 
-  !> \brief Extract variable names from Tecplot VARIABLES line.
-  !> \param[inout] line Input line containing variable definitions
-  !> \param[out] variables Extracted variable names array
+  !> \\brief Extract variable names from a Tecplot VARIABLES declaration.
+  !> \\details Robust parser for quoted and unquoted variable names.
+  !> Supports both single and double quotes, comma/blank/tab separators,
+  !> adjacent quoted names, and names containing spaces when quoted.
+  !> Examples accepted include:
+  !>   VARIABLES = "x", "y", "z"
+  !>   VARIABLES = "x" "y" "z"
+  !>   VARIABLES = 'x' 'y' 'z'
+  !>   VARIABLES = x, y, z
+  !>   VARIABLES = x y z
+  !>   VARIABLES = "velocity magnitude" 'pressure'
   subroutine read_variables(line,variables)
     implicit none
     character(len=*), intent(inout) :: line
     character(len=32), allocatable, intent(out) :: variables(:)
-    character(len=32) :: variables_(150)
-    integer :: nvar, i, L, q2
+
+    integer, parameter :: MAX_VARIABLES = 512
+    character(len=32) :: names(MAX_VARIABLES)
+    character(len=len(line)) :: name
+    character(len=len(line)) :: work
+    character(len=len(line)) :: upper
+    integer :: nvar
+    integer :: i, p, q, L, n, c
+    character :: quote
+    logical :: quoted
+    logical :: quote_closed
 
     nvar = 0
+    names = ' '
 
-    ! Require a VARIABLES header
-    if (index(line, 'VARIABLES') <= 0) return
+    work  = adjustl(line)
+    upper = work
+    do c = 1, len_trim(upper)
+      if (iachar(upper(c:c)) >= iachar('a') .and. &
+          iachar(upper(c:c)) <= iachar('z')) then
+        upper(c:c) = achar(iachar(upper(c:c)) - iachar('a') + iachar('A'))
+      endif
+    enddo
 
-    ! Remove the "VARIABLES =" part from the line
-    line = trim(adjustl(line(index(line, '=')+1:)))
-    L = len_trim(line)
+    ! Require VARIABLES as the first keyword in the collected declaration.
+    if (index(adjustl(upper),'VARIABLES') /= 1) return
 
-    if (index(line(1:L), '"') > 0) then
-      ! Quoted names. Scan quote-delimited tokens; robust to names separated by
-      ! spaces/commas AND to adjacent quotes with no separator (e.g. "a""b").
-      i = 1
+    p = index(work,'=')
+    if (p <= 0) then
+      write(stderr,'(A)') &
+        'TECPLOT ASCII READ ERROR: VARIABLES header has no "=".'
+      write(stderr,'(A)') 'Header: '//trim(work)
+      return
+    endif
+
+    L = len_trim(work)
+    i = p + 1
+
+    do while (i <= L)
+
+      ! Skip separators: spaces, tabs, commas.
       do while (i <= L)
-        if (line(i:i) == '"') then
-          q2 = i + 1
-          do while (q2 <= L)
-            if (line(q2:q2) == '"') exit
-            q2 = q2 + 1
-          end do
-          if (q2 > i + 1) then          ! non-empty token
-            nvar = nvar + 1
-            variables_(nvar) = trim(line(i+1:q2-1))
-          end if
-          i = q2 + 1
-        else
+        if (work(i:i) /= ' ' .and. work(i:i) /= char(9) .and. work(i:i) /= ',') exit
+        i = i + 1
+      enddo
+      if (i > L) exit
+
+      ! -------------------------------------------------------------------------
+      ! Quoted variable name. Both single and double quotes are accepted.
+      ! Quoted names may contain blanks and commas. Doubled quote characters are
+      ! accepted as literal quote characters.
+      ! -------------------------------------------------------------------------
+      if (work(i:i) == '"' .or. work(i:i) == "'") then
+        quoted = .true.
+        quote = work(i:i)
+        i = i + 1
+        name = ' '
+        n = 0
+        quote_closed = .false.
+
+        do while (i <= L)
+          if (work(i:i) == quote) then
+            if (i < L .and. work(i+1:i+1) == quote) then
+              if (n < len(name)) then
+                n = n + 1
+                name(n:n) = quote
+              endif
+              i = i + 2
+              cycle
+            endif
+            i = i + 1
+            quote_closed = .true.
+            exit
+          endif
+
+          if (n < len(name)) then
+            n = n + 1
+            name(n:n) = work(i:i)
+          endif
           i = i + 1
-        end if
-      end do
-    else
-      ! Unquoted names separated by blanks or commas
-      call split_tokens(line(1:L), variables_, nvar)
-    end if
+        enddo
+
+        if (.not.quote_closed) then
+          write(stderr,'(A)') &
+            'TECPLOT ASCII READ ERROR: unterminated quoted variable name.'
+          write(stderr,'(A)') 'VARIABLES header: '//trim(work)
+          return
+        endif
+
+        if (n > 0) then
+          call append_variable_name(names,nvar,MAX_VARIABLES,trim(name))
+          if (nvar >= MAX_VARIABLES .and. i <= L) return
+        endif
+
+      else
+        ! -----------------------------------------------------------------------
+        ! Unquoted variable name. Blanks/tabs/commas delimit the token, so a name
+        ! containing blanks must be quoted.
+        ! -----------------------------------------------------------------------
+        quoted = .false.
+        q = i
+        do while (q <= L)
+          if (work(q:q) == ' ' .or. work(q:q) == char(9) .or. work(q:q) == ',') exit
+          q = q + 1
+        enddo
+
+        if (q > i) then
+          name = ' '
+          name(1:min(len(name),q-i)) = work(i:q-1)
+          call append_variable_name(names,nvar,MAX_VARIABLES,trim(name))
+          if (nvar >= MAX_VARIABLES .and. q < L) return
+        endif
+        i = q
+      endif
+
+      if (quoted .and. i <= L) cycle
+    enddo
+
+    if (nvar <= 0) return
 
     allocate(character(32)::variables(1:nvar))
-    variables = variables_(1:nvar)
+    variables = names(1:nvar)
 
   end subroutine read_variables
 
 
-  !> Split a string into whitespace/comma-separated tokens.
+  !> \\brief Append one variable name to the temporary name array.
+  subroutine append_variable_name(names,nvar,max_variables,value)
+    implicit none
+    character(len=32), intent(inout) :: names(:)
+    integer, intent(inout) :: nvar
+    integer, intent(in) :: max_variables
+    character(len=*), intent(in) :: value
+
+    if (len_trim(value) == 0) return
+
+    if (nvar >= max_variables) then
+      write(stderr,'(A,I0)') &
+        'TECPLOT ASCII READ ERROR: more than MAX_VARIABLES=',max_variables
+      return
+    endif
+
+    nvar = nvar + 1
+    if (len_trim(value) > len(names(nvar))) then
+      write(stderr,'(A)') &
+        'TECPLOT ASCII READ WARNING: variable name exceeds 32 characters; truncating.'
+      write(stderr,'(A)') 'Variable: '//trim(value)
+    endif
+    names(nvar) = value(1:min(len(value),len(names(nvar))))
+  end subroutine append_variable_name
+
+
+  !> \\brief Split a string into whitespace/comma-separated tokens.
+  !> \\details Legacy helper retained for source compatibility.
   subroutine split_tokens(str, tokens, ntok)
     implicit none
     character(len=*), intent(in)  :: str
@@ -1344,21 +1461,23 @@ contains
     do i = 1, L
       if (str(i:i) == ' ' .or. str(i:i) == ',' .or. str(i:i) == char(9)) then
         if (in_tok) then
-          ntok = ntok + 1
-          tokens(ntok) = str(s:i-1)
+          if (ntok < size(tokens)) then
+            ntok = ntok + 1
+            tokens(ntok) = str(s:i-1)
+          endif
           in_tok = .false.
-        end if
+        endif
       else
-        if (.not. in_tok) then
+        if (.not.in_tok) then
           s = i
           in_tok = .true.
-        end if
-      end if
-    end do
-    if (in_tok) then
+        endif
+      endif
+    enddo
+    if (in_tok .and. ntok < size(tokens)) then
       ntok = ntok + 1
       tokens(ntok) = str(s:L)
-    end if
+    endif
   end subroutine split_tokens
 
 
