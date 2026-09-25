@@ -116,6 +116,9 @@ contains
       do b = 1, Nblocks
         read(unit,*,iostat=err) orion%block(b)%Ni, orion%block(b)%Nj
         if (err /= 0) then; close(unit); return; endif
+        ! a node count < 1 means the dimensions record is not what the header announced (e.g. a
+        ! coordinate record read as integers by a lenient compiler): refuse, never read a shifted mesh
+        if (min(orion%block(b)%Ni, orion%block(b)%Nj) < 1) then; err = 2; close(unit); return; endif
         orion%block(b)%Ni = orion%block(b)%Ni-1
         orion%block(b)%Nj = orion%block(b)%Nj-1
       enddo
@@ -123,6 +126,7 @@ contains
       do b = 1, Nblocks
         read(unit,*,iostat=err) orion%block(b)%Ni, orion%block(b)%Nj, orion%block(b)%Nk
         if (err /= 0) then; close(unit); return; endif
+        if (min(orion%block(b)%Ni, orion%block(b)%Nj, orion%block(b)%Nk) < 1) then; err = 2; close(unit); return; endif
         orion%block(b)%Ni = orion%block(b)%Ni-1
         orion%block(b)%Nj = orion%block(b)%Nj-1
         orion%block(b)%Nk = orion%block(b)%Nk-1
