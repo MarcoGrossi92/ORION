@@ -88,31 +88,41 @@ contains
     open(newunit=unit,file=trim(filename),iostat=err,form='formatted',status='old')
     if (err /= 0) return
 
-    read(unit,*) Nblocks
+    read(unit,*,iostat=err) Nblocks
+    if (err /= 0) then; close(unit); return; endif
+    if (Nblocks < 1) then; err = 1; close(unit); return; endif
     allocate(orion%block(1:Nblocks))
 
-    ! Check ndir
-    ndir = 0
-    read(unit,*) line
-    do i = 1, 3
-      read(line, *, iostat=err) (dum, ndir=1,ndir)
-        if (err /= 0) exit
-        ndir = ndir + 1
-    end do
-    ndir = ndir - 1
+    ! Check ndir: the first dimensions line holds 2 integers (2D) or 3 (3D).
+    ! The whole record is read (a list-directed read into a character
+    ! variable keeps only its first token) and the count is probed with
+    ! iostat: the previous implied-do probe used its own loop variable as
+    ! bound and gave a compiler-dependent result (gfortran 2, ifx 1).
+    read(unit,'(A)',iostat=err) line
+    if (err /= 0) then; close(unit); return; endif
+    read(line,*,iostat=err) dum, dum, dum
+    if (err == 0) then
+      ndir = 3
+    else
+      read(line,*,iostat=err) dum, dum
+      if (err /= 0) then; close(unit); return; endif
+      ndir = 2
+    endif
     rewind(unit)
-    read(unit,*)
+    read(unit,*,iostat=err)
 
     if (ndir==2) then
       orion%block(:)%Nk = 0
       do b = 1, Nblocks
-        read(unit,*) orion%block(b)%Ni, orion%block(b)%Nj
+        read(unit,*,iostat=err) orion%block(b)%Ni, orion%block(b)%Nj
+        if (err /= 0) then; close(unit); return; endif
         orion%block(b)%Ni = orion%block(b)%Ni-1
         orion%block(b)%Nj = orion%block(b)%Nj-1
       enddo
     else
       do b = 1, Nblocks
-        read(unit,*) orion%block(b)%Ni, orion%block(b)%Nj, orion%block(b)%Nk
+        read(unit,*,iostat=err) orion%block(b)%Ni, orion%block(b)%Nj, orion%block(b)%Nk
+        if (err /= 0) then; close(unit); return; endif
         orion%block(b)%Ni = orion%block(b)%Ni-1
         orion%block(b)%Nj = orion%block(b)%Nj-1
         orion%block(b)%Nk = orion%block(b)%Nk-1
@@ -124,6 +134,7 @@ contains
       do d = 1, ndir
         do k = 0, orion%block(b)%Nk; do j = 0, orion%block(b)%Nj; do i = 0, orion%block(b)%Ni
               read(unit,*,iostat=err) orion%block(b)%mesh(d,i,j,k)
+              if (err /= 0) then; close(unit); return; endif
         enddo; enddo; enddo
       enddo
     enddo
