@@ -13,6 +13,7 @@ tecio-build*
 teciompi-build*
 lib/TecIO/boost
 lib/TecIO/teciosrc/boost
+lib/TecIO/teciompisrc/boost
 
 # Distribution / packaging
 .Python
