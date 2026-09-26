@@ -180,7 +180,14 @@ end program read_vtk_structured
 - **Tecplot ASCII, structured zones.** A zone header gives `I`, `J` and `K`; a header without `K` is one node
   plane (`K = 1`, Tecplot's default). When the first zone has `K = 1` the file is read as two-dimensional:
   `mesh` holds two coordinates (`mesh(1:2,...)`) and every block has `Nk = 0`; all zones of a file must then
-  have `K = 1`. `varnames` holds the coordinate names followed by the variable names, so
+  have `K = 1`. A plane of a three-dimensional field (a slice) is read with three coordinates instead: when
+  the first three variables are named `x`, `y` and `z` (in any case) and `z` is nodal in every zone (not listed
+  as `CELLCENTERED` in `VARLOCATION`), `mesh` holds `x`, `y` and `z` (`mesh(1:3,...)`, still one node plane,
+  `Nk = 0`) and the solution variables start after `z`; all zones must again have `K = 1`. A file whose third
+  variable has another name, or is cell-centred, is read as two-dimensional as above. The rule goes by name:
+  a two-dimensional file whose third variable is nodal and named `z` (a mixture fraction `Z`, for example) is
+  read as a slice, so rename that variable or write it cell-centred to read the file as two-dimensional.
+  `varnames` holds the coordinate names followed by the variable names, so
   `size(varnames) = size(mesh,1) + size(vars,1)`.
 - **Tecplot binary (`.szplt`, TecIO builds).** `varnames` is filled with the names stored in the file, with the
   same convention as the ASCII reader (coordinates first).

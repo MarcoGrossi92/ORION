@@ -522,6 +522,9 @@ contains
   !> Supports both BLOCK and POINT data packing; physical line breaks are irrelevant to the
   !> numerical data stream. Nodal and cell-centered variables are supported for BLOCK data.
   !> POINT data is supported when all variables are nodal.
+  !> A file whose first zone has one node plane (K = 1) is read with two coordinates (x, y),
+  !> unless its header declares a third one: the first three variables are named x, y, z
+  !> and z is nodal in every zone (a slice of a 3-D field), read with three coordinates.
   function tec_read_ascii(orion,filename) result(err)
     use, intrinsic :: iso_fortran_env, only : iostat_end
     implicit none
@@ -537,6 +540,8 @@ contains
     integer   :: Imax, Jmax, Kmax
     integer   :: start
     logical, allocatable :: zone_point(:), zone_node_arr(:)
+    logical, allocatable :: zone_z_cell(:)   ! variable 3 listed as CELLCENTERED in the zone header
+    logical   :: plane_xyz                   ! single node planes that carry x, y and z
     integer, allocatable :: Ni(:), Nj(:), Nk(:)
     character(1000) :: line
     character(1000) :: header
@@ -635,9 +640,11 @@ contains
     endif
 
     allocate(Ni(Nblocks),Nj(Nblocks),Nk(Nblocks),zone_point(Nblocks),zone_node_arr(Nblocks))
+    allocate(zone_z_cell(Nblocks))
     Ni = 0; Nj = 0; Nk = 1
     zone_point = .false.
     zone_node_arr = .true.
+    zone_z_cell = .false.
 
     rewind(tecunit)
     b = 0
@@ -669,6 +676,7 @@ contains
       enddo
 
       call parse_zone_header(header,Ni(b),Nj(b),Nk(b),zone_point(b),zone_node_arr(b),solutiontime)
+      zone_z_cell(b) = var_cellcentered(upper_case(header),3)
       if (Ni(b)<=0 .or. Nj(b)<=0 .or. Nk(b)<=0) then
         write(stderr,'(/,A)') 'TECPLOT ASCII READ ERROR: invalid zone dimensions.'
         write(stderr,'(A,I0)') 'Zone : ', b
@@ -714,9 +722,23 @@ contains
     if (Nk(1)==1) ndir = 2
     if (Nj(1)==1 .and. Nk(1)==1) ndir = 1
 
+    ! One node plane (K = 1) is a pure 2-D file (x, y) unless the header declares a
+    ! third coordinate: the first three variables are named x, y and z (any case) and
+    ! z is NODAL in every zone (not listed as CELLCENTERED in VARLOCATION). Such a
+    ! file is a plane of a 3-D field (a slice): z is read as the third coordinate,
+    ! not as the first solution variable, so every variable keeps its own band.
+    ! As for 2-D files, all zones must then be single planes.
+    plane_xyz = .false.
+    if (ndir==2 .and. size(orion%varnames)>=3) then
+      plane_xyz = is_coordinate_name(orion%varnames(1),'X') .and. &
+                  is_coordinate_name(orion%varnames(2),'Y') .and. &
+                  is_coordinate_name(orion%varnames(3),'Z') .and. .not.any(zone_z_cell)
+      if (plane_xyz) ndir = 3
+    endif
+
     do b = 1, Nblocks
-      if ((Nk(b)==1 .and. ndir==3) .or. &
-          (Nk(b)>1 .and. ndir<3) .or. &
+      if ((Nk(b)==1 .and. ndir==3 .and. .not.plane_xyz) .or. &
+          (Nk(b)>1 .and. (ndir<3 .or. plane_xyz)) .or. &
           (Nj(b)==1 .and. ndir>1)) then
         err = 1
         close(tecunit)
@@ -1179,6 +1201,79 @@ contains
           out(q:q) = achar(code-iachar('a')+iachar('A'))
       enddo
     endfunction upper_case
+
+    ! Is text (a variable name) the coordinate name c ('X', 'Y' or 'Z'), in any case?
+    logical function is_coordinate_name(text,c)
+      character(len=*), intent(in) :: text, c
+      is_coordinate_name = (trim(adjustl(upper_case(text)))==c)
+    endfunction is_coordinate_name
+
+    ! Is variable iv listed in a [list]=CELLCENTERED group of the zone header text
+    ! (upper case)? A list holds numbers and ranges: [4-7], [4,5,6,7], [4-5,7].
+    logical function var_cellcentered(text,iv)
+      character(len=*), intent(in) :: text
+      integer,          intent(in) :: iv
+      integer :: p, q, r, c
+      var_cellcentered = .false.
+      p = index(text,'VARLOCATION')
+      if (p<=0) return
+      do
+        q = index(text(p:),'[')
+        if (q<=0) return
+        q = p + q - 1
+        r = index(text(q:),']')
+        if (r<=0) return
+        r = q + r - 1
+        p = r + 1
+        if (p>len(text)) return
+        c = verify(text(p:),' =')
+        if (c<=0) return
+        c = p + c - 1
+        if (c+11<=len(text)) then
+          if (text(c:c+11)=='CELLCENTERED') then
+            if (in_var_list(text(q+1:r-1),iv)) then
+              var_cellcentered = .true.
+              return
+            endif
+          endif
+        endif
+      enddo
+    endfunction var_cellcentered
+
+    ! Is iv in a comma-separated list of numbers and ranges (a-b)?
+    logical function in_var_list(list,iv)
+      character(len=*), intent(in) :: list
+      integer,          intent(in) :: iv
+      integer :: s, e, d, lo, hi, ios1, ios2
+      in_var_list = .false.
+      s = 1
+      do while (s<=len(list))
+        e = index(list(s:),',')
+        if (e==0) then
+          e = len(list) + 1
+        else
+          e = s + e - 1
+        endif
+        if (e>s) then
+          d = index(list(s:e-1),'-')
+          if (d>0) then
+            read(list(s:s+d-2),*,iostat=ios1) lo
+            read(list(s+d:e-1),*,iostat=ios2) hi
+          else
+            read(list(s:e-1),*,iostat=ios1) lo
+            ios2 = ios1
+            hi = lo
+          endif
+          if (ios1==0 .and. ios2==0) then
+            if (iv>=lo .and. iv<=hi) then
+              in_var_list = .true.
+              return
+            endif
+          endif
+        endif
+        s = e + 1
+      enddo
+    endfunction in_var_list
 
   end function tec_read_ascii
 

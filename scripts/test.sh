@@ -27,6 +27,10 @@ echo '--- Tecplot reading (ascii) ---'
 ./tecplot_read
 
 echo
+echo '--- Tecplot reading (slice of a 3-D field, ascii) ---'
+./tecplot_read_plane_xyz
+
+echo
 echo '--- PLOT3D writing ---'
 ./p3d_write
 

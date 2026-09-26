@@ -44,6 +44,14 @@ Changes on `main` since `v1.6.0`.
 
 ### Fixed
 
+- `tec_read_structured_multiblock` reads a one-plane slice of a
+  three-dimensional field with three coordinates. Since the pure 2-D support,
+  every zone with `K = 1` was read with two coordinates, so `z` became the
+  first solution variable and every variable moved by one. The rule goes by
+  name: when the first three variables are named `x`, `y` and `z` (in any
+  case) and `z` is nodal, `mesh` holds `x`, `y` and `z`. A two-dimensional
+  file whose third variable is nodal and named `z` is therefore read as a
+  slice; rename that variable or write it cell-centred.
 - `tec_read_szplt` fills `orion%varnames`, with the convention of the ASCII
   reader (coordinates first). It fetched every name from TecIO and dropped it,
   so `varnames` stayed unallocated or kept the names of an earlier read.
