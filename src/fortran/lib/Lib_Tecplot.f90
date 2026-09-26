@@ -934,6 +934,7 @@ contains
       call get_integer_keyword(work,'I=',I_)
       call get_integer_keyword(work,'J=',J_)
       call get_integer_keyword(work,'K=',K_)
+      if (index(work,'K=')==0) K_ = 1   ! K omitted: one node plane (Tecplot's default K = 1)
 
       if (index(work,'DATAPACKING=POINT')>0 .or. index(work,'F=POINT')>0) then
         point_ = .true.
