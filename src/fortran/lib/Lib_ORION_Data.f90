@@ -40,7 +40,7 @@ module Lib_ORION_data
   ! Contains all relevant data for an ORION simulation, including variable names, solution time, blocks, and file format options.
   type, public :: orion_data
     character(len=32), allocatable :: varnames(:)  ! Names of solution variables
-    real(R8P) :: solutiontime                      ! Solution time
+    real(R8P) :: solutiontime = 0._R8P             ! Solution time (0 when the file holds none, e.g. PLOT3D)
     type(obj_block), allocatable :: block(:)       ! Array of computational blocks
     type(Type_tec_Format) :: tec                   ! Tecplot format options
     type(Type_vtk_Format) :: vtk                   ! VTK format options
