@@ -205,6 +205,23 @@ end program read_vtk_structured
   zone time of the file and leaves `solutiontime` as it was (0 for a new object); so does the PLOT3D reader,
   since a PLOT3D grid has no time.
 
+### Length of the Tecplot header and lines
+
+- **VARIABLES header.** `tec_write_structured_multiblock` and `tec_write_points_multivars` build the list of
+  variable names (the `VARIABLES` line of an ASCII file, the list handed to TecIO for `.plt` and `.szplt`) in
+  a buffer of 32768 characters, and the ASCII reader reads up to 32768 characters of header: the `VARIABLES`
+  line, the lines before it and its continuation lines, joined. A longer list is cut without a message.
+- **Number of names.** The ASCII reader keeps at most 512 names, coordinates included. A header with more
+  names is refused: the reader returns `err /= 0` and prints `no variables found in VARIABLES header`. The
+  `.szplt` reader takes the names one by one from the file and has no such limit. Every name is kept to 32
+  characters (`varnames` is `character(len=32)`); the ASCII reader warns when it shortens one, the `.szplt`
+  reader shortens it without a message.
+- **Zone headers and data lines.** The ASCII reader reads each zone-header line and each data line into a
+  buffer of 1000 characters, and joins the lines of a zone header in another buffer of 1000 characters: each
+  data line, and each zone header with all its lines joined, must fit in 1000 characters.
+  `tec_write_structured_multiblock` writes one value per line; `tec_write_points_multivars` writes one point
+  per line, with all its variables on that line.
+
 ### PLOT3D Files
 
 PLOT3D typically uses separate grid and solution files. ORION is designed to handle just grids.

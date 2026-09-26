@@ -100,7 +100,7 @@ contains
                                       tecend142           ! |
 # endif
     character(1), parameter:: tecendrec = char(0) !< End-character for binary-record end.
-    character(1000)::         tecvarname          !< Variables name for tecplot header file.
+    character(32768)::        tecvarname          !< Variables name for tecplot header file.
     character(500)::          teczoneheader       !< Tecplot string of zone header.
     character(500)::          tecvarform          !< Format for variables for tecplot file.
     integer, allocatable::    tecvarloc(:)        !< Tecplot array of variables location.
@@ -406,7 +406,7 @@ contains
     character(len=*), intent(in)              :: filename
     integer, intent(in), optional             :: Nvars
     integer :: err
-    character(1000)::         tecvarname          !< Variables name for tecplot header file.
+    character(32768)::        tecvarname          !< Variables name for tecplot header file.
     character(500)::          teczoneheader       !< Tecplot string of zone header.
     character(500)::          tecvarform          !< Format for variables for tecplot file.
     integer::                 tecunit             !< Free logic unit of tecplot file.
@@ -545,8 +545,9 @@ contains
     integer, allocatable :: Ni(:), Nj(:), Nk(:)
     character(1000) :: line
     character(1000) :: header
-    character(10000) :: variables_header
-    character(1000) :: vline
+    character(32768) :: hline               ! header lines only (VARIABLES and what precedes it)
+    character(32768) :: variables_header
+    character(32768) :: vline
     logical :: found_variables
 
     ! Persistent tokenizer state. This is deliberately line-based only at the lexical
@@ -581,11 +582,11 @@ contains
     found_variables = .false.
     ios = 0
     do while (ios==0)
-      read(tecunit,'(A)',iostat=ios) line
+      read(tecunit,'(A)',iostat=ios) hline
       if (ios/=0) exit
 
-      if (index(upper_case(line),'VARIABLES')>0) then
-        variables_header = trim(line)
+      if (index(upper_case(hline),'VARIABLES')>0) then
+        variables_header = trim(hline)
         found_variables = .true.
 
         ! Continue through subsequent header lines until the first ZONE.
@@ -1641,7 +1642,7 @@ contains
     integer i, j, k, cnt
     character(256) inputFileName
     character(256) dataSetTitle, zoneTitle
-    character(1024) varNames
+    character(32768) varNames
     character, pointer :: stringPtr(:)
     integer nameLen, strLen, q0, q1
     integer(c_int8_t), allocatable :: int8Values(:)
@@ -1712,15 +1713,15 @@ contains
         enddo
         if (var .gt. 1) then
             strLen = strLen + 1
-            varNames(strLen : strLen) = ','
+            if (strLen <= len(varNames)) varNames(strLen : strLen) = ','
         endif
         do j = 1, nameLen
-            varNames(strLen + j : strLen + j) = stringPtr(j)
+            if (strLen + j <= len(varNames)) varNames(strLen + j : strLen + j) = stringPtr(j)
         enddo
         strLen = strLen + nameLen
         call tecStringFree(stringCPtr)
     enddo
-    varNames(strLen + 1 : strlen + 1) = C_NULL_CHAR
+    if (strLen + 1 <= len(varNames)) varNames(strLen + 1 : strlen + 1) = C_NULL_CHAR
 
     i = tecFileGetType(inputFileHandle, fileType)
     i = tecDataSetGetNumZones(inputFileHandle, numZones)

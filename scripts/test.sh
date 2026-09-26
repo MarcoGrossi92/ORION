@@ -35,6 +35,14 @@ echo '--- Tecplot reading (slice of a 3-D field, szplt) ---'
 if [ -x ./tecplot_read_szplt_plane_xyz ]; then ./tecplot_read_szplt_plane_xyz; else echo 'not built (ORION built without TecIO)'; fi
 
 echo
+echo '--- Tecplot reading (long VARIABLES header, ascii) ---'
+./tecplot_read_long_header
+
+echo
+echo '--- Tecplot reading (long VARIABLES header, szplt) ---'
+if [ -x ./tecplot_read_szplt_long_header ]; then ./tecplot_read_szplt_long_header; else echo 'not built (ORION built without TecIO)'; fi
+
+echo
 echo '--- PLOT3D writing ---'
 ./p3d_write
 

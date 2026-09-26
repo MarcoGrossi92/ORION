@@ -44,6 +44,13 @@ Changes on `main` since `v1.6.0`.
 
 ### Fixed
 
+- Long Tecplot `VARIABLES` headers are no longer cut. The writers built the
+  header in 1000 characters and the ASCII reader read the header lines in 1000
+  characters, so a list of more than about 100 names such as `"rho(12)"` was
+  cut without a message and the file could not be read back. These buffers now
+  hold 32768 characters. The `.szplt` reader no longer writes past the end of
+  its join of the names. The ASCII reader still keeps at most 512 names and
+  returns an error beyond.
 - `tec_read_szplt` reads a one-plane slice of a three-dimensional field with
   three coordinates, by the rule of the ASCII reader. It read `z` as the first
   solution variable, and in a cell-centred file it read the cell values past

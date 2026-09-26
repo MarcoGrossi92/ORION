@@ -1,7 +1,7 @@
 file(GLOB_RECURSE TESTS *.f90 *.F90)
 # Test programs that need TecIO are built only when ORION is built with TecIO
 if (NOT USE_TECIO)
-  list(FILTER TESTS EXCLUDE REGEX "/tecplot_read_szplt_plane_xyz[.]f90$")
+  list(FILTER TESTS EXCLUDE REGEX "/(tecplot_read_szplt_plane_xyz|tecplot_read_szplt_long_header)[.]f90$")
 endif()
 set(TESTS ${TESTS} PARENT_SCOPE)
 set(EXECUTABLE_OUTPUT_PATH "${CMAKE_SOURCE_DIR}/bin/test")
