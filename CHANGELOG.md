@@ -14,6 +14,10 @@ Changes on `main` since `v1.6.0`.
 
 ### Added
 
+- Tecplot option `orion%tec%double` (logical, default `.true.`, copied by
+  `copyORION`). It sets the precision of the values that
+  `tec_write_structured_multiblock` stores in a binary Tecplot file (`.plt`,
+  `.szplt`): `.true.` stores 64-bit values, `.false.` 32-bit values as before.
 - Optional `zone_mask` and `dims_only` arguments to
   `tec_read_structured_multiblock` and `tec_read_szplt`. `dims_only` reads only
   the zone headers -- names, dimensions and variable count -- without
@@ -23,8 +27,35 @@ Changes on `main` since `v1.6.0`.
   the whole domain. Honoured by the `.szplt` path only: the ASCII format has no
   per-zone index, so its reader ignores both and performs a full read.
 
+### Changed
+
+- Binary Tecplot files are written with 64-bit values by default. The writer
+  handed TecIO double-precision values but declared them single precision, so
+  a `.plt` or `.szplt` file read back differed from the data in memory
+  (relative deviations of about 5e-8). The files are 1.5 to 2 times larger.
+  An ORION older than 9592709 reads 64-bit files wrongly: the double branch of
+  `tec_read_szplt` copied an array it had not allocated. A program that reads
+  these files needs 9592709 or later; a program that must keep 32-bit files
+  sets `orion%tec%double = .false.` before the write.
+- `p3d_read_multiblock` returns the `iostat` of a failed read in `err` instead
+  of stopping the program (a file that is not PLOT3D stopped it), and refuses
+  a block count below 1 (`err = 1`) and a node count below 1 (`err = 2`)
+  before it reads any coordinate.
+
 ### Fixed
 
+- `tec_read_szplt` fills `orion%varnames`, with the convention of the ASCII
+  reader (coordinates first). It fetched every name from TecIO and dropped it,
+  so `varnames` stayed unallocated or kept the names of an earlier read.
+- `p3d_read_multiblock` tells a two-dimensional grid from a three-dimensional
+  one with every compiler. The probe used `ndir` as both the implied-do
+  variable and its bound: gfortran read a 3-D grid with two coordinates and
+  `Nk = 0`, and ifx read every grid wrongly.
+- `tec_read_structured_multiblock` reads a zone header without `K` as one node
+  plane (`K = 1`), as Tecplot does; it refused such a zone as having `K = 0`.
+- The `solutiontime` of a new `orion_data` is 0. It had no default, so a
+  PLOT3D grid written back as Tecplot carried uninitialised memory in its
+  `SOLUTIONTIME`.
 - Writing a binary Tecplot file no longer overflows the stack on large blocks.
   `tec_dat` took its data through an explicit-shape dummy, but every caller
   passes a section with a fixed first index of a rank-4 array (`mesh(1,...)`,
