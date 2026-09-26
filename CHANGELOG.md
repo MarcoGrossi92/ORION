@@ -44,6 +44,10 @@ Changes on `main` since `v1.6.0`.
 
 ### Fixed
 
+- `tec_read_szplt` reads a one-plane slice of a three-dimensional field with
+  three coordinates, by the rule of the ASCII reader. It read `z` as the first
+  solution variable, and in a cell-centred file it read the cell values past
+  their end.
 - `tec_read_structured_multiblock` reads a one-plane slice of a
   three-dimensional field with three coordinates. Since the pure 2-D support,
   every zone with `K = 1` was read with two coordinates, so `z` became the

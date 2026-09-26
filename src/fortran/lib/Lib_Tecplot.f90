@@ -1607,6 +1607,10 @@ contains
   !> \brief Read ORION structured multiblock data from Tecplot binary file (SZplt format).
   !> \details Uses TecIO library to read compressed Tecplot binary format (.szplt).
   !> Only compiled if TECIO is defined.
+  !> A zone with one node plane (K = 1) is read with two coordinates (x, y), unless the
+  !> file declares a third one, with the rule of the ASCII reader: the first three variables
+  !> are named x, y, z and z is nodal in every zone (a slice of a 3-D field), read with
+  !> three coordinates.
   !> \param[inout] orion ORION data structure to fill with data
   !> \param[in] filename Input file name (.szplt)
   !> \param[in] zone_mask Optional per-zone selector, indexed by zone number.
@@ -1662,6 +1666,8 @@ contains
     type(c_ptr) :: stringCPtr = C_NULL_PTR
     logical :: onlyNode
     logical :: headers_only, want_data, is_coord
+    logical :: plane_xyz                    ! single node planes that carry x, y and z
+    integer(c_int32_t) :: zloc              ! value location of variable 3 in a zone (1 = nodal)
 
     headers_only = .false.
     if (present(dims_only)) headers_only = dims_only
@@ -1719,6 +1725,23 @@ contains
     i = tecFileGetType(inputFileHandle, fileType)
     i = tecDataSetGetNumZones(inputFileHandle, numZones)
 
+    ! One node plane (K = 1) is a pure 2-D zone (x, y) unless the file declares a third
+    ! coordinate, with the rule of the ASCII reader: the first three variables are named
+    ! x, y and z (any case) and z is nodal in every zone. Such a zone is a plane of a 3-D
+    ! field (a slice): z is read as the third coordinate, not as the first solution
+    ! variable, so every variable keeps its own band.
+    plane_xyz = .false.
+    if (numVars >= 3) then
+      plane_xyz = is_coordinate_name(orion%varnames(1),'X') .and. &
+                  is_coordinate_name(orion%varnames(2),'Y') .and. &
+                  is_coordinate_name(orion%varnames(3),'Z')
+      do inputZone = 1, numZones
+        if (.not. plane_xyz) exit
+        i = tecZoneVarGetValueLocation(inputFileHandle, inputZone, 3_c_int32_t, zloc)
+        if (zloc /= 1) plane_xyz = .false.
+      enddo
+    endif
+
     ! A caller doing the two-pass dims-then-data read arrives here a second
     ! time with %block already allocated from the header pass.
     if (allocated(orion%block)) deallocate(orion%block)
@@ -1754,6 +1777,7 @@ contains
           ndir = 3
         elseif (jMax>1 .and. kMax==1) then
           ndir = 2
+          if (plane_xyz) ndir = 3
         elseif (jMax==1 .and. kMax==1) then
           ndir = 1
         endif
@@ -1937,6 +1961,21 @@ contains
 
     ! Close old and new files
     i = tecFileReaderClose(inputFileHandle)
+
+  contains
+
+    ! Is text (a variable name) the coordinate name c ('X', 'Y' or 'Z'), in any case?
+    ! The same test as in tec_read_ascii.
+    logical function is_coordinate_name(text,c)
+      character(len=*), intent(in) :: text, c
+      character(len=len(text)) :: t
+      integer :: n
+      t = adjustl(text)
+      do n = 1, len(t)
+        if (t(n:n) >= 'a' .and. t(n:n) <= 'z') t(n:n) = achar(iachar(t(n:n)) - 32)
+      enddo
+      is_coordinate_name = (trim(t) == c)
+    endfunction is_coordinate_name
 
   end function tec_read_szplt
 # endif
