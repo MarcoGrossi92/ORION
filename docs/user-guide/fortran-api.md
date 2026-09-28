@@ -52,7 +52,12 @@ character(6) :: extension  ! File extension (default: '.tec')
 character(6) :: format     ! 'binary' or 'ascii' (default: 'binary')
 logical :: node            ! Node or cell data location (default: .false.)
 logical :: bc              ! Save boundary conditions (default: .false.)
+logical :: double          ! Binary files (.plt/.szplt): .true. = 64-bit values, .false. = 32-bit (default: .true.)
 ```
+
+`double` sets the precision of the values stored in a binary Tecplot file (TecIO `VIsDouble`); the data are
+always handed to TecIO as double precision. A program that writes binary files and needs a given precision sets
+the option before the write; otherwise its files follow this default. ASCII files are not affected.
 
 **VTK (`Type_vtk_Format`):**
 ```fortran
@@ -169,6 +174,53 @@ program read_vtk_structured
   endif
 end program read_vtk_structured
 ```
+
+### Dimensions of what a reader returns
+
+- **Tecplot ASCII, structured zones.** A zone header gives `I`, `J` and `K`; a header without `K` is one node
+  plane (`K = 1`, Tecplot's default). When the first zone has `K = 1` the file is read as two-dimensional:
+  `mesh` holds two coordinates (`mesh(1:2,...)`) and every block has `Nk = 0`; all zones of a file must then
+  have `K = 1`. A plane of a three-dimensional field (a slice) is read with three coordinates instead: when
+  the first three variables are named `x`, `y` and `z` (in any case) and `z` is nodal in every zone (not listed
+  as `CELLCENTERED` in `VARLOCATION`), `mesh` holds `x`, `y` and `z` (`mesh(1:3,...)`, still one node plane,
+  `Nk = 0`) and the solution variables start after `z`; all zones must again have `K = 1`. A file whose third
+  variable has another name, or is cell-centred, is read as two-dimensional as above. The rule goes by name:
+  a two-dimensional file whose third variable is nodal and named `z` (a mixture fraction `Z`, for example) is
+  read as a slice, so rename that variable or write it cell-centred to read the file as two-dimensional.
+  `varnames` holds the coordinate names followed by the variable names, so
+  `size(varnames) = size(mesh,1) + size(vars,1)`.
+- **Tecplot binary (`.szplt`, TecIO builds).** Each zone is read with the dimension of its node counts: a zone
+  with one node plane (`K = 1`) has two coordinates (one when also `J = 1`) and `Nk = 0`, a volume zone three.
+  A slice is read with three coordinates by the rule of the ASCII reader: when the first three variables are
+  named `x`, `y` and `z` (in any case) and `z` is nodal in every zone, a zone with `K = 1` holds `x`, `y` and
+  `z` (`mesh(1:3,...)`, `Nk = 0`) and the solution variables start after `z`. A file whose third variable has
+  another name, or is cell-centred, is read with two coordinates; as in the ASCII reader, a two-dimensional
+  file whose third variable is nodal and named `z` is read as a slice. `varnames` is filled with the names
+  stored in the file, with the same convention as the ASCII reader (coordinates first).
+- **PLOT3D grids.** The first dimensions record decides the dimension of the whole file: two integers
+  (`Ni Nj`) give a two-dimensional grid (two coordinates, `Nk = 0`), three integers (`Ni Nj Nk`) a
+  three-dimensional one. Each block has its own dimensions record; a node count below 1 is refused.
+- **Solution time.** `solutiontime` is 0 in a new `orion_data`. The Tecplot ASCII reader stores the
+  `SOLUTIONTIME` of the file, or -10 when its zone headers give none. The `.szplt` reader does not store the
+  zone time of the file and leaves `solutiontime` as it was (0 for a new object); so does the PLOT3D reader,
+  since a PLOT3D grid has no time.
+
+### Length of the Tecplot header and lines
+
+- **VARIABLES header.** `tec_write_structured_multiblock` and `tec_write_points_multivars` build the list of
+  variable names (the `VARIABLES` line of an ASCII file, the list handed to TecIO for `.plt` and `.szplt`) in
+  a buffer of 32768 characters, and the ASCII reader reads up to 32768 characters of header: the `VARIABLES`
+  line, the lines before it and its continuation lines, joined. A longer list is cut without a message.
+- **Number of names.** The ASCII reader keeps at most 512 names, coordinates included. A header with more
+  names is refused: the reader returns `err /= 0` and prints `no variables found in VARIABLES header`. The
+  `.szplt` reader takes the names one by one from the file and has no such limit. Every name is kept to 32
+  characters (`varnames` is `character(len=32)`); the ASCII reader warns when it shortens one, the `.szplt`
+  reader shortens it without a message.
+- **Zone headers and data lines.** The ASCII reader reads each zone-header line and each data line into a
+  buffer of 1000 characters, and joins the lines of a zone header in another buffer of 1000 characters: each
+  data line, and each zone header with all its lines joined, must fit in 1000 characters.
+  `tec_write_structured_multiblock` writes one value per line; `tec_write_points_multivars` writes one point
+  per line, with all its variables on that line.
 
 ### PLOT3D Files
 

@@ -14,6 +14,7 @@ module Lib_ORION_data
     character(6):: format    = 'binary'  ! Binary or ascii file
     logical     :: node      = .false.   ! Node or cell data location
     logical     :: bc        = .false.   ! Saving or not boundary conditions cells
+    logical     :: double    = .true.    ! Binary (.plt/.szplt) files: .true. = 64-bit values, .false. = 32-bit values (TecIO VIsDouble)
   endtype Type_tec_Format
 
   ! Structure for VTK file format options
@@ -39,7 +40,7 @@ module Lib_ORION_data
   ! Contains all relevant data for an ORION simulation, including variable names, solution time, blocks, and file format options.
   type, public :: orion_data
     character(len=32), allocatable :: varnames(:)  ! Names of solution variables
-    real(R8P) :: solutiontime                      ! Solution time
+    real(R8P) :: solutiontime = 0._R8P             ! Solution time (0 when the file holds none, e.g. PLOT3D)
     type(obj_block), allocatable :: block(:)       ! Array of computational blocks
     type(Type_tec_Format) :: tec                   ! Tecplot format options
     type(Type_vtk_Format) :: vtk                   ! VTK format options
@@ -56,6 +57,7 @@ contains
 
     ! Copy non-allocatable members
     b%tec%format = a%tec%format
+    b%tec%double = a%tec%double
     b%vtk%format = a%vtk%format
     b%p3d%format = a%p3d%format
 

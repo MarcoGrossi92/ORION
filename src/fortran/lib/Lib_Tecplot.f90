@@ -100,7 +100,7 @@ contains
                                       tecend142           ! |
 # endif
     character(1), parameter:: tecendrec = char(0) !< End-character for binary-record end.
-    character(1000)::         tecvarname          !< Variables name for tecplot header file.
+    character(32768)::        tecvarname          !< Variables name for tecplot header file.
     character(500)::          teczoneheader       !< Tecplot string of zone header.
     character(500)::          tecvarform          !< Format for variables for tecplot file.
     integer, allocatable::    tecvarloc(:)        !< Tecplot array of variables location.
@@ -123,6 +123,7 @@ contains
     FileType   = 0
     Debug      = 0
     VIsDouble  = 0
+    if (orion%tec%double) VIsDouble = 1   ! 64-bit storage in .plt/.szplt (the data are handed to TecIO as double anyway)
     if (allocated(orion%block(1)%vars) .and. .not.present(Nvars)) then
       meshonly = .false.
       Nvar = size(orion%block(1)%vars,1)
@@ -405,7 +406,7 @@ contains
     character(len=*), intent(in)              :: filename
     integer, intent(in), optional             :: Nvars
     integer :: err
-    character(1000)::         tecvarname          !< Variables name for tecplot header file.
+    character(32768)::        tecvarname          !< Variables name for tecplot header file.
     character(500)::          teczoneheader       !< Tecplot string of zone header.
     character(500)::          tecvarform          !< Format for variables for tecplot file.
     integer::                 tecunit             !< Free logic unit of tecplot file.
@@ -521,6 +522,9 @@ contains
   !> Supports both BLOCK and POINT data packing; physical line breaks are irrelevant to the
   !> numerical data stream. Nodal and cell-centered variables are supported for BLOCK data.
   !> POINT data is supported when all variables are nodal.
+  !> A file whose first zone has one node plane (K = 1) is read with two coordinates (x, y),
+  !> unless its header declares a third one: the first three variables are named x, y, z
+  !> and z is nodal in every zone (a slice of a 3-D field), read with three coordinates.
   function tec_read_ascii(orion,filename) result(err)
     use, intrinsic :: iso_fortran_env, only : iostat_end
     implicit none
@@ -536,11 +540,14 @@ contains
     integer   :: Imax, Jmax, Kmax
     integer   :: start
     logical, allocatable :: zone_point(:), zone_node_arr(:)
+    logical, allocatable :: zone_z_cell(:)   ! variable 3 listed as CELLCENTERED in the zone header
+    logical   :: plane_xyz                   ! single node planes that carry x, y and z
     integer, allocatable :: Ni(:), Nj(:), Nk(:)
     character(1000) :: line
     character(1000) :: header
-    character(10000) :: variables_header
-    character(1000) :: vline
+    character(32768) :: hline               ! header lines only (VARIABLES and what precedes it)
+    character(32768) :: variables_header
+    character(32768) :: vline
     logical :: found_variables
 
     ! Persistent tokenizer state. This is deliberately line-based only at the lexical
@@ -575,11 +582,11 @@ contains
     found_variables = .false.
     ios = 0
     do while (ios==0)
-      read(tecunit,'(A)',iostat=ios) line
+      read(tecunit,'(A)',iostat=ios) hline
       if (ios/=0) exit
 
-      if (index(upper_case(line),'VARIABLES')>0) then
-        variables_header = trim(line)
+      if (index(upper_case(hline),'VARIABLES')>0) then
+        variables_header = trim(hline)
         found_variables = .true.
 
         ! Continue through subsequent header lines until the first ZONE.
@@ -634,9 +641,11 @@ contains
     endif
 
     allocate(Ni(Nblocks),Nj(Nblocks),Nk(Nblocks),zone_point(Nblocks),zone_node_arr(Nblocks))
+    allocate(zone_z_cell(Nblocks))
     Ni = 0; Nj = 0; Nk = 1
     zone_point = .false.
     zone_node_arr = .true.
+    zone_z_cell = .false.
 
     rewind(tecunit)
     b = 0
@@ -668,6 +677,7 @@ contains
       enddo
 
       call parse_zone_header(header,Ni(b),Nj(b),Nk(b),zone_point(b),zone_node_arr(b),solutiontime)
+      zone_z_cell(b) = var_cellcentered(upper_case(header),3)
       if (Ni(b)<=0 .or. Nj(b)<=0 .or. Nk(b)<=0) then
         write(stderr,'(/,A)') 'TECPLOT ASCII READ ERROR: invalid zone dimensions.'
         write(stderr,'(A,I0)') 'Zone : ', b
@@ -713,9 +723,23 @@ contains
     if (Nk(1)==1) ndir = 2
     if (Nj(1)==1 .and. Nk(1)==1) ndir = 1
 
+    ! One node plane (K = 1) is a pure 2-D file (x, y) unless the header declares a
+    ! third coordinate: the first three variables are named x, y and z (any case) and
+    ! z is NODAL in every zone (not listed as CELLCENTERED in VARLOCATION). Such a
+    ! file is a plane of a 3-D field (a slice): z is read as the third coordinate,
+    ! not as the first solution variable, so every variable keeps its own band.
+    ! As for 2-D files, all zones must then be single planes.
+    plane_xyz = .false.
+    if (ndir==2 .and. size(orion%varnames)>=3) then
+      plane_xyz = is_coordinate_name(orion%varnames(1),'X') .and. &
+                  is_coordinate_name(orion%varnames(2),'Y') .and. &
+                  is_coordinate_name(orion%varnames(3),'Z') .and. .not.any(zone_z_cell)
+      if (plane_xyz) ndir = 3
+    endif
+
     do b = 1, Nblocks
-      if ((Nk(b)==1 .and. ndir==3) .or. &
-          (Nk(b)>1 .and. ndir<3) .or. &
+      if ((Nk(b)==1 .and. ndir==3 .and. .not.plane_xyz) .or. &
+          (Nk(b)>1 .and. (ndir<3 .or. plane_xyz)) .or. &
           (Nj(b)==1 .and. ndir>1)) then
         err = 1
         close(tecunit)
@@ -918,82 +942,151 @@ contains
       integer, intent(out) :: I_,J_,K_
       logical, intent(out) :: point_,node_
       real(R8P), intent(inout) :: time_
-      character(1000) :: u
       character(1000) :: work
       character(100) :: token
-      integer :: p, q, ios_, iv
+      integer :: ios_
+      real(R8P) :: t_
+      logical :: found
 
       I_ = 0; J_ = 0; K_ = 1
       point_ = .false.
       node_ = .true.
 
-      u = upper_case(text)
-      work = u
+      work = upper_case(text)
 
-      call get_integer_keyword(work,'I=',I_)
-      call get_integer_keyword(work,'J=',J_)
-      call get_integer_keyword(work,'K=',K_)
+      call get_integer_keyword(work,'I',I_)
+      call get_integer_keyword(work,'J',J_)
+      call get_integer_keyword(work,'K',K_,found)
+      if (.not.found) K_ = 1   ! K omitted: one node plane (Tecplot's default K = 1)
 
-      if (index(work,'DATAPACKING=POINT')>0 .or. index(work,'F=POINT')>0) then
-        point_ = .true.
-      elseif (index(work,'DATAPACKING=BLOCK')>0 .or. index(work,'F=BLOCK')>0) then
-        point_ = .false.
-      else
-        ! Tecplot's default is POINT for some contexts; for structured zones the
-        ! writer in this library emits BLOCK, so retain BLOCK as the safe default.
-        point_ = .false.
-      endif
+      ! DATAPACKING=POINT|BLOCK, or the older F=POINT|BLOCK
+      call get_word_keyword(work,'DATAPACKING',token,found)
+      if (.not.found) call get_word_keyword(work,'F',token,found)
+      ! Tecplot's default is POINT for some contexts; for structured zones the
+      ! writer in this library emits BLOCK, so retain BLOCK as the safe default.
+      point_ = found .and. trim(token)=='POINT'
 
-      if (index(work,'CELLCENTERED')>0) node_ = .false.
-      if (index(work,'NODAL')>0 .and. index(work,'CELLCENTERED')==0) node_ = .true.
+      ! Cell-centred data can only be declared inside VARLOCATION=(...)
+      node_ = (index(varlocation_value(work),'CELLCENTERED')==0)
 
-      p = index(work,'SOLUTIONTIME=')
-      if (p>0) then
-        q = p + len('SOLUTIONTIME=')
-        token = ' '
-        iv = 0
-        do while (q<=len_trim(work) .and. iv<len(token))
-          if (work(q:q)==',' .or. work(q:q)==' ' .or. work(q:q)==char(9)) exit
-          iv = iv+1
-          token(iv:iv) = work(q:q)
-          q = q+1
-        enddo
-        read(token,*,iostat=ios_) time_
+      call get_word_keyword(work,'SOLUTIONTIME',token,found)
+      if (found) then
+        read(token,*,iostat=ios_) t_
+        if (ios_==0) time_ = t_
       endif
     endsubroutine parse_zone_header
 
-    subroutine get_integer_keyword(text,key,out)
+    ! Position of the value of `key` (name without '=') in a header line, or 0 if
+    ! absent. The key must be a whole word outside quoted strings, followed by
+    ! '='; whitespace is allowed on both sides of '=', e.g.
+    !   K=2
+    !   K=  2
+    !   K = 2
+    ! so 'K' does not match inside 'BLOCK=' nor in a title such as T="K=99".
+    integer function keyword_value_pos(text,key) result(pos)
+      character(len=*), intent(in) :: text,key
+      integer :: p, q, lt, lk
+      logical :: in_quotes
+
+      pos = 0
+      lt = len_trim(text)
+      lk = len_trim(key)
+      in_quotes = .false.
+
+      do p = 1, lt-lk+1
+        if (text(p:p)=='"') then
+          in_quotes = .not.in_quotes
+          cycle
+        endif
+        if (in_quotes .or. text(p:p+lk-1)/=key(1:lk)) cycle
+        if (p>1) then
+          if (is_word_char(text(p-1:p-1))) cycle
+        endif
+        q = skip_blanks(text,p+lk,lt)
+        if (q>lt) return
+        if (text(q:q)/='=') cycle
+        q = skip_blanks(text,q+1,lt)
+        if (q<=lt) pos = q
+        return
+      enddo
+    endfunction keyword_value_pos
+
+    ! Value of `key` up to the next separator (comma, blank, tab or ')').
+    subroutine get_word_keyword(text,key,out,found)
+      character(len=*), intent(in) :: text,key
+      character(len=*), intent(out) :: out
+      logical, intent(out) :: found
+      integer :: q, r, n, lt
+
+      out = ' '
+      q = keyword_value_pos(text,key)
+      found = (q>0)
+      if (.not.found) return
+
+      lt = len_trim(text)
+      n = 0
+      do r = q, lt
+        if (index(', )'//char(9),text(r:r))>0 .or. n>=len(out)) exit
+        n = n + 1
+        out(n:n) = text(r:r)
+      enddo
+      found = (n>0)
+    endsubroutine get_word_keyword
+
+    ! Integer value of `key`. `found` is true only if the key is present and its
+    ! value parses.
+    subroutine get_integer_keyword(text,key,out,found)
       character(len=*), intent(in) :: text,key
       integer, intent(out) :: out
-      integer :: p, q, r, ios_, n
+      logical, intent(out), optional :: found
       character(100) :: token
-      out = 0
-      p = index(text,key)
-      if (p<=0) return
+      integer :: ios_
+      logical :: ok
 
-      ! Skip optional whitespace between the keyword and its value, e.g.
-      !   K=2
-      !   K=  2
-      !   K = 2
-      q = p + len(key)
-      do while (q<=len_trim(text))
+      out = 0
+      call get_word_keyword(text,key,token,ok)
+      if (ok) then
+        read(token,*,iostat=ios_) out
+        ok = (ios_==0)
+        if (.not.ok) out = 0
+      endif
+      if (present(found)) found = ok
+    endsubroutine get_integer_keyword
+
+    ! The parenthesised value of VARLOCATION=(...), or blank if absent.
+    function varlocation_value(text) result(out)
+      character(len=*), intent(in) :: text
+      character(len=len(text)) :: out
+      integer :: q, r
+
+      out = ' '
+      q = keyword_value_pos(text,'VARLOCATION')
+      if (q<=0) return
+      if (text(q:q)/='(') return
+      r = index(text(q:),')')
+      if (r<=0) then
+        r = len_trim(text)
+      else
+        r = q + r - 1
+      endif
+      out = text(q:r)
+    endfunction varlocation_value
+
+    pure integer function skip_blanks(text,start,last) result(q)
+      character(len=*), intent(in) :: text
+      integer, intent(in) :: start, last
+      q = start
+      do while (q<=last)
         if (text(q:q)/=' ' .and. text(q:q)/=char(9)) exit
         q = q + 1
       enddo
-      if (q>len_trim(text)) return
+    endfunction skip_blanks
 
-      token = ' '
-      n = 0
-      r = q
-      do while (r<=len_trim(text))
-        if (text(r:r)==',' .or. text(r:r)==' ' .or. text(r:r)==char(9)) exit
-        n = n + 1
-        if (n>len(token)) exit
-        token(n:n) = text(r:r)
-        r = r + 1
-      enddo
-      read(token,*,iostat=ios_) out
-    endsubroutine get_integer_keyword
+    pure logical function is_word_char(c)
+      character(1), intent(in) :: c
+      is_word_char = (c>='A' .and. c<='Z') .or. (c>='a' .and. c<='z') .or. &
+                     (c>='0' .and. c<='9') .or. c=='_'
+    endfunction is_word_char
 
     subroutine next_value(unit,x,istat)
       use, intrinsic :: iso_fortran_env, only : iostat_end
@@ -1177,6 +1270,80 @@ contains
           out(q:q) = achar(code-iachar('a')+iachar('A'))
       enddo
     endfunction upper_case
+
+    ! Is text (a variable name) the coordinate name c ('X', 'Y' or 'Z'), in any case?
+    logical function is_coordinate_name(text,c)
+      character(len=*), intent(in) :: text, c
+      is_coordinate_name = (trim(adjustl(upper_case(text)))==c)
+    endfunction is_coordinate_name
+
+    ! Is variable iv listed in a [list]=CELLCENTERED group of the zone header text
+    ! (upper case)? A list holds numbers and ranges: [4-7], [4,5,6,7], [4-5,7].
+    logical function var_cellcentered(text,iv)
+      character(len=*), intent(in) :: text
+      integer,          intent(in) :: iv
+      integer :: p, q, r, c
+      character(len=len(text)) :: vl
+      var_cellcentered = .false.
+      vl = varlocation_value(text)
+      p = 1
+      do
+        q = index(vl(p:),'[')
+        if (q<=0) return
+        q = p + q - 1
+        r = index(vl(q:),']')
+        if (r<=0) return
+        r = q + r - 1
+        p = r + 1
+        if (p>len(vl)) return
+        c = verify(vl(p:),' =')
+        if (c<=0) return
+        c = p + c - 1
+        if (c+11<=len(vl)) then
+          if (vl(c:c+11)=='CELLCENTERED') then
+            if (in_var_list(vl(q+1:r-1),iv)) then
+              var_cellcentered = .true.
+              return
+            endif
+          endif
+        endif
+      enddo
+    endfunction var_cellcentered
+
+    ! Is iv in a comma-separated list of numbers and ranges (a-b)?
+    logical function in_var_list(list,iv)
+      character(len=*), intent(in) :: list
+      integer,          intent(in) :: iv
+      integer :: s, e, d, lo, hi, ios1, ios2
+      in_var_list = .false.
+      s = 1
+      do while (s<=len(list))
+        e = index(list(s:),',')
+        if (e==0) then
+          e = len(list) + 1
+        else
+          e = s + e - 1
+        endif
+        if (e>s) then
+          d = index(list(s:e-1),'-')
+          if (d>0) then
+            read(list(s:s+d-2),*,iostat=ios1) lo
+            read(list(s+d:e-1),*,iostat=ios2) hi
+          else
+            read(list(s:e-1),*,iostat=ios1) lo
+            ios2 = ios1
+            hi = lo
+          endif
+          if (ios1==0 .and. ios2==0) then
+            if (iv>=lo .and. iv<=hi) then
+              in_var_list = .true.
+              return
+            endif
+          endif
+        endif
+        s = e + 1
+      enddo
+    endfunction in_var_list
 
   end function tec_read_ascii
 
@@ -1510,6 +1677,10 @@ contains
   !> \brief Read ORION structured multiblock data from Tecplot binary file (SZplt format).
   !> \details Uses TecIO library to read compressed Tecplot binary format (.szplt).
   !> Only compiled if TECIO is defined.
+  !> A zone with one node plane (K = 1) is read with two coordinates (x, y), unless the
+  !> file declares a third one, with the rule of the ASCII reader: the first three variables
+  !> are named x, y, z and z is nodal in every zone (a slice of a 3-D field), read with
+  !> three coordinates.
   !> \param[inout] orion ORION data structure to fill with data
   !> \param[in] filename Input file name (.szplt)
   !> \param[in] zone_mask Optional per-zone selector, indexed by zone number.
@@ -1540,9 +1711,9 @@ contains
     integer i, j, k, cnt
     character(256) inputFileName
     character(256) dataSetTitle, zoneTitle
-    character(1024) varNames
+    character(32768) varNames
     character, pointer :: stringPtr(:)
-    integer nameLen, strLen
+    integer nameLen, strLen, q0, q1
     integer(c_int8_t), allocatable :: int8Values(:)
     integer(c_int16_t), allocatable :: int16Values(:)
     integer(c_int32_t) :: numVars, var
@@ -1565,6 +1736,8 @@ contains
     type(c_ptr) :: stringCPtr = C_NULL_PTR
     logical :: onlyNode
     logical :: headers_only, want_data, is_coord
+    logical :: plane_xyz                    ! single node planes that carry x, y and z
+    integer(c_int32_t) :: zloc              ! value location of variable 3 in a zone (1 = nodal)
 
     headers_only = .false.
     if (present(dims_only)) headers_only = dims_only
@@ -1583,25 +1756,61 @@ contains
     call tecStringFree(stringCPtr)
     i = tecDataSetGetNumVars(inputFileHandle, numVars)
 
+    ! Export the variable names to the caller, coordinates included, with the
+    ! same convention as the ASCII reader (size(orion%varnames) = ndir + nvar),
+    ! so that the bands of a .szplt file can be identified by name.
+    if (allocated(orion%varnames)) deallocate(orion%varnames)
+    allocate(orion%varnames(numVars))
+    orion%varnames = ' '
     strLen = 0
     do var = 1, numVars
         i = tecVarGetName(inputFileHandle, var, stringCPtr)
         nameLen = tecStringLength(stringCPtr)
         call c_f_pointer(stringCPtr, stringPtr, [nameLen])
+        ! a name written from a quoted list keeps its quotes in the file: drop one
+        ! enclosing pair, as the ASCII reader does
+        q0 = 1
+        q1 = nameLen
+        if (nameLen >= 2) then
+            if (stringPtr(1) == '"' .and. stringPtr(nameLen) == '"') then
+                q0 = 2
+                q1 = nameLen - 1
+            endif
+        endif
+        do j = q0, min(q1, q0 + len(orion%varnames(var)) - 1)
+            orion%varnames(var)(j-q0+1:j-q0+1) = stringPtr(j)
+        enddo
         if (var .gt. 1) then
             strLen = strLen + 1
-            varNames(strLen : strLen) = ','
+            if (strLen <= len(varNames)) varNames(strLen : strLen) = ','
         endif
         do j = 1, nameLen
-            varNames(strLen + j : strLen + j) = stringPtr(j)
+            if (strLen + j <= len(varNames)) varNames(strLen + j : strLen + j) = stringPtr(j)
         enddo
         strLen = strLen + nameLen
         call tecStringFree(stringCPtr)
     enddo
-    varNames(strLen + 1 : strlen + 1) = C_NULL_CHAR
+    if (strLen + 1 <= len(varNames)) varNames(strLen + 1 : strlen + 1) = C_NULL_CHAR
 
     i = tecFileGetType(inputFileHandle, fileType)
     i = tecDataSetGetNumZones(inputFileHandle, numZones)
+
+    ! One node plane (K = 1) is a pure 2-D zone (x, y) unless the file declares a third
+    ! coordinate, with the rule of the ASCII reader: the first three variables are named
+    ! x, y and z (any case) and z is nodal in every zone. Such a zone is a plane of a 3-D
+    ! field (a slice): z is read as the third coordinate, not as the first solution
+    ! variable, so every variable keeps its own band.
+    plane_xyz = .false.
+    if (numVars >= 3) then
+      plane_xyz = is_coordinate_name(orion%varnames(1),'X') .and. &
+                  is_coordinate_name(orion%varnames(2),'Y') .and. &
+                  is_coordinate_name(orion%varnames(3),'Z')
+      do inputZone = 1, numZones
+        if (.not. plane_xyz) exit
+        i = tecZoneVarGetValueLocation(inputFileHandle, inputZone, 3_c_int32_t, zloc)
+        if (zloc /= 1) plane_xyz = .false.
+      enddo
+    endif
 
     ! A caller doing the two-pass dims-then-data read arrives here a second
     ! time with %block already allocated from the header pass.
@@ -1638,6 +1847,7 @@ contains
           ndir = 3
         elseif (jMax>1 .and. kMax==1) then
           ndir = 2
+          if (plane_xyz) ndir = 3
         elseif (jMax==1 .and. kMax==1) then
           ndir = 1
         endif
@@ -1821,6 +2031,21 @@ contains
 
     ! Close old and new files
     i = tecFileReaderClose(inputFileHandle)
+
+  contains
+
+    ! Is text (a variable name) the coordinate name c ('X', 'Y' or 'Z'), in any case?
+    ! The same test as in tec_read_ascii.
+    logical function is_coordinate_name(text,c)
+      character(len=*), intent(in) :: text, c
+      character(len=len(text)) :: t
+      integer :: n
+      t = adjustl(text)
+      do n = 1, len(t)
+        if (t(n:n) >= 'a' .and. t(n:n) <= 'z') t(n:n) = achar(iachar(t(n:n)) - 32)
+      enddo
+      is_coordinate_name = (trim(t) == c)
+    endfunction is_coordinate_name
 
   end function tec_read_szplt
 # endif
