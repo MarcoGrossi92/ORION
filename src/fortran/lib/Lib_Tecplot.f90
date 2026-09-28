@@ -942,83 +942,151 @@ contains
       integer, intent(out) :: I_,J_,K_
       logical, intent(out) :: point_,node_
       real(R8P), intent(inout) :: time_
-      character(1000) :: u
       character(1000) :: work
       character(100) :: token
-      integer :: p, q, ios_, iv
+      integer :: ios_
+      real(R8P) :: t_
+      logical :: found
 
       I_ = 0; J_ = 0; K_ = 1
       point_ = .false.
       node_ = .true.
 
-      u = upper_case(text)
-      work = u
+      work = upper_case(text)
 
-      call get_integer_keyword(work,'I=',I_)
-      call get_integer_keyword(work,'J=',J_)
-      call get_integer_keyword(work,'K=',K_)
-      if (index(work,'K=')==0) K_ = 1   ! K omitted: one node plane (Tecplot's default K = 1)
+      call get_integer_keyword(work,'I',I_)
+      call get_integer_keyword(work,'J',J_)
+      call get_integer_keyword(work,'K',K_,found)
+      if (.not.found) K_ = 1   ! K omitted: one node plane (Tecplot's default K = 1)
 
-      if (index(work,'DATAPACKING=POINT')>0 .or. index(work,'F=POINT')>0) then
-        point_ = .true.
-      elseif (index(work,'DATAPACKING=BLOCK')>0 .or. index(work,'F=BLOCK')>0) then
-        point_ = .false.
-      else
-        ! Tecplot's default is POINT for some contexts; for structured zones the
-        ! writer in this library emits BLOCK, so retain BLOCK as the safe default.
-        point_ = .false.
-      endif
+      ! DATAPACKING=POINT|BLOCK, or the older F=POINT|BLOCK
+      call get_word_keyword(work,'DATAPACKING',token,found)
+      if (.not.found) call get_word_keyword(work,'F',token,found)
+      ! Tecplot's default is POINT for some contexts; for structured zones the
+      ! writer in this library emits BLOCK, so retain BLOCK as the safe default.
+      point_ = found .and. trim(token)=='POINT'
 
-      if (index(work,'CELLCENTERED')>0) node_ = .false.
-      if (index(work,'NODAL')>0 .and. index(work,'CELLCENTERED')==0) node_ = .true.
+      ! Cell-centred data can only be declared inside VARLOCATION=(...)
+      node_ = (index(varlocation_value(work),'CELLCENTERED')==0)
 
-      p = index(work,'SOLUTIONTIME=')
-      if (p>0) then
-        q = p + len('SOLUTIONTIME=')
-        token = ' '
-        iv = 0
-        do while (q<=len_trim(work) .and. iv<len(token))
-          if (work(q:q)==',' .or. work(q:q)==' ' .or. work(q:q)==char(9)) exit
-          iv = iv+1
-          token(iv:iv) = work(q:q)
-          q = q+1
-        enddo
-        read(token,*,iostat=ios_) time_
+      call get_word_keyword(work,'SOLUTIONTIME',token,found)
+      if (found) then
+        read(token,*,iostat=ios_) t_
+        if (ios_==0) time_ = t_
       endif
     endsubroutine parse_zone_header
 
-    subroutine get_integer_keyword(text,key,out)
+    ! Position of the value of `key` (name without '=') in a header line, or 0 if
+    ! absent. The key must be a whole word outside quoted strings, followed by
+    ! '='; whitespace is allowed on both sides of '=', e.g.
+    !   K=2
+    !   K=  2
+    !   K = 2
+    ! so 'K' does not match inside 'BLOCK=' nor in a title such as T="K=99".
+    integer function keyword_value_pos(text,key) result(pos)
+      character(len=*), intent(in) :: text,key
+      integer :: p, q, lt, lk
+      logical :: in_quotes
+
+      pos = 0
+      lt = len_trim(text)
+      lk = len_trim(key)
+      in_quotes = .false.
+
+      do p = 1, lt-lk+1
+        if (text(p:p)=='"') then
+          in_quotes = .not.in_quotes
+          cycle
+        endif
+        if (in_quotes .or. text(p:p+lk-1)/=key(1:lk)) cycle
+        if (p>1) then
+          if (is_word_char(text(p-1:p-1))) cycle
+        endif
+        q = skip_blanks(text,p+lk,lt)
+        if (q>lt) return
+        if (text(q:q)/='=') cycle
+        q = skip_blanks(text,q+1,lt)
+        if (q<=lt) pos = q
+        return
+      enddo
+    endfunction keyword_value_pos
+
+    ! Value of `key` up to the next separator (comma, blank, tab or ')').
+    subroutine get_word_keyword(text,key,out,found)
+      character(len=*), intent(in) :: text,key
+      character(len=*), intent(out) :: out
+      logical, intent(out) :: found
+      integer :: q, r, n, lt
+
+      out = ' '
+      q = keyword_value_pos(text,key)
+      found = (q>0)
+      if (.not.found) return
+
+      lt = len_trim(text)
+      n = 0
+      do r = q, lt
+        if (index(', )'//char(9),text(r:r))>0 .or. n>=len(out)) exit
+        n = n + 1
+        out(n:n) = text(r:r)
+      enddo
+      found = (n>0)
+    endsubroutine get_word_keyword
+
+    ! Integer value of `key`. `found` is true only if the key is present and its
+    ! value parses.
+    subroutine get_integer_keyword(text,key,out,found)
       character(len=*), intent(in) :: text,key
       integer, intent(out) :: out
-      integer :: p, q, r, ios_, n
+      logical, intent(out), optional :: found
       character(100) :: token
-      out = 0
-      p = index(text,key)
-      if (p<=0) return
+      integer :: ios_
+      logical :: ok
 
-      ! Skip optional whitespace between the keyword and its value, e.g.
-      !   K=2
-      !   K=  2
-      !   K = 2
-      q = p + len(key)
-      do while (q<=len_trim(text))
+      out = 0
+      call get_word_keyword(text,key,token,ok)
+      if (ok) then
+        read(token,*,iostat=ios_) out
+        ok = (ios_==0)
+        if (.not.ok) out = 0
+      endif
+      if (present(found)) found = ok
+    endsubroutine get_integer_keyword
+
+    ! The parenthesised value of VARLOCATION=(...), or blank if absent.
+    function varlocation_value(text) result(out)
+      character(len=*), intent(in) :: text
+      character(len=len(text)) :: out
+      integer :: q, r
+
+      out = ' '
+      q = keyword_value_pos(text,'VARLOCATION')
+      if (q<=0) return
+      if (text(q:q)/='(') return
+      r = index(text(q:),')')
+      if (r<=0) then
+        r = len_trim(text)
+      else
+        r = q + r - 1
+      endif
+      out = text(q:r)
+    endfunction varlocation_value
+
+    pure integer function skip_blanks(text,start,last) result(q)
+      character(len=*), intent(in) :: text
+      integer, intent(in) :: start, last
+      q = start
+      do while (q<=last)
         if (text(q:q)/=' ' .and. text(q:q)/=char(9)) exit
         q = q + 1
       enddo
-      if (q>len_trim(text)) return
+    endfunction skip_blanks
 
-      token = ' '
-      n = 0
-      r = q
-      do while (r<=len_trim(text))
-        if (text(r:r)==',' .or. text(r:r)==' ' .or. text(r:r)==char(9)) exit
-        n = n + 1
-        if (n>len(token)) exit
-        token(n:n) = text(r:r)
-        r = r + 1
-      enddo
-      read(token,*,iostat=ios_) out
-    endsubroutine get_integer_keyword
+    pure logical function is_word_char(c)
+      character(1), intent(in) :: c
+      is_word_char = (c>='A' .and. c<='Z') .or. (c>='a' .and. c<='z') .or. &
+                     (c>='0' .and. c<='9') .or. c=='_'
+    endfunction is_word_char
 
     subroutine next_value(unit,x,istat)
       use, intrinsic :: iso_fortran_env, only : iostat_end
@@ -1215,24 +1283,25 @@ contains
       character(len=*), intent(in) :: text
       integer,          intent(in) :: iv
       integer :: p, q, r, c
+      character(len=len(text)) :: vl
       var_cellcentered = .false.
-      p = index(text,'VARLOCATION')
-      if (p<=0) return
+      vl = varlocation_value(text)
+      p = 1
       do
-        q = index(text(p:),'[')
+        q = index(vl(p:),'[')
         if (q<=0) return
         q = p + q - 1
-        r = index(text(q:),']')
+        r = index(vl(q:),']')
         if (r<=0) return
         r = q + r - 1
         p = r + 1
-        if (p>len(text)) return
-        c = verify(text(p:),' =')
+        if (p>len(vl)) return
+        c = verify(vl(p:),' =')
         if (c<=0) return
         c = p + c - 1
-        if (c+11<=len(text)) then
-          if (text(c:c+11)=='CELLCENTERED') then
-            if (in_var_list(text(q+1:r-1),iv)) then
+        if (c+11<=len(vl)) then
+          if (vl(c:c+11)=='CELLCENTERED') then
+            if (in_var_list(vl(q+1:r-1),iv)) then
               var_cellcentered = .true.
               return
             endif
