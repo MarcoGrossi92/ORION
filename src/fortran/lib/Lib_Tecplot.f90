@@ -1777,7 +1777,7 @@ contains
                 q1 = nameLen - 1
             endif
         endif
-        do j = q0, min(q1, q0 + len(orion%varnames) - 1)
+        do j = q0, min(q1, q0 + len(orion%varnames(var)) - 1)
             orion%varnames(var)(j-q0+1:j-q0+1) = stringPtr(j)
         enddo
         if (var .gt. 1) then
