@@ -1,20 +1,14 @@
 # Authors and Contributors
 
-Citation credit for the archived releases is recorded in
-[`CITATION.cff`](CITATION.cff) and [`.zenodo.json`](.zenodo.json). This file is
-the human-readable record of everyone who has contributed.
+This file is the record of everyone who has contributed.
 
 ## Author
-
-The author is credited on the Zenodo record and in the recommended citation.
 
 - **Marco Grossi** — *author and maintainer*
   Design and implementation of the Fortran library, Python interface, and
   command-line converter.
 
 ## Contributors
-
-Listed in the `contributors` field of the Zenodo record.
 
 - **Alessandro Montanari**
 - **Paolo Maria Zolla**

@@ -1,6 +1,5 @@
-# Keep the release archive (and therefore the Zenodo artifact) free of files
-# that are only useful inside the repository. Documentation source is kept
-# deliberately: the archived record should be self-contained.
+# Keep the release archive free of files that are only useful inside the repository. 
+# Documentation source is kept deliberately: the archived record should be self-contained.
 .github/            export-ignore
 .gitattributes      export-ignore
 .gitignore          export-ignore
