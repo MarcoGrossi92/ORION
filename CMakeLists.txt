@@ -4,6 +4,8 @@ cmake_minimum_required(VERSION 3.13)
 
 project (ORION LANGUAGES Fortran CXX)
 
+include(CTest)
+
 set(CMAKE_VERBOSE_MAKEFILE FALSE)
 # seach path for cmake modules
 set(CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake/")
@@ -78,8 +80,14 @@ add_subdirectory(src/fortran/lib)
 
 # Build tests and applications (only if ORION build has not been called by another program)
 if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
-    message("-- Full build allowed")
+
+  message("-- Full build allowed")
+
+  if(BUILD_TESTING)
     add_subdirectory(src/fortran/test)
-    add_subdirectory(src/fortran/app)
+  endif()
+
+  add_subdirectory(src/fortran/app)
+
 endif()
 
