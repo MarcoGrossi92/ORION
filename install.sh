@@ -4,7 +4,8 @@ set -e  # Exit on any command failure
 set -u  # Treat unset variables as an error
 
 PROGRAM=$(basename "$0")
-readonly DIR=$(pwd)
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+readonly DIR="${SCRIPT_DIR}"
 BUILD_DIR="$DIR/build"
 VERBOSE=false
 project=ORION
@@ -23,12 +24,8 @@ Global Options:
 
 Commands:
   build                     Perform the full build
-    --compiler=<name>       Set compilers suit (intel,gnu)
+    --compilers=<name>      Set compilers suit (intel,gnu)
     --use-tecio             Use TecIO
-
-  compile                   Compile the program using the CMakePresets file
-
-  setvars                   Set $project paths in environment variables
 
 EOF
     exit 1
@@ -60,24 +57,6 @@ function download_extra () {
     curl -O $url
     tar zxf *.tgz
   fi
-}
-
-
-function define_path () {
-  rm -f .setvars.sh
-  echo 'export ORIONDIR='$DIR >> .setvars.sh
-  if [[ $SHELL == *"zsh"* ]]; then
-    echo 'ORION () { '$DIR'/bin/app/converter $@; }' >> .setvars.sh
-    RCFILE=$HOME/.zshrc
-  elif [[ $SHELL == *"bash"* ]]; then
-    echo 'function ORION () { '$DIR'/bin/app/converter $@; }' >> .setvars.sh
-    RCFILE=$HOME/.bashrc
-  fi
-  log "RC file: $RCFILE"
-  echo 'export -f ORION' >> .setvars.sh
-  grep -v "ORION" $RCFILE > tmpfile && mv tmpfile $RCFILE
-  echo 'source '$DIR'/.setvars.sh' >> $RCFILE
-  source $RCFILE --force
 }
 
 
@@ -119,7 +98,7 @@ BUILD_TYPE="RELEASE"
 USE_TECIO=false
 
 # Define allowed options for each command using regular arrays
-CMD=("build" "compile" "setvars")
+CMD=("build")
 CMD_OPTIONS_build=("--compilers --use-tecio")
 
 # Parse global options
@@ -206,17 +185,6 @@ case "$COMMAND" in
         log "[OK] CMakePresets.json created"
 
         task "Defining environment variables"
-        define_path
-        log "[OK] Environment variables defined"
-        ;;
-    compile)
-        task "Compiling $project using CMakePresets"
-        cmake --preset default || exit 1
-        cmake --build $BUILD_DIR || exit 1
-        log "[OK] Compilation successful"
-        ;;
-    setvars)
-        task "Setting $project environment variables"
         define_path
         log "[OK] Environment variables defined"
         ;;

@@ -1,79 +1,96 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
-# Set the file containing the version
-VERSION_FILE="scripts/version.txt"
+# Bump the ORION version in scripts/version.txt.
+#
+# Usage:
+#   ./scripts/version_bump.sh --major
+#   ./scripts/version_bump.sh --minor
+#   ./scripts/version_bump.sh --patch
+#
+# This script intentionally does NOT:
+#   - create commits
+#   - create/delete tags
+#   - push to GitHub
+#
+# Those operations should remain explicit Git operations.
 
-# Function to increment version numbers
+set -euo pipefail
+
+REPO_ROOT="$(git rev-parse --show-toplevel)"
+VERSION_FILE="${REPO_ROOT}/scripts/version.txt"
+
 increment_version() {
-  local version=$1
-  local part=$2
+    local version="$1"
+    local part="$2"
 
-  IFS='.' read -r -a parts <<< "$version"
+    IFS='.' read -r major minor patch <<< "${version}"
 
-  if [[ "$part" == "major" ]]; then
-    parts[0]=$((parts[0] + 1))
-    parts[1]=0
-    parts[2]=0
-  elif [[ "$part" == "minor" ]]; then
-    parts[1]=$((parts[1] + 1))
-    parts[2]=0
-  elif [[ "$part" == "patch" ]]; then
-    parts[2]=$((parts[2] + 1))
-  else
-    echo "Invalid part: $part. Must be 'major', 'minor', or 'patch'."
-    exit 1
-  fi
-
-  echo "${parts[0]}.${parts[1]}.${parts[2]}"
+    case "${part}" in
+        major)
+            printf '%d.0.0\n' "$((major + 1))"
+            ;;
+        minor)
+            printf '%d.%d.0\n' "${major}" "$((minor + 1))"
+            ;;
+        patch)
+            printf '%d.%d.%d\n' "${major}" "${minor}" "$((patch + 1))"
+            ;;
+        *)
+            echo "Error: invalid version component '${part}'." >&2
+            echo "Usage: $0 --major|--minor|--patch" >&2
+            exit 1
+            ;;
+    esac
 }
 
-# Ensure the version file exists
-if [ ! -f "$VERSION_FILE" ]; then
-  echo "Version file $VERSION_FILE not found!"
-  exit 1
+if [[ $# -ne 1 ]]; then
+    echo "Usage: $0 --major|--minor|--patch" >&2
+    exit 1
 fi
 
-# Read the current version
-current_version=$(cat $VERSION_FILE)
-echo "Current version: $current_version"
-
-# Determine which part to increment
-if [[ "$1" == "--major" ]]; then
-  new_version=$(increment_version "$current_version" "major")
-elif [[ "$1" == "--minor" ]]; then
-  new_version=$(increment_version "$current_version" "minor")
-elif [[ "$1" == "--patch" ]]; then
-  new_version=$(increment_version "$current_version" "patch")
-else
-  echo "Usage: $0 --major|--minor|--patch"
-  exit 1
+if [[ ! -f "${VERSION_FILE}" ]]; then
+    echo "Error: version file not found: ${VERSION_FILE}" >&2
+    exit 1
 fi
 
-echo "New version: $new_version"
+current_version="$(tr -d '[:space:]' < "${VERSION_FILE}")"
 
-# Update the version file
-echo $new_version > $VERSION_FILE
+if [[ ! "${current_version}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+    echo "Error: invalid current version '${current_version}'." >&2
+    echo "Expected MAJOR.MINOR.PATCH." >&2
+    exit 1
+fi
 
-# Commit the version change
-git add $VERSION_FILE
-git commit -m "Bump version to $new_version"
+case "$1" in
+    --major)
+        new_version="$(increment_version "${current_version}" major)"
+        ;;
+    --minor)
+        new_version="$(increment_version "${current_version}" minor)"
+        ;;
+    --patch)
+        new_version="$(increment_version "${current_version}" patch)"
+        ;;
+    *)
+        echo "Error: unknown option '$1'." >&2
+        echo "Usage: $0 --major|--minor|--patch" >&2
+        exit 1
+        ;;
+esac
 
-# Delete all local tags
-echo "Deleting all local tags..."
-git tag | xargs -r git tag -d
+if git rev-parse --verify --quiet "refs/tags/v${new_version}" >/dev/null; then
+    echo "Error: tag v${new_version} already exists." >&2
+    exit 1
+fi
 
-# Delete all remote tags
-echo "Deleting all remote tags..."
-git ls-remote --tags origin | awk '/refs\/tags\// {print $2}' | while read -r tag; do
-  tag_name=${tag#refs/tags/}
-  git push origin ":refs/tags/$tag_name"
-done
+printf '%s\n' "${new_version}" > "${VERSION_FILE}"
 
-# Create a new Git tag
-git tag "v$new_version"
-
-# Push the changes and the new tag
-git push origin HEAD:main
-git push origin "v$new_version"
-
-echo "Version bumped to $new_version and pushed with tag v$new_version"
+echo "Version bumped: ${current_version} -> ${new_version}"
+echo
+echo "Next steps:"
+echo "  git diff"
+echo "  git add ${VERSION_FILE}"
+echo "  git commit -m \"Bump version to ${new_version}\""
+echo "  git tag -a v${new_version} -m \"ORION v${new_version}\""
+echo "  git push origin main"
+echo "  git push origin v${new_version}"
