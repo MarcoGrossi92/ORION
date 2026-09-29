@@ -14,6 +14,10 @@ program tecplot_read_multiblock
 
   data%tec%format = 'ascii'
   error = tec_read_structured_multiblock(orion=data,filename='tecfile.tec')
+  if (error /= 0) then
+    write(*,*) 'Error reading tecfile.tec'
+    stop 1
+  endif
   nb = size(data%block)
 
   write(*,*) '3D domain'

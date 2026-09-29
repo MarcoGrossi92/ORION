@@ -44,17 +44,6 @@ contains
     names(nv-4:nv) = ['u', 'v', 'w', 'p', 'T']
   end function solver_names
 
-  ! The names as one string, each between double quotes, as a solver passes them to the writer.
-  function quoted_list(names) result(list)
-    character(len=*), intent(in)  :: names(:)
-    character(len=:), allocatable :: list
-    integer :: s
-    list = '"'//trim(names(1))//'"'
-    do s = 2, size(names)
-      list = list//' "'//trim(names(s))//'"'
-    enddo
-  end function quoted_list
-
   ! Two blocks of 3 x 2 x 2 and 2 x 3 x 1 cells; x y z nodal, the nv variables cell-centred.
   ! Every value is exact in the writer's format: 1000 s + 100 i + 10 j + k + b/2.
   subroutine fill(w, nv)
@@ -124,13 +113,16 @@ contains
     logical,          intent(out)   :: whole
     character(len=:), allocatable :: list, header
     character(len=65536) :: line
-    integer :: u, err, ios
-    list = quoted_list(names)
+    integer :: u, err, ios, s
+    list = trim(names(1))
+    do s = 2, size(names)
+      list = list//' '//trim(names(s))
+    enddo
     call fill(w, size(names))
     w%tec%format = 'ascii'
     err = tec_write_structured_multiblock(orion=w, varnames=list, filename=fname)
     call check(err == 0, 'written')
-    header = ' VARIABLES ="x" "y" "z" '//list
+    header = ' VARIABLES = x y z '//list
     line = ' '
     open(newunit=u, file=fname, status='old', action='read')
     read(u,'(A)',iostat=ios) line
