@@ -5,15 +5,15 @@ All notable changes to ORION are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-Each tagged release is archived on Zenodo and receives its own DOI. See
-[`CITATION.cff`](CITATION.cff) for how to cite a specific version.
-
 ## [Unreleased]
 
 Changes on `main` since `v1.6.0`.
 
+## [1.7.0] - 2026-09-29
+
 ### Added
 
+- New CI workflows.
 - Tecplot option `orion%tec%double` (logical, default `.true.`, copied by
   `copyORION`). It sets the precision of the values that
   `tec_write_structured_multiblock` stores in a binary Tecplot file (`.plt`,
@@ -29,6 +29,8 @@ Changes on `main` since `v1.6.0`.
 
 ### Changed
 
+- Remove compiling and setvars options from install.sh. New scripts places in scripts/ folder
+- Reduce the tasks performed by version_bumb script. 
 - Binary Tecplot files are written with 64-bit values by default. The writer
   handed TecIO double-precision values but declared them single precision, so
   a `.plt` or `.szplt` file read back differed from the data in memory
@@ -41,6 +43,7 @@ Changes on `main` since `v1.6.0`.
   of stopping the program (a file that is not PLOT3D stopped it), and refuses
   a block count below 1 (`err = 1`) and a node count below 1 (`err = 2`)
   before it reads any coordinate.
+- Tecplot writers remove quotes to variables names.
 
 ### Fixed
 
@@ -115,8 +118,7 @@ Changes on `main` since `v1.6.0`.
 
 - `split_tokens` helper for parsing unquoted variable names in Tecplot headers.
 - Documentation site, now built with [Zensical](https://zensical.org).
-- Citation and release metadata: `CITATION.cff`, `.zenodo.json`, `AUTHORS.md`
-  and this changelog.
+- Citation and release metadata: `AUTHORS.md` and this changelog.
 
 ### Changed
 
@@ -137,6 +139,4 @@ Changes on `main` since `v1.6.0`.
 
 ## [1.5.5] - 2026-01-26
 
-Last tagged release before Zenodo archiving. Earlier release changes not reported here; see 
-the [commit history](https://github.com/MarcoGrossi92/ORION/commits/main) for
-details.
+Earlier release changes not reported here; see the [commit history](https://github.com/MarcoGrossi92/ORION/commits/main) for details.
