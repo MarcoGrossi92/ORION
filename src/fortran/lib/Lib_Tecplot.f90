@@ -206,10 +206,10 @@ contains
         if (ndir==3) tecvarname = trim(tecvarname)//' z'
         if (.not.meshonly) then
           if (present(varnames)) then
-            tecvarname = trim(tecvarname)//' '//trim(varnames)
+            tecvarname = trim(tecvarname)//' '//unquote(trim(varnames))
           else
             do s = 1, Nvar
-              tecvarname = trim(tecvarname)//' "var'//trim(str(.true.,s))//'"'
+              tecvarname = trim(tecvarname)//' var'//trim(str(.true.,s))
             enddo
           endif
         endif
@@ -226,15 +226,15 @@ contains
 #     endif
       case('ascii')
         ! header variables names
-        tecvarname = ' VARIABLES ="x"'
-        if (ndir>=2) tecvarname = trim(tecvarname)//' "y"'
-        if (ndir==3) tecvarname = trim(tecvarname)//' "z"'
+        tecvarname = ' VARIABLES = x'
+        if (ndir>=2) tecvarname = trim(tecvarname)//' y'
+        if (ndir==3) tecvarname = trim(tecvarname)//' z'
         if (.not.meshonly) then
           if (present(varnames)) then
-            tecvarname = trim(tecvarname)//' '//trim(varnames)
+            tecvarname = trim(tecvarname)//' '//unquote(trim(varnames))
           else
             do s = 1, Nvar
-              tecvarname = trim(tecvarname)//' "var'//trim(str(.true.,s))//'"'
+              tecvarname = trim(tecvarname)//' var'//trim(str(.true.,s))
             enddo
           endif
         endif
@@ -301,9 +301,9 @@ contains
                         0,                                            &
                         0,                                            &
                         0,                                            &
-                        tecnull(1:nvar),                              &
-                        tecvarloc(1:nvar),                            &
-                        tecnull(1:nvar),                              &
+                        tecnull(1:NvarTot),                           &
+                        tecvarloc(1:NvarTot),                         &
+                        tecnull(1:NvarTot),                           &
                         0)
         err=tec_dat(N=nnode,dat=orion%block(b)%mesh(1,ni1:ni2,nj1:nj2,nk1:nk2))
         if (ndir>=2) &
@@ -357,6 +357,21 @@ contains
         endif
       end select
     endfunction tec_blk_data
+
+    !> `"a""b"` -> ` a  b `: the binary header's separator convention.
+    pure function unquote(sin) result(sout)
+      implicit none
+      character(len=*), intent(in) :: sin
+      character(len=len(sin))      :: sout
+      integer :: i
+      do i = 1, len(sin)
+        if (sin(i:i) == '"') then
+          sout(i:i) = ' '
+        else
+          sout(i:i) = sin(i:i)
+        endif
+      enddo
+    endfunction unquote
 
 #   if defined(TECIO)
     ! Function interface for using "tecdat" function.
