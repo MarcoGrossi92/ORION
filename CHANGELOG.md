@@ -9,6 +9,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Changes on `main` since `v1.6.0`.
 
+### Added
+
+- `orion_data%strandid` (integer, default -1): the Tecplot ASCII reader stores
+  the `STRANDID` of the last zone header, -1 when the header has none.
+  `tec_write_structured_multiblock` marks a steady solution (a negative
+  `solutiontime`) by writing `SOLUTIONTIME=|t|` and `STRANDID = 0` in each zone
+  header; `solutiontime` is read back as `|t|`, as before, and `strandid == 0`
+  now tells the reader that the file holds a steady solution. Nothing else
+  changes: the writer, the files and every value read are as before, and code
+  that does not use the new component behaves as before. Known limitation:
+  binary Tecplot files (`.plt`, `.szplt`) are not covered -- the binary writer
+  stores StrandID 0 for every zone and the `.szplt` reader does not store the
+  zone time -- and need a separate change.
+
 ## [1.7.0] - 2026-09-29
 
 ### Added
