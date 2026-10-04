@@ -52,6 +52,10 @@ Changes on `main` since `v1.6.0`.
   keyword `ZONE` as a whole word. A continuation line that began with a name
   such as `zone_velocity` was taken for a zone record, and the names from it on
   were lost.
+- `vtk_read_structured_multiblock` reads back the files that
+  `vtk_write_structured_multiblock` writes with a time, and its `time` argument
+  returns the `TIME` of the files, 0 when they hold none: the reader took the
+  field data for variables (a segmentation fault) and never set `time`.
 
 ## [1.7.0] - 2026-09-29
 

@@ -843,6 +843,7 @@ contains
   subroutine read_variables_name(filename,varname,nodal)
   !---------------------------------------------------------------------------------------------------------------------------------
   !> look for and read variables name
+  !> The names inside <FieldData> (TIME, CYCLE, ...) are global data, not variables: they are skipped.
   !---------------------------------------------------------------------------------------------------------------------------------
   character(*), intent(IN)                     :: filename   !> File name.
   character(256), allocatable, intent(OUT)     :: varname(:) !> String with the variables name
@@ -851,22 +852,26 @@ contains
   integer(I4P) :: unitfile, n
   integer(I4P) :: start_pos, end_pos
   character(256) :: line
+  logical :: field                                           !> Inside the FieldData element
   !---------------------------------------------------------------------------------------------------------------------------------
   nodal = .true.
   open(newunit=unitfile,file=trim(filename),&
          access='SEQUENTIAL',action='READ',status='OLD',iostat=E_IO)
-  E_IO = 0; n = 0
+  E_IO = 0; n = 0; field = .false.
   do while(E_IO==0)
     read(unitfile,'(A)',iostat=E_IO) line
-    if (index(line,'Name')>0) n = n + 1
+    if (index(line,'<FieldData')>0) field = .not. empty_element(line)
+    if (index(line,'Name')>0 .and. .not.field) n = n + 1
+    if (index(line,'</FieldData')>0) field = .false.
   enddo
   allocate(varname(1:n))
   rewind(unitfile)
-  E_IO = 0; n = 0
+  E_IO = 0; n = 0; field = .false.
   do while(E_IO==0)
     read(unitfile,'(A)',iostat=E_IO) line
     if (index(line,'CellData')>0) nodal = .false.
-    if (index(line,'Name')>0) then
+    if (index(line,'<FieldData')>0) field = .not. empty_element(line)
+    if (index(line,'Name')>0 .and. .not.field) then
       n = n + 1
       ! Find the position of the value after the keyword
       start_pos = index(line, 'Name') + len_trim('Name') + 2
@@ -874,9 +879,20 @@ contains
       ! Extract the value
       varname(n) = line(start_pos:end_pos)
     endif
+    if (index(line,'</FieldData')>0) field = .false.
   enddo
   close(unitfile)
   !---------------------------------------------------------------------------------------------------------------------------------
+  contains
+    !> True when the FieldData start tag on line closes itself (<FieldData/>, <FieldData .../>): an empty element.
+    logical function empty_element(line)
+    character(*), intent(IN) :: line
+    integer(I4P)             :: k, e
+    k = index(line,'<FieldData')
+    e = index(line(k:),'>')
+    empty_element = .false.
+    if (e > 1) empty_element = line(k+e-2:k+e-2) == '/'
+    end function empty_element
   end subroutine
 
   ! VTK functions
@@ -10834,10 +10850,13 @@ contains
   character(128)                    :: line, dummy_name(16)
   real(R8P), allocatable            :: x(:),y(:),z(:) ! Input geo arrays
   real(R8P), allocatable            :: v(:)           ! Input var arrays
+  real(R8P)                         :: t              ! TIME field data of a block file
   !---------------------------------------------------------------------------------------------------------------------------------
 
   !---------------------------------------------------------------------------------------------------------------------------------
   !% Preliminary operations
+  ! The time is the TIME field data of the files, 0 when they hold none
+  if (present(time)) time = 0.0_R8P
   open(newunit=nu,file=trim(vtmpath)//'.vtm',action='read')
   do
     read(nu,'(A)') line
@@ -10865,9 +10884,7 @@ contains
                             mesh_topology='StructuredGrid',&
                             nx1=nx1,nx2=nx2,ny1=ny1,ny2=ny2,nz1=nz1,nz2=nz2)
     if (present(time)) then
-      err = VTK_FLD_XML(fld_action='open')
-      err = VTK_FLD_XML(fld=time,fname='TIME')
-      err = VTK_FLD_XML(fld_action='close')
+      if (VTK_FLD_XML_READ(fname='TIME',fld=t) == 0) time = t
     endif
     err = VTK_GEO_XML_READ(nx1=nx1,nx2=nx2,ny1=ny1,ny2=ny2,nz1=nz1,nz2=nz2,NN=nn,X=x,Y=y,Z=z)
     if (orion%vtk%node) then
