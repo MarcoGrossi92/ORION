@@ -23,6 +23,18 @@ Changes on `main` since `v1.6.0`.
   stores StrandID 0 for every zone and the `.szplt` reader does not store the
   zone time -- and need a separate change.
 
+### Fixed
+
+- `vtk_read_structured_multiblock` reads back the files that
+  `vtk_write_structured_multiblock` writes with a time. The writer stores the
+  time as `TIME` field data in every `.vts` file; the reader took that name for
+  the first variable name, read `Points` as a cell variable and stopped with a
+  segmentation fault, in the ascii, binary and raw formats. Field data are no
+  longer taken for variables, and an empty `<FieldData/>` element does not hide
+  the variables after it. The optional `time` argument was never set, because
+  the reader called the field-data writer on the file it was reading: it now
+  returns the `TIME` of the files, or 0 when they hold none.
+
 ## [1.7.0] - 2026-09-29
 
 ### Added

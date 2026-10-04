@@ -204,7 +204,11 @@ end program read_vtk_structured
 - **Solution time.** `solutiontime` is 0 in a new `orion_data`. The Tecplot ASCII reader stores the
   `SOLUTIONTIME` of the file, or -10 when its zone headers give none. The `.szplt` reader does not store the
   zone time of the file and leaves `solutiontime` as it was (0 for a new object); so does the PLOT3D reader,
-  since a PLOT3D grid has no time.
+  since a PLOT3D grid has no time. The VTK multi-block reader `vtk_read_structured_multiblock` does not set
+  `solutiontime` either: its optional `time` argument returns the `TIME` field data that
+  `vtk_write_structured_multiblock` writes when it is given `time` (the binary and raw formats keep every bit,
+  sign included; the ascii format keeps 15 significant digits), or 0 when the `.vts` files hold none. Field data
+  are not variables: the reader skips them when it lists the variable names.
 - **Steady solutions and `strandid`.** `tec_write_structured_multiblock` treats a negative `solutiontime` as the
   mark of a steady solution (for instance minus the iteration count of the run): it writes the absolute value
   as `SOLUTIONTIME` and, in an ASCII file, adds `STRANDID = 0` (a static zone) to every zone header. The ASCII
