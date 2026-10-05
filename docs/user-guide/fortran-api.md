@@ -201,6 +201,11 @@ end program read_vtk_structured
 - **PLOT3D grids.** The first dimensions record decides the dimension of the whole file: two integers
   (`Ni Nj`) give a two-dimensional grid (two coordinates, `Nk = 0`), three integers (`Ni Nj Nk`) a
   three-dimensional one. Each block has its own dimensions record; a node count below 1 is refused.
+- **VTK multi-block (`vtk_read_structured_multiblock`).** A block is read as two-dimensional when every node has
+  `z = 0`, the form in which `vtk_write_structured_multiblock` writes a two-dimensional mesh (two node planes with
+  the same `x` and `y`, one layer of cells): `mesh` holds the two coordinates of one node plane
+  (`mesh(1:2,...,0:0)`). Any other block is read with three coordinates, also when its `z` add up to 0, as for a
+  slab around `z = 0`.
 - **Solution time.** `solutiontime` is 0 in a new `orion_data`. The Tecplot ASCII reader stores the
   `SOLUTIONTIME` of the file, or -10 when its zone headers give none. The `.szplt` reader does not store the
   zone time of the file and leaves `solutiontime` as it was (0 for a new object); so does the PLOT3D reader,
