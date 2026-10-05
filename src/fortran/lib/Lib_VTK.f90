@@ -10734,19 +10734,25 @@ contains
   end function VTK_END_XML_READ
 
 
-  function vtk_write_structured_multiblock(vtspath,vtmpath,orion,varnames,time) result(E_IO)
+  function vtk_write_structured_multiblock(vtspath,vtmpath,orion,varnames,time,cycle,fldnames,fldvalues) result(E_IO)
   !---------------------------------------------------------------------------------------------------------------------------------
   !> Function to write multi-block structured data in a VTS folder
+  !> The optional time, cycle and named scalars (fldnames, fldvalues) are written as the field data TIME, CYCLE and
+  !> fldnames(i) of every .vts file. fldnames and fldvalues go together and have the same size: otherwise the function
+  !> returns 1 and writes nothing.
   !---------------------------------------------------------------------------------------------------------------------------------
   use Lib_ORION_data
   use strings, only: parse, simplified_relative_path
   implicit none
-  type(orion_data), intent(inout)   :: orion
-  character(len=*), intent(inout)   :: varnames
-  character(len=*), intent(in)      :: vtspath, vtmpath
-  real(R8P), intent(in), optional   :: time
+  type(orion_data), intent(inout)        :: orion
+  character(len=*), intent(inout)        :: varnames
+  character(len=*), intent(in)           :: vtspath, vtmpath
+  real(R8P), intent(in), optional        :: time
+  integer(I4P), intent(in), optional     :: cycle
+  character(len=*), intent(in), optional :: fldnames(:)
+  real(R8P), intent(in), optional        :: fldvalues(:)
   real(R8P), allocatable            :: X(:), Y(:), Z(:)
-  integer(I4P)                      :: mf(99), b, s
+  integer(I4P)                      :: mf(99), b, s, ifld
   integer(I4P)                      :: nb,nn,nnvar,Nvar,ndir,nz2
   integer(I4P)                      :: E_IO 
   logical                           :: meshonly
@@ -10757,6 +10763,16 @@ contains
 
   !---------------------------------------------------------------------------------------------------------------------------------
   ! Preliminary operations
+  if (present(fldnames) .neqv. present(fldvalues)) then
+    E_IO = 1
+    return
+  endif
+  if (present(fldnames)) then
+    if (size(fldnames) /= size(fldvalues)) then
+      E_IO = 1
+      return
+    endif
+  endif
   nb = size(orion%block)
   ndir = size(orion%block(1)%mesh,1)
   Nvar = 0
@@ -10780,9 +10796,15 @@ contains
     nnvar=(nx2)*(ny2)*(nz2)
     E_IO = VTK_INI_XML(cf=mf(b),output_format=orion%vtk%format, filename=trim(vtspath)//trim(orion%block(b)%name)//'.vts', &
                        mesh_topology='StructuredGrid', nx1=0, nx2=nx2, ny1=0, ny2=ny2, nz1=0, nz2=nz2)
-    if (present(time)) then
+    if (present(time) .or. present(cycle) .or. present(fldnames)) then
       E_IO = VTK_FLD_XML(fld_action='open')
-      E_IO = VTK_FLD_XML(fld=time,fname='TIME')
+      if (present(time)) E_IO = VTK_FLD_XML(fld=time,fname='TIME')
+      if (present(cycle)) E_IO = VTK_FLD_XML(fld=cycle,fname='CYCLE')
+      if (present(fldnames)) then
+        do ifld = 1, size(fldnames)
+          E_IO = VTK_FLD_XML(fld=fldvalues(ifld),fname=trim(fldnames(ifld)))
+        enddo
+      endif
       E_IO = VTK_FLD_XML(fld_action='close')
     endif
     ! Use real Z if ndir==3, else set Z=0.0
@@ -10832,16 +10854,24 @@ contains
 
 
 
-  function vtk_read_structured_multiblock(vtspath,vtmpath,orion,time) result(err)
+  function vtk_read_structured_multiblock(vtspath,vtmpath,orion,time,cycle,fldnames,fldvalues,fldfound) result(err)
   !---------------------------------------------------------------------------------------------------------------------------------
   !> Function to read multi-block structured data from a VTS folder
+  !> The optional time and cycle return the field data TIME and CYCLE of the files, 0 when they hold none; fldvalues(i)
+  !> returns the real field data named fldnames(i), 0 when the files hold none, and fldfound(i) whether they hold it.
+  !> fldnames and fldvalues go together and have the same size, as fldfound when present: otherwise the function
+  !> returns 1 and reads nothing.
   !---------------------------------------------------------------------------------------------------------------------------------
   use Lib_ORION_data
   use strings, only: parse
   implicit none
-  type(orion_data), intent(inout)   :: orion
-  character(len=*), intent(in)      :: vtspath, vtmpath
-  real(R8P), intent(out), optional  :: time
+  type(orion_data), intent(inout)        :: orion
+  character(len=*), intent(in)           :: vtspath, vtmpath
+  real(R8P), intent(out), optional       :: time
+  integer(I4P), intent(out), optional    :: cycle
+  character(len=*), intent(in), optional :: fldnames(:)
+  real(R8P), intent(out), optional       :: fldvalues(:)
+  logical, intent(out), optional         :: fldfound(:)
   integer(I4P)                      :: b, s, i, j, k
   integer(I4P)                      :: Nblocks,nn,nu,nc,n,ndir
   integer(I4P)                      :: nx1, nx2, ny1, ny2, nz1, nz2, nz1_real, nz2_real
@@ -10851,12 +10881,37 @@ contains
   real(R8P), allocatable            :: x(:),y(:),z(:) ! Input geo arrays
   real(R8P), allocatable            :: v(:)           ! Input var arrays
   real(R8P)                         :: t              ! TIME field data of a block file
+  integer(I4P)                      :: c              ! CYCLE field data of a block file
+  real(R8P)                         :: v_fld          ! named field data of a block file
+  integer(I4P)                      :: ifld
   !---------------------------------------------------------------------------------------------------------------------------------
 
   !---------------------------------------------------------------------------------------------------------------------------------
   !% Preliminary operations
-  ! The time is the TIME field data of the files, 0 when they hold none
+  if (present(fldnames) .neqv. present(fldvalues)) then
+    err = 1
+    return
+  endif
+  if (present(fldnames)) then
+    if (size(fldnames) /= size(fldvalues)) then
+      err = 1
+      return
+    endif
+    if (present(fldfound)) then
+      if (size(fldfound) /= size(fldnames)) then
+        err = 1
+        return
+      endif
+    endif
+  elseif (present(fldfound)) then
+    err = 1
+    return
+  endif
+  ! The time, the cycle and the named field data are those of the files, 0 when they hold none
   if (present(time)) time = 0.0_R8P
+  if (present(cycle)) cycle = 0_I4P
+  if (present(fldvalues)) fldvalues = 0.0_R8P
+  if (present(fldfound)) fldfound = .false.
   open(newunit=nu,file=trim(vtmpath)//'.vtm',action='read')
   do
     read(nu,'(A)') line
@@ -10885,6 +10940,17 @@ contains
                             nx1=nx1,nx2=nx2,ny1=ny1,ny2=ny2,nz1=nz1,nz2=nz2)
     if (present(time)) then
       if (VTK_FLD_XML_READ(fname='TIME',fld=t) == 0) time = t
+    endif
+    if (present(cycle)) then
+      if (VTK_FLD_XML_READ(fname='CYCLE',fld=c) == 0) cycle = c
+    endif
+    if (present(fldnames)) then
+      do ifld = 1, size(fldnames)
+        if (VTK_FLD_XML_READ(fname=trim(fldnames(ifld)),fld=v_fld) == 0) then
+          fldvalues(ifld) = v_fld
+          if (present(fldfound)) fldfound(ifld) = .true.
+        endif
+      enddo
     endif
     err = VTK_GEO_XML_READ(nx1=nx1,nx2=nx2,ny1=ny1,ny2=ny2,nz1=nz1,nz2=nz2,NN=nn,X=x,Y=y,Z=z)
     if (orion%vtk%node) then
