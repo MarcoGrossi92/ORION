@@ -23,6 +23,16 @@ Changes on `main` since `v1.6.0`.
   stores StrandID 0 for every zone and the `.szplt` reader does not store the
   zone time -- and need a separate change.
 
+### Fixed
+
+- The Python reader `read_TEC` reads the Tecplot ASCII files that the Fortran
+  writer of ORION 1.7.0 and later writes with the variable names without quotes
+  (`VARIABLES = x y z rho(1)`). It found no names in them, and so returned the
+  coordinates without any variable. The names are now taken from the
+  `VARIABLES` list only, up to the first `ZONE` record or line of numbers, so
+  quoted text after the list, such as a zone title written as `T = "Block1"`,
+  is no longer taken for a variable name. A list in quotes is read as before.
+
 ## [1.7.0] - 2026-09-29
 
 ### Added

@@ -53,6 +53,12 @@ print(f"Number of variables: {len(var)}")
 4. **var**: List of NumPy arrays, one per variable `[(nblocks, imax, jmax, kmax), ...]`
 5. **varnames**: List of variable names `['velocity_x', 'velocity_y', ...]`
 
+!!! note "Variable names"
+    `read_TEC` takes the names from the `VARIABLES` list, which may span several lines and ends at the first
+    `ZONE` record. The names may be in quotes (`"rho(1)"`, as `write_TEC` writes them) or not (`rho(1)`, as
+    the Fortran writer of ORION 1.7.0 and later writes them); a list that mixes the two keeps only the quoted
+    names.
+
 ### Single Block Data
 
 For single-block files:
