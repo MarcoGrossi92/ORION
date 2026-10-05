@@ -10752,7 +10752,8 @@ contains
   character(len=*), intent(in), optional :: fldnames(:)
   real(R8P), intent(in), optional        :: fldvalues(:)
   real(R8P), allocatable            :: X(:), Y(:), Z(:)
-  integer(I4P)                      :: mf(99), b, s, ifld
+  ! Index of the open block file: each block file is closed before the next one is opened
+  integer(I4P)                      :: mf, b, s, ifld
   integer(I4P)                      :: nb,nn,nnvar,Nvar,ndir,nz2
   integer(I4P)                      :: E_IO 
   logical                           :: meshonly
@@ -10794,7 +10795,7 @@ contains
     endif
     nn=(nx2+1)*(ny2+1)*(nz2+1)
     nnvar=(nx2)*(ny2)*(nz2)
-    E_IO = VTK_INI_XML(cf=mf(b),output_format=orion%vtk%format, filename=trim(vtspath)//trim(orion%block(b)%name)//'.vts', &
+    E_IO = VTK_INI_XML(cf=mf,output_format=orion%vtk%format, filename=trim(vtspath)//trim(orion%block(b)%name)//'.vts', &
                        mesh_topology='StructuredGrid', nx1=0, nx2=nx2, ny1=0, ny2=ny2, nz1=0, nz2=nz2)
     if (present(time) .or. present(cycle) .or. present(fldnames)) then
       E_IO = VTK_FLD_XML(fld_action='open')
@@ -10824,18 +10825,18 @@ contains
       Y = reshape(orion%block(b)%mesh(2,0:nx2,:,:),[nn])
       Z = reshape(orion%block(b)%mesh(3,0:nx2,:,:),[nn])
     endif
-    E_IO = VTK_GEO_XML(cf=mf(b),nx1=0, nx2=nx2, ny1=0, ny2=ny2, nz1=0, nz2=nz2, NN=nn, &
+    E_IO = VTK_GEO_XML(cf=mf,nx1=0, nx2=nx2, ny1=0, ny2=ny2, nz1=0, nz2=nz2, NN=nn, &
                        X=X,  Y=Y, Z=Z)
     deallocate(X); deallocate(Y); deallocate(Z)
     if (.not.meshonly) then
-      E_IO = VTK_DAT_XML(cf=mf(b),var_location = location, var_block_action = 'open')
+      E_IO = VTK_DAT_XML(cf=mf,var_location = location, var_block_action = 'open')
       do s = 1, Nvar
-        E_IO = VTK_VAR_XML(cf=mf(b),NC_NN = nnvar, varname = trim(varname(s)), &
+        E_IO = VTK_VAR_XML(cf=mf,NC_NN = nnvar, varname = trim(varname(s)), &
                            var = reshape(orion%block(b)%vars(s,1:nx2,:,:),[nnvar]))
       enddo
-      E_IO = VTK_DAT_XML(cf=mf(b),var_location = location, var_block_action = 'close')
+      E_IO = VTK_DAT_XML(cf=mf,var_location = location, var_block_action = 'close')
     endif
-    E_IO = VTK_GEO_XML(cf=mf(b))
+    E_IO = VTK_GEO_XML(cf=mf)
     E_IO = VTK_END_XML()
     endassociate
   enddo
@@ -10875,9 +10876,9 @@ contains
   integer(I4P)                      :: b, s, i, j, k
   integer(I4P)                      :: Nblocks,nn,nu,nc,n,ndir
   integer(I4P)                      :: nx1, nx2, ny1, ny2, nz1, nz2, nz1_real, nz2_real
-  integer(I4P)                      :: err, start, start_pos, end_pos
+  integer(I4P)                      :: err, start, start_pos, end_pos, pass
   character(256), allocatable       :: varnames(:)
-  character(128)                    :: line, dummy_name(16)
+  character(128)                    :: line
   real(R8P), allocatable            :: x(:),y(:),z(:) ! Input geo arrays
   real(R8P), allocatable            :: v(:)           ! Input var arrays
   real(R8P)                         :: t              ! TIME field data of a block file
@@ -10912,24 +10913,29 @@ contains
   if (present(cycle)) cycle = 0_I4P
   if (present(fldvalues)) fldvalues = 0.0_R8P
   if (present(fldfound)) fldfound = .false.
+  ! Block names from the .vtm, as many as it lists: a first pass counts them, a second one stores them
   open(newunit=nu,file=trim(vtmpath)//'.vtm',action='read')
-  do
-    read(nu,'(A)') line
-    if (index(line,'<Block')==0) cycle
-    exit
+  do pass = 1, 2
+    rewind(nu)
+    do
+      read(nu,'(A)') line
+      if (index(line,'<Block')==0) cycle
+      exit
+    enddo
+    Nblocks = 0
+    do
+      read(nu,'(A)') line
+      if (index(line,'</Block')>0) exit
+      Nblocks = Nblocks+1
+      if (pass==2) then
+        start_pos = index(line, 'file="') + len('file="')
+        end_pos = index(line, '.vts"')
+        orion%block(Nblocks)%name = line(start_pos:end_pos-1)
+      endif
+    enddo
+    if (pass==1) allocate(orion%block(1:Nblocks))
   enddo
-  Nblocks = 0
-  do
-    read(nu,'(A)') line
-    start_pos = index(line, 'file="') + len('file="')
-    end_pos = index(line, '.vts"')
-    if (index(line,'</Block')>0) exit
-    Nblocks = Nblocks+1
-    dummy_name(Nblocks) = line(start_pos:end_pos-1)
-    cycle
-  enddo
-  allocate(orion%block(1:Nblocks))
-  orion%block(:)%name = dummy_name(1:Nblocks)
+  close(nu)
   call read_variables_name(trim(vtspath)//trim(orion%block(1)%name)//'.vts',varnames,orion%vtk%node)
 
   ! Read VTS file

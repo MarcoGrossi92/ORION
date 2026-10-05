@@ -65,6 +65,9 @@ Changes on `main` since `v1.6.0`.
 - `vtk_read_structured_multiblock` reads as three-dimensional a block whose z
   coordinates add up to 0, such as a slab around z = 0; it read it as
   two-dimensional, its z lost.
+- The VTK multi-block writer and reader take a field of any number of blocks:
+  they went past fixed arrays of 99 and 16 entries (memory overwritten or a
+  segmentation fault).
 
 ## [1.7.0] - 2026-09-29
 

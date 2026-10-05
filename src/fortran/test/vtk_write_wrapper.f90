@@ -89,6 +89,7 @@
   orion%vtk%format='raw'
   E_IO = vtk_write_structured_multiblock(orion=orion,vtspath='',vtmpath='field2D',varnames=varnames)
 
+  call many_blocks
   call relative_paths
 
   write(*,'(A,I0,A,I0,A)') 'vtk_write_wrapper: ', checks, ' checks, ', failures, ' failed'
@@ -110,6 +111,92 @@
     write(*,'(A)') '  FAIL: '//message
   endif
   end subroutine check
+
+  subroutine many_blocks
+  !---------------------------------------------------------------------------------------------------------------------------------
+  !< Any number of blocks, written. A field of 130 blocks (3-D, a few cells each, different sizes) is written in the ascii
+  !< format without time and read back, and the number of blocks, their names and sizes, every coordinate and every variable
+  !< are checked, bit for bit. One format is enough: VTK_INI_XML stores the index of a block file before it looks at the
+  !< format. 130 rather than 100: past the array, a gfortran release build of the old writer went on for a few blocks without
+  !< any sign, then crashed (from 110 blocks in our runs).
+  !< Defect: vtk_write_structured_multiblock kept the file index of each block in an array of 99, so a field of more blocks was
+  !< written past its end.
+  !< Basis: Fortran 2018, 9.5.3.1 (p. 128): the value of a subscript shall be within the bounds of its dimension.
+  !---------------------------------------------------------------------------------------------------------------------------------
+  !---------------------------------------------------------------------------------------------------------------------------------
+
+  call round_trip(130_I4P, 'ascii')
+  end subroutine many_blocks
+
+  subroutine round_trip(nb, fmt)
+  !---------------------------------------------------------------------------------------------------------------------------------
+  !< Write nb blocks in the given format, read them back and compare.
+  !---------------------------------------------------------------------------------------------------------------------------------
+  integer(I4P),     intent(in) :: nb
+  character(len=*), intent(in) :: fmt
+  type(orion_data)             :: written, back
+  character(len=64)            :: label, vtm
+  character(len=16)            :: varnames
+  integer(I4P)                 :: err, b, i, j, k, ni, nj, nk
+  !---------------------------------------------------------------------------------------------------------------------------------
+
+  allocate(written%block(1:nb))
+  do b = 1, nb
+    ni = 1 + mod(b, 3); nj = 1 + mod(b, 2); nk = 1 + mod(b, 4)
+    written%block(b)%name = 'many_blocks_'//trim(str(.true.,nb))//'_'//fmt//'_B'//trim(str(.true.,b))
+    written%block(b)%Ni = ni; written%block(b)%Nj = nj; written%block(b)%Nk = nk
+    allocate(written%block(b)%mesh(1:3,0:ni,0:nj,0:nk))
+    allocate(written%block(b)%vars(1:2,1:ni,1:nj,1:nk))
+    do k = 0, nk
+      do j = 0, nj
+        do i = 0, ni
+          written%block(b)%mesh(1,i,j,k) = real(i + 10*b, R8P)
+          written%block(b)%mesh(2,i,j,k) = real(j, R8P)
+          written%block(b)%mesh(3,i,j,k) = real(k + 1, R8P)
+        enddo
+      enddo
+    enddo
+    do k = 1, nk
+      do j = 1, nj
+        do i = 1, ni
+          written%block(b)%vars(1,i,j,k) = real(i + 10*j + 100*k + 1000*b, R8P)
+          written%block(b)%vars(2,i,j,k) = -real(b, R8P)
+        enddo
+      enddo
+    enddo
+  enddo
+  written%vtk%format = fmt
+  vtm = 'many_blocks_'//trim(str(.true.,nb))//'_'//fmt
+  label = trim(str(.true.,nb))//' blocks '//fmt
+  varnames = 'a b'
+  err = vtk_write_structured_multiblock(orion=written, vtspath='', vtmpath=trim(vtm), varnames=varnames)
+  call check(err == 0, trim(label)//': write error')
+  back%vtk%format = fmt
+  err = vtk_read_structured_multiblock(orion=back, vtspath='', vtmpath=trim(vtm))
+  call check(err == 0, trim(label)//': read error')
+  call check(allocated(back%block), trim(label)//': no block read')
+  if (.not.allocated(back%block)) return
+  call check(size(back%block) == nb, trim(label)//': '//trim(str(.true.,size(back%block)))//' blocks read')
+  if (size(back%block) /= nb) return
+  do b = 1, nb
+    associate(w => written%block(b), r => back%block(b))
+    call check(trim(r%name) == trim(w%name), trim(label)//': name of block '//trim(str(.true.,b)))
+    call check(r%Ni == w%Ni .and. r%Nj == w%Nj .and. r%Nk == w%Nk, trim(label)//': size of block '//trim(str(.true.,b)))
+    call check(size(r%mesh,1) == 3, trim(label)//': mesh of block '//trim(str(.true.,b))//' not 3-D')
+    if (size(r%mesh,1) /= 3) cycle
+    if (any(lbound(r%mesh) /= lbound(w%mesh)) .or. any(ubound(r%mesh) /= ubound(w%mesh))) then
+      call check(.false., trim(label)//': mesh bounds of block '//trim(str(.true.,b)))
+      cycle
+    endif
+    call check(all(r%mesh == w%mesh), trim(label)//': coordinates of block '//trim(str(.true.,b)))
+    if (any(lbound(r%vars) /= lbound(w%vars)) .or. any(ubound(r%vars) /= ubound(w%vars))) then
+      call check(.false., trim(label)//': variable bounds of block '//trim(str(.true.,b)))
+      cycle
+    endif
+    call check(all(r%vars == w%vars), trim(label)//': variables of block '//trim(str(.true.,b)))
+    end associate
+  enddo
+  end subroutine round_trip
 
   subroutine relative_paths
   !---------------------------------------------------------------------------------------------------------------------------------
