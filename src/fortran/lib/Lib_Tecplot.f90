@@ -549,6 +549,7 @@ contains
     real(R8P) :: solutiontime, value
     logical   :: meshonly, zone_node
     integer   :: err
+    integer   :: strandid                    ! STRANDID of the last zone header, -1 when absent
     integer   :: tecunit, ios
     integer   :: i, j, k, d, b, s
     integer   :: Nblocks, nvar, ndir
@@ -577,6 +578,7 @@ contains
     meshonly = .false.
     orion%tec%node = .true.
     solutiontime = -10._R8P
+    strandid = -1
     err = 0
 
     ! Open file
@@ -691,7 +693,7 @@ contains
         header = trim(header)//' '//trim(line)
       enddo
 
-      call parse_zone_header(header,Ni(b),Nj(b),Nk(b),zone_point(b),zone_node_arr(b),solutiontime)
+      call parse_zone_header(header,Ni(b),Nj(b),Nk(b),zone_point(b),zone_node_arr(b),solutiontime,strandid)
       zone_z_cell(b) = var_cellcentered(upper_case(header),3)
       if (Ni(b)<=0 .or. Nj(b)<=0 .or. Nk(b)<=0) then
         write(stderr,'(/,A)') 'TECPLOT ASCII READ ERROR: invalid zone dimensions.'
@@ -716,6 +718,7 @@ contains
     endif
 
     orion%solutiontime = solutiontime
+    orion%strandid = strandid
 
     ! All existing ORION structured storage assumes the same centering for all
     ! non-coordinate variables. Keep that model, but derive it from the zone headers.
@@ -952,11 +955,12 @@ contains
       line_is_numeric_start = (ios_==0)
     endfunction line_is_numeric_start
 
-    subroutine parse_zone_header(text,I_,J_,K_,point_,node_,time_)
+    subroutine parse_zone_header(text,I_,J_,K_,point_,node_,time_,strand_)
       character(len=*), intent(in) :: text
       integer, intent(out) :: I_,J_,K_
       logical, intent(out) :: point_,node_
       real(R8P), intent(inout) :: time_
+      integer, intent(out) :: strand_   ! STRANDID of this zone, -1 when absent
       character(1000) :: work
       character(100) :: token
       integer :: ios_
@@ -989,6 +993,10 @@ contains
         read(token,*,iostat=ios_) t_
         if (ios_==0) time_ = t_
       endif
+
+      ! STRANDID = 0 marks a static zone: tec_write_structured_multiblock writes it for a steady solution
+      call get_integer_keyword(work,'STRANDID',strand_,found)
+      if (.not.found) strand_ = -1
     endsubroutine parse_zone_header
 
     ! Position of the value of `key` (name without '=') in a header line, or 0 if

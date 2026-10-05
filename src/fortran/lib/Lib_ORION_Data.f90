@@ -45,6 +45,8 @@ module Lib_ORION_data
     type(Type_tec_Format) :: tec                   ! Tecplot format options
     type(Type_vtk_Format) :: vtk                   ! VTK format options
     type(Type_p3d_Format) :: p3d                   ! P3D format options
+    integer :: strandid = -1                       ! STRANDID of the last zone read from a Tecplot ASCII file (0 = static
+                                                   ! zone, the steady marker of tec_write_structured_multiblock); -1 when absent
   endtype orion_data
 
 contains

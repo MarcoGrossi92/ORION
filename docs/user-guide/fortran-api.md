@@ -22,6 +22,7 @@ type(orion_data) :: IOfield
 - `tec` - Tecplot format options
 - `vtk` - VTK format options
 - `p3d` - PLOT3D format options
+- `strandid` - STRANDID of the last zone read from a Tecplot ASCII file (integer, -1 when absent)
 
 ### The obj_block Type
 
@@ -204,6 +205,15 @@ end program read_vtk_structured
   `SOLUTIONTIME` of the file, or -10 when its zone headers give none. The `.szplt` reader does not store the
   zone time of the file and leaves `solutiontime` as it was (0 for a new object); so does the PLOT3D reader,
   since a PLOT3D grid has no time.
+- **Steady solutions and `strandid`.** `tec_write_structured_multiblock` treats a negative `solutiontime` as the
+  mark of a steady solution (for instance minus the iteration count of the run): it writes the absolute value
+  as `SOLUTIONTIME` and, in an ASCII file, adds `STRANDID = 0` (a static zone) to every zone header. The ASCII
+  reader returns `SOLUTIONTIME` as written, so `solutiontime` is `|t|` for such a file, and stores the `STRANDID`
+  of the last zone header in `strandid`: 0 for a steady file written by ORION, -1 when the header has none.
+  A program that must know whether a file holds a steady solution tests `strandid == 0`. `strandid` is -1 in a
+  new `orion_data` and only this reader sets it: the `.szplt`, VTK and PLOT3D readers and
+  `tec_read_points_multivars` leave it as it was, and `copyORION` does not copy it (nor `solutiontime`). Binary
+  files do not mark steady solutions: the binary writer stores StrandID 0 for every zone.
 
 ### Length of the Tecplot header and lines
 
