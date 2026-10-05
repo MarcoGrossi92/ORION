@@ -65,6 +65,16 @@ Changes on `main` since `v1.6.0`.
   for a field of more blocks: memory overwritten without a message or a
   segmentation fault, depending on the number of blocks. The reader now also
   closes the `.vtm` file after reading it.
+- The Python reader `read_TEC` takes the dimensions of a zone from its `I=`,
+  `J=` and `K=` keywords, outside text in quotes. It took the first three
+  numbers of the line that holds `I=`, so a number in the zone title
+  (`T = "Block 1"`, or `T = B1-of-2` as a block splitter writes it) became a
+  dimension and the file was read wrong without an error; a zone written with
+  blanks around the equal signs (`I = 4`) was not read at all. A dimension of
+  a `ZONE` record that is not a whole number, such as the `I=***` that a
+  Fortran writer leaves when the number does not fit its field, now stops the
+  read with an error that names the file, the zone and the keyword; the zone
+  was read with a size made of other numbers of its line.
 
 ## [1.7.0] - 2026-09-29
 
