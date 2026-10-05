@@ -70,6 +70,13 @@ Changes on `main` since `v1.6.0`.
   the form in which `vtk_write_structured_multiblock` writes a two-dimensional
   mesh. Whether a floating-point sum of such z comes out as exactly 0 depended
   on the values and on the order of the additions.
+- `vtk_write_structured_multiblock` and `vtk_read_structured_multiblock` write
+  and read a multi-block field of any number of blocks. The writer kept the
+  file index of each block in an array of 99 and the reader the block names
+  listed in the `.vtm` file in an array of 16, and both went past their array
+  for a field of more blocks: memory overwritten without a message or a
+  segmentation fault, depending on the number of blocks. The reader now also
+  closes the `.vtm` file after reading it.
 
 ## [1.7.0] - 2026-09-29
 
