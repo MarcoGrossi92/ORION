@@ -209,6 +209,14 @@ end program read_vtk_structured
   `vtk_write_structured_multiblock` writes when it is given `time` (the binary and raw formats keep every bit,
   sign included; the ascii format keeps 15 significant digits), or 0 when the `.vts` files hold none. Field data
   are not variables: the reader skips them when it lists the variable names.
+- **Cycle and named scalars.** Besides `time`, `vtk_write_structured_multiblock` takes the optional `cycle`
+  (integer, written as the field data `CYCLE`, the step number of the VTK convention) and the named real scalars
+  `fldnames(:)` and `fldvalues(:)` (each written as field data with its name), and writes them in every `.vts`
+  file. `vtk_read_structured_multiblock` takes the same arguments and returns them, with `fldfound(:)` telling
+  which names the files hold: an absent `CYCLE` or name reads as 0 (and `.false.`). The binary and raw formats
+  keep every bit; the ascii format keeps 15 significant digits of a real. `fldnames` and `fldvalues` (and
+  `fldfound`) go together and have the same size; otherwise both functions return 1 and write or read nothing.
+  A program calls the writer without these arguments to get the files it got before.
 - **Steady solutions and `strandid`.** `tec_write_structured_multiblock` treats a negative `solutiontime` as the
   mark of a steady solution (for instance minus the iteration count of the run): it writes the absolute value
   as `SOLUTIONTIME` and, in an ASCII file, adds `STRANDID = 0` (a static zone) to every zone header. The ASCII
