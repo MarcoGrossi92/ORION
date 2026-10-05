@@ -58,6 +58,13 @@ Changes on `main` since `v1.6.0`.
   `VARIABLES` list only, up to the first `ZONE` record or line of numbers, so
   quoted text after the list, such as a zone title written as `T = "Block1"`,
   is no longer taken for a variable name. A list in quotes is read as before.
+- `vtk_write_structured_multiblock` and `vtk_read_structured_multiblock` write
+  and read a multi-block field of any number of blocks. The writer kept the
+  file index of each block in an array of 99 and the reader the block names
+  listed in the `.vtm` file in an array of 16, and both went past their array
+  for a field of more blocks: memory overwritten without a message or a
+  segmentation fault, depending on the number of blocks. The reader now also
+  closes the `.vtm` file after reading it.
 
 ## [1.7.0] - 2026-09-29
 
