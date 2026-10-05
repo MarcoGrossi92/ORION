@@ -22,6 +22,12 @@ Changes on `main` since `v1.6.0`.
   binary Tecplot files (`.plt`, `.szplt`) are not covered -- the binary writer
   stores StrandID 0 for every zone and the `.szplt` reader does not store the
   zone time -- and need a separate change.
+- Optional arguments of `vtk_write_structured_multiblock` and
+  `vtk_read_structured_multiblock`: `cycle` and the named real scalars
+  `fldnames` and `fldvalues` (with `fldfound` for the reader), written as the
+  field data `CYCLE` and `fldnames(i)` of every `.vts` file next to `TIME`, and
+  returned by the reader, 0 (and `fldfound` false) when the files hold none.
+  Names and values of different sizes are refused (return value 1).
 
 ### Changed
 
