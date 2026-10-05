@@ -60,6 +60,12 @@ print(f"Number of variables: {len(var)}")
     them), and the three forms may be mixed in one list. Names are separated by blanks, tabs or commas; a name
     in quotes may contain them. An unclosed quote raises `ValueError`.
 
+!!! note "Zone dimensions"
+    `read_TEC` takes the dimensions of a zone from its `I=`, `J=` and `K=` keywords outside text in quotes
+    (`I = 4` with blanks is read too), so numbers in a zone title (`T = "Block 1"`) are not dimensions. On a
+    `ZONE` record, a value that is not a whole number, such as the `I=***` a Fortran writer leaves when the
+    number does not fit its field, raises a `ValueError` that names the file, the zone and the keyword.
+
 ### Single Block Data
 
 For single-block files:

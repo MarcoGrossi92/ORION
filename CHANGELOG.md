@@ -68,6 +68,10 @@ Changes on `main` since `v1.6.0`.
 - The VTK multi-block writer and reader take a field of any number of blocks:
   they went past fixed arrays of 99 and 16 entries (memory overwritten or a
   segmentation fault).
+- The Python reader `read_TEC` takes the dimensions of a zone from its `I=`,
+  `J=` and `K=` keywords, outside text in quotes: a number in a zone title
+  became a dimension, and a zone written as `I = 4` was not read. A dimension
+  that is not a whole number (`I=***`) stops the read with an error.
 
 ## [1.7.0] - 2026-09-29
 
