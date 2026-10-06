@@ -99,6 +99,11 @@ Changes on `main` since `v1.6.0`.
   or crashed. A block is now two-dimensional only when it has two planes of
   nodes in k and every z is 0, the form in which
   `vtk_write_structured_multiblock` writes a two-dimensional mesh.
+- `vtk_read_structured_multiblock` returns an error when a block file cannot
+  be opened, such as a file listed in the `.vtm` that does not exist or a
+  wrong `vtspath`, or when its points cannot be read. It went on with a file
+  unit it had not opened and with coordinates it had not read, and stopped
+  with a segmentation fault or a runtime error.
 
 ## [1.7.0] - 2026-09-29
 

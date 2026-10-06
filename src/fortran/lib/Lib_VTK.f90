@@ -857,6 +857,11 @@ contains
   nodal = .true.
   open(newunit=unitfile,file=trim(filename),&
          access='SEQUENTIAL',action='READ',status='OLD',iostat=E_IO)
+  ! A file that cannot be opened has no variable names (the reader then stops on it with an error)
+  if (E_IO /= 0) then
+    allocate(varname(0))
+    return
+  endif
   E_IO = 0; n = 0; field = .false.
   do while(E_IO==0)
     read(unitfile,'(A)',iostat=E_IO) line
@@ -5855,6 +5860,9 @@ contains
                         buffer=s_buffer,content=data)
           call get_char(buffer=s_buffer, attrib='format', val=fmt,  E_IO=E_IO)
           call get_char(buffer=s_buffer, attrib='type', val=type,  E_IO=E_IO)
+          ! No Points array: no format or type to check, and no points to read
+          if (.not.allocated(fmt)) fmt = ''
+          if (.not.allocated(type)) type = ''
           if (trim(adjustlt(Upper_Case(fmt)))/='ASCII' .or. &
               trim(adjustlt(Upper_Case(type)))/='FLOAT64') then
             E_IO = -1_I4P 
@@ -5880,6 +5888,9 @@ contains
                         buffer=s_buffer,content=data)
           call get_char(buffer=s_buffer, attrib='format', val=fmt,  E_IO=E_IO)
           call get_char(buffer=s_buffer, attrib='type', val=type,  E_IO=E_IO)
+          ! No Points array: no format or type to check, and no points to read
+          if (.not.allocated(fmt)) fmt = ''
+          if (.not.allocated(type)) type = ''
           if (trim(adjustlt(Upper_Case(fmt)))/='BINARY' .or. &
               trim(adjustlt(Upper_Case(type)))/='FLOAT64') then
             E_IO = -1_I4P 
@@ -5914,6 +5925,9 @@ contains
           call get_int(buffer=s_buffer,  attrib='offset', val=offs, E_IO=E_IO)
           call get_char(buffer=s_buffer, attrib='format', val=fmt,  E_IO=E_IO)
           call get_char(buffer=s_buffer, attrib='type', val=type,  E_IO=E_IO)
+          ! No Points array: no format or type to check, and no points to read
+          if (.not.allocated(fmt)) fmt = ''
+          if (.not.allocated(type)) type = ''
           if (trim(adjustlt(Upper_Case(fmt)))/='APPENDED' .or. &
               trim(adjustlt(Upper_Case(type)))/='FLOAT64') then
             E_IO = -1_I4P 
@@ -10960,6 +10974,8 @@ contains
     err = VTK_INI_XML_READ(input_format=trim(orion%vtk%format),filename=trim(vtspath)//trim(orion%block(b)%name)//'.vts', &
                             mesh_topology='StructuredGrid',&
                             nx1=nx1,nx2=nx2,ny1=ny1,ny2=ny2,nz1=nz1,nz2=nz2)
+    ! A block file that cannot be opened, or that is not a StructuredGrid file: stop with its error
+    if (err /= 0) return
     if (present(time)) then
       if (VTK_FLD_XML_READ(fname='TIME',fld=t) == 0) time = t
     endif
@@ -10975,6 +10991,8 @@ contains
       enddo
     endif
     err = VTK_GEO_XML_READ(nx1=nx1,nx2=nx2,ny1=ny1,ny2=ny2,nz1=nz1,nz2=nz2,NN=nn,X=x,Y=y,Z=z)
+    ! A block file whose points cannot be read: stop with its error, before using the coordinates
+    if (err /= 0) return
     if (orion%vtk%node) then
       start = 0
       orion%block(b)%Ni = nx2+1; orion%block(b)%Nj = ny2+1; orion%block(b)%Nk = nz2+1
