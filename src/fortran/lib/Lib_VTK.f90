@@ -844,6 +844,8 @@ contains
   !---------------------------------------------------------------------------------------------------------------------------------
   !> look for and read variables name
   !> The names inside <FieldData> (TIME, CYCLE, ...) are global data, not variables: they are skipped.
+  !> The variables are at the nodes when the file holds them as point data, in a PointData element and no CellData element; a
+  !> mesh without variables, with neither element, has no variables at the nodes.
   !---------------------------------------------------------------------------------------------------------------------------------
   character(*), intent(IN)                     :: filename   !> File name.
   character(256), allocatable, intent(OUT)     :: varname(:) !> String with the variables name
@@ -853,8 +855,9 @@ contains
   integer(I4P) :: start_pos, end_pos
   character(256) :: line
   logical :: field                                           !> Inside the FieldData element
+  logical :: point, cell                                     !> The file holds a PointData, a CellData element
   !---------------------------------------------------------------------------------------------------------------------------------
-  nodal = .true.
+  nodal = .false.
   open(newunit=unitfile,file=trim(filename),&
          access='SEQUENTIAL',action='READ',status='OLD',iostat=E_IO)
   ! A file that cannot be opened has no variable names (the reader then stops on it with an error)
@@ -871,10 +874,11 @@ contains
   enddo
   allocate(varname(1:n))
   rewind(unitfile)
-  E_IO = 0; n = 0; field = .false.
+  E_IO = 0; n = 0; field = .false.; point = .false.; cell = .false.
   do while(E_IO==0)
     read(unitfile,'(A)',iostat=E_IO) line
-    if (index(line,'CellData')>0) nodal = .false.
+    if (index(line,'<PointData')>0) point = .true.
+    if (index(line,'CellData')>0) cell = .true.
     if (index(line,'<FieldData')>0) field = .not. empty_element(line)
     if (index(line,'Name')>0 .and. .not.field) then
       n = n + 1
@@ -887,6 +891,7 @@ contains
     if (index(line,'</FieldData')>0) field = .false.
   enddo
   close(unitfile)
+  nodal = point .and. .not.cell
   !---------------------------------------------------------------------------------------------------------------------------------
   contains
     !> True when the FieldData start tag on line closes itself (<FieldData/>, <FieldData .../>): an empty element.
@@ -10811,6 +10816,8 @@ contains
     endif
     nn=(nx2+1)*(ny2+1)*(nz2+1)
     nnvar=(nx2)*(ny2)*(nz2)
+    ! Variables at the nodes have one value per node of the block file
+    if (orion%vtk%node) nnvar = nn
     ! A surface block, one plane of nodes in a direction (N = 0 there) such as a face of a volume block, has one layer of cells
     ! in that direction, as tec_write_structured_multiblock writes it, when its variables hold that layer
     surface = .false.
@@ -10859,6 +10866,11 @@ contains
         if (surface) then
           E_IO = VTK_VAR_XML(cf=mf,NC_NN = nnvar, varname = trim(varname(s)), &
                              var = reshape(orion%block(b)%vars(s,1:ci,1:cj,1:ck),[nnvar]))
+        elseif (orion%vtk%node) then
+          ! One value per node, vars(s,0:Ni,0:Nj,0:Nk); the node plane of a 2-D block, vars(s,0:Ni,0:Nj,0:0) as the readers
+          ! return it, goes to both planes of nodes of its file, as its coordinates: reshape repeats it from pad
+          E_IO = VTK_VAR_XML(cf=mf,NC_NN = nnvar, varname = trim(varname(s)), &
+                             var = reshape(orion%block(b)%vars(s,0:nx2,:,:),[nnvar],pad=orion%block(b)%vars(s,0:nx2,:,:)))
         else
           E_IO = VTK_VAR_XML(cf=mf,NC_NN = nnvar, varname = trim(varname(s)), &
                              var = reshape(orion%block(b)%vars(s,1:nx2,:,:),[nnvar]))
@@ -10993,13 +11005,11 @@ contains
     err = VTK_GEO_XML_READ(nx1=nx1,nx2=nx2,ny1=ny1,ny2=ny2,nz1=nz1,nz2=nz2,NN=nn,X=x,Y=y,Z=z)
     ! A block file whose points cannot be read: stop with its error, before using the coordinates
     if (err /= 0) return
-    if (orion%vtk%node) then
-      start = 0
-      orion%block(b)%Ni = nx2+1; orion%block(b)%Nj = ny2+1; orion%block(b)%Nk = nz2+1
-    else
-      start = 1
-      orion%block(b)%Ni = nx2; orion%block(b)%Nj = ny2; orion%block(b)%Nk = nz2
-    endif
+    ! Ni, Nj and Nk are the cells of the block, with its variables at the cells, vars(:,1:Ni,...), or at the nodes,
+    ! vars(:,0:Ni,...), as the Tecplot readers return them
+    start = 1
+    if (orion%vtk%node) start = 0
+    orion%block(b)%Ni = nx2; orion%block(b)%Nj = ny2; orion%block(b)%Nk = nz2
     ! A 2-D mesh is written as two planes of nodes in k with z = 0 at every node. z adding up to 0 is no sign of it (a slab
     ! around z = 0), nor is z = 0 at every node of a block with one plane of nodes in k (a face of a 3-D block on the plane z = 0)
     ndir = 3
@@ -11017,9 +11027,10 @@ contains
           orion%block(b)%mesh(2,i,j,k) = y(n)
           if (ndir==3) orion%block(b)%mesh(3,i,j,k) = z(n)
     enddo; enddo; enddo
-    ! Variables field
+    ! Variables field: at the cells the layer of cells in k of a 2-D mesh, vars(:,:,:,1:1), at the nodes its node plane,
+    ! vars(:,:,:,0:0), as the Tecplot readers return it
     if (ndir==2) then
-      nz1_real = 1 - start; nz2_real = 1
+      nz1_real = 0; nz2_real = start
     endif
     allocate(orion%block(b)%vars(1:size(varnames)-1,nx1+start:nx2,ny1+start:ny2,nz1_real+start:nz2_real))
     do s = 1, size(varnames)-1

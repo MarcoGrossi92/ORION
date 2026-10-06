@@ -31,6 +31,15 @@ Changes on `main` since `v1.6.0`.
 
 ### Changed
 
+- `vtk_read_structured_multiblock` returns variables at the nodes (point data)
+  in `vars(:,0:Ni,0:Nj,0:Nk)` with `Ni`, `Nj` and `Nk` the cells, as the
+  Tecplot readers return them, and the node plane of a two-dimensional block
+  at k = 0; it returned the numbers of nodes as `Ni`, `Nj` and `Nk`, and the
+  node plane at k = 1. A mesh without variables, also one written before this
+  change, is read with `Ni`, `Nj` and `Nk` the cells, one less than before in
+  each direction, and with `orion%vtk%node` unset (it was set).
+  `vtk_write_structured_multiblock` writes variables at the nodes with one
+  value per node (it wrote as many as cells).
 - `vtk_read_structured_multiblock` reads a block file of one plane of nodes in
   k with `z = 0` at every node, such as the face of a three-dimensional block
   on the plane z = 0, with three coordinates; it read it with two, and gave its

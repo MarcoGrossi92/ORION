@@ -49,6 +49,7 @@
   call many_blocks
   call face_on_z0
   call read_errors
+  call point_data
 
   write(*,'(A,I0,A,I0,A)') 'vtk_read_wrapper: ', checks, ' checks, ', failures, ' failed'
   if (failures > 0) stop 1
@@ -960,4 +961,100 @@
   err = vtk_read_structured_multiblock(orion=r4, vtmpath='errors_nopoints_'//fmt, vtspath='')
   call check(err /= 0, fmt//': error for a block file without points')
   end subroutine write_and_read_errors
+
+  subroutine point_data
+  !---------------------------------------------------------------------------------------------------------------------------------
+  !< Variables at the nodes, read. vtk_read_structured_multiblock reads a block file whose variables are point data with Ni, Nj
+  !< and Nk the cells and the values in vars(:,0:Ni,0:Nj,0:Nk), as the Tecplot readers return them, and sets orion%vtk%node:
+  !< a block file of one cell, written here in ascii as ORION lists its arrays (Points first), with one variable as point
+  !< data, 8 values on 8 nodes (return value 0, orion%vtk%node set, Ni Nj Nk = 1 1 1, vars(1:1,0:1,0:1,0:1), each value at
+  !< its node). A block file of the same cell without variables, neither PointData nor CellData, is a mesh: read with
+  !< orion%vtk%node unset and Ni Nj Nk = 1 1 1.
+  !< Defect: the reader returned the numbers of nodes as Ni, Nj and Nk for such a file, while the Tecplot readers and the VTK
+  !< writer take them as numbers of cells, and set orion%vtk%node for a block file without variables.
+  !< Basis: VTK File Formats (p. 12): PointData holds the data of each point of a piece, CellData those of each cell; the
+  !< Tecplot readers return variables at the nodes in vars(:,0:Ni,0:Nj,0:Nk), with Ni, Nj and Nk the cells.
+  !---------------------------------------------------------------------------------------------------------------------------------
+  !---------------------------------------------------------------------------------------------------------------------------------
+
+  call read_point_data
+  end subroutine point_data
+
+  subroutine read_point_data
+  !---------------------------------------------------------------------------------------------------------------------------------
+  !< Read a block file with one variable as point data, and one without variables.
+  !---------------------------------------------------------------------------------------------------------------------------------
+  type(orion_data) :: r, m
+  integer(I4P)     :: err
+  logical          :: same
+  !---------------------------------------------------------------------------------------------------------------------------------
+
+  call point_data_file('pointdata', .true.)
+  r%vtk%format = 'ascii'
+  err = vtk_read_structured_multiblock(orion=r, vtmpath='pointdata', vtspath='')
+  call check(err == 0, 'a block file with point data read (return value 0)')
+  if (allocated(r%block)) then
+    call check(r%vtk%node, 'a block file with point data read with orion%vtk%node set')
+    call check(r%block(1)%Ni == 1 .and. r%block(1)%Nj == 1 .and. r%block(1)%Nk == 1, &
+               'a block file with point data read with Ni, Nj and Nk the cells')
+    same = .false.
+    if (allocated(r%block(1)%vars)) same = all(lbound(r%block(1)%vars) == [1, 0, 0, 0]) .and. &
+                                            all(ubound(r%block(1)%vars) == [1, 1, 1, 1])
+    call check(same, 'its values read at the nodes, vars(1:1,0:1,0:1,0:1)')
+    if (same) call check(all(reshape(r%block(1)%vars, [8]) == [1, 2, 3, 4, 5, 6, 7, 8]), 'each value read at its node')
+  endif
+  call point_data_file('nodata', .false.)
+  m%vtk%format = 'ascii'
+  m%vtk%node = .true.
+  err = vtk_read_structured_multiblock(orion=m, vtmpath='nodata', vtspath='')
+  call check(err == 0, 'a block file without variables read (return value 0)')
+  if (allocated(m%block)) then
+    call check(.not.m%vtk%node, 'a block file without variables read with orion%vtk%node unset')
+    call check(m%block(1)%Ni == 1 .and. m%block(1)%Nj == 1 .and. m%block(1)%Nk == 1, &
+               'a block file without variables read with Ni, Nj and Nk the cells')
+  endif
+  end subroutine read_point_data
+
+  subroutine point_data_file(stem, values)
+  !---------------------------------------------------------------------------------------------------------------------------------
+  !< Write stem.vtm and its block file stem_P1.vts, one cell and its 8 nodes, with the variable a as point data when values is
+  !< true, without variables otherwise.
+  !---------------------------------------------------------------------------------------------------------------------------------
+  character(len=*), intent(in) :: stem
+  logical,          intent(in) :: values
+  integer                      :: u
+  !---------------------------------------------------------------------------------------------------------------------------------
+
+  open(newunit=u, file=stem//'_P1.vts', status='replace', action='write')
+  write(u,'(A)') '<?xml version="1.0"?>'
+  write(u,'(A)') '<VTKFile type="StructuredGrid" version="0.1" byte_order="LittleEndian">'
+  write(u,'(A)') '  <StructuredGrid WholeExtent="+0 +1 +0 +1 +0 +1">'
+  write(u,'(A)') '    <Piece Extent="+0 +1 +0 +1 +0 +1">'
+  write(u,'(A)') '      <Points>'
+  write(u,'(A)') '        <DataArray type="Float64" NumberOfComponents="3" Name="Points" format="ascii">'
+  write(u,'(A)') '          0 0 1 1 0 1 0 1 1 1 1 1 0 0 2 1 0 2 0 1 2 1 1 2'
+  write(u,'(A)') '        </DataArray>'
+  write(u,'(A)') '      </Points>'
+  if (values) then
+    write(u,'(A)') '      <PointData>'
+    write(u,'(A)') '        <DataArray type="Float64" Name="a" NumberOfComponents="1" format="ascii">'
+    write(u,'(A)') '          1 2 3 4 5 6 7 8'
+    write(u,'(A)') '        </DataArray>'
+    write(u,'(A)') '      </PointData>'
+  endif
+  write(u,'(A)') '    </Piece>'
+  write(u,'(A)') '  </StructuredGrid>'
+  write(u,'(A)') '</VTKFile>'
+  close(u)
+  open(newunit=u, file=stem//'.vtm', status='replace', action='write')
+  write(u,'(A)') '<?xml version="1.0"?>'
+  write(u,'(A)') '<VTKFile type="vtkMultiBlockDataSet" version="1.0" byte_order="LittleEndian">'
+  write(u,'(A)') '  <vtkMultiBlockDataSet>'
+  write(u,'(A)') '    <Block index="0">'
+  write(u,'(A)') '      <DataSet index="0" file="'//stem//'_P1.vts"/>'
+  write(u,'(A)') '    </Block>'
+  write(u,'(A)') '  </vtkMultiBlockDataSet>'
+  write(u,'(A)') '</VTKFile>'
+  close(u)
+  end subroutine point_data_file
   end program vtk_read_multiblock

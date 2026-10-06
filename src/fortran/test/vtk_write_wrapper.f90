@@ -95,6 +95,7 @@
 
   call many_blocks
   call surface_blocks
+  call node_variables
   call relative_paths
 
   write(*,'(A,I0,A,I0,A)') 'vtk_write_wrapper: ', checks, ' checks, ', failures, ' failed'
@@ -440,6 +441,201 @@
     if (nbyte > 0) values = transfer(buf(start+offset+4:start+offset+3+nbyte), values)
   end select
   end subroutine array_values
+
+  subroutine node_variables
+  !---------------------------------------------------------------------------------------------------------------------------------
+  !< Variables at the nodes, written and read back. With orion%vtk%node set, vtk_write_structured_multiblock writes one value
+  !< per node, and vtk_read_structured_multiblock returns the values as they were written, in vars(:,0:Ni,0:Nj,0:Nk) with Ni,
+  !< Nj and Nk the cells, as the Tecplot readers return them. In each of the ascii, binary and raw formats, a field of one
+  !< block with two variables at the nodes is written (return value 0) and read back (orion%vtk%node set, Ni Nj Nk, the
+  !< bounds of mesh and vars, every node and every value as written) for: a 3-D block of 2 x 3 x 2 cells, vars(:,0:2,0:3,0:2);
+  !< a 2-D block of 2 x 3 cells (Nk = 1, the layer of cells of its file) with its variables on its node plane,
+  !< vars(:,0:2,0:3,0:0); a surface block, an i-face of 3 x 2 cells (Ni = 0), vars(:,0:0,0:3,0:2). Then the 3-D block with
+  !< cell variables (read back as written, orion%vtk%node unset, as before) and a mesh without variables written with
+  !< orion%vtk%node set: read back with orion%vtk%node unset and Ni Nj Nk the cells, then given cell variables and written
+  !< again with the same object, a field of cell variables read back as written.
+  !< Defect: with orion%vtk%node set the writer declared the variables as point data but wrote as many values as cells, a
+  !< file that does not hold the field; the reader returned the numbers of nodes as Ni, Nj and Nk, and set orion%vtk%node for
+  !< a mesh without variables, so a cell field written next with the same object was written as one at the nodes.
+  !< Basis: VTK File Formats (p. 12): PointData holds the data of each point of a piece, CellData those of each cell; the
+  !< Tecplot readers return variables at the nodes in vars(:,0:Ni,0:Nj,0:Nk), with Ni, Nj and Nk the cells.
+  !---------------------------------------------------------------------------------------------------------------------------------
+  character(len=6), parameter :: formats(3) = ['ascii ', 'binary', 'raw   ']
+  integer :: f
+  !---------------------------------------------------------------------------------------------------------------------------------
+
+  do f = 1, size(formats)
+    call node_round_trip(trim(formats(f)), '3d')
+    call node_round_trip(trim(formats(f)), '2d')
+    call node_round_trip(trim(formats(f)), 'face')
+    call cell_and_mesh(trim(formats(f)))
+  enddo
+  end subroutine node_variables
+
+  subroutine node_block(o, shape_, vars)
+  !---------------------------------------------------------------------------------------------------------------------------------
+  !< One block named N1: shape_ '3d' a 3-D block of 2 x 3 x 2 cells, '2d' a 2-D block of 2 x 3 cells, 'face' an i-face of 3 x 2
+  !< cells; with vars 'node' two variables at the nodes (on the node plane of the 2-D block), 'cell' two at the cells (3-D
+  !< block), 'none' no variables.
+  !---------------------------------------------------------------------------------------------------------------------------------
+  type(orion_data), intent(inout) :: o
+  character(len=*), intent(in)    :: shape_, vars
+  integer(I4P)                    :: i, j, k, ni, nk
+  !---------------------------------------------------------------------------------------------------------------------------------
+
+  allocate(o%block(1))
+  o%block(1)%name = 'N1'
+  ni = 2; nk = 2
+  if (shape_ == 'face') ni = 0
+  if (shape_ == '2d') nk = 0
+  o%block(1)%Ni = ni; o%block(1)%Nj = 3; o%block(1)%Nk = max(nk, 1)
+  if (shape_ == '2d') then
+    allocate(o%block(1)%mesh(1:2, 0:ni, 0:3, 0:0))
+  else
+    allocate(o%block(1)%mesh(1:3, 0:ni, 0:3, 0:nk))
+  endif
+  do k = 0, nk; do j = 0, 3; do i = 0, ni
+    o%block(1)%mesh(1,i,j,k) = real(i, R8P) + 1.0_R8P
+    o%block(1)%mesh(2,i,j,k) = real(j, R8P) + 0.5_R8P
+    if (shape_ /= '2d') o%block(1)%mesh(3,i,j,k) = real(k, R8P) + 1.0_R8P
+  enddo; enddo; enddo
+  select case(vars)
+  case('node')
+    allocate(o%block(1)%vars(1:2, 0:ni, 0:3, 0:nk))
+    do k = 0, nk; do j = 0, 3; do i = 0, ni
+      o%block(1)%vars(:,i,j,k) = [real(i + 10*j + 100*k, R8P) + 0.25_R8P, -1.5_R8P*real(i + 1, R8P)]
+    enddo; enddo; enddo
+  case('cell')
+    allocate(o%block(1)%vars(1:2, 1:ni, 1:3, 1:nk))
+    do k = 1, nk; do j = 1, 3; do i = 1, ni
+      o%block(1)%vars(:,i,j,k) = [real(i + 10*j + 100*k, R8P), -1.5_R8P]
+    enddo; enddo; enddo
+  end select
+  end subroutine node_block
+
+  subroutine remove_field(stem)
+  !---------------------------------------------------------------------------------------------------------------------------------
+  !< Remove the .vtm file stem.vtm and its block file stem_N1.vts left by an earlier run: they would hide a write that fails.
+  !---------------------------------------------------------------------------------------------------------------------------------
+  character(len=*), intent(in) :: stem
+  integer                      :: u
+  !---------------------------------------------------------------------------------------------------------------------------------
+
+  open(newunit=u, file=stem//'.vtm')
+  close(u, status='delete')
+  open(newunit=u, file=stem//'_N1.vts')
+  close(u, status='delete')
+  end subroutine remove_field
+
+  subroutine node_round_trip(fmt, shape_)
+  !---------------------------------------------------------------------------------------------------------------------------------
+  !< Write the block of node_block with its variables at the nodes in one format and read it back.
+  !---------------------------------------------------------------------------------------------------------------------------------
+  character(len=*), intent(in)  :: fmt, shape_
+  type(orion_data)              :: w, r
+  character(len=16)             :: varnames
+  character(len=:), allocatable :: stem, what
+  integer(I4P)                  :: err
+  logical                       :: same
+  !---------------------------------------------------------------------------------------------------------------------------------
+
+  stem = 'node'//shape_//'_'//fmt
+  what = fmt//', '//shape_//' block with variables at the nodes'
+  call remove_field(stem)
+  call node_block(w, shape_, 'node')
+  w%vtk%format = fmt
+  w%vtk%node = .true.
+  varnames = 'a b'
+  err = vtk_write_structured_multiblock(orion=w, vtspath=stem//'_', vtmpath=stem, varnames=varnames)
+  call check(err == 0, what//': written')
+  r%vtk%format = fmt
+  err = vtk_read_structured_multiblock(orion=r, vtmpath=stem, vtspath='')
+  call check(err == 0, what//': read back')
+  if (.not.allocated(r%block)) return
+  call check(r%vtk%node, what//': read back with orion%vtk%node set')
+  call check(r%block(1)%Ni == w%block(1)%Ni .and. r%block(1)%Nj == w%block(1)%Nj .and. r%block(1)%Nk == w%block(1)%Nk, &
+             what//': Ni, Nj and Nk read back as the cells')
+  if (allocated(r%block(1)%mesh)) then
+    same = all(lbound(r%block(1)%mesh) == lbound(w%block(1)%mesh)) .and. all(ubound(r%block(1)%mesh) == ubound(w%block(1)%mesh))
+    call check(same, what//': mesh read back with its bounds')
+    if (same) call check(all(r%block(1)%mesh == w%block(1)%mesh), what//': every node read back as written')
+  endif
+  if (allocated(r%block(1)%vars)) then
+    same = all(lbound(r%block(1)%vars) == lbound(w%block(1)%vars)) .and. all(ubound(r%block(1)%vars) == ubound(w%block(1)%vars))
+    call check(same, what//': variables read back at the nodes, with the bounds of vars')
+    if (same) call check(all(r%block(1)%vars == w%block(1)%vars), what//': every value read back as written')
+  else
+    call check(.false., what//': variables read back')
+  endif
+  end subroutine node_round_trip
+
+  subroutine cell_and_mesh(fmt)
+  !---------------------------------------------------------------------------------------------------------------------------------
+  !< The 3-D block with cell variables, and a mesh without variables written with orion%vtk%node set, then given cell variables
+  !< and written again with the object it was read into, in one format.
+  !---------------------------------------------------------------------------------------------------------------------------------
+  character(len=*), intent(in)  :: fmt
+  type(orion_data)              :: w2, w3, r2, r3, r4
+  character(len=16)             :: varnames
+  integer(I4P)                  :: err, i, j, k
+  !---------------------------------------------------------------------------------------------------------------------------------
+
+  ! Cell variables: written and read back as before
+  call remove_field('nodecell_'//fmt)
+  call node_block(w2, '3d', 'cell')
+  w2%vtk%format = fmt
+  varnames = 'a b'
+  err = vtk_write_structured_multiblock(orion=w2, vtspath='nodecell_'//fmt//'_', vtmpath='nodecell_'//fmt, varnames=varnames)
+  call check(err == 0, fmt//': cell variables written')
+  r2%vtk%format = fmt
+  err = vtk_read_structured_multiblock(orion=r2, vtmpath='nodecell_'//fmt, vtspath='')
+  call check(err == 0 .and. .not.r2%vtk%node, fmt//': cell variables read back, orion%vtk%node unset')
+  if (allocated(r2%block)) then
+    call check(all(shape(r2%block(1)%vars) == [2, 2, 3, 2]), fmt//': cell variables read back with their shape')
+    if (all(shape(r2%block(1)%vars) == [2, 2, 3, 2])) &
+      call check(all(r2%block(1)%vars == w2%block(1)%vars), fmt//': cell variables read back as written')
+  endif
+
+  ! A mesh without variables, written with orion%vtk%node set: no variables at the nodes when read back, Ni Nj Nk the cells
+  call remove_field('nodemesh_'//fmt)
+  call node_block(w3, '3d', 'none')
+  w3%vtk%format = fmt
+  w3%vtk%node = .true.
+  varnames = ''
+  err = vtk_write_structured_multiblock(orion=w3, vtspath='nodemesh_'//fmt//'_', vtmpath='nodemesh_'//fmt, varnames=varnames)
+  call check(err == 0, fmt//': mesh without variables written with orion%vtk%node set')
+  r3%vtk%format = fmt
+  err = vtk_read_structured_multiblock(orion=r3, vtmpath='nodemesh_'//fmt, vtspath='')
+  call check(err == 0, fmt//': mesh without variables read back')
+  if (.not.allocated(r3%block)) return
+  call check(.not.r3%vtk%node, fmt//': mesh without variables read back with orion%vtk%node unset')
+  call check(r3%block(1)%Ni == 2 .and. r3%block(1)%Nj == 3 .and. r3%block(1)%Nk == 2, &
+             fmt//': mesh without variables read back with Ni, Nj and Nk the cells')
+  call check(all(shape(r3%block(1)%mesh) == [3, 3, 4, 3]), fmt//': mesh read back with its nodes')
+  if (all(shape(r3%block(1)%mesh) == [3, 3, 4, 3])) &
+    call check(all(r3%block(1)%mesh == w3%block(1)%mesh), fmt//': nodes read back as written')
+
+  ! The mesh read back, given cell variables and written with the same object: a field of cell variables
+  call remove_field('nodemesh2_'//fmt)
+  if (allocated(r3%block(1)%vars)) deallocate(r3%block(1)%vars)
+  allocate(r3%block(1)%vars(1:1, 1:2, 1:3, 1:2))
+  do k = 1, 2; do j = 1, 3; do i = 1, 2
+    r3%block(1)%vars(1,i,j,k) = real(i + 10*j + 100*k, R8P) + 0.5_R8P
+  enddo; enddo; enddo
+  varnames = 'p'
+  err = vtk_write_structured_multiblock(orion=r3, vtspath='nodemesh2_'//fmt//'_', vtmpath='nodemesh2_'//fmt, varnames=varnames)
+  call check(err == 0, fmt//': cell field written with the object of a mesh read back')
+  r4%vtk%format = fmt
+  err = vtk_read_structured_multiblock(orion=r4, vtmpath='nodemesh2_'//fmt, vtspath='')
+  call check(err == 0 .and. .not.r4%vtk%node, fmt//': that field read back with its variables at the cells')
+  if (allocated(r4%block)) then
+    if (allocated(r4%block(1)%vars)) then
+      call check(all(shape(r4%block(1)%vars) == [1, 2, 3, 2]), fmt//': that field read back with the shape of its cells')
+      if (all(shape(r4%block(1)%vars) == [1, 2, 3, 2])) &
+        call check(all(r4%block(1)%vars == r3%block(1)%vars), fmt//': its cell values read back as written')
+    endif
+  endif
+  end subroutine cell_and_mesh
 
   subroutine relative_paths
   !---------------------------------------------------------------------------------------------------------------------------------
