@@ -359,6 +359,11 @@ program write_vtk
 end program write_vtk
 ```
 
+The block files take their sizes from `Ni`, `Nj` and `Nk`, the number of cells in each direction. A surface block, with one
+plane of nodes in one direction (`Ni`, `Nj` or `Nk` = 0, `mesh(:,0:0,:,:)` for an i-face), has one layer of cells in that
+direction (`vars(:,1:1,:,:)`), as `tec_write_structured_multiblock` writes it. `vtk_read_structured_multiblock` counts the
+cells of a block from its extent and does not read the cell values of a surface block back.
+
 ### PLOT3D Files
 
 ```fortran

@@ -10755,8 +10755,10 @@ contains
   ! Index of the open block file: each block file is closed before the next one is opened
   integer(I4P)                      :: mf, b, s, ifld
   integer(I4P)                      :: nb,nn,nnvar,Nvar,ndir,nz2
+  integer(I4P)                      :: ci, cj, ck   ! cells of a surface block in each direction
   integer(I4P)                      :: E_IO 
   logical                           :: meshonly
+  logical                           :: surface      ! a block with one plane of nodes in a direction, written as a surface
   character(len=4)                  :: location
   character(len=len_trim(varnames)) :: varname(200)
   character(len=len_trim(vtspath))  :: newvtspath
@@ -10795,6 +10797,15 @@ contains
     endif
     nn=(nx2+1)*(ny2+1)*(nz2+1)
     nnvar=(nx2)*(ny2)*(nz2)
+    ! A surface block, one plane of nodes in a direction (N = 0 there) such as a face of a volume block, has one layer of cells
+    ! in that direction, as tec_write_structured_multiblock writes it, when its variables hold that layer
+    surface = .false.
+    if (.not.meshonly .and. nnvar == 0) then
+      ci = max(nx2,1); cj = max(ny2,1); ck = max(nz2,1)
+      surface = size(orion%block(b)%vars,2) >= ci .and. size(orion%block(b)%vars,3) >= cj .and. &
+                size(orion%block(b)%vars,4) >= ck
+      if (surface) nnvar = ci*cj*ck
+    endif
     E_IO = VTK_INI_XML(cf=mf,output_format=orion%vtk%format, filename=trim(vtspath)//trim(orion%block(b)%name)//'.vts', &
                        mesh_topology='StructuredGrid', nx1=0, nx2=nx2, ny1=0, ny2=ny2, nz1=0, nz2=nz2)
     if (present(time) .or. present(cycle) .or. present(fldnames)) then
@@ -10831,8 +10842,13 @@ contains
     if (.not.meshonly) then
       E_IO = VTK_DAT_XML(cf=mf,var_location = location, var_block_action = 'open')
       do s = 1, Nvar
-        E_IO = VTK_VAR_XML(cf=mf,NC_NN = nnvar, varname = trim(varname(s)), &
-                           var = reshape(orion%block(b)%vars(s,1:nx2,:,:),[nnvar]))
+        if (surface) then
+          E_IO = VTK_VAR_XML(cf=mf,NC_NN = nnvar, varname = trim(varname(s)), &
+                             var = reshape(orion%block(b)%vars(s,1:ci,1:cj,1:ck),[nnvar]))
+        else
+          E_IO = VTK_VAR_XML(cf=mf,NC_NN = nnvar, varname = trim(varname(s)), &
+                             var = reshape(orion%block(b)%vars(s,1:nx2,:,:),[nnvar]))
+        endif
       enddo
       E_IO = VTK_DAT_XML(cf=mf,var_location = location, var_block_action = 'close')
     endif
