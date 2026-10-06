@@ -62,14 +62,19 @@ Changes on `main` since `v1.6.0`.
   the variables after it. The optional `time` argument was never set, because
   the reader called the field-data writer on the file it was reading: it now
   returns the `TIME` of the files, or 0 when they hold none.
-- `vtk_read_structured_multiblock` reads a three-dimensional block whose z
-  coordinates add up to 0, such as a slab or a wedge around z = 0, as
-  three-dimensional. It took every block whose z summed to 0 for a
-  two-dimensional one, and so kept only the x and y of one node plane: the
-  z coordinates were lost. A block is now two-dimensional when every z is 0,
-  the form in which `vtk_write_structured_multiblock` writes a two-dimensional
-  mesh. Whether a floating-point sum of such z comes out as exactly 0 depended
-  on the values and on the order of the additions.
+- `vtk_read_structured_multiblock` reads as three-dimensional a block whose z
+  coordinates add up to 0, such as a slab or a wedge around z = 0, and a block
+  with one plane of nodes in k whose nodes all have z = 0, such as the face of
+  a three-dimensional block on the plane z = 0. It took every block whose z
+  summed to 0 for a two-dimensional one and kept only the x and y of one node
+  plane, so the z coordinates were lost; for a face it also gave the variables
+  one layer of cells in k, which it filled from past the end of the values it
+  had read (none, as it counts the cells of a block from its extent), so it
+  returned wrong values or crashed. Whether a floating-point sum of such z
+  comes out as exactly 0 depended on the values and on the order of the
+  additions. A block is now two-dimensional only when it has two planes of
+  nodes in k and every z is 0, the form in which
+  `vtk_write_structured_multiblock` writes a two-dimensional mesh.
 - `vtk_write_structured_multiblock` and `vtk_read_structured_multiblock` write
   and read a multi-block field of any number of blocks. The writer kept the
   file index of each block in an array of 99 and the reader the block names
