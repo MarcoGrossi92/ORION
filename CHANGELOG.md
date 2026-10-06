@@ -87,6 +87,12 @@ Changes on `main` since `v1.6.0`.
   Fortran writer leaves when the number does not fit its field, now stops the
   read with an error that names the file, the zone and the keyword; the zone
   was read with a size made of other numbers of its line.
+- `b64_decode` stops when the array it decodes into is full. A code longer
+  than the array was decoded past the end of the array, over the memory that
+  follows it: without a message in a release build, with an out-of-bounds
+  error in a build with bound checks. The data array of a binary `.vts` file
+  that holds more values than `vtk_read_structured_multiblock` counts in its
+  piece is such a code. Codes that fit the array decode as before.
 
 ## [1.7.0] - 2026-09-29
 
