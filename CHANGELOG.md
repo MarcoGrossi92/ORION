@@ -107,6 +107,11 @@ Changes on `main` since `v1.6.0`.
   variables do not hold that layer, are written as before.
   `vtk_read_structured_multiblock` counts the cells of a block from its extent
   and does not read these values back.
+- `vtk_read_structured_multiblock` returns an error when a block file cannot
+  be opened, such as a file listed in the `.vtm` that does not exist or a
+  wrong `vtspath`, or when its points cannot be read. It went on with a file
+  unit it had not opened and with coordinates it had not read, and stopped
+  with a segmentation fault or a runtime error.
 
 ## [1.7.0] - 2026-09-29
 
