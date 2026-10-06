@@ -90,6 +90,15 @@ Changes on `main` since `v1.6.0`.
   variables do not hold that layer, are written as before.
   `vtk_read_structured_multiblock` counts the cells of a block from its extent
   and does not read these values back.
+- `vtk_read_structured_multiblock` reads a block with one plane of nodes in k
+  whose nodes all have z = 0, such as the face of a three-dimensional block on
+  the plane z = 0, as three-dimensional. It took such a block for a
+  two-dimensional one: it dropped z and gave the variables one layer of cells
+  in k, which it filled from past the end of the values it had read (none, as
+  it counts the cells of a block from its extent), so it returned wrong values
+  or crashed. A block is now two-dimensional only when it has two planes of
+  nodes in k and every z is 0, the form in which
+  `vtk_write_structured_multiblock` writes a two-dimensional mesh.
 
 ## [1.7.0] - 2026-09-29
 
