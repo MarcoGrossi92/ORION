@@ -72,6 +72,8 @@ Changes on `main` since `v1.6.0`.
   `J=` and `K=` keywords, outside text in quotes: a number in a zone title
   became a dimension, and a zone written as `I = 4` was not read. A dimension
   that is not a whole number (`I=***`) stops the read with an error.
+- `b64_decode` stops when the array it decodes into is full: a longer code was
+  decoded past the end of the array.
 
 ## [1.7.0] - 2026-09-29
 
