@@ -93,6 +93,15 @@ Changes on `main` since `v1.6.0`.
   error in a build with bound checks. The data array of a binary `.vts` file
   that holds more values than `vtk_read_structured_multiblock` counts in its
   piece is such a code. Codes that fit the array decode as before.
+- `vtk_write_structured_multiblock` writes the cell values of a surface block,
+  a block with one plane of nodes in one direction (`Ni`, `Nj` or `Nk` = 0)
+  such as a face of a volume block, as one layer of cells in that direction,
+  as `tec_write_structured_multiblock` writes it. It counted `Ni*Nj*Nk` = 0
+  cells, so the file had the extent and the points of the surface but no cell
+  value. Blocks with every dimension at least 1, and surface blocks whose
+  variables do not hold that layer, are written as before.
+  `vtk_read_structured_multiblock` counts the cells of a block from its extent
+  and does not read these values back.
 
 ## [1.7.0] - 2026-09-29
 
