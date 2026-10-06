@@ -10982,9 +10982,10 @@ contains
       start = 1
       orion%block(b)%Ni = nx2; orion%block(b)%Nj = ny2; orion%block(b)%Nk = nz2
     endif
-    ! A 2-D mesh is written with z = 0 at every node; z adding up to 0 is no sign of it (a slab around z = 0)
+    ! A 2-D mesh is written as two planes of nodes in k with z = 0 at every node. z adding up to 0 is no sign of it (a slab
+    ! around z = 0), nor is z = 0 at every node of a block with one plane of nodes in k (a face of a 3-D block on the plane z = 0)
     ndir = 3
-    if (all(z==0.0_R8P)) ndir = 2
+    if (nz2-nz1==1 .and. all(z==0.0_R8P)) ndir = 2
     if (ndir==2) then
       nz1_real = 0; nz2_real = 0
     else

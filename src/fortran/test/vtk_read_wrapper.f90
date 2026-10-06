@@ -15,6 +15,8 @@
   ! for the subroutine field_scalars and its procedures
   character(len=20), parameter :: names(3) = [character(len=20) :: 'ITERATION', 'OUTPUT_NUMBER', &
                                               'LAST_OUTPUT_TIME']
+  ! for the subroutine face_on_z0 and its procedures
+  integer(I4P),     parameter :: dims(3,2) = reshape([3,4,0, 2,2,2], [3,2])
   !---------------------------------------------------------------------------------------------------------------------------------
 
   !---------------------------------------------------------------------------------------------------------------------------------
@@ -45,6 +47,7 @@
   call field_scalars
   call mesh_dimension
   call many_blocks
+  call face_on_z0
 
   write(*,'(A,I0,A,I0,A)') 'vtk_read_wrapper: ', checks, ' checks, ', failures, ' failed'
   if (failures > 0) stop 1
@@ -740,4 +743,109 @@
     end associate
   enddo
   end subroutine round_trip_blocks
+
+  subroutine face_on_z0
+  !---------------------------------------------------------------------------------------------------------------------------------
+  !< A face on the plane z = 0. vtk_read_structured_multiblock reads a block with one plane of nodes in k whose nodes all lie
+  !< on the plane z = 0, such as the face of a 3-D block on a wall at z = 0, as a 3-D block: its nodes keep their z, and the
+  !< block has no cell in k, as its extent gives. Only a block with two planes of nodes in k and z = 0 at every node, the form
+  !< in which vtk_write_structured_multiblock writes a 2-D mesh, is read as 2-D. In each of the ascii, binary and raw formats a
+  !< 3-D field of two blocks, a face on the plane z = 0 (3 x 4 x 0 cells, its cell variables with one layer of cells) and a
+  !< volume block (2 x 2 x 2 cells) next to it, is written and read back, and for each block Ni, Nj, Nk, the shape of the mesh
+  !< and of the variables, every node, and every cell value of the volume block are checked, bit for bit (every value is an
+  !< integer or a half).
+  !< Defect: the reader took such a face for a 2-D block, dropped z and gave it one layer of cells in k, filled from past the
+  !< end of the values it had read: wrong values or a crash.
+  !< Basis: VTK File Formats (p. 13): the cells of a StructuredGrid are given by its extent, and VTK 9.7.1 counts one layer of
+  !< cells in a direction with one plane of points (vtkStructuredData::GetNumberOfCells).
+  !---------------------------------------------------------------------------------------------------------------------------------
+  character(len=6), parameter :: formats(3) = ['ascii ', 'binary', 'raw   ']
+  integer :: f
+  !---------------------------------------------------------------------------------------------------------------------------------
+
+  do f = 1, size(formats)
+    call write_and_read(trim(formats(f)))
+  enddo
+  end subroutine face_on_z0
+
+  pure function node(b, i, j, k) result(x)
+  !---------------------------------------------------------------------------------------------------------------------------------
+  !< Coordinates of node (i, j, k) of block b: the face (b = 1) on the plane z = 0, the volume block (b = 2) from z = 0 to z = 2.
+  !---------------------------------------------------------------------------------------------------------------------------------
+  integer(I4P), intent(in) :: b, i, j, k
+  real(R8P)                :: x(3)
+  !---------------------------------------------------------------------------------------------------------------------------------
+
+  x = [real(i + 10*(b-1), R8P), real(j, R8P) + 0.5_R8P*i, real(k, R8P)]
+  end function node
+
+  pure function cell(b, i, j, k) result(v)
+  !---------------------------------------------------------------------------------------------------------------------------------
+  !< Values of the two cell variables in cell (i, j, k) of block b.
+  !---------------------------------------------------------------------------------------------------------------------------------
+  integer(I4P), intent(in) :: b, i, j, k
+  real(R8P)                :: v(2)
+  !---------------------------------------------------------------------------------------------------------------------------------
+
+  v = [real(i + 10*j + 100*k, R8P), -real(b, R8P) - 0.5_R8P]
+  end function cell
+
+  subroutine write_and_read(fmt)
+  !---------------------------------------------------------------------------------------------------------------------------------
+  !< Write the field in the format given, read it back and check it.
+  !---------------------------------------------------------------------------------------------------------------------------------
+  character(len=*), intent(in) :: fmt
+  type(orion_data)             :: w, r
+  character(len=16)            :: varnames
+  character(len=64)            :: label
+  integer(I4P)                 :: b, i, j, k, err
+  logical                      :: same
+  !---------------------------------------------------------------------------------------------------------------------------------
+
+  allocate(w%block(2))
+  do b = 1, 2
+    w%block(b)%name = 'F'//trim(str(.true., b))
+    w%block(b)%Ni = dims(1,b); w%block(b)%Nj = dims(2,b); w%block(b)%Nk = dims(3,b)
+    allocate(w%block(b)%mesh(1:3, 0:dims(1,b), 0:dims(2,b), 0:dims(3,b)))
+    allocate(w%block(b)%vars(1:2, 1:max(dims(1,b),1), 1:max(dims(2,b),1), 1:max(dims(3,b),1)))
+    do k = 0, dims(3,b); do j = 0, dims(2,b); do i = 0, dims(1,b)
+      w%block(b)%mesh(:,i,j,k) = node(b, i, j, k)
+    enddo; enddo; enddo
+    do k = 1, ubound(w%block(b)%vars,4); do j = 1, ubound(w%block(b)%vars,3); do i = 1, ubound(w%block(b)%vars,2)
+      w%block(b)%vars(:,i,j,k) = cell(b, i, j, k)
+    enddo; enddo; enddo
+  enddo
+  w%vtk%format = fmt
+  varnames = 'a b'
+  err = vtk_write_structured_multiblock(orion=w, vtspath='face_z0_'//fmt//'_', vtmpath='face_z0_'//fmt, varnames=varnames)
+  call check(err == 0, fmt//': written without error')
+
+  r%vtk%format = fmt
+  err = vtk_read_structured_multiblock(orion=r, vtmpath='face_z0_'//fmt, vtspath='')
+  call check(err == 0, fmt//': read back without error')
+  call check(size(r%block) == 2, fmt//': 2 blocks read back')
+  if (size(r%block) /= 2) return
+  do b = 1, 2
+    label = fmt//' block '//trim(str(.true., b))
+    call check(r%block(b)%Ni == dims(1,b) .and. r%block(b)%Nj == dims(2,b) .and. r%block(b)%Nk == dims(3,b), &
+               trim(label)//': Ni, Nj, Nk')
+    same = all(shape(r%block(b)%mesh) == [3, dims(1,b)+1, dims(2,b)+1, dims(3,b)+1])
+    call check(same, trim(label)//': shape of the mesh, 3 coordinates and every node')
+    if (same) then
+      do k = 0, dims(3,b); do j = 0, dims(2,b); do i = 0, dims(1,b)
+        same = same .and. all(r%block(b)%mesh(:,i,j,k) == node(b, i, j, k))
+      enddo; enddo; enddo
+      call check(same, trim(label)//': nodes')
+    endif
+    ! The reader counts the cells of a block from its extent: none in k for the face
+    same = all(shape(r%block(b)%vars) == [2, dims(1,b), dims(2,b), dims(3,b)])
+    call check(same, trim(label)//': shape of the variables, one cell per extent interval')
+    if (same .and. size(r%block(b)%vars) > 0) then
+      do k = 1, dims(3,b); do j = 1, dims(2,b); do i = 1, dims(1,b)
+        same = same .and. all(r%block(b)%vars(:,i,j,k) == cell(b, i, j, k))
+      enddo; enddo; enddo
+      call check(same, trim(label)//': cell values')
+    endif
+  enddo
+  end subroutine write_and_read
   end program vtk_read_multiblock

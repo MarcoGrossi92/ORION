@@ -31,6 +31,15 @@ Changes on `main` since `v1.6.0`.
 
 ### Changed
 
+- `vtk_read_structured_multiblock` reads a block file of one plane of nodes in
+  k with `z = 0` at every node, such as the face of a three-dimensional block
+  on the plane z = 0, with three coordinates; it read it with two, and gave its
+  cell variables a layer of cells filled from past the end of the values read.
+  A two-dimensional field that another program writes as one node plane is
+  therefore read with three coordinates, its point data at k = 0 and no cell
+  value (return value 0). A block is two-dimensional when it has two planes of
+  nodes in k and `z = 0` at every node, as `vtk_write_structured_multiblock`
+  writes it.
 - `vtk_write_structured_multiblock` lists each block file relative to the
   directory of the `.vtm` file, as VTK readers take it (`vtspath = ''` and
   `vtmpath = 'out/field'` list `../name.vts`); the entries depended on what the
