@@ -88,6 +88,9 @@ Changes on `main` since `v1.6.0`.
   layer of cells there, as `tec_write_structured_multiblock` does, when its
   variables hold that layer; it wrote no cell value.
   `vtk_read_structured_multiblock` does not read these values back.
+- `vtk_read_structured_multiblock` returns an error, instead of a crash or a
+  runtime error, when a block file cannot be opened or its points cannot be
+  read.
 
 ## [1.7.0] - 2026-09-29
 
