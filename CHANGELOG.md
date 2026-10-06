@@ -112,6 +112,15 @@ Changes on `main` since `v1.6.0`.
   wrong `vtspath`, or when its points cannot be read. It went on with a file
   unit it had not opened and with coordinates it had not read, and stopped
   with a segmentation fault or a runtime error.
+- `vtk_write_structured_multiblock` and `vtk_read_structured_multiblock`
+  refuse variables at the nodes and return 1: the writer when
+  `orion%vtk%node` is set and the blocks have variables, without writing
+  any file, the reader for a file whose variables are point data. The writer
+  wrote `Ni*Nj*Nk` values, the number of cells, as point data, and the reader
+  returned the numbers of nodes as `Ni`, `Nj`, `Nk`, unlike the Tecplot
+  reader and writer, so a field with variables at the nodes did not come
+  back as it was written. Fields with cell variables, and meshes without
+  variables, are written and read as before.
 
 ## [1.7.0] - 2026-09-29
 

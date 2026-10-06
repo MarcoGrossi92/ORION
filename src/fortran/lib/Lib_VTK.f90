@@ -10798,6 +10798,11 @@ contains
     meshonly = .false.
     Nvar = size(orion%block(1)%vars,1)
   endif
+  ! Variables at the nodes are not written: ORION writes cell data only in VTK files
+  if (orion%vtk%node .and. .not.meshonly) then
+    E_IO = 1
+    return
+  endif
   location = 'cell'
   if (orion%vtk%node) location = 'node'
   call parse(varnames,' ',varname(1:Nvar))
@@ -10967,6 +10972,11 @@ contains
   enddo
   close(nu)
   call read_variables_name(trim(vtspath)//trim(orion%block(1)%name)//'.vts',varnames,orion%vtk%node)
+  ! Variables at the nodes (point data) are not read: ORION reads cell data only in VTK files
+  if (orion%vtk%node .and. size(varnames) > 1) then
+    err = 1
+    return
+  endif
 
   ! Read VTS file
   do b = 1, Nblocks
