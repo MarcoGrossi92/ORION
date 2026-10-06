@@ -287,6 +287,7 @@ contains
   Nb=size(bits,dim=1,kind=I8P)
   e = 1_I8P
   do c=1_I8P,len(code),4_I8P ! loop over code characters: 3 bytes (24 bits) scanning
+    if (e>Nb) exit ! bits is full: the rest of a longer code is not decoded past its end
     sixb = 0_I1P
     sixb(1) = index(base64,code(c  :c  )) - 1
     sixb(2) = index(base64,code(c+1:c+1)) - 1
