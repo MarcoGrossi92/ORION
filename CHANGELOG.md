@@ -74,6 +74,11 @@ Changes on `main` since `v1.6.0`.
   that is not a whole number (`I=***`) stops the read with an error.
 - `b64_decode` stops when the array it decodes into is full: a longer code was
   decoded past the end of the array.
+- `vtk_write_structured_multiblock` writes the cell values of a surface block
+  (one plane of nodes in a direction, such as a face of a volume block) as one
+  layer of cells there, as `tec_write_structured_multiblock` does, when its
+  variables hold that layer; it wrote no cell value.
+  `vtk_read_structured_multiblock` does not read these values back.
 
 ## [1.7.0] - 2026-09-29
 
