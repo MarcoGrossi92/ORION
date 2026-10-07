@@ -10948,18 +10948,22 @@ contains
   if (present(cycle)) cycle = 0_I4P
   if (present(fldvalues)) fldvalues = 0.0_R8P
   if (present(fldfound)) fldfound = .false.
-  ! Block names from the .vtm, as many as it lists: a first pass counts them, a second one stores them
-  open(newunit=nu,file=trim(vtmpath)//'.vtm',action='read')
+  ! Block names from the .vtm, as many as it lists: a first pass counts them, a second one stores them. A .vtm that cannot be
+  ! opened, that ends before the end of its block list or that lists no block file: stop with an error
+  open(newunit=nu,file=trim(vtmpath)//'.vtm',action='read',status='old',iostat=err)
+  if (err /= 0) return
   do pass = 1, 2
     rewind(nu)
     do
-      read(nu,'(A)') line
+      read(nu,'(A)',iostat=err) line
+      if (err /= 0) exit
       if (index(line,'<Block')==0) cycle
       exit
     enddo
     Nblocks = 0
-    do
-      read(nu,'(A)') line
+    do while (err == 0)
+      read(nu,'(A)',iostat=err) line
+      if (err /= 0) exit
       if (index(line,'</Block')>0) exit
       Nblocks = Nblocks+1
       if (pass==2) then
@@ -10968,9 +10972,12 @@ contains
         orion%block(Nblocks)%name = line(start_pos:end_pos-1)
       endif
     enddo
+    if (err == 0 .and. Nblocks == 0) err = 1
+    if (err /= 0) exit
     if (pass==1) allocate(orion%block(1:Nblocks))
   enddo
   close(nu)
+  if (err /= 0) return
   call read_variables_name(trim(vtspath)//trim(orion%block(1)%name)//'.vts',varnames,orion%vtk%node)
   ! Variables at the nodes (point data) are not read: ORION reads cell data only in VTK files
   if (orion%vtk%node .and. size(varnames) > 1) then
@@ -10984,8 +10991,12 @@ contains
     err = VTK_INI_XML_READ(input_format=trim(orion%vtk%format),filename=trim(vtspath)//trim(orion%block(b)%name)//'.vts', &
                             mesh_topology='StructuredGrid',&
                             nx1=nx1,nx2=nx2,ny1=ny1,ny2=ny2,nz1=nz1,nz2=nz2)
-    ! A block file that cannot be opened, or that is not a StructuredGrid file: stop with its error
-    if (err /= 0) return
+    ! A block file that cannot be opened, or that is not a StructuredGrid file: stop with its error, and close the file if it
+    ! was opened before the error was found
+    if (err /= 0) then
+      call close_block
+      return
+    endif
     if (present(time)) then
       if (VTK_FLD_XML_READ(fname='TIME',fld=t) == 0) time = t
     endif
@@ -11001,8 +11012,11 @@ contains
       enddo
     endif
     err = VTK_GEO_XML_READ(nx1=nx1,nx2=nx2,ny1=ny1,ny2=ny2,nz1=nz1,nz2=nz2,NN=nn,X=x,Y=y,Z=z)
-    ! A block file whose points cannot be read: stop with its error, before using the coordinates
-    if (err /= 0) return
+    ! A block file whose points cannot be read: stop with its error, before using the coordinates, and close it
+    if (err /= 0) then
+      call close_block
+      return
+    endif
     if (orion%vtk%node) then
       start = 0
       orion%block(b)%Ni = nx2+1; orion%block(b)%Nj = ny2+1; orion%block(b)%Nk = nz2+1
@@ -11039,15 +11053,39 @@ contains
       else
         err = VTK_VAR_XML_READ(var_location='cell', varname=trim(varnames(s+1)), NC_NN=nn, NCOMP=nc, var=v)    
       endif
+      ! Values that cannot be read, such as those of a block file cut short: stop with the error, before using them, and close
+      ! the file
+      if (err /= 0) then
+        call close_block
+        return
+      endif
       n = 0
       do k = nz1_real+start, nz2_real; do j = ny1+start, ny2; do i = nx1+start, nx2
             n = n + 1
             orion%block(b)%vars(s,i,j,k) = v(n)
       enddo; enddo; enddo
     enddo
+    ! Each block file is closed once read: a field may have more blocks than the files a process can keep open
+    err = VTK_END_XML_READ()
+    if (err /= 0) return
   enddo
-  err = VTK_END_XML_READ()
 
+  contains
+
+    subroutine close_block
+    !-------------------------------------------------------------------------------------------------------------------------------
+    !> Close the file of the block being read after an error in it, if the library has it open. VTK_INI_XML_READ can stop before
+    !> opening the file (no such file, or a format it does not know), fail to open it or stop after opening it; the unit of the
+    !> file stays 0, the standard error, until VTK_INI_XML_READ picks a unit to open the file on. VTK_END_XML_READ is called only
+    !> on that unit, and only when it is open.
+    !-------------------------------------------------------------------------------------------------------------------------------
+    logical      :: fopen
+    integer(I4P) :: e
+    !-------------------------------------------------------------------------------------------------------------------------------
+    if (vtk(f)%u == 0_I4P) return
+    inquire(unit=vtk(f)%u, opened=fopen)
+    if (fopen) e = VTK_END_XML_READ()
+    end subroutine close_block
   end function vtk_read_structured_multiblock
 
 
