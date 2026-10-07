@@ -204,7 +204,10 @@ end program read_vtk_structured
 - **VTK multi-block (`vtk_read_structured_multiblock`).** A block is read as two-dimensional when it has two node
   planes in k and every node has `z = 0`, the form in which `vtk_write_structured_multiblock` writes a
   two-dimensional mesh (two node planes with the same `x` and `y`, one layer of cells): `mesh` holds the two
-  coordinates of one node plane (`mesh(1:2,...,0:0)`). Any other block is read with three coordinates, also when
+  coordinates of one node plane (`mesh(1:2,...,0:0)`). A block that also has two node lines in j with `y = 0` at
+  every node is read as one-dimensional, the form in which the writer writes a mesh of one coordinate: `mesh`
+  holds `x` of one node line (`mesh(1:1,...,0:0,0:0)`) and the variables one layer of cells in j and k. Any other
+  block is read with three coordinates, also when
   its `z` add up to 0, as for a slab around `z = 0`, and when it has one node plane in k with `z = 0` at every node,
   as for the face of a three-dimensional block on the plane `z = 0`. The reader returns a nonzero value, and stops,
   when the `.vtm` file cannot be opened, ends before the end of its block list or lists no block file, and when a
@@ -376,7 +379,10 @@ plane of nodes in one direction (`Ni`, `Nj` or `Nk` = 0, `mesh(:,0:0,:,:)` for a
 direction (`vars(:,1:1,:,:)`), as `tec_write_structured_multiblock` writes it. `vtk_read_structured_multiblock` counts the
 cells of a block from its extent and does not read the cell values of a surface block back. The VTK writer and reader handle
 variables at the cells only: with `orion%vtk%node` set and variables in the blocks the writer returns 1 and writes nothing, and
-the reader returns 1 for a file whose variables are point data.
+the reader returns 1 for a file whose variables are point data. A mesh of three coordinates is written as it is, one of two
+coordinates (`mesh(1:2,...)`) as two node planes in k with `z = 0` and one layer of cells in k, one of one coordinate
+(`mesh(1:1,...)`) as two node lines in j and two node planes in k with `y = z = 0` and one layer of cells in j and k; a mesh of
+another number of coordinates is refused (return value 1, nothing written).
 
 The `.vtm` file lists the block files as the `DataSet` elements of one block, with the indices 0 to nb-1 in the order of
 the blocks, each relative to the directory of the `.vtm` file, as VTK readers take it: the block files
