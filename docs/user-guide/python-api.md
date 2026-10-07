@@ -55,9 +55,10 @@ print(f"Number of variables: {len(var)}")
 
 !!! note "Variable names"
     `read_TEC` takes the names from the `VARIABLES` list, which may span several lines and ends at the first
-    `ZONE` record. The names may be in quotes (`"rho(1)"`, as `write_TEC` writes them) or not (`rho(1)`, as
-    the Fortran writer of ORION 1.7.0 and later writes them); a list that mixes the two keeps only the quoted
-    names.
+    `ZONE` record. As in the Fortran reader, each name may be in double quotes (`"rho(1)"`, as `write_TEC`
+    writes them), in single quotes, or bare (`rho(1)`, as the Fortran writer of ORION 1.7.0 and later writes
+    them), and the three forms may be mixed in one list. Names are separated by blanks, tabs or commas; a name
+    in quotes may contain them. An unclosed quote raises `ValueError`.
 
 ### Single Block Data
 

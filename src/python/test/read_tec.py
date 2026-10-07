@@ -1,8 +1,8 @@
 """read_TEC reads back the Tecplot ASCII files that ORION writes.
 
 ctest runs this script (ORION.python_read_tec) in the test runtime directory,
-after ORION.tecplot_write has written tecfile.tec there. It reads five forms
-of header:
+after ORION.tecplot_write has written tecfile.tec there. It reads seven forms
+of header, the names being read as the Fortran reader reads them:
 
 1. tecfile.tec, written by the Fortran writer: names and zone titles without
    quotes (VARIABLES = x y z variable1, ZONE T = blocco-A);
@@ -14,7 +14,10 @@ of header:
 4. names in quotes and zone titles in quotes after a blank
    (ZONE T = "Block1");
 5. an empty list, "VARIABLES =" alone on its line: the zone header that
-   follows is not a list of names.
+   follows is not a list of names;
+6. names in double quotes, in single quotes and bare in the same list, with
+   commas and tabs as separators and a quoted name that holds a blank;
+7. a quote that is never closed: read_TEC raises ValueError.
 
 Exit status 0 when every check passes, 1 otherwise.
 """
@@ -126,6 +129,23 @@ compare(path, read(path), names, xb, yb, zb, vb)
 path = 'python_read_tec_empty_list.tec'
 write_ascii(path, ' VARIABLES =\n', 'Block{}', with_variables=False)
 compare(path, read(path), [], xb, yb, zb, [[] for _ in xb])
+
+# 6. Quoted (both kinds) and bare names in one list, separated by blanks, commas and a tab; a quoted
+#    name may hold a blank. The names are those of the Fortran reader, and the keyword is read in any case.
+path = 'python_read_tec_mixed.tec'
+write_ascii(path, ' variables = "x", y\t\'z\' "a b" b\n', 'Block{}')
+compare(path, read(path), ['x', 'y', 'z', 'a b', 'b'], xb, yb, zb, vb)
+
+# 7. A quote that is never closed is an error, as it is for the Fortran reader.
+path = 'python_read_tec_unclosed.tec'
+write_ascii(path, ' VARIABLES = x y z "a b\n', 'Block{}')
+try:
+    read_TEC(path)
+    check(False, '{}: read_TEC read a list with an unclosed quote'.format(path))
+except ValueError:
+    check(True, '')
+except Exception as error:
+    check(False, '{}: read_TEC raised {} instead of ValueError'.format(path, type(error).__name__))
 
 if failures:
     print('read_TEC: {} of {} checks failed:'.format(len(failures), checks))

@@ -1474,6 +1474,7 @@ contains
   !> Examples accepted include:
   !>   VARIABLES = "x", "y", "z"
   !>   VARIABLES = "x" "y" "z"
+  !>   VARIABLES = "x" "y" "z" "a""b"     (the last two are the names a and b)
   !>   VARIABLES = 'x' 'y' 'z'
   !>   VARIABLES = x, y, z
   !>   VARIABLES = x y z
@@ -1531,8 +1532,9 @@ contains
 
       ! -------------------------------------------------------------------------
       ! Quoted variable name. Both single and double quotes are accepted.
-      ! Quoted names may contain blanks and commas. Doubled quote characters are
-      ! accepted as literal quote characters.
+      ! Quoted names may contain blanks and commas. A quote closes the name:
+      ! two quoted names with nothing between them ("a""b") are two names, the
+      ! form that the varnames argument of the writers takes.
       ! -------------------------------------------------------------------------
       if (work(i:i) == '"' .or. work(i:i) == "'") then
         quoted = .true.
@@ -1544,14 +1546,6 @@ contains
 
         do while (i <= L)
           if (work(i:i) == quote) then
-            if (i < L .and. work(i+1:i+1) == quote) then
-              if (n < len(name)) then
-                n = n + 1
-                name(n:n) = quote
-              endif
-              i = i + 2
-              cycle
-            endif
             i = i + 1
             quote_closed = .true.
             exit

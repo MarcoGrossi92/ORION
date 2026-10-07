@@ -28,10 +28,18 @@ Changes on `main` since `v1.6.0`.
 - The Python reader `read_TEC` reads the Tecplot ASCII files that the Fortran
   writer of ORION 1.7.0 and later writes with the variable names without quotes
   (`VARIABLES = x y z rho(1)`). It found no names in them, and so returned the
-  coordinates without any variable. The names are now taken from the
-  `VARIABLES` list only, up to the first `ZONE` record or line of numbers, so
-  quoted text after the list, such as a zone title written as `T = "Block1"`,
-  is no longer taken for a variable name. A list in quotes is read as before.
+  coordinates without any variable. The names are now read as the Fortran
+  reader reads them: each one in double quotes, in single quotes or bare, the
+  forms mixed freely, separated by blanks, tabs or commas. A list in quotes is
+  read as before; an unclosed quote raises `ValueError`. The names are taken
+  from the `VARIABLES` list only, up to the first `ZONE` record or line of
+  numbers, so quoted text after the list, such as a zone title written as
+  `T = "Block1"`, is no longer taken for a variable name.
+- The Tecplot ASCII reader reads two quoted names with nothing between them
+  (`"a""b"`, the form of the `varnames` argument of the writers, which ORION
+  before 1.7.0 copied into the file) as the two names `a` and `b`; it took them
+  for the one name `a"b`. A quote now always closes the name, so a name cannot
+  hold the quote character that encloses it.
 
 ## [1.7.0] - 2026-09-29
 
