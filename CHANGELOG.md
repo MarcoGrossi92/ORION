@@ -157,6 +157,11 @@ Changes on `main` since `v1.6.0`.
   data of the VTK files; it wrote them as cell data.
 - The converter ends with the exit status 1 when it cannot read its input or
   write its output; it ended with the exit status 0, as a success.
+- The `.szplt` reader reads the values at the cells of a zone with one node
+  plane or line one row of cells in I at a time: the TecIO reader of the
+  repository gives some of them wrong, without an error, in one call (`KMax` =
+  1 with `IMax` = 2 and `JMax` >= 3; `IMax` = 1 with `JMax` = 2 and `KMax` >= 3;
+  `JMax` = 1 with `KMax` >= 3).
 
 ## [1.7.0] - 2026-09-29
 

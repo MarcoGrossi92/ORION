@@ -4,6 +4,7 @@
 !< the header-only pass gives the same variable count. A pure 2-D file (x, y), a 3-D file,
 !< and K = 1 files whose third variable is a cell-centred z or has another name read as before.
 !< The files are written with the ORION writer or with the TecIO calls it uses (TecIO build).
+!< The values of every shape of ordered zone, read row by row where TecIO needs it (layers).
 !< Stops with a non-zero code when a check fails.
 program tecplot_read_szplt_plane_xyz
   use Lib_Tecplot
@@ -21,6 +22,7 @@ program tecplot_read_szplt_plane_xyz
   call slice_dims_only()
   call slice_and_volume()
   call slice_cellcentered()
+  call layers()
   if (nfail > 0) then
     write(*,'(A,I0,A)') 'tecplot_read_szplt_plane_xyz: ', nfail, ' check(s) FAILED'
     error stop 1
@@ -294,4 +296,135 @@ contains
     call check(all(d%block(1)%vars(4,1:2,1,1) == [41.0d0, 42.0d0]), 'p in band 4')
   end subroutine slice_cellcentered
 
+
+  ! The values of every shape of ordered zone. Read in one call, the TecIO reader gives wrong the
+  ! values at the cells of some zones with one node plane or line in a direction (JMax = 1 with IMax
+  ! >= 2 and KMax >= 3; IMax = 2 with JMax >= 3 and KMax = 1; IMax = 1 with JMax = 2 and KMax >= 3);
+  ! one row of cells in I per call it gives every value right. So tec_read_szplt reads a variable at
+  ! the cells of a zone with IMax, JMax or KMax = 1 one row of cells in I per call, and any other
+  ! variable in one call. The checks cover the 216 shapes with IMax, JMax and KMax in {1, 2, 3, 4,
+  ! 6, 9}: files are written, with the TecIO calls that the ORION writer uses, of three coordinates
+  ! (x y z a b: a volume first, then every shape with KMax > 1 and every shape with KMax = 1 and
+  ! JMax > 1), of two coordinates (x y a b: every shape with KMax = 1 and JMax > 1) and of one
+  ! coordinate (x a b: every shape with JMax = KMax = 1), with a and b at the cells and at the
+  ! nodes, in 64-bit and 32-bit values (12 files), read with tec_read_structured_multiblock and
+  ! every zone is checked against the field written: the number of coordinates, one value of a and b
+  ! per node or per cell (max(N-1,1) cells in each direction) and every value. Every value is an
+  ! integer or a quarter, exact in 32 bits.
+  ! Defect: the reader read each variable in one call and returned those wrong values without an
+  ! error.
+  ! Basis: Tecplot 360 EX 2023 R1 Data Format Guide, section 5-5 (p. 170): the values of a variable
+  ! may be read in chunks; section 2-1 (p. 15): the number of cell values of an ordered zone.
+  subroutine layers()
+    integer, parameter :: sizes(6) = [1, 2, 3, 4, 6, 9]
+    integer, allocatable :: d3(:,:), d2(:,:), d1(:,:)
+    integer :: prec, loc, a, b, c, n3, n2, n1
+    ! the zones of each file: three coordinates (a volume first), two, one
+    allocate(d3(3,217), d2(3,36), d1(3,6))
+    n3 = 1; d3(:,1) = [4, 3, 5]; n2 = 0; n1 = 0
+    do c = 1, 6
+      do b = 1, 6
+        do a = 1, 6
+          if (sizes(c) > 1 .or. sizes(b) > 1) then
+            n3 = n3 + 1; d3(:,n3) = [sizes(a), sizes(b), sizes(c)]
+          endif
+          if (sizes(c) == 1 .and. sizes(b) > 1) then
+            n2 = n2 + 1; d2(:,n2) = [sizes(a), sizes(b), sizes(c)]
+          endif
+          if (sizes(c) == 1 .and. sizes(b) == 1) then
+            n1 = n1 + 1; d1(:,n1) = [sizes(a), sizes(b), sizes(c)]
+          endif
+        enddo
+      enddo
+    enddo
+    do prec = 1, 0, -1
+      do loc = 0, 1
+        call case_layers('layers3', 'x y z a b', 3, d3(:,1:n3), loc, prec)
+        call case_layers('layers2', 'x y a b', 2, d2(:,1:n2), loc, prec)
+        call case_layers('layers1', 'x a b', 1, d1(:,1:n1), loc, prec)
+      enddo
+    enddo
+  end subroutine layers
+
+  ! Value of variable v at node or cell (i, j, k) of zone z: coordinate v (v <= nd) or a, b (v = nd+1, nd+2).
+  pure real(8) function value(v, nd, z, i, j, k)
+    integer, intent(in) :: v, nd, z, i, j, k
+    if (v <= nd) then
+      value = merge(i, merge(j, k, v == 2), v == 1)
+    elseif (v == nd + 1) then
+      value = 1000*z + i + 20*j + 400*k + 0.25d0
+    else
+      value = -(1000*z + i + 20*j + 400*k) - 0.5d0
+    endif
+  end function value
+
+  ! Write the file of the zones dims (nd coordinates, a and b at the nodes when loc is 1, at the cells otherwise, 64-bit values
+  ! when prec is 1), read it with the ORION reader and check every zone against the field written.
+  subroutine case_layers(base, names, nd, dims, loc, prec)
+    character(len=*), intent(in) :: base, names
+    integer,          intent(in) :: nd, dims(:,:), loc, prec
+    integer, external :: tecini142, teczne142, tecdatd142, tecend142
+    character(len=1), parameter :: z0 = achar(0)
+    character(len=64) :: fname, what
+    type(orion_data) :: d
+    real(8), allocatable :: buf(:)
+    integer, allocatable :: nul(:), vloc(:)
+    integer :: e, z, v, i, j, k, m, err, n(3), lo(3), nbad
+    logical :: same
+    fname = base//merge('_nodes', '_cells', loc == 1)//trim(merge('_double', '_float ', prec == 1))//'.szplt'
+    allocate(nul(nd+2), vloc(nd+2))
+    nul = 0; vloc = 1; vloc(nd+1:nd+2) = loc
+    e = tecini142('layers'//z0, names//z0, trim(fname)//z0, '.'//z0, 1, 0, 0, prec)
+    do z = 1, size(dims,2)
+      e = teczne142('zone'//z0, 0, dims(1,z), dims(2,z), dims(3,z), 0, 0, 0, 0.0d0, 0, 0, 1, 0, 0, 0, 0, 0, nul, vloc, nul, 0)
+      do v = 1, nd + 2
+        if (allocated(buf)) deallocate(buf)
+        if (v <= nd .or. loc == 1) then
+          allocate(buf(product(dims(:,z)))); m = 0
+          do k = 0, dims(3,z)-1; do j = 0, dims(2,z)-1; do i = 0, dims(1,z)-1
+            m = m + 1; buf(m) = value(v, nd, z, i, j, k)
+          enddo; enddo; enddo
+        else
+          allocate(buf(product(max(dims(:,z)-1,1)))); m = 0
+          do k = 1, max(dims(3,z)-1,1); do j = 1, max(dims(2,z)-1,1); do i = 1, max(dims(1,z)-1,1)
+            m = m + 1; buf(m) = value(v, nd, z, i, j, k)
+          enddo; enddo; enddo
+        endif
+        e = tecdatd142(size(buf), buf)
+      enddo
+    enddo
+    e = tecend142()
+    d%tec%format = 'binary'
+    err = tec_read_structured_multiblock(orion=d, filename=trim(fname))
+    call check(err == 0, trim(fname)//': read without error')
+    if (err /= 0) return
+    call check(size(d%block) == size(dims,2), trim(fname)//': every zone read')
+    if (size(d%block) /= size(dims,2)) return
+    nbad = 0
+    do z = 1, size(dims,2)
+      write(what,'(A,A,I0,A,3(1X,I0))') trim(fname), ' zone ', z, ', IJK', dims(:,z)
+      call check(size(d%block(z)%mesh,1) == nd, trim(what)//': number of coordinates')
+      if (size(d%block(z)%mesh,1) /= nd) cycle
+      ! nodes, or cells: max(N-1,1) in each direction; the first index from the array
+      if (loc == 1) then
+        n = dims(:,z)
+      else
+        n = max(dims(:,z)-1,1)
+      endif
+      same = size(d%block(z)%vars,1) == 2 .and. all(shape(d%block(z)%vars) == [2, n])
+      call check(same, trim(what)//': one value of a and b per '//merge('node', 'cell', loc == 1))
+      if (.not.same) cycle
+      lo = [lbound(d%block(z)%vars,2), lbound(d%block(z)%vars,3), lbound(d%block(z)%vars,4)]
+      do v = nd + 1, nd + 2
+        same = .true.
+        do k = 1, n(3); do j = 1, n(2); do i = 1, n(1)
+          if (d%block(z)%vars(v-nd, lo(1)+i-1, lo(2)+j-1, lo(3)+k-1) /= &
+              value(v, nd, z, i-loc, j-loc, k-loc)) same = .false.
+        enddo; enddo; enddo
+        call check(same, trim(what)//': values of '//merge('a', 'b', v == nd+1))
+        if (.not.same) nbad = nbad + 1
+      enddo
+    enddo
+    write(*,'(A,I0,A,I0,A)') trim(fname)//': ', size(dims,2), ' zones, ', nbad, ' variables with wrong values'
+  end subroutine case_layers
 end program tecplot_read_szplt_plane_xyz

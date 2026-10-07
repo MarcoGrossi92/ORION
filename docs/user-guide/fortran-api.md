@@ -200,6 +200,9 @@ end program read_vtk_structured
   another name, or is cell-centred, is read with two coordinates; as in the ASCII reader, a two-dimensional
   file whose third variable is nodal and named `z` is read as a slice. `varnames` is filled with the names
   stored in the file, with the same convention as the ASCII reader (coordinates first).
+- **Values at the cells of `.szplt` zones with one node plane or line.** The `.szplt` reader reads the values at
+  the cells of a zone with `IMax`, `JMax` or `KMax` = 1 (a surface, a line or a point, such as the faces of a volume
+  block) one row of cells in I at a time: the TecIO reader gives some of them right only so.
 - **PLOT3D grids.** The first dimensions record decides the dimension of the whole file: two integers
   (`Ni Nj`) give a two-dimensional grid (two coordinates, `Nk = 0`), three integers (`Ni Nj Nk`) a
   three-dimensional one. Each block has its own dimensions record; a node count below 1 is refused.

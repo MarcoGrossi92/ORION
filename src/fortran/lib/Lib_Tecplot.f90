@@ -1786,6 +1786,7 @@ contains
     integer(c_int32_t) :: strandID
     integer(c_int32_t), allocatable :: int32Values(:)
     integer(c_int64_t) :: numValues
+    integer(c_int64_t) :: layer, first     ! values read by one call (all, or one row of cells in I) and the first of them
     integer(c_int64_t) :: iMax, jMax, kMax, ndir
     integer(c_int32_t), allocatable :: varTypes(:)
     integer(c_int32_t), allocatable :: passiveVarList(:)
@@ -1984,12 +1985,21 @@ contains
                   shareVarFromZone(var) == 0) then
                 i = tecZoneVarGetNumValues(inputFileHandle, &
                           inputZone, var, numValues)
+                ! The TecIO reader does not give right, in one call, the values at the cells of some zones with one node plane
+                ! or line in a direction (such as the faces i, j and k of a volume block); it gives them right one row of cells
+                ! in I at a time. So a variable at the cells of a zone with IMax, JMax or KMax = 1 is read one row of cells in
+                ! I per call; the variables at the nodes, and those of zones with more than one node plane in each direction,
+                ! are read with one call.
+                layer = max(numValues, 1_c_int64_t)
+                if (valueLocation(var) /= 1 .and. (iMax == 1 .or. jMax == 1 .or. kMax == 1)) layer = max(iMax-1, 1_c_int64_t)
                 select case (varTypes(var))
                 case (1) ! float
                     allocate(floatValues(numValues))
-                    i = tecZoneVarGetFloatValues(inputFileHandle, &
-                        inputZone, var, 1_c_int64_t, numValues, &
-                        floatValues)
+                    do first = 1, numValues, layer
+                      i = tecZoneVarGetFloatValues(inputFileHandle, &
+                          inputZone, var, first, min(layer, numValues-first+1), &
+                          floatValues(first:))
+                    enddo
                     if (valueLocation(var)==1 .and. var<=ndir) then
                       cnt = 1
                       do k = 0, kMax-1; do j = 0, jMax-1; do i = 0, iMax-1
@@ -2006,9 +2016,11 @@ contains
                     deallocate(floatValues)
                 case (2) ! double
                     allocate(doubleValues(numValues))
-                    i = tecZoneVarGetDoubleValues(inputFileHandle, &
-                        inputZone, var, 1_c_int64_t, numValues, &
-                        doubleValues)
+                    do first = 1, numValues, layer
+                      i = tecZoneVarGetDoubleValues(inputFileHandle, &
+                          inputZone, var, first, min(layer, numValues-first+1), &
+                          doubleValues(first:))
+                    enddo
                     if (is_coord) then
                       cnt = 1
                       do k = 0, kMax-1; do j = 0, jMax-1; do i = 0, iMax-1
@@ -2025,9 +2037,11 @@ contains
                     deallocate(doubleValues)
                 case (3) ! int32_t
                     allocate(int32Values(numValues))
-                    i = tecZoneVarGetInt32Values(inputFileHandle, &
-                        inputZone, var, 1_c_int64_t, numValues, &
-                        int32Values)
+                    do first = 1, numValues, layer
+                      i = tecZoneVarGetInt32Values(inputFileHandle, &
+                          inputZone, var, first, min(layer, numValues-first+1), &
+                          int32Values(first:))
+                    enddo
                     if (is_coord) then
                       cnt = 1
                       do k = 0, kMax-1; do j = 0, jMax-1; do i = 0, iMax-1
@@ -2044,9 +2058,11 @@ contains
                     deallocate(int32Values)
                 case (4) ! int16_t
                     allocate(int16Values(numValues))
-                    i = tecZoneVarGetInt16Values(inputFileHandle, &
-                        inputZone, var, 1_c_int64_t, numValues, &
-                        int16Values)
+                    do first = 1, numValues, layer
+                      i = tecZoneVarGetInt16Values(inputFileHandle, &
+                          inputZone, var, first, min(layer, numValues-first+1), &
+                          int16Values(first:))
+                    enddo
                     if (is_coord) then
                       cnt = 1
                       do k = 0, kMax-1; do j = 0, jMax-1; do i = 0, iMax-1
@@ -2063,9 +2079,11 @@ contains
                     deallocate(int16Values)
                 case (5) ! uint8_t
                     allocate(int8Values(numValues))
-                    i = tecZoneVarGetUInt8Values(inputFileHandle, &
-                        inputZone, var, 1_c_int64_t, numValues, &
-                        int8Values)
+                    do first = 1, numValues, layer
+                      i = tecZoneVarGetUInt8Values(inputFileHandle, &
+                          inputZone, var, first, min(layer, numValues-first+1), &
+                          int8Values(first:))
+                    enddo
                     if (is_coord) then
                       cnt = 1
                       do k = 0, max(1,kMax-1); do j = 0, jMax-1; do i = 0, iMax-1
