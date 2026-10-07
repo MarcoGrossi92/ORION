@@ -67,3 +67,31 @@ set_tests_properties(
   PROPERTIES
     DEPENDS ORION.vtk_write_wrapper
 )
+
+# The Python reader reads back the Tecplot ASCII file of tecplot_write, which
+# writes it only with TecIO (its binary writes come first). The test needs a
+# Python 3 with NumPy; without one it is not registered.
+if(USE_TECIO)
+  find_package(Python3 COMPONENTS Interpreter)
+  if(Python3_Interpreter_FOUND)
+    execute_process(
+      COMMAND ${Python3_EXECUTABLE} -c "import numpy"
+      RESULT_VARIABLE NUMPY_IMPORT_RESULT
+      OUTPUT_QUIET ERROR_QUIET
+    )
+  endif()
+  if(Python3_Interpreter_FOUND AND NUMPY_IMPORT_RESULT EQUAL 0)
+    add_test(
+      NAME ORION.python_read_tec
+      COMMAND ${Python3_EXECUTABLE} -B ${CMAKE_SOURCE_DIR}/src/python/test/read_tec.py
+    )
+    set_tests_properties(
+      ORION.python_read_tec
+      PROPERTIES
+        WORKING_DIRECTORY "${TEST_RUNTIME_DIR}"
+        DEPENDS ORION.tecplot_write
+    )
+  else()
+    message(STATUS "No Python 3 with NumPy: ORION.python_read_tec is not registered")
+  endif()
+endif()

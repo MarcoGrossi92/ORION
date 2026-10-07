@@ -24,15 +24,52 @@ def count_lines_before_float(file_path):
     return line_count
 
 
+# One variable name of a VARIABLES list, after any blanks, tabs and commas that
+# separate it from the previous one: in double quotes, in single quotes, or
+# bare. A quoted name may hold blanks and commas; a bare name ends at the first
+# blank, tab or comma. Two quoted names with nothing between them ("a""b") are
+# two names.
+_VARIABLE_NAME = re.compile(r"""[\s,]*(?:"([^"]*)"|'([^']*)'|([^\s,"'][^\s,]*))""")
+
+
+def _split_variable_names(variables_str):
+    """Split the text of a VARIABLES list into names, as the Fortran reader does.
+
+    Each name is taken on its own, so quoted and bare names may be mixed:
+    ``"x", 'y' z`` gives ``['x', 'y', 'z']``. An empty quoted name is skipped.
+    A quote that is never closed raises ValueError.
+    """
+    names = []
+    pos = 0
+    while True:
+        match = _VARIABLE_NAME.match(variables_str, pos)
+        if not match:
+            break
+        pos = match.end()
+        name = next(group for group in match.groups() if group is not None)
+        if name:
+            names.append(name)
+    if variables_str[pos:].strip(' \t\r\n,'):
+        raise ValueError('unterminated quoted variable name: ' + variables_str[pos:].strip())
+    return names
+
+
 def read_variables(file_path):
     with open(file_path, 'r') as file:
         head_text = file.read()
 
-    # Extracting variables
-    variables_match = re.search(r'VARIABLES\s*=\s*(.*?)[\s,]*$', head_text, re.DOTALL)
+    # Extracting variables. The list runs from "VARIABLES =" to the first ZONE
+    # record or the first line of numbers, over one or more lines; quoted text
+    # after it, such as a zone title, is not a variable name. Names may be in
+    # quotes ("rho(1)", as write_TEC writes them) or not (rho(1), as the
+    # Fortran writer of ORION 1.7.0 and later writes them), as in the Fortran
+    # reader: see _split_variable_names.
+    variables_match = re.search(r'VARIABLES\s*=[ \t]*', head_text, re.IGNORECASE)
     if variables_match:
-        variables_str = variables_match.group(1)
-        variables = [var for var in re.findall(r'"(.*?)"|[^\s,]+', variables_str) if var]
+        list_end = re.compile(r'^[ \t]*(?:ZONE\b|[-+]?\.?\d)', re.MULTILINE | re.IGNORECASE)
+        end_match = list_end.search(head_text, variables_match.end())
+        end = end_match.start() if end_match else len(head_text)
+        variables = _split_variable_names(head_text[variables_match.end():end])
         num_variables = len(variables)
     else:
         num_variables = 0
