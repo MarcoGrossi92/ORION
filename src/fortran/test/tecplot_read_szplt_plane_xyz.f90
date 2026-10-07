@@ -7,6 +7,7 @@
 !< The values of every shape of ordered zone, read row by row where TecIO needs it (layers).
 !< The number of coordinates of the file for every zone (zone_shapes).
 !< One location for the solution variables (variable_location).
+!< Files of lines named x and y, read with two coordinates (lines_xy).
 !< Zones whose solution variables are at different locations, each read with its own (zone_locations).
 !< Stops with a non-zero code when a check fails.
 program tecplot_read_szplt_plane_xyz
@@ -30,6 +31,7 @@ program tecplot_read_szplt_plane_xyz
   call layers()
   call zone_shapes()
   call variable_location()
+  call lines_xy()
   call zone_locations()
   if (nfail > 0) then
     write(*,'(A,I0,A)') 'tecplot_read_szplt_plane_xyz: ', nfail, ' check(s) FAILED'
@@ -687,6 +689,135 @@ contains
     enddo
     e = tecFileReaderClose(h)
   end subroutine write_again
+
+  ! Files of lines of nodes (JMax = KMax = 1 in every zone) with x and y. The first two variables
+  ! named x and y (in any case, as the rule of slices compares x, y and z), y nodal in every zone,
+  ! are the coordinates of the file: the lines of a two-dimensional field, as
+  ! tec_write_structured_multiblock writes a two-dimensional mesh of lines. Files written with the
+  ! TecIO calls that the ORION writer uses, of two zones of lines (4 and 3 nodes): x y a b with a
+  ! and b at the cells and at the nodes, and X Y a b (two coordinates); x a b at the cells (one
+  ! coordinate); x y a with y and a at the cells (one coordinate, y a solution variable); x q a with
+  ! q at the nodes and a at the cells (refused: solution variables at the nodes and at the cells). A
+  ! two-dimensional field of two lines written with tec_write_structured_multiblock to a .szplt
+  ! file, at the cells and at the nodes, is read back with two coordinates and the values written.
+  ! For the files read: the return value, the number of coordinates, every coordinate and every
+  ! value of the last variable. Every value is an integer or a quarter.
+  ! Defect: the reader took the coordinates of a file of lines from its shape only, one, so a
+  ! two-dimensional field of lines written by ORION was refused (variables at the cells) or read
+  ! with y as a solution variable (variables at the nodes).
+  ! Basis: by construction, as the Tecplot 360 EX 2023 R1 Data Format Guide leaves the choice of the
+  ! coordinates to the plot (section 4-3.1, p. 121): x and y as the first two variables, y nodal,
+  ! are the coordinates of the lines of a two-dimensional field, the file that
+  ! tec_write_structured_multiblock writes.
+  subroutine lines_xy()
+    call case_lines('szlines_xy_cells.szplt',  'x y a b', [1,1,0,0], 0, 2)
+    call case_lines('szlines_xy_nodes.szplt',  'x y a b', [1,1,1,1], 0, 2)
+    call case_lines('szlines_XY_nodes.szplt',  'X Y a b', [1,1,1,1], 0, 2)
+    call case_lines('szlines_x_cells.szplt',   'x a b',   [1,0,0],   0, 1)
+    call case_lines('szlines_ycell.szplt',     'x y a',   [1,0,0],   0, 1)
+    call case_lines('szlines_xq_mixed.szplt',  'x q a',   [1,1,0],   1, 0)
+    call written_again(.false.)
+    call written_again(.true.)
+  end subroutine lines_xy
+
+  ! Value of variable v at node or cell i of zone z.
+  pure real(8) function value_lines(v, z, i)
+    integer, intent(in) :: v, z, i
+    select case(v)
+    case(1); value_lines = i + 0.5d0 + 10*z
+    case(2); value_lines = z + 0.25d0
+    case default; value_lines = 1000*v + 100*z + i + 0.25d0
+    end select
+  end function value_lines
+
+  ! Write, with write_szplt, a file of two zones of lines (4 and 3 nodes) with the variables names, at the nodes where loc is 1;
+  ! read it and check the return value (0 read, 1 refused) and, when read, the number of coordinates nd, the coordinates and the
+  ! last variable.
+  subroutine case_lines(fname, names, loc, err0, nd)
+    character(len=*), intent(in) :: fname, names
+    integer,          intent(in) :: loc(:), err0, nd
+    integer, parameter :: ni(2) = [4, 3]
+    type(orion_data) :: d
+    integer, allocatable :: nval(:,:)
+    real(8), allocatable :: vals(:,:,:)
+    integer :: z, v, i, nv, err, n
+    logical :: same
+    nv = size(loc)
+    allocate(nval(nv,2), vals(maxval(ni),nv,2))
+    vals = 0
+    do z = 1, 2
+      do v = 1, nv
+        nval(v,z) = merge(ni(z), ni(z) - 1, loc(v) == 1)
+        vals(1:nval(v,z),v,z) = [(value_lines(v, z, i), i = 1, nval(v,z))]
+      enddo
+    enddo
+    call write_szplt(fname, names, reshape([ni(1),1,1, ni(2),1,1], [3,2]), spread(loc, 2, 2), nval, vals)
+    d%tec%format = 'binary'
+    err = tec_read_structured_multiblock(orion=d, filename=fname)
+    write(*,'(A,I0)') fname//': return value ', err
+    call check((err == 0) .eqv. (err0 == 0), fname//': return value')
+    if (err /= 0 .or. err0 /= 0) return
+    call check(size(d%block) == 2, fname//': two zones')
+    if (size(d%block) /= 2) return
+    do z = 1, 2
+      call check(size(d%block(z)%mesh,1) == nd, fname//': number of coordinates')
+      if (size(d%block(z)%mesh,1) /= nd) cycle
+      same = .true.
+      do v = 1, nd
+        do i = 1, ni(z)
+          if (d%block(z)%mesh(v, i-1, 0, 0) /= value_lines(v, z, i)) same = .false.
+        enddo
+      enddo
+      call check(same, fname//': coordinates')
+      n = merge(ni(z), ni(z) - 1, loc(nv) == 1)
+      same = size(d%block(z)%vars(nv-nd,:,:,:)) == n
+      if (same) same = all(reshape(d%block(z)%vars(nv-nd,:,:,:), [n]) == [(value_lines(nv, z, i), i = 1, n)])
+      call check(same, fname//': values of the last variable')
+    enddo
+  end subroutine case_lines
+
+  ! A two-dimensional field of two lines of nodes (Nj = Nk = 0; mesh(1:2,...)) written with tec_write_structured_multiblock to a
+  ! .szplt file with the variables at the cells or at the nodes, read back: two coordinates and the values written.
+  subroutine written_again(nodal)
+    logical, intent(in) :: nodal
+    integer, parameter :: ni(2) = [3, 2]
+    type(orion_data) :: w, r
+    character(len=40) :: fname
+    integer :: z, i, err, f
+    logical :: same
+    fname = 'szlines_written_'//trim(merge('nodes', 'cells', nodal))//'.szplt'
+    f = merge(0, 1, nodal)
+    allocate(w%block(2))
+    do z = 1, 2
+      w%block(z)%name = 'L'//achar(48+z)
+      w%block(z)%Ni = ni(z); w%block(z)%Nj = 0; w%block(z)%Nk = 0
+      allocate(w%block(z)%mesh(1:2, 0:ni(z), 0:0, 0:0), w%block(z)%vars(1:2, f:ni(z), merge(0,1,nodal):merge(0,1,nodal), &
+               merge(0,1,nodal):merge(0,1,nodal)))
+      do i = 0, ni(z)
+        w%block(z)%mesh(:, i, 0, 0) = [value_lines(1, z, i+1), value_lines(2, z, i+1)]
+      enddo
+      do i = f, ni(z)
+        w%block(z)%vars(:, i, lbound(w%block(z)%vars,3), lbound(w%block(z)%vars,4)) = [value_lines(3, z, i), value_lines(4, z, i)]
+      enddo
+    enddo
+    w%tec%node = nodal
+    w%tec%format = 'binary'
+    err = tec_write_structured_multiblock(orion=w, varnames='a b', filename=trim(fname))
+    call check(err == 0, trim(fname)//': written without error')
+    r%tec%format = 'binary'
+    err = tec_read_structured_multiblock(orion=r, filename=trim(fname))
+    call check(err == 0, trim(fname)//': read back without error')
+    if (err /= 0) return
+    do z = 1, 2
+      call check(size(r%block(z)%mesh,1) == 2, trim(fname)//': two coordinates')
+      if (size(r%block(z)%mesh,1) /= 2) cycle
+      same = all(r%block(z)%mesh(:, 0:ni(z), 0, 0) == w%block(z)%mesh(:, 0:ni(z), 0, 0))
+      call check(same, trim(fname)//': coordinates read back as written')
+      same = size(r%block(z)%vars,1) == 2 .and. size(r%block(z)%vars,2) == ni(z) + 1 - f
+      if (same) same = all(reshape(r%block(z)%vars, [2*(ni(z)+1-f)]) == reshape(w%block(z)%vars, [2*(ni(z)+1-f)]))
+      call check(same, trim(fname)//': values read back as written')
+    enddo
+  end subroutine written_again
 
   ! Zones whose solution variables are at different locations. ORION holds one location for all
   ! solution variables of a block: each block takes the location of its zone, vars from 0 at the

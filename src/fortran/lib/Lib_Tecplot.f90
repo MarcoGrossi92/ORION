@@ -576,7 +576,8 @@ contains
   !> more than one node plane in K, or when the header declares a third coordinate, the first
   !> three variables named x, y, z and z nodal in every zone (single node planes or lines of
   !> a 3-D field, such as a slice); otherwise two when a zone has more than one node line in
-  !> J; otherwise one (a file of lines).
+  !> J, or when the first two variables are named x and y and y is nodal in every zone (lines
+  !> of a 2-D field); otherwise one (a file of lines).
   !> The coordinates are at the nodes and the solution variables all at the nodes or all at the
   !> cells (orion%tec%node): a file with a coordinate at the cells, or with solution variables
   !> at the nodes and at the cells, in a zone or between zones, is refused (return value 1, with
@@ -600,6 +601,7 @@ contains
     logical, allocatable :: zone_z_cell(:)   ! variable 3 listed as CELLCENTERED in the zone header
     logical, allocatable :: zone_cc(:,:)     ! variable v listed as CELLCENTERED in the header of zone b
     logical   :: plane_xyz                   ! the header declares x, y and z as coordinates (a slice)
+    logical   :: line_xy                     ! the header declares x and y as coordinates (lines of a 2-D field)
     integer, allocatable :: Ni(:), Nj(:), Nk(:)
     ! A line and a zone header of any length (read with read_whole_line): the title of a zone is as long as its block name
     character(len=:), allocatable :: line
@@ -782,9 +784,16 @@ contains
                   is_coordinate_name(orion%varnames(2),'Y') .and. &
                   is_coordinate_name(orion%varnames(3),'Z') .and. .not.any(zone_z_cell)
     endif
+    ! The same rule for two coordinates: the first two variables named x and y (any case), y NODAL in every zone, are the
+    ! coordinates also of a file of single node lines, the lines of a 2-D field
+    line_xy = .false.
+    if (size(orion%varnames)>=2) then
+      line_xy = is_coordinate_name(orion%varnames(1),'X') .and. &
+                is_coordinate_name(orion%varnames(2),'Y') .and. .not.any(zone_cc(2,:))
+    endif
     if (any(Nk>1) .or. plane_xyz) then
       ndir = 3
-    elseif (any(Nj>1)) then
+    elseif (any(Nj>1) .or. line_xy) then
       ndir = 2
     else
       ndir = 1
@@ -792,7 +801,8 @@ contains
       if (size(orion%varnames)>=2) then
         if (is_coordinate_name(orion%varnames(2),'Y')) write(stderr,'(A)') &
           'TECPLOT ASCII READ WARNING: every zone is a line of nodes (J = K = 1); the file is read with one coordinate '// &
-          'and its variable '//trim(orion%varnames(2))//' as a solution variable.'
+          'and its variable '//trim(orion%varnames(2))//' as a solution variable (x and y are the coordinates of a file of '// &
+          'lines when they are its first two variables and y is NODAL).'
       endif
     endif
 
@@ -1810,7 +1820,8 @@ contains
   !> more than one node plane in K, or when the file declares a third coordinate with the rule
   !> of the ASCII reader, the first three variables named x, y, z and z nodal in every zone
   !> (single node planes or lines of a 3-D field, such as a slice); otherwise two when a zone
-  !> has more than one node line in J; otherwise one (a file of lines).
+  !> has more than one node line in J, or when the first two variables are named x and y and y is
+  !> nodal in every zone (lines of a 2-D field); otherwise one (a file of lines).
   !> The coordinates are at the nodes, and the solution variables of a zone all at the nodes or all at the cells: a zone with a
   !> coordinate at the cells, or with solution variables at the nodes and at the cells, is refused (return value 1, with a
   !> message). Each block takes the location of its zone (vars from 0 at the nodes, from 1 at the cells), so the zones of a file
@@ -1877,6 +1888,7 @@ contains
     logical :: onlyNode
     logical :: headers_only, want_data, is_coord
     logical :: plane_xyz                    ! the file declares x, y and z as coordinates (a slice)
+    logical :: line_xy                      ! the file declares x and y as coordinates (lines of a 2-D field)
     integer(c_int32_t) :: zloc              ! value location of variable 3 in a zone (1 = nodal)
 
     headers_only = .false.
@@ -1963,6 +1975,18 @@ contains
       if (jMax > 1 .and. ndir_file < 2) ndir_file = 2
     enddo
     if (plane_xyz) ndir_file = 3
+    ! The same rule for two coordinates: the first two variables named x and y (any case), y nodal in every zone, are the
+    ! coordinates also of a file of single node lines, the lines of a 2-D field
+    line_xy = .false.
+    if (numVars >= 2) then
+      line_xy = is_coordinate_name(orion%varnames(1),'X') .and. is_coordinate_name(orion%varnames(2),'Y')
+      do inputZone = 1, numZones
+        if (.not. line_xy) exit
+        i = tecZoneVarGetValueLocation(inputFileHandle, inputZone, 2_c_int32_t, zloc)
+        if (zloc /= 1) line_xy = .false.
+      enddo
+    endif
+    if (line_xy .and. ndir_file < 2) ndir_file = 2
 
     ! ORION holds the coordinates at the nodes, and one location for all solution variables of a block: a zone with a coordinate
     ! at the cells, or with solution variables at the nodes and at the cells, is refused with a message (passive variables,

@@ -70,8 +70,10 @@ Changes on `main` since `v1.6.0`.
   ASCII reader still refuses a file whose zones differ in location, now with a
   message; the `.szplt` reader reads it, each block at the location of its zone.
 - The Tecplot readers take the coordinates of a file of lines of nodes by
-  name, as those of a file of slices: `x`, `y` and `z` (`z` nodal) are three
-  coordinates; they were read with one.
+  name, as those of a file of slices: `x` and `y` (`y` nodal in every zone)
+  are two coordinates, the lines of a two-dimensional field as
+  `tec_write_structured_multiblock` writes them, and `x`, `y` and `z` (`z`
+  nodal) three; they were read with one.
 
 ### Fixed
 
