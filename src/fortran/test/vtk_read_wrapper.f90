@@ -862,16 +862,19 @@
   !< not exist; from a .vtm that lists a third block file that does not exist; from a .vtm whose second block file holds a
   !< StructuredGrid without points, closed after the error. Then, in each format, from a .vtm whose block file is cut in the
   !< middle of the values of its last variable (an error, and the file closed after it), and once from a .vtm that does not
-  !< exist, from one without a block list and from one whose block list holds no block file. These last reads come last: a
-  !< reader that stops the program on them cannot hide the other checks.
+  !< exist, from one without a block list and from one whose block list holds no block file. Last, in each format, a read that
+  !< fails on the block files (a path to them that does not exist) and a read of the field into the same object, which must
+  !< give no error and the field of a read into a new object. These last reads come last: a reader that stops the program on
+  !< them cannot hide the other checks.
   !< Defects: the reader did not look at the return values of the files it opened: it read from a unit it had not opened and
   !< copied coordinates it had not read; it closed only the last block file, so a field of more blocks than the files a process
   !< can keep open was not read, and a raw block file cut short was read without an error; a .vtm that does not exist, has no
-  !< block list or lists no block file stopped the program.
+  !< block list or lists no block file stopped the program; a read into the object of a read that failed stopped the program,
+  !< on the allocation of blocks already allocated.
   !< Basis: Fortran 2018, 12.11.2 (p. 253) and 12.11.5 (p. 254): an input/output error initiates error termination without
   !< IOSTAT=, and defines it with a positive value with IOSTAT=; 9.2 (p. 123): a reference is permitted only if the variable is
   !< defined; 12.5.6.18 (p. 223): OPEN with STATUS='OLD' needs the file; 12.5.7.1 (p. 223): a unit stays connected until CLOSE
-  !< or the end of the program.
+  !< or the end of the program; 9.7.1.3 (p. 135): allocating an allocated variable is an error condition.
   !---------------------------------------------------------------------------------------------------------------------------------
   character(len=6), parameter :: formats(3) = ['ascii ', 'binary', 'raw   ']
   integer :: f
@@ -884,6 +887,9 @@
     call read_cut(trim(formats(f)))
   enddo
   call broken_vtm
+  do f = 1, size(formats)
+    call read_again(trim(formats(f)))
+  enddo
   end subroutine read_errors
 
   logical function is_open(name)
@@ -1094,6 +1100,26 @@
   err = vtk_read_structured_multiblock(orion=r3, vtmpath='errors_noblocks', vtspath='')
   call check(err /= 0, 'error for a .vtm that lists no block file')
   end subroutine broken_vtm
+
+  subroutine read_again(fmt)
+  !---------------------------------------------------------------------------------------------------------------------------------
+  !< In the format given, a read that fails on the block files, which leaves blocks in the object, and a read of the field into
+  !< the same object: no error, and the field of a read into a new object.
+  !---------------------------------------------------------------------------------------------------------------------------------
+  character(len=*), intent(in) :: fmt
+  type(orion_data)             :: r, r0
+  integer(I4P)                 :: err
+  !---------------------------------------------------------------------------------------------------------------------------------
+
+  r0%vtk%format = fmt
+  err = vtk_read_structured_multiblock(orion=r0, vtmpath='errors_'//fmt, vtspath='')
+  call check(err == 0, fmt//': read into a new object')
+  r%vtk%format = fmt
+  err = vtk_read_structured_multiblock(orion=r, vtmpath='errors_'//fmt, vtspath='no_such_folder/')
+  call check(err /= 0 .and. allocated(r%block), fmt//': a read that fails on the block files leaves blocks in the object')
+  err = vtk_read_structured_multiblock(orion=r, vtmpath='errors_'//fmt, vtspath='')
+  call check(err == 0 .and. same_field(r, r0), fmt//': read again into the object of a read that failed, as into a new one')
+  end subroutine read_again
 
   subroutine point_data
   !---------------------------------------------------------------------------------------------------------------------------------
