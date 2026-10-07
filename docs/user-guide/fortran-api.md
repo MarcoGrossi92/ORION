@@ -380,7 +380,8 @@ the cells, as the Tecplot readers return them; a two-dimensional block holds the
 `vars(:,0:Ni,0:Nj,0:0)`, which the writer writes on both planes of nodes of the file. The reader sets `orion%vtk%node` when the
 block files hold point data and no cell data, not for a mesh without variables.
 
-The `.vtm` file lists each block file relative to the directory of the `.vtm` file, as VTK readers take it: the block files
+The `.vtm` file lists the block files as the `DataSet` elements of one block, with the indices 0 to nb-1 in the order of
+the blocks, each relative to the directory of the `.vtm` file, as VTK readers take it: the block files
 `vtspath//name//'.vts'` of the file `vtmpath//'.vtm'` are listed with the path that leads from the directory of `vtmpath` to
 `vtspath` (`vtspath = ''` and `vtmpath = 'out/field'` give `../name.vts`). `vtspath` and `vtmpath` are both relative to the
 same directory or both absolute; an absolute `vtspath` that shares no directory with `vtmpath` is listed as it is. An absolute

@@ -101,6 +101,9 @@ Changes on `main` since `v1.6.0`.
   runtime error, when the `.vtm` file or a block file cannot be opened or read,
   and closes each block file once read: a field of more blocks than the files a
   process can keep open was not read.
+- `vtk_write_structured_multiblock` gives the `DataSet` elements of the `.vtm`
+  file the indices 0 to nb-1: with every index 0, the reader of VTK 9.7.1 gave
+  no block of a field of two or more blocks.
 
 ## [1.7.0] - 2026-09-29
 
