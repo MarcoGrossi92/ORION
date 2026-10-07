@@ -18,9 +18,9 @@
   !> of the .vtm as vtspath, reads the field back as written. The subdirectory is made with execute_command_line('mkdir ...').
   !> Paths of any length: the function returns an absolute path2 of 301 characters whole; a field written with an absolute
   !> vtspath of 125 characters, a directory made under the current one (named from the output of pwd), is listed with
-  !> DataSet lines of more than 128 characters and files of 128 characters, as many as the name of a block holds, and read
-  !> back as written; a field whose block files are listed with 129 characters (path included) is written, and the reader
-  !> returns 1.
+  !> DataSet lines of more than 128 characters and read back as written; so is a field whose block files are under a path
+  !> of 200 characters (a subdirectory with a name of 199); a .vtm file that lists a block file of 4097 characters, more
+  !> than the name of a block holds (4096), gives the return value 1.
   !> Exit status 0 when every check passes, 1 otherwise.
   !---------------------------------------------------------------------------------------------------------------------------------
   use IR_Precision
@@ -85,9 +85,10 @@
   else
     write(*,'(A)') '  not run: the current directory is too long for an absolute vtspath of 125 characters'
   endif
-  ! Block files listed with 129 characters, one more than the name of a block holds
-  call write_and_read('relpath_'//repeat('n', 117)//'_', 'fld4_relpath', '', 'listed files longer than a block name', &
-                      too_long=.true.)
+  ! Block files under a path of 200 characters, a subdirectory with a name of 199
+  call execute_command_line('mkdir relpath_'//repeat('m', 191), exitstat=exitstat, cmdstat=cmdstat)  ! it may already be there
+  call write_and_read('relpath_'//repeat('m', 191)//'/', 'fld4_relpath', '', 'block files under a path of 200 characters')
+  call name_too_long
 
   write(*,'(A,I0,A,I0,A)') 'vtk_relative_path: ', checks, ' checks, ', failures, ' failed'
   if (failures > 0) stop 1
@@ -133,14 +134,13 @@
   call check(len_trim(r) <= 256, what//': returns')
   end subroutine returns
 
-  subroutine write_and_read(vtspath, vtmpath, vtmdir, what, too_long)
+  subroutine write_and_read(vtspath, vtmpath, vtmdir, what)
   !---------------------------------------------------------------------------------------------------------------------------------
   !< Write a field of two blocks with the block files vtspath//<block>.vts and the .vtm file vtmpath.vtm, whose directory is
   !< vtmdir; check that the .vtm lists the block files as they are on disk, seen from vtmdir, and read the field back, with
-  !< vtmdir as vtspath. With too_long, the listed files are longer than the name of a block: the reader must return 1.
+  !< vtmdir as vtspath.
   !---------------------------------------------------------------------------------------------------------------------------------
   character(len=*), intent(in)  :: vtspath, vtmpath, vtmdir, what
-  logical, intent(in), optional :: too_long
   type(orion_data)              :: w, r
   character(len=16)             :: varnames
   character(len=:), allocatable :: buf
@@ -182,10 +182,6 @@
   call check(nfiles == 2, what//': the .vtm lists two block files')
   r%vtk%format = 'ascii'
   err = vtk_read_structured_multiblock(orion=r, vtmpath=vtmpath, vtspath=vtmdir)
-  if (present(too_long)) then
-    call check(err == 1, what//': the reader returns 1')
-    return
-  endif
   call check(err == 0, what//': field read back without error')
   same = .false.
   if (err == 0 .and. allocated(r%block)) then
@@ -200,4 +196,28 @@
   endif
   call check(same, what//': field read back as written')
   end subroutine write_and_read
+
+  subroutine name_too_long
+  !---------------------------------------------------------------------------------------------------------------------------------
+  !< A .vtm file that lists a block file of 4097 characters, more than the name of a block holds: the reader returns 1.
+  !---------------------------------------------------------------------------------------------------------------------------------
+  type(orion_data) :: r
+  integer          :: u
+  integer(I4P)     :: err
+  !---------------------------------------------------------------------------------------------------------------------------------
+
+  open(newunit=u, file='fld6_relpath.vtm', status='replace', action='write')
+  write(u,'(A)') '<?xml version="1.0"?>'
+  write(u,'(A)') '<VTKFile type="vtkMultiBlockDataSet" version="1.0" byte_order="LittleEndian">'
+  write(u,'(A)') '  <vtkMultiBlockDataSet>'
+  write(u,'(A)') '    <Block index="0">'
+  write(u,'(A)') '      <DataSet index="0" file="'//repeat('g', 4097)//'.vts"/>'
+  write(u,'(A)') '    </Block>'
+  write(u,'(A)') '  </vtkMultiBlockDataSet>'
+  write(u,'(A)') '</VTKFile>'
+  close(u)
+  r%vtk%format = 'ascii'
+  err = vtk_read_structured_multiblock(orion=r, vtmpath='fld6_relpath', vtspath='')
+  call check(err == 1, 'a listed block file of 4097 characters: the reader returns 1')
+  end subroutine name_too_long
   endprogram vtk_relative_path

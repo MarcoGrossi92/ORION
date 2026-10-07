@@ -32,6 +32,16 @@ Changes on `main` since `v1.6.0`.
   written and the values read are those of before. Names and values of
   different sizes are refused (return value 1).
 
+### Changed
+
+- The name of a block, `orion%block(b)%name`, holds 4096 characters, the
+  longest path that Linux accepts (`PATH_MAX`), instead of 128.
+  `vtk_read_structured_multiblock` stores in it the block file listed in the
+  `.vtm` file, path included, and returned 1 for a field written under a path
+  of more than about 120 characters. Code that assigns or reads the name is
+  unchanged; programs that use ORION are compiled again, and each block takes
+  3968 bytes more.
+
 ### Fixed
 
 - The Python reader `read_TEC` reads the Tecplot ASCII files that the Fortran
@@ -175,9 +185,9 @@ Changes on `main` since `v1.6.0`.
   listed with a path of more than about 90 characters, such as an absolute
   `vtspath`, which `vtk_write_structured_multiblock` lists as it is, was read
   with an empty name and the field was not read. A listed file longer than the
-  128 characters of the name of a block, path included, now gives the return
-  value 1 instead of a name cut short. `vtk_write_structured_multiblock` lists
-  a path of any length: it cut the path of the block files at 256 characters.
+  name of a block, path included, now gives the return value 1 instead of a
+  name cut short. `vtk_write_structured_multiblock` lists a path of any length:
+  it cut the path of the block files at 256 characters.
 - `vtk_read_structured_multiblock` reads into an `orion_data` that already
   holds blocks, such as one left by a read that failed, and replaces them. It
   stopped the program on the allocation of the blocks.

@@ -30,7 +30,7 @@ Each block contains mesh and solution data:
 
 ```fortran
 type :: obj_block
-  character(len=128) :: name        ! Block name
+  character(len=4096) :: name       ! Block name, as long as a path (PATH_MAX of Linux)
   integer :: Ni, Nj, Nk             ! Dimensions (I, J, K)
   real(R8P), allocatable :: mesh(:,:,:,:)  ! Coordinates (Ni, Nj, Nk, 3)
   real(R8P), allocatable :: vars(:,:,:,:)  ! Variables (Ni, Nj, Nk, nvars)
@@ -399,8 +399,8 @@ the blocks, each relative to the directory of the `.vtm` file, as VTK readers ta
 same directory or both absolute; an absolute `vtspath` that shares no directory with `vtmpath` is listed as it is. An absolute
 `vtmpath` with a relative `vtspath`, or the same directory written in two forms (`./out` and `out`), would need the current
 directory, which the writer does not take: write both paths in the same form. The reader reads the lines of the `.vtm` file
-whatever their length and takes each listed file, path included and without `.vts`, as the `name` of its block: a listed
-file longer than the 128 characters of `name` gives the return value 1.
+whatever their length and takes each listed file, path included and without `.vts`, as the `name` of its block, which holds
+4096 characters, the longest path that Linux accepts (`PATH_MAX`); a longer listed file gives the return value 1.
 
 ### PLOT3D Files
 
