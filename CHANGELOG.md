@@ -120,6 +120,10 @@ Changes on `main` since `v1.6.0`.
   their cell variables with one layer of cells where a direction has one plane
   of nodes and their nodal variables with one value per node: values were
   copied past the end of buffers and of the variables.
+- `tec_write_structured_multiblock` takes the variables where they are in each
+  direction: the node plane of a two-dimensional field read from a VTK or a
+  Tecplot file, `vars(:,:,:,0:0)`, was taken at k = 1, past the end of the
+  variables. Variables that it read within their bounds are written as before.
 - The VTK multi-block reader and writer take `.vtm` lines and block file paths
   of any length: lines were cut at 128 characters and paths at 256. A listed
   file longer than the name of a block gives the return value 1.

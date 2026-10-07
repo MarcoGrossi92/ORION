@@ -325,6 +325,11 @@ contains
           if (ndir==2) then
             nk1 = 1-start; nk2 = 1
           endif
+          ! Variables whose index range in a direction has the length of the values there but other bounds are taken where
+          ! they are, such as the node plane vars(:,:,:,0:0) of a two-dimensional block as the Tecplot readers return it
+          call var_range(b, 2, start, ni1, ni2)
+          call var_range(b, 3, start, nj1, nj2)
+          call var_range(b, 4, start, nk1, nk2)
           do s=1,Nvar
             err=tec_dat(N=ncell,dat=orion%block(b)%vars(s,ni1+start:ni2,nj1+start:nj2,nk1+start:nk2))
           enddo
@@ -359,12 +364,32 @@ contains
           if (ndir==2) then
             nk1 = 1-start; nk2 = 1
           endif
+          ! Variables whose index range in a direction has the length of the values there but other bounds are taken where
+          ! they are, such as the node plane vars(:,:,:,0:0) of a two-dimensional block as the Tecplot readers return it
+          call var_range(b, 2, start, ni1, ni2)
+          call var_range(b, 3, start, nj1, nj2)
+          call var_range(b, 4, start, nk1, nk2)
           do s=1,Nvar
             write(tecunit,FR_P,iostat=err)(((orion%block(b)%vars(s,i,j,k),i=ni1+start,ni2),j=nj1+start,nj2),k=nk1+start,nk2)
           enddo
         endif
       end select
     endfunction tec_blk_data
+
+    !> The index range n1+start:n2 of the variables of block b in direction d (2 for i, 3 for j, 4 for k), as tec_blk_data
+    !> computes it, becomes the range the variables have in that direction when it has the same length: the node plane of a
+    !> two-dimensional block may be vars(:,:,:,0:0), as the Tecplot readers return it, or vars(:,:,:,1:1). A range of another
+    !> length, such as that of variables with ghost cells, is kept: the values taken from variables that the range fitted are
+    !> those taken before.
+    subroutine var_range(b, d, start, n1, n2)
+      implicit none
+      integer, intent(in)    :: b, d, start ! Block, dimension of vars, first index of the values (0 nodes, 1 cells).
+      integer, intent(inout) :: n1, n2      ! The range n1+start:n2.
+      if (size(orion%block(b)%vars,d) == n2-n1-start+1) then
+        n1 = lbound(orion%block(b)%vars,d) - start
+        n2 = ubound(orion%block(b)%vars,d)
+      endif
+    endsubroutine var_range
 
     !> `"a""b"` -> ` a  b `: the binary header's separator convention.
     pure function unquote(sin) result(sout)

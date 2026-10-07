@@ -367,12 +367,23 @@ IOfield%tec%node = .false.
 IOfield%tec%bc = .false.
 ```
 
-A block is written as an ordered zone of `Ni+1` x `Nj+1` x `Nk+1` nodes (`Nk` = 0 for a two-dimensional mesh). A surface block,
-with one plane of nodes in a direction (`Ni`, `Nj` or `Nk` = 0, such as a face of a volume block), and a line of nodes are
-written as such zones in ASCII and binary files alike: variables at the cells hold one layer of cells where a direction has one
-plane of nodes (`vars(:,1:1,:,:)` for an i-face, `max(Ni,1)*max(Nj,1)*max(Nk,1)` values), as an ordered zone stores its
-cell-centered values (Tecplot 360 Data Format Guide, section 2-1); variables at the nodes (`orion%tec%node`) hold one value per
-node (`vars(:,0:0,:,:)` for an i-face).
+**Variables written.** A block is written as an ordered zone of `Ni+1` x `Nj+1` x `Nk+1` nodes, with `Ni`, `Nj` and `Nk`
+the cells of its mesh in each direction (`size(mesh,2)-1` and so on; `Nk` = 0 for a two-dimensional mesh, `mesh(1:2,...)`). In
+each direction the writer writes `max(N,1)` values of each variable at the cells, or `N+1` at the nodes (`orion%tec%node`), and
+one value in k for a two-dimensional block. It takes them from `vars`, direction by direction:
+
+- when `vars` has that many indices there, all of them, whatever their bounds: at the cells `vars(:,1:Ni,...)` or
+  `vars(:,0:Ni-1,...)`, at the nodes `vars(:,0:Ni,...)` or `vars(:,1:Ni+1,...)`; the node plane of a two-dimensional block may
+  be `vars(:,:,:,0:0)`, as the Tecplot readers return it, or `vars(:,:,:,1:1)`;
+- otherwise the indices `1:max(N,1)` at the cells and `0:N` at the nodes (`1:1` in k for a two-dimensional block), which
+  `vars` must hold: variables with ghost cells, such as `vars(:,0:Ni+1,0:Nj+1,0:Nk+1)` at the cells, are written without
+  them (with `orion%tec%bc = .false.`, the default; writing ghost cells is not supported).
+
+A surface block, with one plane of nodes in a direction (`Ni`, `Nj` or `Nk` = 0, such as a face of a volume block), and a line
+of nodes are written as such zones in ASCII and binary files alike: variables at the cells hold one layer of cells where a
+direction has one plane of nodes (`vars(:,1:1,:,:)` for an i-face, `max(Ni,1)*max(Nj,1)*max(Nk,1)` values), as an ordered zone
+stores its cell-centered values (Tecplot 360 Data Format Guide, section 2-1); variables at the nodes hold one value per node
+(`vars(:,0:0,:,:)` for an i-face).
 
 ### VTK Files
 
