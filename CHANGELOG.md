@@ -69,7 +69,7 @@ Changes on `main` since `v1.6.0`.
   with its values shifted, the `.szplt` reader past the end of a buffer. The
   ASCII reader still refuses a file whose zones differ in location, now with a
   message; the `.szplt` reader reads it, each block at the location of its zone.
-- The `.szplt` reader takes the coordinates of a file of lines of nodes by
+- The Tecplot readers take the coordinates of a file of lines of nodes by
   name, as those of a file of slices: `x`, `y` and `z` (`z` nodal) are three
   coordinates; they were read with one.
 
@@ -178,6 +178,10 @@ Changes on `main` since `v1.6.0`.
   (it never set it); it leaves the flag as it is for a file without solution
   variables, for which the ASCII reader sets it, and for a file whose zones
   differ in location.
+- The Tecplot ASCII reader reads the cell values of a zone with one node plane
+  or line in I or J (it read none, without an error), gives every zone the
+  number of coordinates of the file, and reads zones whose shape differs from
+  that of the first one (refused with error 1 and no message).
 - The Tecplot ASCII readers, `tec_read_structured_multiblock` and
   `tec_read_points_multivars`, give each block the title of its zone as its
   name, as `tec_read_szplt` does; the names were undefined.

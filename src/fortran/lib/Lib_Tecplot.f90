@@ -572,9 +572,11 @@ contains
   !> Supports both BLOCK and POINT data packing; physical line breaks are irrelevant to the
   !> numerical data stream. Nodal and cell-centered variables are supported for BLOCK data.
   !> POINT data is supported when all variables are nodal.
-  !> A file whose first zone has one node plane (K = 1) is read with two coordinates (x, y),
-  !> unless its header declares a third one: the first three variables are named x, y, z
-  !> and z is nodal in every zone (a slice of a 3-D field), read with three coordinates.
+  !> Every zone is read with the number of coordinates of the file: three when a zone has
+  !> more than one node plane in K, or when the header declares a third coordinate, the first
+  !> three variables named x, y, z and z nodal in every zone (single node planes or lines of
+  !> a 3-D field, such as a slice); otherwise two when a zone has more than one node line in
+  !> J; otherwise one (a file of lines).
   !> The coordinates are at the nodes and the solution variables all at the nodes or all at the
   !> cells (orion%tec%node): a file with a coordinate at the cells, or with solution variables
   !> at the nodes and at the cells, in a zone or between zones, is refused (return value 1, with
@@ -597,7 +599,7 @@ contains
     logical, allocatable :: zone_point(:), zone_node_arr(:)
     logical, allocatable :: zone_z_cell(:)   ! variable 3 listed as CELLCENTERED in the zone header
     logical, allocatable :: zone_cc(:,:)     ! variable v listed as CELLCENTERED in the header of zone b
-    logical   :: plane_xyz                   ! single node planes that carry x, y and z
+    logical   :: plane_xyz                   ! the header declares x, y and z as coordinates (a slice)
     integer, allocatable :: Ni(:), Nj(:), Nk(:)
     ! A line and a zone header of any length (read with read_whole_line): the title of a zone is as long as its block name
     character(len=:), allocatable :: line
@@ -766,33 +768,33 @@ contains
     orion%solutiontime = solutiontime
     orion%strandid = strandid
 
-    ndir = 3
-    if (Nk(1)==1) ndir = 2
-    if (Nj(1)==1 .and. Nk(1)==1) ndir = 1
-
-    ! One node plane (K = 1) is a pure 2-D file (x, y) unless the header declares a
-    ! third coordinate: the first three variables are named x, y and z (any case) and
-    ! z is NODAL in every zone (not listed as CELLCENTERED in VARLOCATION). Such a
-    ! file is a plane of a 3-D field (a slice): z is read as the third coordinate,
-    ! not as the first solution variable, so every variable keeps its own band.
-    ! As for 2-D files, all zones must then be single planes.
+    ! The number of coordinates is that of the file, the same for every zone (the variables are those
+    ! of the file): three when a zone has more than one node plane in K, or when the header declares a
+    ! third coordinate: the first three variables are named x, y and z (any case) and z is NODAL in
+    ! every zone (not listed as CELLCENTERED in VARLOCATION), so that a file of single node planes or
+    ! lines is part of a 3-D field (a slice): z is read as the third coordinate, not as the first
+    ! solution variable, so every variable keeps its own band. Otherwise two when a zone has more than
+    ! one node line in J (a pure 2-D file, x and y); otherwise one (a file of lines, I-ordered zones).
+    ! A zone with one node plane or line in a direction holds one layer of cells there.
     plane_xyz = .false.
-    if (ndir==2 .and. size(orion%varnames)>=3) then
+    if (size(orion%varnames)>=3) then
       plane_xyz = is_coordinate_name(orion%varnames(1),'X') .and. &
                   is_coordinate_name(orion%varnames(2),'Y') .and. &
                   is_coordinate_name(orion%varnames(3),'Z') .and. .not.any(zone_z_cell)
-      if (plane_xyz) ndir = 3
     endif
-
-    do b = 1, Nblocks
-      if ((Nk(b)==1 .and. ndir==3 .and. .not.plane_xyz) .or. &
-          (Nk(b)>1 .and. (ndir<3 .or. plane_xyz)) .or. &
-          (Nj(b)==1 .and. ndir>1)) then
-        err = 1
-        close(tecunit)
-        return
+    if (any(Nk>1) .or. plane_xyz) then
+      ndir = 3
+    elseif (any(Nj>1)) then
+      ndir = 2
+    else
+      ndir = 1
+      ! A file of lines only does not tell a 1-D field from lines of a 2-D or 3-D one
+      if (size(orion%varnames)>=2) then
+        if (is_coordinate_name(orion%varnames(2),'Y')) write(stderr,'(A)') &
+          'TECPLOT ASCII READ WARNING: every zone is a line of nodes (J = K = 1); the file is read with one coordinate '// &
+          'and its variable '//trim(orion%varnames(2))//' as a solution variable.'
       endif
-    enddo
+    endif
 
     if (size(orion%varnames)<ndir) then
       err = 1
@@ -959,8 +961,8 @@ contains
           d = ndir + 1
           do s = 1, nvar
             do k = start, max(start,Kmax-1)
-              do j = start, Jmax-1
-                do i = start, Imax-1
+              do j = start, max(start,Jmax-1)
+                do i = start, max(start,Imax-1)
                   call next_value(tecunit,value,err)
                   if (err/=0) exit
                   orion%block(b)%vars(s,i,j,k) = value

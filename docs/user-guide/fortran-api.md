@@ -181,15 +181,19 @@ end program read_vtk_structured
 ### Dimensions of what a reader returns
 
 - **Tecplot ASCII, structured zones.** A zone header gives `I`, `J` and `K`; a header without `K` is one node
-  plane (`K = 1`, Tecplot's default). When the first zone has `K = 1` the file is read as two-dimensional:
-  `mesh` holds two coordinates (`mesh(1:2,...)`) and every block has `Nk = 0`; all zones of a file must then
-  have `K = 1`. A plane of a three-dimensional field (a slice) is read with three coordinates instead: when
-  the first three variables are named `x`, `y` and `z` (in any case) and `z` is nodal in every zone (not listed
-  as `CELLCENTERED` in `VARLOCATION`), `mesh` holds `x`, `y` and `z` (`mesh(1:3,...)`, still one node plane,
-  `Nk = 0`) and the solution variables start after `z`; all zones must again have `K = 1`. A file whose third
-  variable has another name, or is cell-centred, is read as two-dimensional as above. The rule goes by name:
-  a two-dimensional file whose third variable is nodal and named `z` (a mixture fraction `Z`, for example) is
-  read as a slice, so rename that variable or write it cell-centred to read the file as two-dimensional.
+  plane (`K = 1`, Tecplot's default). The number of coordinates is that of the file, the same for every zone, by
+  the rule of the `.szplt` reader: three when a zone has `K > 1`, or when the header declares a third coordinate:
+  the first three variables are named `x`, `y` and `z` (in any case) and `z` is nodal in every zone (not listed as
+  `CELLCENTERED` in `VARLOCATION`), so that its zones of single node planes or lines are part of a
+  three-dimensional field (a slice); otherwise two when a zone has `J > 1`, a two-dimensional file; otherwise one,
+  a file of lines (I-ordered zones). `mesh` holds the coordinates (`mesh(1:3,...)` with three, also for a zone
+  with one node plane, `Nk = 0`; `mesh(1:2,...)` with two) and the solution variables start after them. The rule
+  goes by name: a two-dimensional file whose third variable is nodal and named `z` (a mixture fraction `Z`, for
+  example) is read as a slice, so rename that variable or write it cell-centred to read the file as
+  two-dimensional. A file of lines that does not declare `x`, `y` and `z` does not tell a one-dimensional field
+  from lines of a two-dimensional one: it is read with one coordinate, with a warning when its second variable is
+  named `y`. A zone with one node plane or line in a direction holds one layer of cells there: a cell-centred
+  variable has `max(I-1,1)*max(J-1,1)*max(K-1,1)` values (Tecplot 360 Data Format Guide, sections 2-1 and 4-4).
   `varnames` holds the coordinate names followed by the variable names, so
   `size(varnames) = size(mesh,1) + size(vars,1)`. The solution variables are at the nodes (`orion%tec%node` set)
   when no variable is listed as `CELLCENTERED` in `VARLOCATION`, at the cells otherwise; a file without solution

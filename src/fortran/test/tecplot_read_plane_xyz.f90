@@ -1,7 +1,9 @@
 !< Tecplot ASCII zones with one node plane (K = 1).
 !< A slice of a 3-D field that carries x, y and z is read with three coordinates and every
-!< solution variable keeps its own band, cell-centred or nodal. A pure 2-D file (x, y), a file
-!< whose third variable is a cell-centred z, and a slice next to a volume zone read as before.
+!< solution variable keeps its own band, cell-centred or nodal. A pure 2-D file (x, y) and a file
+!< whose third variable is a cell-centred z read as before. A slice next to a volume zone, in
+!< both orders, is read with three coordinates, each zone with its own number of node planes.
+!< Zones of every shape, with the coordinates of the file (zone_shapes).
 !< One location for the solution variables (variable_location).
 !< Stops with a non-zero code when a check fails.
 program tecplot_read_plane_xyz
@@ -16,6 +18,7 @@ program tecplot_read_plane_xyz
   call pure_2d()
   call z_cellcentered()
   call slice_and_volume()
+  call zone_shapes()
   call variable_location()
   if (nfail > 0) then
     write(*,'(A,I0,A)') 'tecplot_read_plane_xyz: ', nfail, ' check(s) FAILED'
@@ -150,7 +153,8 @@ contains
     call check(d%block(1)%vars(1,1,1,1) == 3.0d0 .and. d%block(1)%vars(2,2,1,1) == 12.0d0, 'z in band 1, u in band 2')
   end subroutine z_cellcentered
 
-  ! A slice next to a volume zone, in both orders: refused, as before.
+  ! A slice next to a volume zone, in both orders: read with three coordinates, the slice with one
+  ! node plane and the volume with two.
   subroutine slice_and_volume()
     type(orion_data) :: d
     integer :: u, err
@@ -162,7 +166,7 @@ contains
     d%tec%format = 'ascii'
     err = tec_read_structured_multiblock(orion=d, filename='plane_and_volume.tec')
     write(*,'(A)') 'slice zone, then volume zone'
-    call check(err /= 0, 'refused')
+    call check_slice_volume(d, err, 1, 2)
     if (allocated(d%block)) deallocate(d%block)
     if (allocated(d%varnames)) deallocate(d%varnames)
     open(newunit=u, file='volume_and_plane.tec', status='replace')
@@ -172,8 +176,22 @@ contains
     close(u)
     err = tec_read_structured_multiblock(orion=d, filename='volume_and_plane.tec')
     write(*,'(A)') 'volume zone, then slice zone'
-    call check(err /= 0, 'refused')
+    call check_slice_volume(d, err, 2, 1)
   end subroutine slice_and_volume
+
+  ! The file of a slice (block bs) and a volume zone (block bv): three coordinates in both, one node
+  ! plane in the slice (Nk = 0) and two in the volume (Nk = 1), p = 4 at every node.
+  subroutine check_slice_volume(d, err, bs, bv)
+    type(orion_data), intent(in) :: d
+    integer,          intent(in) :: err, bs, bv
+    call check(err == 0, 'read without error')
+    if (err /= 0) return
+    call check(size(d%block) == 2, 'two blocks')
+    if (size(d%block) /= 2) return
+    call check(size(d%block(bs)%mesh,1) == 3 .and. size(d%block(bv)%mesh,1) == 3, 'three coordinates in both zones')
+    call check(d%block(bs)%Nk == 0 .and. d%block(bv)%Nk == 1, 'one node plane in the slice, two in the volume')
+    call check(all(d%block(bs)%vars == 4.0d0) .and. all(d%block(bv)%vars == 4.0d0), 'p = 4 at every node')
+  end subroutine check_slice_volume
 
   ! A nodal zone of 2 x 2 x nk nodes: bands x, y, z, p.
   subroutine zone(u, nk)
@@ -185,6 +203,152 @@ contains
     enddo
   end subroutine zone
 
+
+  ! Zones of every shape. The number of coordinates is that of the file, the same for every zone
+  ! (the variables are those of the file): three when a zone has more than one node plane in K, or
+  ! when the first three variables are named x, y and z and z is NODAL in every zone; otherwise two
+  ! when a zone has more than one node line in J; otherwise one (a file of lines). A zone with one
+  ! node plane or line in a direction holds one layer of cells there: a cell-centred variable has
+  ! max(IMax-1,1)*max(JMax-1,1)*max(KMax-1,1) values (Tecplot 360 Data Format Guide, section 2-1,
+  ! and 4-4.1 to 4-4.3 for the ASCII zone data), a nodal one IMax*JMax*KMax. Files, written here in
+  ! BLOCK packing: x y z a with zones of every shape (IMax, JMax, KMax equal to 1 or 3), a at the
+  ! cells and a at the nodes, and again with a line as the first zone (three coordinates); x y z a
+  ! with zones of one node plane or line only (three, by the names), and with lines only (three, by
+  ! the names); x y z with planes, z at the cells (two: a cell-centred z is no coordinate); x y a
+  ! with planes and lines, also with a line as the first zone (two); p q r a with a volume (three)
+  ! and with planes and lines (two); x a with lines (one); x y a with lines only (one, and a
+  ! warning: the second variable, named y, is read as a solution variable). The solution variables
+  ! of a file are all at the nodes or all at the cells (one location for all of them, as ORION holds
+  ! them). For each zone: the number of coordinates, every coordinate and every value of the last
+  ! variable.
+  ! Defect: the reader gave no cell values to zones with one node plane or line in I or J, without
+  ! an error, took the number of coordinates from the first zone, and refused with no message a zone
+  ! whose shape did not agree with it.
+  ! Basis: Tecplot 360 EX 2023 R1 Data Format Guide, section 2-1 (p. 15) and sections 4-4.1 to 4-4.3
+  ! (pp. 137-138): one layer of cells where a dimension is 1; section 1-3, item 7 (p. 9) and section
+  ! 4-3.1 (pp. 120-121): the variables, and so the coordinates, are those of the file.
+  subroutine zone_shapes()
+    integer :: shapes(3,8), z
+    ! the eight shapes: IMax, JMax and KMax equal to 1 or 3
+    do z = 1, 8
+      shapes(:,z) = [merge(3, 1, btest(z-1,0)), merge(3, 1, btest(z-1,1)), merge(3, 1, btest(z-1,2))]
+    enddo
+    call case_shapes('shapes_cells.tec',      'x y z a', shapes,                 .true.,  3)
+    call case_shapes('shapes_nodes.tec',      'x y z a', shapes,                 .false., 3)
+    call case_shapes('shapes_linefirst.tec',  'x y z a', shapes(:,[2,8,6,7,5]),  .true.,  3)
+    call case_shapes('shapes_planes.tec',     'x y z a', shapes(:,[4,2,3,1]),    .true.,  3)
+    call case_shapes('shapes_xyz_lines.tec',  'x y z a', shapes(:,[2,1]),        .true.,  3)
+    call case_shapes('shapes_zcell.tec',      'x y z',   shapes(:,[4,3]),        .true.,  2)
+    call case_shapes('shapes_2d.tec',         'x y a',   shapes(:,[4,3,2,1]),    .true.,  2)
+    call case_shapes('shapes_2d_linefirst.tec','x y a',  shapes(:,[2,4,3]),      .true.,  2)
+    call case_shapes('shapes_pqr3.tec',       'p q r a', shapes(:,[8,6,4]),      .true.,  3)
+    call case_shapes('shapes_pqr2.tec',       'p q r a', shapes(:,[4,2]),        .true.,  2)
+    call case_shapes('shapes_1d.tec',         'x a',     shapes(:,[2,1]),        .true.,  1)
+    call case_shapes('shapes_xy_lines.tec',   'x y a',   shapes(:,[2]),          .true.,  1)
+  end subroutine zone_shapes
+
+  ! Value of variable v of nv at node or cell (i, j, k): coordinates for the first variables, then the last variable.
+  pure real(8) function value(v, nv, i, j, k)
+    integer, intent(in) :: v, nv, i, j, k
+    select case(v)
+    case(1)
+      value = i + 0.5d0
+    case(2)
+      value = j + 10.0d0
+    case(3)
+      value = k + 100.0d0
+    case default
+      value = 1000.0d0*v + i + 10*j + 100*k + 0.25d0
+    end select
+    if (v == nv) value = 5000.0d0 + i + 10*j + 100*k + 0.25d0
+  end function value
+
+  ! Write a Tecplot ASCII file in BLOCK packing with one zone per shape given; the coordinates are nodal, the solution
+  ! variables (after the first ncoord) cell-centred when acell is true. Read it with the ORION reader and check each zone.
+  subroutine case_shapes(fname, names, dims, acell, ncoord)
+    character(len=*), intent(in) :: fname, names
+    integer,          intent(in) :: dims(:,:), ncoord
+    logical,          intent(in) :: acell
+    type(orion_data) :: d
+    real(8), allocatable :: expected(:)
+    integer :: nv, nz, z, v, i, j, k, u, err, lo
+    character(len=96) :: what
+    nv = count_names(names)
+    nz = size(dims,2)
+    open(newunit=u, file=fname, status='replace', action='write')
+    write(u,'(A)') 'VARIABLES = '//names
+    do z = 1, nz
+      if (acell) then
+        write(u,'(A,I0,A,I0,A,I0,A,I0,A,I0,A,I0,A)') 'ZONE T = Z', z, ', I=', dims(1,z), ', J=', dims(2,z), ', K=', dims(3,z), &
+          ', DATAPACKING=BLOCK, VARLOCATION=([', ncoord+1, '-', nv, ']=CELLCENTERED)'
+      else
+        write(u,'(A,I0,A,I0,A,I0,A,I0,A)') 'ZONE T = Z', z, ', I=', dims(1,z), ', J=', dims(2,z), ', K=', dims(3,z), &
+          ', DATAPACKING=BLOCK'
+      endif
+      do v = 1, nv
+        if (v > ncoord .and. acell) then
+          do k = 1, max(dims(3,z)-1,1); do j = 1, max(dims(2,z)-1,1); do i = 1, max(dims(1,z)-1,1)
+            write(u,'(ES25.17)') value(v, nv, i, j, k)
+          enddo; enddo; enddo
+        else
+          do k = 0, dims(3,z)-1; do j = 0, dims(2,z)-1; do i = 0, dims(1,z)-1
+            write(u,'(ES25.17)') value(v, nv, i, j, k)
+          enddo; enddo; enddo
+        endif
+      enddo
+    enddo
+    close(u)
+    err = tec_read_structured_multiblock(orion=d, filename=fname)
+    write(*,'(A)') fname//': '//names//', a '//merge('at the cells', 'at the nodes', acell)
+    call check(err == 0, fname//': read without error')
+    if (err /= 0) return
+    call check(size(d%block) == nz, fname//': every zone read')
+    if (size(d%block) /= nz) return
+    do z = 1, nz
+      write(what,'(A,I0,A,3(I0,1X))') fname//' zone ', z, ', IJK ', dims(:,z)
+      call check(size(d%block(z)%mesh,1) == ncoord, trim(what)//': number of coordinates')
+      if (size(d%block(z)%mesh,1) /= ncoord) cycle
+      call check(size(d%block(z)%vars,1) == nv - ncoord, trim(what)//': number of solution variables')
+      if (size(d%block(z)%vars,1) /= nv - ncoord) cycle
+      do v = 1, ncoord
+        allocate(expected(product(dims(:,z))))
+        call fill(expected, v, nv, dims(:,z), .false.)
+        call check(all(reshape(d%block(z)%mesh(v,:,:,:), [size(expected)]) == expected), &
+                   trim(what)//': coordinate '//names(2*v-1:2*v-1))
+        deallocate(expected)
+      enddo
+      lo = nv - ncoord
+      if (acell) then
+        allocate(expected(product(max(dims(:,z)-1,1))))
+      else
+        allocate(expected(product(dims(:,z))))
+      endif
+      call fill(expected, nv, nv, dims(:,z), acell)
+      call check(size(d%block(z)%vars(lo,:,:,:)) == size(expected), trim(what)//': number of values of the last variable')
+      if (size(d%block(z)%vars(lo,:,:,:)) == size(expected)) &
+        call check(all(reshape(d%block(z)%vars(lo,:,:,:), [size(expected)]) == expected), &
+                   trim(what)//': values of the last variable')
+      deallocate(expected)
+    enddo
+  end subroutine case_shapes
+
+  ! The values of variable v at the nodes (or at the cells) of a zone of nodes n, in the order of the file.
+  pure subroutine fill(e, v, nv, n, cells)
+    real(8), intent(out) :: e(:)
+    integer, intent(in)  :: v, nv, n(3)
+    logical, intent(in)  :: cells
+    integer :: i, j, k, m
+    m = 0
+    if (cells) then
+      do k = 1, max(n(3)-1,1); do j = 1, max(n(2)-1,1); do i = 1, max(n(1)-1,1)
+        m = m + 1; e(m) = value(v, nv, i, j, k)
+      enddo; enddo; enddo
+    else
+      do k = 0, n(3)-1; do j = 0, n(2)-1; do i = 0, n(1)-1
+        m = m + 1; e(m) = value(v, nv, i, j, k)
+      enddo; enddo; enddo
+    endif
+  end subroutine fill
 
   ! The location of the variables. ORION holds the coordinates at the nodes and one location for all
   ! solution variables of a file, orion%tec%node: at the nodes when the zone headers list no
