@@ -10937,7 +10937,7 @@ contains
   integer(I4P)                      :: nx1, nx2, ny1, ny2, nz1, nz2, ny1_real, ny2_real, nz1_real, nz2_real
   integer(I4P)                      :: err, start, start_pos, end_pos, pass
   character(256), allocatable       :: varnames(:)
-  character(128)                    :: line
+  character(len=:), allocatable     :: line           ! a line of the .vtm file, whole
   real(R8P), allocatable            :: x(:),y(:),z(:) ! Input geo arrays
   real(R8P), allocatable            :: v(:)           ! Input var arrays
   real(R8P)                         :: t              ! TIME field data of a block file
@@ -10979,20 +10979,25 @@ contains
   do pass = 1, 2
     rewind(nu)
     do
-      read(nu,'(A)',iostat=err) line
+      call read_line(nu, line, err)
       if (err /= 0) exit
       if (index(line,'<Block')==0) cycle
       exit
     enddo
     Nblocks = 0
     do while (err == 0)
-      read(nu,'(A)',iostat=err) line
+      call read_line(nu, line, err)
       if (err /= 0) exit
       if (index(line,'</Block')>0) exit
       Nblocks = Nblocks+1
       if (pass==2) then
         start_pos = index(line, 'file="') + len('file="')
         end_pos = index(line, '.vts"')
+        ! A listed file longer than the name of a block, path included: stop with an error, not with the name cut short
+        if (end_pos-start_pos > len(orion%block(Nblocks)%name)) then
+          err = 1
+          exit
+        endif
         orion%block(Nblocks)%name = line(start_pos:end_pos-1)
       endif
     enddo
@@ -11119,6 +11124,26 @@ contains
     inquire(unit=vtk(f)%u, opened=fopen)
     if (fopen) e = VTK_END_XML_READ()
     end subroutine close_block
+
+    subroutine read_line(u, text, e)
+    !-------------------------------------------------------------------------------------------------------------------------------
+    !> Read the next line of the file connected to unit u, whole, whatever its length: a piece at a time, by nonadvancing input,
+    !> up to the end of the record. e is 0, or the code of the end of file or of the error of the read.
+    !-------------------------------------------------------------------------------------------------------------------------------
+    integer(I4P),                  intent(in)  :: u
+    character(len=:), allocatable, intent(out) :: text
+    integer(I4P),                  intent(out) :: e
+    character(len=256)                         :: piece
+    integer(I4P)                               :: n
+    !-------------------------------------------------------------------------------------------------------------------------------
+    text = ''
+    do
+      read(u,'(A)',advance='no',size=n,iostat=e) piece
+      if (e == 0 .or. is_iostat_eor(e)) text = text//piece(1:n)
+      if (e /= 0) exit
+    enddo
+    if (is_iostat_eor(e)) e = 0
+    end subroutine read_line
   end function vtk_read_structured_multiblock
 
 

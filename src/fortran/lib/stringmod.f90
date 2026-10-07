@@ -67,8 +67,8 @@ function simplified_relative_path(path1,path2) result(relative_path)
     ! both absolute, or path2 is absolute: an absolute path2 that shares no directory with path1 is returned as it is.
     implicit none
     character(len=*), intent(in) :: path1, path2
-    character(len=256) :: relative_path
-    character(len=256) :: common
+    character(len=:), allocatable :: relative_path
+    character(len=:), allocatable :: common
     integer :: common_len, pos, last_slash
 
     ! Find the length of the common prefix

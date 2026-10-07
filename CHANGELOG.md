@@ -170,6 +170,14 @@ Changes on `main` since `v1.6.0`.
   nodes, and a nodal one a value per node, as an ordered zone stores them.
   Blocks with at least one cell in each direction, two-dimensional ones with
   at least one cell in i and j, are written as before.
+- `vtk_read_structured_multiblock` reads the lines of a `.vtm` file whatever
+  their length. It kept the first 128 characters of each line, so a block file
+  listed with a path of more than about 90 characters, such as an absolute
+  `vtspath`, which `vtk_write_structured_multiblock` lists as it is, was read
+  with an empty name and the field was not read. A listed file longer than the
+  128 characters of the name of a block, path included, now gives the return
+  value 1 instead of a name cut short. `vtk_write_structured_multiblock` lists
+  a path of any length: it cut the path of the block files at 256 characters.
 
 ## [1.7.0] - 2026-09-29
 
