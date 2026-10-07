@@ -10736,7 +10736,7 @@ contains
   logical                           :: meshonly
   character(len=4)                  :: location
   character(len=len_trim(varnames)) :: varname(200)
-  character(len=len_trim(vtspath))  :: newvtspath
+  character(len=:), allocatable     :: newvtspath   ! prefix of the block files as the .vtm lists them, from its directory
   !---------------------------------------------------------------------------------------------------------------------------------
 
   !---------------------------------------------------------------------------------------------------------------------------------
@@ -10802,7 +10802,7 @@ contains
     endassociate
   enddo
 
-  newvtspath = simplified_relative_path(vtmpath,vtspath)
+  newvtspath = trim(simplified_relative_path(vtmpath,vtspath))
 
   E_IO = VTM_INI_XML(trim(vtmpath)//'.vtm')
   E_IO = VTM_BLK_XML(block_action='open')

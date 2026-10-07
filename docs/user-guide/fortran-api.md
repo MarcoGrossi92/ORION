@@ -349,6 +349,13 @@ program write_vtk
 end program write_vtk
 ```
 
+The `.vtm` file lists each block file relative to the directory of the `.vtm` file, as VTK readers take it: the block files
+`vtspath//name//'.vts'` of the file `vtmpath//'.vtm'` are listed with the path that leads from the directory of `vtmpath` to
+`vtspath` (`vtspath = ''` and `vtmpath = 'out/field'` give `../name.vts`). `vtspath` and `vtmpath` are both relative to the
+same directory or both absolute; an absolute `vtspath` that shares no directory with `vtmpath` is listed as it is. An absolute
+`vtmpath` with a relative `vtspath`, or the same directory written in two forms (`./out` and `out`), would need the current
+directory, which the writer does not take: write both paths in the same form.
+
 ### PLOT3D Files
 
 ```fortran

@@ -23,6 +23,14 @@ Changes on `main` since `v1.6.0`.
   stores StrandID 0 for every zone and the `.szplt` reader does not store the
   zone time -- and need a separate change.
 
+### Changed
+
+- `vtk_write_structured_multiblock` lists each block file relative to the
+  directory of the `.vtm` file, as VTK readers take it (`vtspath = ''` and
+  `vtmpath = 'out/field'` list `../name.vts`); the entries depended on what the
+  memory held when `vtspath` and `vtmpath` share no prefix. Such a field is
+  read back with the directory of the `.vtm` file as `vtspath`.
+
 ### Fixed
 
 - The Python reader `read_TEC` reads the Tecplot ASCII files that the Fortran
