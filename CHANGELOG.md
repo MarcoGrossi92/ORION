@@ -137,6 +137,16 @@ Changes on `main` since `v1.6.0`.
   fields of one block, are written as before; `vtk_read_structured_multiblock`
   reads the files of a `.vtm` in the order they are listed, with any index,
   as before.
+- `vtk_write_structured_multiblock` writes a mesh of one coordinate
+  (`mesh(1:1,...)`, as the Tecplot readers return a file of lines) as two
+  lines of nodes in j and two planes in k with `y = z = 0`, one layer of
+  cells in j and k, as it writes a two-dimensional mesh as two planes of nodes
+  in k with `z = 0`; `vtk_read_structured_multiblock` reads that form back as
+  a mesh of one coordinate. The writer left the size of such a block
+  undefined, and wrote files of any size or did not return. A mesh of another
+  number of coordinates than 1, 2 or 3 is refused (return value 1, nothing
+  written). Meshes of two and three coordinates are written and read as
+  before.
 
 ## [1.7.0] - 2026-09-29
 

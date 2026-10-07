@@ -10768,7 +10768,7 @@ contains
   real(R8P), allocatable            :: X(:), Y(:), Z(:)
   ! Index of the open block file: each block file is closed before the next one is opened
   integer(I4P)                      :: mf, b, s, ifld
-  integer(I4P)                      :: nb,nn,nnvar,Nvar,ndir,nz2
+  integer(I4P)                      :: nb,nn,nnvar,Nvar,ndir,ny2,nz2
   integer(I4P)                      :: ci, cj, ck   ! cells of a surface block in each direction
   integer(I4P)                      :: E_IO 
   logical                           :: meshonly
@@ -10804,17 +10804,27 @@ contains
     E_IO = 1
     return
   endif
+  ! A mesh has one, two or three coordinates
+  if (ndir < 1 .or. ndir > 3) then
+    E_IO = 1
+    return
+  endif
   location = 'cell'
   if (orion%vtk%node) location = 'node'
   call parse(varnames,' ',varname(1:Nvar))
   ! Block writing
   do b = 1, nb
-    associate (nx2 => orion%block(b)%Ni, ny2 => orion%block(b)%Nj)
-    if (ndir==2) then
-      nz2 = 1
-    elseif (ndir==3) then
-      nz2 = orion%block(b)%Nk
-    endif
+    associate (nx2 => orion%block(b)%Ni)
+    ! A 3-D mesh is written as it is; a 2-D mesh (x, y) as two planes of nodes in k with z = 0, one layer of cells in k; a 1-D
+    ! mesh (x) as two lines of nodes in j and two planes in k with y = z = 0, one layer of cells in j and in k
+    select case(ndir)
+    case(1)
+      ny2 = 1; nz2 = 1
+    case(2)
+      ny2 = orion%block(b)%Nj; nz2 = 1
+    case default
+      ny2 = orion%block(b)%Nj; nz2 = orion%block(b)%Nk
+    end select
     nn=(nx2+1)*(ny2+1)*(nz2+1)
     nnvar=(nx2)*(ny2)*(nz2)
     ! A surface block, one plane of nodes in a direction (N = 0 there) such as a face of a volume block, has one layer of cells
@@ -10841,7 +10851,16 @@ contains
     endif
     ! Use real Z if ndir==3, else set Z=0.0
     allocate(X(nn)); allocate(Y(nn)); allocate(Z(nn))
-    if (ndir==2) then
+    if (ndir==1) then
+      X = reshape([ &
+          orion%block(b)%mesh(1,0:nx2,:,:), &
+          orion%block(b)%mesh(1,0:nx2,:,:), &
+          orion%block(b)%mesh(1,0:nx2,:,:), &
+          orion%block(b)%mesh(1,0:nx2,:,:) &
+      ], [nn])
+      Y = 0.0_R8P
+      Z = 0.0_R8P
+    elseif (ndir==2) then
       X = reshape([ &
           orion%block(b)%mesh(1,0:nx2,:,:), &
           orion%block(b)%mesh(1,0:nx2,:,:) &
@@ -10915,7 +10934,7 @@ contains
   logical, intent(out), optional         :: fldfound(:)
   integer(I4P)                      :: b, s, i, j, k
   integer(I4P)                      :: Nblocks,nn,nu,nc,n,ndir
-  integer(I4P)                      :: nx1, nx2, ny1, ny2, nz1, nz2, nz1_real, nz2_real
+  integer(I4P)                      :: nx1, nx2, ny1, ny2, nz1, nz2, ny1_real, ny2_real, nz1_real, nz2_real
   integer(I4P)                      :: err, start, start_pos, end_pos, pass
   character(256), allocatable       :: varnames(:)
   character(128)                    :: line
@@ -11031,26 +11050,35 @@ contains
     endif
     ! A 2-D mesh is written as two planes of nodes in k with z = 0 at every node. z adding up to 0 is no sign of it (a slab
     ! around z = 0), nor is z = 0 at every node of a block with one plane of nodes in k (a face of a 3-D block on the plane z = 0)
+    ! A 1-D mesh is written as two lines of nodes in j and two planes in k, with y = z = 0 at every node
     ndir = 3
     if (nz2-nz1==1 .and. all(z==0.0_R8P)) ndir = 2
-    if (ndir==2) then
+    if (ndir==2 .and. ny2-ny1==1 .and. all(y==0.0_R8P)) ndir = 1
+    ny1_real = ny1; ny2_real = ny2
+    if (ndir==1) then
+      ny1_real = 0; ny2_real = 0
+    endif
+    if (ndir<=2) then
       nz1_real = 0; nz2_real = 0
     else
       nz1_real = nz1; nz2_real = nz2
     endif
-    allocate(orion%block(b)%mesh(1:ndir,nx1:nx2,ny1:ny2,nz1_real:nz2_real))
+    allocate(orion%block(b)%mesh(1:ndir,nx1:nx2,ny1_real:ny2_real,nz1_real:nz2_real))
     n = 0
-    do k = nz1_real, nz2_real; do j = ny1, ny2; do i = nx1, nx2
+    do k = nz1_real, nz2_real; do j = ny1_real, ny2_real; do i = nx1, nx2
           n = n + 1
           orion%block(b)%mesh(1,i,j,k) = x(n)
-          orion%block(b)%mesh(2,i,j,k) = y(n)
+          if (ndir>=2) orion%block(b)%mesh(2,i,j,k) = y(n)
           if (ndir==3) orion%block(b)%mesh(3,i,j,k) = z(n)
     enddo; enddo; enddo
-    ! Variables field
-    if (ndir==2) then
+    ! Variables field: one layer of cells in k for a 2-D mesh, in j and in k for a 1-D one
+    if (ndir<=2) then
       nz1_real = 1 - start; nz2_real = 1
     endif
-    allocate(orion%block(b)%vars(1:size(varnames)-1,nx1+start:nx2,ny1+start:ny2,nz1_real+start:nz2_real))
+    if (ndir==1) then
+      ny1_real = 1 - start; ny2_real = 1
+    endif
+    allocate(orion%block(b)%vars(1:size(varnames)-1,nx1+start:nx2,ny1_real+start:ny2_real,nz1_real+start:nz2_real))
     do s = 1, size(varnames)-1
       if (allocated(v)) deallocate(v)
       if (orion%vtk%node) then
@@ -11065,7 +11093,7 @@ contains
         return
       endif
       n = 0
-      do k = nz1_real+start, nz2_real; do j = ny1+start, ny2; do i = nx1+start, nx2
+      do k = nz1_real+start, nz2_real; do j = ny1_real+start, ny2_real; do i = nx1+start, nx2
             n = n + 1
             orion%block(b)%vars(s,i,j,k) = v(n)
       enddo; enddo; enddo
