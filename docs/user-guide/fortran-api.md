@@ -192,14 +192,16 @@ end program read_vtk_structured
   read as a slice, so rename that variable or write it cell-centred to read the file as two-dimensional.
   `varnames` holds the coordinate names followed by the variable names, so
   `size(varnames) = size(mesh,1) + size(vars,1)`.
-- **Tecplot binary (`.szplt`, TecIO builds).** Each zone is read with the dimension of its node counts: a zone
-  with one node plane (`K = 1`) has two coordinates (one when also `J = 1`) and `Nk = 0`, a volume zone three.
-  A slice is read with three coordinates by the rule of the ASCII reader: when the first three variables are
-  named `x`, `y` and `z` (in any case) and `z` is nodal in every zone, a zone with `K = 1` holds `x`, `y` and
-  `z` (`mesh(1:3,...)`, `Nk = 0`) and the solution variables start after `z`. A file whose third variable has
-  another name, or is cell-centred, is read with two coordinates; as in the ASCII reader, a two-dimensional
-  file whose third variable is nodal and named `z` is read as a slice. `varnames` is filled with the names
-  stored in the file, with the same convention as the ASCII reader (coordinates first).
+- **Tecplot binary (`.szplt`, TecIO builds).** The number of coordinates is that of the file, the same for every
+  zone, as the variables of a Tecplot file are: three when a zone has more than one node plane in K (`KMax > 1`),
+  or when the file declares a third coordinate by the rule of the ASCII reader: the first three variables are
+  named `x`, `y` and `z` (in any case) and `z` is nodal in every zone, so that its zones of single node planes or
+  lines are part of a three-dimensional field (a slice); otherwise two when a zone has more than one node line in
+  J (`JMax > 1`); otherwise one, a file of lines. `mesh` holds the coordinates (`mesh(1:3,...)` with three, also
+  for a zone with one node plane, `Nk = 0`) and the solution variables start after them. As in the ASCII reader,
+  a two-dimensional file whose third variable is nodal and named `z` is read as a slice. A zone with one node
+  plane or line in a direction holds one layer of cells there. `varnames` is filled with the names stored in the
+  file, with the same convention as the ASCII reader (coordinates first).
 - **Values at the cells of `.szplt` zones with one node plane or line.** The `.szplt` reader reads the values at
   the cells of a zone with `IMax`, `JMax` or `KMax` = 1 (a surface, a line or a point, such as the faces of a volume
   block) one row of cells in I at a time: the TecIO reader gives some of them right only so.

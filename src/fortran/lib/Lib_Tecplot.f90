@@ -1739,10 +1739,11 @@ contains
   !> \brief Read ORION structured multiblock data from Tecplot binary file (SZplt format).
   !> \details Uses TecIO library to read compressed Tecplot binary format (.szplt).
   !> Only compiled if TECIO is defined.
-  !> A zone with one node plane (K = 1) is read with two coordinates (x, y), unless the
-  !> file declares a third one, with the rule of the ASCII reader: the first three variables
-  !> are named x, y, z and z is nodal in every zone (a slice of a 3-D field), read with
-  !> three coordinates.
+  !> Every zone is read with the number of coordinates of the file: three when a zone has
+  !> more than one node plane in K, or when the file declares a third coordinate with the rule
+  !> of the ASCII reader, the first three variables named x, y, z and z nodal in every zone
+  !> (single node planes or lines of a 3-D field, such as a slice); otherwise two when a zone
+  !> has more than one node line in J; otherwise one (a file of lines).
   !> \param[inout] orion ORION data structure to fill with data
   !> \param[in] filename Input file name (.szplt)
   !> \param[in] zone_mask Optional per-zone selector, indexed by zone number.
@@ -1788,6 +1789,7 @@ contains
     integer(c_int64_t) :: numValues
     integer(c_int64_t) :: layer, first     ! values read by one call (all, or one row of cells in I) and the first of them
     integer(c_int64_t) :: iMax, jMax, kMax, ndir
+    integer(c_int64_t) :: ndir_file         ! number of coordinates of the file, the same for every zone
     integer(c_int32_t), allocatable :: varTypes(:)
     integer(c_int32_t), allocatable :: passiveVarList(:)
     integer(c_int32_t), allocatable :: valueLocation(:)
@@ -1799,7 +1801,7 @@ contains
     type(c_ptr) :: stringCPtr = C_NULL_PTR
     logical :: onlyNode
     logical :: headers_only, want_data, is_coord
-    logical :: plane_xyz                    ! single node planes that carry x, y and z
+    logical :: plane_xyz                    ! the file declares x, y and z as coordinates (a slice)
     integer(c_int32_t) :: zloc              ! value location of variable 3 in a zone (1 = nodal)
 
     headers_only = .false.
@@ -1858,11 +1860,10 @@ contains
     i = tecFileGetType(inputFileHandle, fileType)
     i = tecDataSetGetNumZones(inputFileHandle, numZones)
 
-    ! One node plane (K = 1) is a pure 2-D zone (x, y) unless the file declares a third
-    ! coordinate, with the rule of the ASCII reader: the first three variables are named
-    ! x, y and z (any case) and z is nodal in every zone. Such a zone is a plane of a 3-D
-    ! field (a slice): z is read as the third coordinate, not as the first solution
-    ! variable, so every variable keeps its own band.
+    ! The file declares a third coordinate, with the rule of the ASCII reader, when the first
+    ! three variables are named x, y and z (any case) and z is nodal in every zone: its zones
+    ! of single node planes or lines are part of a 3-D field (a slice), and z is read as the
+    ! third coordinate, not as the first solution variable, so every variable keeps its own band.
     plane_xyz = .false.
     if (numVars >= 3) then
       plane_xyz = is_coordinate_name(orion%varnames(1),'X') .and. &
@@ -1874,6 +1875,19 @@ contains
         if (zloc /= 1) plane_xyz = .false.
       enddo
     endif
+
+    ! The number of coordinates is that of the file (its variables are the same in every zone):
+    ! three when a zone has more than one node plane in K, or when the file declares x, y and z as
+    ! above (a file of single node planes or lines that is part of a 3-D field); otherwise two when
+    ! a zone has more than one node line in J; otherwise one (a file of lines). Every zone is read
+    ! with it: no zone takes it from the zone before it.
+    ndir_file = 1
+    do inputZone = 1, numZones
+      i = tecZoneGetIJK(inputFileHandle, inputZone, iMax, jMax, kMax)
+      if (kMax > 1) ndir_file = 3
+      if (jMax > 1 .and. ndir_file < 2) ndir_file = 2
+    enddo
+    if (plane_xyz) ndir_file = 3
 
     ! A caller doing the two-pass dims-then-data read arrives here a second
     ! time with %block already allocated from the header pass.
@@ -1906,14 +1920,7 @@ contains
         orion%block(inputZone)%Nj = jMax-1
         orion%block(inputZone)%Nk = kMax-1
 
-        if (jMax>1 .and. kMax>1) then
-          ndir = 3
-        elseif (jMax>1 .and. kMax==1) then
-          ndir = 2
-          if (plane_xyz) ndir = 3
-        elseif (jMax==1 .and. kMax==1) then
-          ndir = 1
-        endif
+        ndir = ndir_file
 
         allocate(valueLocation(numVars))
         do var = 1, numVars

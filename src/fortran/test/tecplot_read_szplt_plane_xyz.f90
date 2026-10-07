@@ -5,6 +5,7 @@
 !< and K = 1 files whose third variable is a cell-centred z or has another name read as before.
 !< The files are written with the ORION writer or with the TecIO calls it uses (TecIO build).
 !< The values of every shape of ordered zone, read row by row where TecIO needs it (layers).
+!< The number of coordinates of the file for every zone (zone_shapes).
 !< Stops with a non-zero code when a check fails.
 program tecplot_read_szplt_plane_xyz
   use Lib_Tecplot
@@ -23,6 +24,7 @@ program tecplot_read_szplt_plane_xyz
   call slice_and_volume()
   call slice_cellcentered()
   call layers()
+  call zone_shapes()
   if (nfail > 0) then
     write(*,'(A,I0,A)') 'tecplot_read_szplt_plane_xyz: ', nfail, ' check(s) FAILED'
     error stop 1
@@ -427,4 +429,120 @@ contains
     enddo
     write(*,'(A,I0,A,I0,A)') trim(fname)//': ', size(dims,2), ' zones, ', nbad, ' variables with wrong values'
   end subroutine case_layers
+
+  ! The number of coordinates of every zone, for every shape of zone. The number of coordinates is
+  ! that of the file, the same for every zone (the variables are those of the file): three when a
+  ! zone has more than one node plane in K, or when the first three variables are named x, y and z
+  ! and z is nodal in every zone; otherwise two when a zone has more than one node line in J;
+  ! otherwise one (a file of lines). No zone takes it from the zone before it. A zone with one node
+  ! plane or line in a direction has one layer of cells there (Tecplot 360 Data Format Guide,
+  ! section 2-1). Files, written with the TecIO calls that the ORION writer uses: x y z a with zones
+  ! of every shape (IMax, JMax, KMax equal to 1 or 3), a at the nodes and a at the cells, and again
+  ! with a face j as the first zone (three coordinates); x y a with zones of one node plane or line
+  ! (two); x y z a with zones of one node plane or line, z at the nodes (three, by the names), and
+  ! with lines only (three, by the names); x y z with planes, z at the cells (two: a cell-centred z
+  ! is no coordinate); p q r a with planes and lines (two) and with a volume (three); x a with lines
+  ! (one). For each zone: the number of coordinates, every coordinate and every value of the last
+  ! variable.
+  ! Defect: the reader gave each zone the number of coordinates of its own shape, and the face j of
+  ! a volume block that of the zone before it, or an undefined one.
+  ! Basis: Tecplot 360 EX 2023 R1 Data Format Guide, section 1-3, item 7 (p. 9): the same variables
+  ! in every zone; section 4-3.1 (pp. 120-121): one list of variables for the file.
+  subroutine zone_shapes()
+    integer :: shapes(3,8), z
+    ! the eight shapes: IMax, JMax and KMax equal to 1 or 3
+    do z = 1, 8
+      shapes(:,z) = [merge(3, 1, btest(z-1,0)), merge(3, 1, btest(z-1,1)), merge(3, 1, btest(z-1,2))]
+    enddo
+    call case_shapes('szplt_shapes_nodal.szplt',   'x y z a', shapes,                   1, 3)
+    call case_shapes('szplt_shapes_cells.szplt',   'x y z a', shapes,                   0, 3)
+    call case_shapes('szplt_shapes_jfirst.szplt',  'x y z a', shapes(:,[6,5,8,2]),      0, 3)
+    call case_shapes('szplt_shapes_2d.szplt',      'x y a',   shapes(:,[4,2,3,1]),      0, 2)
+    call case_shapes('szplt_shapes_planes.szplt',  'x y z a', shapes(:,[4,2,3,1]),      1, 3)
+    call case_shapes('szplt_shapes_xyzlines.szplt','x y z a', shapes(:,[2,1]),          0, 3)
+    call case_shapes('szplt_shapes_zcell.szplt',   'x y z',   shapes(:,[4,3]),          0, 2)
+    call case_shapes('szplt_shapes_pqr2.szplt',    'p q r a', shapes(:,[4,2]),          1, 2)
+    call case_shapes('szplt_shapes_pqr3.szplt',    'p q r a', shapes(:,[8,4,6]),        1, 3)
+    call case_shapes('szplt_shapes_lines.szplt',   'x a',     shapes(:,[2,1]),          0, 1)
+  end subroutine zone_shapes
+
+  ! Write a file with the zones of the shapes given (the first ncoord variables are the coordinates by the rule, the
+  ! last one, a, is at the nodes when anodal is 1 and at the cells otherwise), read it with the ORION reader and check
+  ! each zone: ncoord coordinates, the coordinates and the values of a.
+  subroutine case_shapes(fname, names, dims, anodal, ncoord)
+    character(len=*), intent(in) :: fname, names
+    integer,          intent(in) :: dims(:,:), anodal, ncoord
+    type(orion_data) :: d
+    integer, allocatable :: loc(:), nval(:,:)
+    real(8), allocatable :: vals(:,:,:), expected(:)
+    integer :: nv, nz, z, v, i, j, k, m, err, lo
+    character(len=96) :: what
+    nv = count_names(names)
+    nz = size(dims,2)
+    allocate(loc(nv), nval(nv,nz), vals(27,nv,nz))
+    loc = 1; loc(nv) = anodal
+    vals = 0.0d0
+    do z = 1, nz
+      do v = 1, nv
+        m = 0
+        if (loc(v) == 1) then
+          do k = 0, dims(3,z)-1; do j = 0, dims(2,z)-1; do i = 0, dims(1,z)-1
+            m = m + 1; vals(m,v,z) = value_shapes(v, nv, i, j, k)
+          enddo; enddo; enddo
+        else
+          do k = 1, max(dims(3,z)-1,1); do j = 1, max(dims(2,z)-1,1); do i = 1, max(dims(1,z)-1,1)
+            m = m + 1; vals(m,v,z) = value_shapes(v, nv, i, j, k)
+          enddo; enddo; enddo
+        endif
+        nval(v,z) = m
+      enddo
+    enddo
+    call write_szplt(fname, names, dims, spread(loc, 2, size(dims,2)), nval, vals)
+    d%tec%format = 'binary'
+    err = tec_read_structured_multiblock(orion=d, filename=fname)
+    write(*,'(A)') fname//': '//names//', a '//merge('at the nodes', 'at the cells', anodal == 1)
+    call check(err == 0, fname//': read without error')
+    if (err /= 0) return
+    call check(size(d%block) == nz, fname//': every zone read')
+    if (size(d%block) /= nz) return
+    do z = 1, nz
+      write(what,'(A,I0,A,3(I0,1X))') fname//' zone ', z, ', IJK ', dims(:,z)
+      call check(size(d%block(z)%mesh,1) == ncoord, trim(what)//': number of coordinates')
+      if (size(d%block(z)%mesh,1) /= ncoord) cycle
+      call check(size(d%block(z)%vars,1) == nv - ncoord, trim(what)//': number of solution variables')
+      if (size(d%block(z)%vars,1) /= nv - ncoord) cycle
+      do v = 1, ncoord
+        call check(all(reshape(d%block(z)%mesh(v,:,:,:), [nval(v,z)]) == vals(1:nval(v,z),v,z)), &
+                   trim(what)//': coordinate '//names(2*v-1:2*v-1))
+      enddo
+      lo = nv - ncoord
+      expected = vals(1:nval(nv,z),nv,z)
+      call check(size(d%block(z)%vars(lo,:,:,:)) == size(expected), trim(what)//': number of values of a')
+      if (size(d%block(z)%vars(lo,:,:,:)) == size(expected)) &
+        call check(all(reshape(d%block(z)%vars(lo,:,:,:), [size(expected)]) == expected), trim(what)//': values of a')
+    enddo
+  end subroutine case_shapes
+
+  ! Value of variable v of nv at node or cell (i, j, k): coordinates for the first variables, then the variable a.
+  pure real(8) function value_shapes(v, nv, i, j, k)
+    integer, intent(in) :: v, nv, i, j, k
+    select case(v)
+    case(1)
+      value_shapes = i + 0.5d0
+    case(2)
+      value_shapes = j + 10.0d0
+    case(3)
+      value_shapes = k + 100.0d0
+    case default
+      value_shapes = 1000.0d0*v + i + 10*j + 100*k + 0.25d0
+    end select
+    if (v == nv) value_shapes = 5000.0d0 + i + 10*j + 100*k + 0.25d0
+  end function value_shapes
+
+  ! The number of names in names, separated by blanks.
+  pure integer function count_names(names)
+    character(len=*), intent(in) :: names
+    integer :: i
+    count_names = count([(names(i:i) /= ' ' .and. (i == 1 .or. names(max(i-1,1):max(i-1,1)) == ' '), i = 1, len(names))])
+  end function count_names
 end program tecplot_read_szplt_plane_xyz

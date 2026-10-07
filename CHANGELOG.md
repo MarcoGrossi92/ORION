@@ -63,6 +63,9 @@ Changes on `main` since `v1.6.0`.
   `vtmpath = 'out/field'` list `../name.vts`); the entries depended on what the
   memory held when `vtspath` and `vtmpath` share no prefix. Such a field is
   read back with the directory of the `.vtm` file as `vtspath`.
+- The `.szplt` reader takes the coordinates of a file of lines of nodes by
+  name, as those of a file of slices: `x`, `y` and `z` (`z` nodal) are three
+  coordinates; they were read with one.
 
 ### Fixed
 
@@ -162,6 +165,9 @@ Changes on `main` since `v1.6.0`.
   repository gives some of them wrong, without an error, in one call (`KMax` =
   1 with `IMax` = 2 and `JMax` >= 3; `IMax` = 1 with `JMax` = 2 and `KMax` >= 3;
   `JMax` = 1 with `KMax` >= 3).
+- The `.szplt` reader gives every zone the number of coordinates of the file:
+  each zone took the number of its own shape, and the face j of a volume block
+  that of the zone before it, or an undefined one when it was the first zone.
 
 ## [1.7.0] - 2026-09-29
 
