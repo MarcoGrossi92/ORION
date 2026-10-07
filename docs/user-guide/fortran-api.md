@@ -355,6 +355,13 @@ IOfield%tec%node = .false.
 IOfield%tec%bc = .false.
 ```
 
+A block is written as an ordered zone of `Ni+1` x `Nj+1` x `Nk+1` nodes (`Nk` = 0 for a two-dimensional mesh). A surface block,
+with one plane of nodes in a direction (`Ni`, `Nj` or `Nk` = 0, such as a face of a volume block), and a line of nodes are
+written as such zones in ASCII and binary files alike: variables at the cells hold one layer of cells where a direction has one
+plane of nodes (`vars(:,1:1,:,:)` for an i-face, `max(Ni,1)*max(Nj,1)*max(Nk,1)` values), as an ordered zone stores its
+cell-centered values (Tecplot 360 Data Format Guide, section 2-1); variables at the nodes (`orion%tec%node`) hold one value per
+node (`vars(:,0:0,:,:)` for an i-face).
+
 ### VTK Files
 
 ```fortran
