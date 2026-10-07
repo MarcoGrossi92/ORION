@@ -104,6 +104,11 @@ Changes on `main` since `v1.6.0`.
 - `vtk_write_structured_multiblock` gives the `DataSet` elements of the `.vtm`
   file the indices 0 to nb-1: with every index 0, the reader of VTK 9.7.1 gave
   no block of a field of two or more blocks.
+- `vtk_write_structured_multiblock` writes a mesh of one coordinate as two
+  lines of nodes in j and two planes in k, which
+  `vtk_read_structured_multiblock` reads back as such; it left the size of such
+  a block undefined. A mesh of another number of coordinates than 1, 2 or 3 is
+  refused (return value 1).
 
 ## [1.7.0] - 2026-09-29
 
