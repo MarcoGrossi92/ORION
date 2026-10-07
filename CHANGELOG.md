@@ -121,6 +121,13 @@ Changes on `main` since `v1.6.0`.
   reader and writer, so a field with variables at the nodes did not come
   back as it was written. Fields with cell variables, and meshes without
   variables, are written and read as before.
+- `vtk_write_structured_multiblock` lists the block files in the `.vtm` file
+  with a defined path when `vtspath` and `vtmpath` share no prefix, as with
+  `vtspath = ''`: `simplified_relative_path` used a variable it had not set,
+  so the entries depended on what the memory held, and a build with bound
+  checks could stop on it. An absolute `vtspath` that shares no directory
+  with `vtmpath` is listed as it is. Paths with a common prefix are listed as
+  before.
 
 ## [1.7.0] - 2026-09-29
 
