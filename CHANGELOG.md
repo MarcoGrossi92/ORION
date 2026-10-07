@@ -104,6 +104,15 @@ Changes on `main` since `v1.6.0`.
   wrong `vtspath`, or when its points cannot be read. It went on with a file
   unit it had not opened and with coordinates it had not read, and stopped
   with a segmentation fault or a runtime error.
+- `vtk_read_structured_multiblock` closes each block file once it has read
+  it, and the file of a block it stops on: it kept every block file but the
+  last open until the program ended, so a field of more blocks than the files
+  a process can keep open could not be read. It also returns an error, and
+  stops, when the values of a variable cannot be read, as in a block file cut
+  short, instead of copying the values it has not read, and when the `.vtm`
+  file cannot be opened, ends before the end of its block list or lists no
+  block file, instead of stopping the program. The closing of the last file
+  no longer replaces the error code of the read.
 - `vtk_write_structured_multiblock` and `vtk_read_structured_multiblock`
   refuse variables at the nodes and return 1: the writer when
   `orion%vtk%node` is set and the blocks have variables, without writing

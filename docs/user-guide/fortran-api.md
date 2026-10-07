@@ -207,7 +207,10 @@ end program read_vtk_structured
   coordinates of one node plane (`mesh(1:2,...,0:0)`). Any other block is read with three coordinates, also when
   its `z` add up to 0, as for a slab around `z = 0`, and when it has one node plane in k with `z = 0` at every node,
   as for the face of a three-dimensional block on the plane `z = 0`. The reader returns a nonzero value, and stops,
-  when a block file cannot be opened or its points cannot be read; the blocks read before it are left in `orion`.
+  when the `.vtm` file cannot be opened, ends before the end of its block list or lists no block file, and when a
+  block file cannot be opened or its points or the values of a variable cannot be read; what it has read before the
+  error is left in `orion`. It closes each block file once read, and the file of a block it stops on, so the number
+  of blocks of a field is not bounded by the number of files a process can keep open.
 - **Solution time.** `solutiontime` is 0 in a new `orion_data`. The Tecplot ASCII reader stores the
   `SOLUTIONTIME` of the file, or -10 when its zone headers give none. The `.szplt` reader does not store the
   zone time of the file and leaves `solutiontime` as it was (0 for a new object); so does the PLOT3D reader,
