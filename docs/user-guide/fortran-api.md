@@ -400,7 +400,11 @@ the blocks, each relative to the directory of the `.vtm` file, as VTK readers ta
 `vtspath` (`vtspath = ''` and `vtmpath = 'out/field'` give `../name.vts`). `vtspath` and `vtmpath` are both relative to the
 same directory or both absolute; an absolute `vtspath` that shares no directory with `vtmpath` is listed as it is. An absolute
 `vtmpath` with a relative `vtspath`, or the same directory written in two forms (`./out` and `out`), would need the current
-directory, which the writer does not take: write both paths in the same form.
+directory, which the writer does not take: write both paths in the same form. A field written with `vtspath` and `vtmpath`
+is read back with `vtk_read_structured_multiblock(vtspath=<the directory of vtmpath>, vtmpath=vtmpath, ...)`, or with
+`vtspath = ''` when the `.vtm` lists absolute paths. The reader reads the lines of the `.vtm` file
+whatever their length and takes each listed file, path included and without `.vts`, as the `name` of its block: a listed
+file longer than the 128 characters of `name` gives the return value 1.
 
 ### PLOT3D Files
 

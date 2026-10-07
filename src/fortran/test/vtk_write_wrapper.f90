@@ -658,15 +658,23 @@
   !< the current directory (vtspath = '', a listed path, '../', longer than vtspath); the block files in a subdirectory and the
   !< .vtm in the current directory. Each time the .vtm lists the block files as they are on disk, seen from its directory, and
   !< vtk_read_structured_multiblock, given the directory of the .vtm as vtspath, reads the field back as written. The
-  !< subdirectory is made with execute_command_line('mkdir ...').
-  !< Defect: simplified_relative_path used last_slash, which it set only when the paths share a prefix, so for paths without a
-  !< common prefix the .vtm listed what the memory held; the writer also kept the prefix in a string as long as vtspath, so a
-  !< longer one was cut ('../' became '').
+  !< subdirectory is made with execute_command_line('mkdir ...'). Paths of any length: the function returns an absolute path2
+  !< of 301 characters whole; a field written with an absolute vtspath of 125 characters, a directory made under the current
+  !< one (named from the output of pwd), is listed with DataSet lines of more than 128 characters and files of 128 characters,
+  !< as many as the name of a block holds, and read back as written; a field whose block files are listed with 129 characters
+  !< (path included) is written, and the reader returns 1.
+  !< Defects: simplified_relative_path used last_slash, which it set only when the paths share a prefix, so for paths without a
+  !< common prefix the .vtm listed what the memory held; the writer kept the prefix in a string as long as vtspath, so a longer
+  !< one was cut ('../' became ''); the reader kept each line of the .vtm in 128 characters and the function its result in 256,
+  !< so a long path was cut.
   !< Basis: Fortran 2018, 9.2 (p. 123) and 19.6.4 (p. 512): a variable that is not initially defined is undefined, and a
-  !< reference to it is not permitted; the reader of VTK 9.7.1 takes the file of a DataSet relative to the directory of the
-  !< .vtm file (vtkXMLCompositeDataReader::GetFilePath).
+  !< reference to it is not permitted; 13.7.4 (p. 269) and 10.2.1.3 (p. 162): the A edit descriptor without a width reads as
+  !< many characters as the variable holds, and an assignment to a shorter variable truncates; the reader of VTK 9.7.1 takes
+  !< the file of a DataSet relative to the directory of the .vtm file (vtkXMLCompositeDataReader::GetFilePath).
   !---------------------------------------------------------------------------------------------------------------------------------
-  integer :: exitstat, cmdstat
+  integer :: exitstat, cmdstat, u, n
+  character(len=4096)           :: cwd
+  character(len=:), allocatable :: longdir
   !---------------------------------------------------------------------------------------------------------------------------------
 
   ! No common prefix
@@ -698,6 +706,7 @@
   call case('/fld',         '/vtk/',        'vtk/',           'absolute, at the root')
   call case('fld',          '/d/vtk/',      '/d/vtk/',        'relative path1 without a directory, absolute path2')
   call case('out/fld',      '/d/vtk/',      '/d/vtk/',        'relative path1 with a directory, absolute path2')
+  call case('fld', '/'//repeat('p', 299)//'/', '/'//repeat('p', 299)//'/', 'absolute path2 of 301 characters')
   ! Forms that need the current directory: only that the function returns
   call returns('/d/out/fld', 'vtk/',     'absolute path1, relative path2')
   call returns('./out/fld',  'out/vtk/', 'the same directory written as ./out and as out')
@@ -706,14 +715,30 @@
   call write_and_read_paths('blk_relpath_', 'fld_relpath', '', 'block files with a name prefix')
   call write_and_read_paths('', 'relpath_sub/fld', 'relpath_sub/', '.vtm in a subdirectory, vtspath empty')
   call write_and_read_paths('relpath_sub/blk_', 'fld2_relpath', '', 'block files in a subdirectory')
+  ! An absolute vtspath of 125 characters, listed as it is: DataSet lines of more than 128 characters, listed files of 128
+  call execute_command_line('pwd > relpath_pwd.txt', exitstat=exitstat, cmdstat=cmdstat)
+  open(newunit=u, file='relpath_pwd.txt', status='old', action='read')
+  read(u,'(A)') cwd
+  close(u)
+  n = 125 - len_trim(cwd) - 2
+  if (n >= 9) then
+    longdir = trim(cwd)//'/relpath_'//repeat('l', n - 8)//'/'
+    call execute_command_line('mkdir '//longdir, exitstat=exitstat, cmdstat=cmdstat)  ! it may already be there
+    call write_and_read_paths(longdir, 'fld3_relpath', '', 'absolute vtspath of 125 characters')
+  else
+    write(*,'(A)') '  not run: the current directory is too long for an absolute vtspath of 125 characters'
+  endif
+  ! Block files listed with 129 characters, one more than the name of a block holds
+  call write_and_read_paths('relpath_'//repeat('n', 117)//'_', 'fld4_relpath', '', 'listed files longer than a block name', &
+                      too_long=.true.)
   end subroutine relative_paths
 
   subroutine case(path1, path2, expected, what)
   !---------------------------------------------------------------------------------------------------------------------------------
   !< The relative path of path2 seen from the directory of path1 is the one expected.
   !---------------------------------------------------------------------------------------------------------------------------------
-  character(len=*), intent(in) :: path1, path2, expected, what
-  character(len=256)           :: r
+  character(len=*), intent(in)  :: path1, path2, expected, what
+  character(len=:), allocatable :: r
   !---------------------------------------------------------------------------------------------------------------------------------
 
   r = simplified_relative_path(path1, path2)
@@ -733,13 +758,14 @@
   write(*,'(A)') what//': returns "'//r//'"'
   end subroutine returns
 
-  subroutine write_and_read_paths(vtspath, vtmpath, vtmdir, what)
+  subroutine write_and_read_paths(vtspath, vtmpath, vtmdir, what, too_long)
   !---------------------------------------------------------------------------------------------------------------------------------
   !< Write a field of two blocks with the block files vtspath//<block>.vts and the .vtm file vtmpath.vtm, whose directory is
   !< vtmdir; check that the .vtm lists the block files as they are on disk, seen from vtmdir, and read the field back, with
-  !< vtmdir as vtspath.
+  !< vtmdir as vtspath. With too_long, the listed files are longer than the name of a block: the reader must return 1.
   !---------------------------------------------------------------------------------------------------------------------------------
   character(len=*), intent(in)  :: vtspath, vtmpath, vtmdir, what
+  logical, intent(in), optional :: too_long
   type(orion_data)              :: w, r
   character(len=16)             :: varnames
   character(len=:), allocatable :: buf
@@ -781,6 +807,10 @@
   call check(nfiles == 2, what//': the .vtm lists two block files')
   r%vtk%format = 'ascii'
   err = vtk_read_structured_multiblock(orion=r, vtmpath=vtmpath, vtspath=vtmdir)
+  if (present(too_long)) then
+    call check(err == 1, what//': the reader returns 1')
+    return
+  endif
   call check(err == 0, what//': field read back without error')
   same = .false.
   if (err == 0 .and. allocated(r%block)) then

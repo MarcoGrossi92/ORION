@@ -113,6 +113,9 @@ Changes on `main` since `v1.6.0`.
   their cell variables with one layer of cells where a direction has one plane
   of nodes and their nodal variables with one value per node: values were
   copied past the end of buffers and of the variables.
+- The VTK multi-block reader and writer take `.vtm` lines and block file paths
+  of any length: lines were cut at 128 characters and paths at 256. A listed
+  file longer than the name of a block gives the return value 1.
 
 ## [1.7.0] - 2026-09-29
 
