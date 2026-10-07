@@ -2,6 +2,7 @@
 !< A slice of a 3-D field that carries x, y and z is read with three coordinates and every
 !< solution variable keeps its own band, cell-centred or nodal. A pure 2-D file (x, y), a file
 !< whose third variable is a cell-centred z, and a slice next to a volume zone read as before.
+!< One location for the solution variables (variable_location).
 !< Stops with a non-zero code when a check fails.
 program tecplot_read_plane_xyz
   use Lib_Tecplot
@@ -15,6 +16,7 @@ program tecplot_read_plane_xyz
   call pure_2d()
   call z_cellcentered()
   call slice_and_volume()
+  call variable_location()
   if (nfail > 0) then
     write(*,'(A,I0,A)') 'tecplot_read_plane_xyz: ', nfail, ' check(s) FAILED'
     error stop 1
@@ -183,4 +185,135 @@ contains
     enddo
   end subroutine zone
 
+
+  ! The location of the variables. ORION holds the coordinates at the nodes and one location for all
+  ! solution variables of a file, orion%tec%node: at the nodes when the zone headers list no
+  ! variable as CELLCENTERED, at the cells otherwise. A file with a coordinate at the cells, or with
+  ! solution variables at the nodes and at the cells, in a zone or between zones, or with variables
+  ! at the cells in POINT packing, is refused (return value 1, with a message on the standard
+  ! error). Files written here, in BLOCK packing unless said: a two-dimensional field (x y a b) with
+  ! every variable at the nodes and with a and b at the cells; a three-dimensional field (x y z a)
+  ! with a at the cells; a two-dimensional field (x y z a, one node plane) with z and a at the
+  ! cells, so that z is a solution variable; a mesh (x y z); and, refused, a two-dimensional field
+  ! with a at the nodes and b at the cells, a three-dimensional field with a at the nodes in one
+  ! zone and at the cells in the other, a three-dimensional field with z at the cells, and a
+  ! two-dimensional field in POINT packing with a and b at the cells. For the files read: the return
+  ! value, orion%tec%node, the number of coordinates and every value of the last variable. Every
+  ! value is an integer, a half or a quarter.
+  ! Defect: the reader read a zone with solution variables at the nodes and at the cells as if all
+  ! were at the cells, its values shifted, with no error, and a coordinate at the cells with one
+  ! value per node.
+  ! Basis: Tecplot 360 EX 2023 R1 Data Format Guide, section 4-3.2, VARLOCATION (p. 124): each
+  ! variable may be at the nodes or at the cells, and cell-centered variables need BLOCK packing;
+  ! ORION holds one location for all the solution variables of a field.
+  subroutine variable_location()
+    ! name, variables, zones (I J K), CELLCENTERED list of each zone ('' = none), POINT packing, return value, node, coordinates
+    call case_location('loc_2d_nodes.tec',   'x y a b', reshape([4,3,1], [3,1]),       ['      '],           .false., 0, 1, 2)
+    call case_location('loc_2d_cells.tec',   'x y a b', reshape([4,3,1], [3,1]),       ['[3-4] '],           .false., 0, 0, 2)
+    call case_location('loc_3d_cells.tec',   'x y z a', reshape([3,3,3, 3,2,3], [3,2]), ['[4]   ', '[4]   '], .false., 0, 0, 3)
+    call case_location('loc_2d_zcell.tec',   'x y z a', reshape([4,3,1], [3,1]),       ['[3,4] '],           .false., 0, 0, 2)
+    call case_location('loc_mesh.tec',       'x y z',   reshape([3,3,3], [3,1]),       ['      '],           .false., 0, 1, 3)
+    call case_location('loc_2d_in_zone.tec', 'x y a b', reshape([4,3,1], [3,1]),       ['[4]   '],           .false., 1, -1, 0)
+    call case_location('loc_3d_zones.tec',   'x y z a', reshape([3,3,3, 3,2,3], [3,2]), ['      ', '[4]   '], .false., 1, -1, 0)
+    call case_location('loc_3d_zcell.tec',   'x y z a', reshape([3,3,3], [3,1]),       ['[3-4] '],           .false., 1, -1, 0)
+    call case_location('loc_2d_point.tec',   'x y a b', reshape([4,3,1], [3,1]),       ['[3-4] '],           .true.,  1, -1, 0)
+  end subroutine variable_location
+
+  ! Value of variable v at node or cell (i, j, k) of zone z.
+  pure real(8) function value_location(v, z, i, j, k)
+    integer, intent(in) :: v, z, i, j, k
+    select case(v)
+    case(1); value_location = i + 0.5d0
+    case(2); value_location = j + 10.0d0
+    case(3); value_location = k + 100.0d0 + 1000.0d0*z
+    case default; value_location = 1000.0d0*v + 100*z + i + 10*j + 20*k + 0.25d0
+    end select
+  end function value_location
+
+  ! Is variable v in the CELLCENTERED list cc ('[3-4]', '[4]', '[3,4]' or '')?
+  logical function is_cell(cc, v)
+    character(len=*), intent(in) :: cc
+    integer,          intent(in) :: v
+    character(len=1) :: c
+    write(c,'(I1)') v
+    is_cell = index(cc, c) > 0 .or. (index(cc, '3-4') > 0 .and. (v == 3 .or. v == 4))
+  end function is_cell
+
+  ! Write the file, read it, check the return value err0 and, for a file read, orion%tec%node (node1: 1 true, 0 false), the
+  ! number of coordinates nd1 and every value of the last variable of each zone.
+  subroutine case_location(fname, names, dims, cc, point, err0, node1, nd1)
+    character(len=*), intent(in) :: fname, names, cc(:)
+    integer,          intent(in) :: dims(:,:), err0, node1, nd1
+    logical,          intent(in) :: point
+    type(orion_data) :: d
+    real(8), allocatable :: expected(:)
+    integer :: u, z, v, i, j, k, m, nv, err
+    logical :: cell
+    nv = count_names(names)
+    open(newunit=u, file=fname, status='replace', action='write')
+    write(u,'(A)') 'VARIABLES = '//names
+    do z = 1, size(dims,2)
+      write(u,'(A,I0,A,I0,A,I0,A,I0,A)', advance='no') 'ZONE T = Z', z, ', I=', dims(1,z), ', J=', dims(2,z), ', K=', &
+        dims(3,z), ', DATAPACKING='//merge('POINT', 'BLOCK', point)
+      if (len_trim(cc(z)) > 0) write(u,'(A)', advance='no') ', VARLOCATION=('//trim(cc(z))//'=CELLCENTERED)'
+      write(u,'(A)') ''
+      if (point) then
+        ! POINT: one tuple per node (a file that the reader refuses: the cells cannot be written so)
+        do k = 0, dims(3,z)-1; do j = 0, dims(2,z)-1; do i = 0, dims(1,z)-1
+          write(u,'(*(ES25.17))') (value_location(v, z, i, j, k), v = 1, nv)
+        enddo; enddo; enddo
+        cycle
+      endif
+      do v = 1, nv
+        if (is_cell(cc(z), v)) then
+          do k = 1, max(dims(3,z)-1,1); do j = 1, max(dims(2,z)-1,1); do i = 1, max(dims(1,z)-1,1)
+            write(u,'(ES25.17)') value_location(v, z, i, j, k)
+          enddo; enddo; enddo
+        else
+          do k = 0, dims(3,z)-1; do j = 0, dims(2,z)-1; do i = 0, dims(1,z)-1
+            write(u,'(ES25.17)') value_location(v, z, i, j, k)
+          enddo; enddo; enddo
+        endif
+      enddo
+    enddo
+    close(u)
+    d%tec%node = (node1 /= 1)
+    err = tec_read_structured_multiblock(orion=d, filename=fname)
+    write(*,'(A,I0,A,L1)') fname//': return value ', err, ', orion%tec%node ', d%tec%node
+    call check((err == 0) .eqv. (err0 == 0), fname//': return value')
+    if (err /= 0 .or. err0 /= 0) return
+    call check(d%tec%node .eqv. (node1 == 1), fname//': orion%tec%node')
+    call check(size(d%block(1)%mesh,1) == nd1, fname//': number of coordinates')
+    if (size(d%block(1)%mesh,1) /= nd1 .or. nv == nd1) return
+    do z = 1, size(dims,2)
+      cell = is_cell(cc(z), nv)
+      if (cell) then
+        allocate(expected(product(max(dims(:,z)-1,1))))
+      else
+        allocate(expected(product(dims(:,z))))
+      endif
+      m = 0
+      if (cell) then
+        do k = 1, max(dims(3,z)-1,1); do j = 1, max(dims(2,z)-1,1); do i = 1, max(dims(1,z)-1,1)
+          m = m + 1; expected(m) = value_location(nv, z, i, j, k)
+        enddo; enddo; enddo
+      else
+        do k = 0, dims(3,z)-1; do j = 0, dims(2,z)-1; do i = 0, dims(1,z)-1
+          m = m + 1; expected(m) = value_location(nv, z, i, j, k)
+        enddo; enddo; enddo
+      endif
+      call check(size(d%block(z)%vars(nv-nd1,:,:,:)) == size(expected), fname//': number of values of the last variable')
+      if (size(d%block(z)%vars(nv-nd1,:,:,:)) == size(expected)) &
+        call check(all(reshape(d%block(z)%vars(nv-nd1,:,:,:), [size(expected)]) == expected), &
+                   fname//': values of the last variable')
+      deallocate(expected)
+    enddo
+  end subroutine case_location
+
+  ! The number of names in names, separated by blanks.
+  pure integer function count_names(names)
+    character(len=*), intent(in) :: names
+    integer :: i
+    count_names = count([(names(i:i) /= ' ' .and. (i == 1 .or. names(max(i-1,1):max(i-1,1)) == ' '), i = 1, len(names))])
+  end function count_names
 end program tecplot_read_plane_xyz

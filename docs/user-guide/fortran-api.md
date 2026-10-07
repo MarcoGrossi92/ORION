@@ -191,7 +191,13 @@ end program read_vtk_structured
   a two-dimensional file whose third variable is nodal and named `z` (a mixture fraction `Z`, for example) is
   read as a slice, so rename that variable or write it cell-centred to read the file as two-dimensional.
   `varnames` holds the coordinate names followed by the variable names, so
-  `size(varnames) = size(mesh,1) + size(vars,1)`.
+  `size(varnames) = size(mesh,1) + size(vars,1)`. The solution variables are at the nodes (`orion%tec%node` set)
+  when no variable is listed as `CELLCENTERED` in `VARLOCATION`, at the cells otherwise; a file without solution
+  variables sets `orion%tec%node`, as no variable of it is `CELLCENTERED`, while the `.szplt` reader leaves the flag
+  as it is for such a file. ORION holds the
+  coordinates at the nodes and one location for all solution variables of a file: a file with a coordinate at the
+  cells, or with solution variables at the nodes and at the cells, in a zone or between zones, is refused (return
+  value 1, with a message on the standard error).
 - **Tecplot binary (`.szplt`, TecIO builds).** The number of coordinates is that of the file, the same for every
   zone, as the variables of a Tecplot file are: three when a zone has more than one node plane in K (`KMax > 1`),
   or when the file declares a third coordinate by the rule of the ASCII reader: the first three variables are
@@ -201,7 +207,14 @@ end program read_vtk_structured
   for a zone with one node plane, `Nk = 0`) and the solution variables start after them. As in the ASCII reader,
   a two-dimensional file whose third variable is nodal and named `z` is read as a slice. A zone with one node
   plane or line in a direction holds one layer of cells there. `varnames` is filled with the names stored in the
-  file, with the same convention as the ASCII reader (coordinates first).
+  file, with the same convention as the ASCII reader (coordinates first). A zone with a coordinate at the cells,
+  or with solution variables at the nodes and at the cells, is refused (return value 1, with a message on the
+  standard error). Each block takes the location of its zone, `vars(:,0:...)` at the nodes and `vars(:,1:...)` at
+  the cells, so the zones of a file may differ: `lbound(vars,2)` tells the location of each block. The reader sets
+  `orion%tec%node` when the solution variables of every zone are at the nodes, clears it when those of every zone
+  are at the cells, and leaves it as it is when the zones differ or the file has no solution variables. The ASCII
+  reader refuses a file whose zones differ, and `tec_write_structured_multiblock` writes every block of a field at
+  the location of `orion%tec%node`.
 - **Values at the cells of `.szplt` zones with one node plane or line.** The `.szplt` reader reads the values at
   the cells of a zone with `IMax`, `JMax` or `KMax` = 1 (a surface, a line or a point, such as the faces of a volume
   block) one row of cells in I at a time: the TecIO reader gives some of them right only so.

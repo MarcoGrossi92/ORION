@@ -63,6 +63,12 @@ Changes on `main` since `v1.6.0`.
   `vtmpath = 'out/field'` list `../name.vts`); the entries depended on what the
   memory held when `vtspath` and `vtmpath` share no prefix. Such a field is
   read back with the directory of the `.vtm` file as `vtspath`.
+- The Tecplot readers refuse, with a message and the return value 1, a zone
+  with a coordinate at the cells or with solution variables at the nodes and
+  at the cells, which ORION cannot hold: the ASCII reader read such a zone
+  with its values shifted, the `.szplt` reader past the end of a buffer. The
+  ASCII reader still refuses a file whose zones differ in location, now with a
+  message; the `.szplt` reader reads it, each block at the location of its zone.
 - The `.szplt` reader takes the coordinates of a file of lines of nodes by
   name, as those of a file of slices: `x`, `y` and `z` (`z` nodal) are three
   coordinates; they were read with one.
@@ -168,6 +174,10 @@ Changes on `main` since `v1.6.0`.
 - The `.szplt` reader gives every zone the number of coordinates of the file:
   each zone took the number of its own shape, and the face j of a volume block
   that of the zone before it, or an undefined one when it was the first zone.
+- The `.szplt` reader sets `orion%tec%node` from the locations of the zones
+  (it never set it); it leaves the flag as it is for a file without solution
+  variables, for which the ASCII reader sets it, and for a file whose zones
+  differ in location.
 - The Tecplot ASCII readers, `tec_read_structured_multiblock` and
   `tec_read_points_multivars`, give each block the title of its zone as its
   name, as `tec_read_szplt` does; the names were undefined.

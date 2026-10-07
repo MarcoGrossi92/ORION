@@ -6,11 +6,15 @@
 !< The files are written with the ORION writer or with the TecIO calls it uses (TecIO build).
 !< The values of every shape of ordered zone, read row by row where TecIO needs it (layers).
 !< The number of coordinates of the file for every zone (zone_shapes).
+!< One location for the solution variables (variable_location).
+!< Zones whose solution variables are at different locations, each read with its own (zone_locations).
 !< Stops with a non-zero code when a check fails.
 program tecplot_read_szplt_plane_xyz
   use Lib_Tecplot
   use Lib_ORION_data
+  use, intrinsic :: iso_c_binding
   implicit none
+  include "tecio.f90"
   integer :: nfail
 
   nfail = 0
@@ -25,6 +29,8 @@ program tecplot_read_szplt_plane_xyz
   call slice_cellcentered()
   call layers()
   call zone_shapes()
+  call variable_location()
+  call zone_locations()
   if (nfail > 0) then
     write(*,'(A,I0,A)') 'tecplot_read_szplt_plane_xyz: ', nfail, ' check(s) FAILED'
     error stop 1
@@ -538,6 +544,211 @@ contains
     end select
     if (v == nv) value_shapes = 5000.0d0 + i + 10*j + 100*k + 0.25d0
   end function value_shapes
+
+  ! The location of the variables. ORION holds the coordinates at the nodes and one location for all
+  ! solution variables of a block, orion%tec%node: the reader sets it when every solution variable
+  ! of every zone is at the nodes and clears it when every one is at the cells, leaves it as it is
+  ! for a file without solution variables, and refuses a zone with a coordinate at the cells or with
+  ! solution variables at the nodes and at the cells (return value 1); zones whose locations differ
+  ! are read by zone_locations. Files written with the TecIO calls that the ORION writer uses: a
+  ! two-dimensional field (x y a b) with a and b at the nodes, read with orion%tec%node set to false
+  ! first; three-dimensional fields (x y z a) of a volume and a face j with a at the nodes, read
+  ! with it false first, and with a at the cells, read with it true first; a mesh (x y z), read with
+  ! orion%tec%node false and then true; and, refused, a two-dimensional field with a at the nodes and
+  ! b at the cells, and a three-dimensional field with z and a at the cells. The fields with the
+  ! variables at the nodes are also written again with tec_write_structured_multiblock, as read, and
+  ! their .szplt files read with the TecIO reader: the variables at the nodes, with the values of the
+  ! file read. Every value is an integer, a half or a quarter.
+  ! Defect: the reader never set orion%tec%node, read a zone with variables at the nodes and at the
+  ! cells past the end of the buffer of the values at the cells, and put a coordinate at the cells
+  ! at index 0 of the variables.
+  ! Basis: Tecplot 360 EX 2023 R1 Data Format Guide, section 4-3.2, VARLOCATION (p. 124): each
+  ! variable may be at the nodes or at the cells; ORION holds one location for all the solution
+  ! variables of a field.
+  subroutine variable_location()
+    integer :: loc2(4,1), loc3n(4,2), loc3c(4,2), locin(4,1), locmesh(3,1), loczc(4,1)
+    loc2 = 1
+    loc3n = 1
+    loc3c = 1; loc3c(4,:) = 0
+    locin = 1; locin(4,1) = 0
+    locmesh = 1
+    loczc = 1; loczc(3:4,1) = 0
+    call case_location('loc_2d_nodes.szplt',    'x y a b', reshape([4,3,1], [3,1]),       loc2,    .false., 0, 1)
+    call case_location('loc_3d_nodes.szplt',    'x y z a', reshape([3,3,3, 3,1,3], [3,2]), loc3n,   .false., 0, 1)
+    call case_location('loc_3d_cells.szplt',    'x y z a', reshape([3,3,3, 3,1,3], [3,2]), loc3c,   .true.,  0, 0)
+    call case_location('loc_mesh_false.szplt',  'x y z',   reshape([3,3,3], [3,1]),       locmesh, .false., 0, 0)
+    call case_location('loc_mesh_true.szplt',   'x y z',   reshape([3,3,3], [3,1]),       locmesh, .true.,  0, 1)
+    ! last: before the change the reader read the values at the cells of this zone past the end of TecIO's buffer
+    call case_location('loc_2d_in_zone.szplt',  'x y a b', reshape([4,3,1], [3,1]),       locin,   .false., 1, -1)
+    ! and a coordinate at the cells, which the reader put in vars(0,...)
+    call case_location('loc_3d_zcell.szplt',    'x y z a', reshape([3,3,3], [3,1]),       loczc,   .false., 1, -1)
+  end subroutine variable_location
+
+  ! Value of variable v at node or cell (i, j, k) of zone z: coordinates for the first variables, then the solution variables.
+  pure real(8) function value_location(v, nd, z, i, j, k)
+    integer, intent(in) :: v, nd, z, i, j, k
+    if (v <= nd) then
+      select case(v)
+      case(1); value_location = i + 0.5d0
+      case(2); value_location = j + 10.0d0
+      case default; value_location = k + 100.0d0
+      end select
+    else
+      value_location = 1000.0d0*v + 100*z + i + 10*j + 20*k + 0.25d0
+    endif
+  end function value_location
+
+  ! Write a .szplt file with write_szplt: zone z has dims(:,z) nodes, variable v of zone z is at the nodes when loc(v,z) is 1
+  ! and at the cells otherwise, with the values of value_location. The first nd variables are the coordinates.
+  subroutine write_szplt_location(fname, names, nd, dims, loc)
+    character(len=*), intent(in) :: fname, names
+    integer,          intent(in) :: nd, dims(:,:), loc(:,:)
+    integer, allocatable :: nval(:,:)
+    real(8), allocatable :: vals(:,:,:)
+    integer :: v, z, i, j, k, m, nv
+    nv = size(loc,1)
+    allocate(nval(nv,size(dims,2)), vals(maxval(product(dims,1)),nv,size(dims,2)))
+    vals = 0
+    do z = 1, size(dims,2)
+      do v = 1, nv
+        m = 0
+        if (loc(v,z) == 1) then
+          do k = 0, dims(3,z)-1; do j = 0, dims(2,z)-1; do i = 0, dims(1,z)-1
+            m = m + 1; vals(m,v,z) = value_location(v, nd, z, i, j, k)
+          enddo; enddo; enddo
+        else
+          do k = 1, max(dims(3,z)-1,1); do j = 1, max(dims(2,z)-1,1); do i = 1, max(dims(1,z)-1,1)
+            m = m + 1; vals(m,v,z) = value_location(v, nd, z, i, j, k)
+          enddo; enddo; enddo
+        endif
+        nval(v,z) = m
+      enddo
+    enddo
+    call write_szplt(fname, names, dims, loc, nval, vals)
+  end subroutine write_szplt_location
+
+  ! Write the file, read it with the ORION reader with orion%tec%node set to node0 first, and check the return value (expected
+  ! err0) and orion%tec%node (expected 1 true, 0 false, -1 not checked). A file with solution variables at the nodes is written
+  ! again as read, and the new file is checked with the TecIO reader.
+  subroutine case_location(fname, names, dims, loc, node0, err0, node1)
+    character(len=*), intent(in) :: fname, names
+    integer,          intent(in) :: dims(:,:), loc(:,:), err0, node1
+    logical,          intent(in) :: node0
+    type(orion_data) :: d
+    integer :: nd, err
+    nd = merge(3, 2, index(names, 'z') > 0)
+    call write_szplt_location(fname, names, nd, dims, loc)
+    d%tec%node = node0
+    d%tec%format = 'binary'
+    err = tec_read_structured_multiblock(orion=d, filename=fname)
+    write(*,'(A,I0,A,L1)') fname//': return value ', err, ', orion%tec%node ', d%tec%node
+    call check((err == 0) .eqv. (err0 == 0), fname//': return value')
+    if (err /= 0 .or. node1 < 0) return
+    call check(d%tec%node .eqv. (node1 == 1), fname//': orion%tec%node')
+    if (node1 == 1 .and. size(loc,1) > nd) call write_again(fname, d, nd, dims)
+  end subroutine case_location
+
+  ! Write the field read from fname again as it is, to 'again_'//fname, and check that file with the TecIO reader: every
+  ! solution variable at the nodes, with the values written in fname.
+  subroutine write_again(fname, d, nd, dims)
+    character(len=*), intent(in) :: fname
+    type(orion_data), intent(in) :: d
+    integer,          intent(in) :: nd, dims(:,:)
+    type(c_ptr) :: h
+    integer(c_int32_t) :: e, nv, z, v, l
+    integer(c_int64_t) :: n
+    real(c_double), allocatable :: x(:)
+    real(8), allocatable :: expected(:)
+    integer :: err, i, j, k, m
+    character(len=12) :: names
+    names = merge('x y z a     ', 'x y a b     ', nd == 3)
+    err = tec_write_structured_multiblock(orion=d, varnames=trim(names(2*nd+1:)), filename='again_'//fname)
+    call check(err == 0, 'again_'//fname//': written without error')
+    h = c_null_ptr
+    e = tecFileReaderOpen('again_'//fname//c_null_char, h)
+    call check(e == 0, 'again_'//fname//': opened by the TecIO reader')
+    if (e /= 0) return
+    e = tecDataSetGetNumVars(h, nv)
+    do z = 1, size(dims,2)
+      do v = int(nd,c_int32_t)+1, nv
+        e = tecZoneVarGetValueLocation(h, z, v, l)
+        call check(e == 0 .and. l == 1, 'again_'//fname//': solution variable at the nodes')
+        e = tecZoneVarGetNumValues(h, z, v, n)
+        call check(e == 0 .and. n == product(dims(:,z)), 'again_'//fname//': one value per node')
+        if (n /= product(dims(:,z))) cycle
+        allocate(x(n), expected(n)); m = 0
+        do k = 0, dims(3,z)-1; do j = 0, dims(2,z)-1; do i = 0, dims(1,z)-1
+          m = m + 1; expected(m) = value_location(int(v), nd, int(z), i, j, k)
+        enddo; enddo; enddo
+        e = tecZoneVarGetDoubleValues(h, z, v, 1_c_int64_t, n, x)
+        call check(e == 0 .and. all(x == expected), 'again_'//fname//': values of the file read')
+        deallocate(x, expected)
+      enddo
+    enddo
+    e = tecFileReaderClose(h)
+  end subroutine write_again
+
+  ! Zones whose solution variables are at different locations. ORION holds one location for all
+  ! solution variables of a block: each block takes the location of its zone, vars from 0 at the
+  ! nodes and from 1 at the cells, so the zones of a file may differ; orion%tec%node, which tells one
+  ! location for a whole field, is then left as it is. Files written with the TecIO calls that the
+  ! ORION writer uses, of two volume zones of 3 x 3 x 3 nodes (x y z a): a at the nodes in the first
+  ! zone and at the cells in the second, and the other way round; each read with orion%tec%node set
+  ! to false first and to true first. For each: the return value, orion%tec%node as it was, and for
+  ! each zone the bounds of its variables and every value of a. Every value is an integer or a
+  ! quarter.
+  ! Defect: none; the checks state that a file whose zones differ in location is read with each zone
+  ! at its own location, as before: only a zone that holds both locations cannot be held.
+  ! Basis: Tecplot 360 EX 2023 R1 Data Format Guide, section 4-3.2, VARLOCATION (p. 124): "Each
+  ! variable in each zone in a data file may be located at the nodes or the cell-centers"; ORION
+  ! holds one location for all the solution variables of a block.
+  subroutine zone_locations()
+    integer :: loc(4,2), f, s
+    character(len=40) :: fname
+    logical :: node0
+    do f = 1, 2
+      loc = 1
+      loc(4, f) = 0
+      write(fname,'(A,I0,A)') 'zones_loc_', f, '.szplt'
+      call write_szplt_location(trim(fname), 'x y z a', 3, reshape([3,3,3, 3,3,3], [3,2]), loc)
+      do s = 1, 2
+        node0 = (s == 2)
+        call read_zones(trim(fname), loc, node0)
+      enddo
+    enddo
+  end subroutine zone_locations
+
+  ! Read a file of zone_locations with orion%tec%node set to node0 first, and check it.
+  subroutine read_zones(fname, loc, node0)
+    character(len=*), intent(in) :: fname
+    integer,          intent(in) :: loc(:,:)
+    logical,          intent(in) :: node0
+    type(orion_data) :: d
+    real(8), allocatable :: expected(:)
+    character(len=80) :: what
+    integer :: err, z, i, j, k, m, lo
+    d%tec%node = node0
+    d%tec%format = 'binary'
+    err = tec_read_structured_multiblock(orion=d, filename=fname)
+    write(what,'(A,L1)') fname//', orion%tec%node first ', node0
+    write(*,'(A,I0)') trim(what)//': return value ', err
+    call check(err == 0, trim(what)//': read (return value 0)')
+    if (err /= 0) return
+    call check(d%tec%node .eqv. node0, trim(what)//': orion%tec%node as it was')
+    do z = 1, 2
+      lo = merge(0, 1, loc(4,z) == 1)
+      call check(all(lbound(d%block(z)%vars) == [1, lo, lo, lo]) .and. all(ubound(d%block(z)%vars) == [1, 2, 2, 2]), &
+                 trim(what)//': bounds of the variables of zone '//achar(48+z))
+      if (any(lbound(d%block(z)%vars) /= [1, lo, lo, lo])) cycle
+      allocate(expected((3-lo)**3)); m = 0
+      do k = lo, 2; do j = lo, 2; do i = lo, 2
+        m = m + 1; expected(m) = value_location(4, 3, z, i, j, k)
+      enddo; enddo; enddo
+      call check(all(reshape(d%block(z)%vars(1,:,:,:), [size(expected)]) == expected), &
+                 trim(what)//': values of a in zone '//achar(48+z))
+      deallocate(expected)
+    enddo
+  end subroutine read_zones
 
   ! The number of names in names, separated by blanks.
   pure integer function count_names(names)

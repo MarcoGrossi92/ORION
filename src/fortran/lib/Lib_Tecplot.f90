@@ -575,6 +575,10 @@ contains
   !> A file whose first zone has one node plane (K = 1) is read with two coordinates (x, y),
   !> unless its header declares a third one: the first three variables are named x, y, z
   !> and z is nodal in every zone (a slice of a 3-D field), read with three coordinates.
+  !> The coordinates are at the nodes and the solution variables all at the nodes or all at the
+  !> cells (orion%tec%node): a file with a coordinate at the cells, or with solution variables
+  !> at the nodes and at the cells, in a zone or between zones, is refused (return value 1, with
+  !> a message).
   function tec_read_ascii(orion,filename) result(err)
     use, intrinsic :: iso_fortran_env, only : iostat_end
     implicit none
@@ -592,6 +596,7 @@ contains
     integer   :: start
     logical, allocatable :: zone_point(:), zone_node_arr(:)
     logical, allocatable :: zone_z_cell(:)   ! variable 3 listed as CELLCENTERED in the zone header
+    logical, allocatable :: zone_cc(:,:)     ! variable v listed as CELLCENTERED in the header of zone b
     logical   :: plane_xyz                   ! single node planes that carry x, y and z
     integer, allocatable :: Ni(:), Nj(:), Nk(:)
     ! A line and a zone header of any length (read with read_whole_line): the title of a zone is as long as its block name
@@ -695,10 +700,12 @@ contains
 
     allocate(Ni(Nblocks),Nj(Nblocks),Nk(Nblocks),zone_point(Nblocks),zone_node_arr(Nblocks))
     allocate(zone_z_cell(Nblocks))
+    allocate(zone_cc(size(orion%varnames),Nblocks))
     Ni = 0; Nj = 0; Nk = 1
     zone_point = .false.
     zone_node_arr = .true.
     zone_z_cell = .false.
+    zone_cc = .false.
 
     rewind(tecunit)
     b = 0
@@ -731,6 +738,9 @@ contains
 
       call parse_zone_header(header,Ni(b),Nj(b),Nk(b),zone_point(b),zone_node_arr(b),solutiontime,strandid)
       zone_z_cell(b) = var_cellcentered(upper_case(header),3)
+      do s = 1, size(orion%varnames)
+        zone_cc(s,b) = var_cellcentered(upper_case(header),s)
+      enddo
       if (Ni(b)<=0 .or. Nj(b)<=0 .or. Nk(b)<=0) then
         write(stderr,'(/,A)') 'TECPLOT ASCII READ ERROR: invalid zone dimensions.'
         write(stderr,'(A,I0)') 'Zone : ', b
@@ -755,23 +765,6 @@ contains
 
     orion%solutiontime = solutiontime
     orion%strandid = strandid
-
-    ! All existing ORION structured storage assumes the same centering for all
-    ! non-coordinate variables. Keep that model, but derive it from the zone headers.
-    ! The current ORION structured representation has one common centering for
-    ! all solution variables, so reject files mixing centering between zones.
-    if (any(zone_node_arr .neqv. zone_node_arr(1))) then
-      err = 1
-      close(tecunit)
-      return
-    endif
-    zone_node = zone_node_arr(1)
-    orion%tec%node = zone_node
-    if (orion%tec%node) then
-      start = 0
-    else
-      start = 1
-    endif
 
     ndir = 3
     if (Nk(1)==1) ndir = 2
@@ -809,10 +802,48 @@ contains
     nvar = size(orion%varnames) - ndir
     if (nvar==0) meshonly = .true.
 
+    ! ORION holds the coordinates at the nodes and one location for all solution variables of a file (orion%tec%node): at the
+    ! nodes when the zone headers list no variable as CELLCENTERED, at the cells otherwise. A file with a coordinate at the
+    ! cells, or with solution variables at the nodes and at the cells, in a zone or between zones, cannot be held and is
+    ! refused with a message: a zone of both was read as if every solution variable were at the cells, its values shifted.
+    do b = 1, Nblocks
+      if (any(zone_cc(1:ndir,b))) then
+        write(stderr,'(/,A)') 'TECPLOT ASCII READ ERROR: a coordinate at the cells; ORION reads the coordinates at the nodes.'
+        write(stderr,'(A,I0)') 'Zone : ', b
+        err = 1
+        close(tecunit)
+        return
+      endif
+      if (any(zone_cc(ndir+1:,b)) .and. .not.all(zone_cc(ndir+1:,b))) then
+        write(stderr,'(/,A)') 'TECPLOT ASCII READ ERROR: solution variables at the nodes and at the cells in one zone; '// &
+          'ORION reads files whose solution variables are all at the nodes or all at the cells.'
+        write(stderr,'(A,I0)') 'Zone : ', b
+        err = 1
+        close(tecunit)
+        return
+      endif
+    enddo
+    if (any(zone_node_arr .neqv. zone_node_arr(1))) then
+      write(stderr,'(/,A)') 'TECPLOT ASCII READ ERROR: solution variables at the nodes in some zones and at the cells in '// &
+        'others; ORION reads files whose solution variables are all at the nodes or all at the cells.'
+      err = 1
+      close(tecunit)
+      return
+    endif
+    zone_node = zone_node_arr(1)
+    orion%tec%node = zone_node
+    if (orion%tec%node) then
+      start = 0
+    else
+      start = 1
+    endif
+
     ! POINT packing with mixed nodal/cell-centered variables has no single common
     ! point count for all variables. The current ORION representation assumes a
     ! common storage location, so require nodal data for POINT zones.
     if (any(zone_point) .and. .not.orion%tec%node) then
+      write(stderr,'(/,A)') 'TECPLOT ASCII READ ERROR: variables at the cells in POINT data packing; cell-centered '// &
+        'variables are written in BLOCK packing.'
       err = 1
       close(tecunit)
       return
@@ -1778,6 +1809,11 @@ contains
   !> of the ASCII reader, the first three variables named x, y, z and z nodal in every zone
   !> (single node planes or lines of a 3-D field, such as a slice); otherwise two when a zone
   !> has more than one node line in J; otherwise one (a file of lines).
+  !> The coordinates are at the nodes, and the solution variables of a zone all at the nodes or all at the cells: a zone with a
+  !> coordinate at the cells, or with solution variables at the nodes and at the cells, is refused (return value 1, with a
+  !> message). Each block takes the location of its zone (vars from 0 at the nodes, from 1 at the cells), so the zones of a file
+  !> may differ. orion%tec%node is set when the solution variables of every zone are at the nodes, cleared when those of every
+  !> zone are at the cells, and left as it is when the zones differ or the file has no solution variables.
   !> \param[inout] orion ORION data structure to fill with data
   !> \param[in] filename Input file name (.szplt)
   !> \param[in] zone_mask Optional per-zone selector, indexed by zone number.
@@ -1824,6 +1860,9 @@ contains
     integer(c_int64_t) :: layer, first     ! values read by one call (all, or one row of cells in I) and the first of them
     integer(c_int64_t) :: iMax, jMax, kMax, ndir
     integer(c_int64_t) :: ndir_file         ! number of coordinates of the file, the same for every zone
+    integer :: nnodal, ncellc, ncoordc      ! solution variables at the nodes and at the cells, coordinates at the cells, of a zone
+    integer :: nzonen, nzonec               ! zones with their solution variables at the nodes, at the cells
+    integer(c_int32_t) :: ispassive         ! a variable without values in a zone
     integer(c_int32_t), allocatable :: varTypes(:)
     integer(c_int32_t), allocatable :: passiveVarList(:)
     integer(c_int32_t), allocatable :: valueLocation(:)
@@ -1922,6 +1961,48 @@ contains
       if (jMax > 1 .and. ndir_file < 2) ndir_file = 2
     enddo
     if (plane_xyz) ndir_file = 3
+
+    ! ORION holds the coordinates at the nodes, and one location for all solution variables of a block: a zone with a coordinate
+    ! at the cells, or with solution variables at the nodes and at the cells, is refused with a message (passive variables,
+    ! which hold no values, do not count). Each block takes the location of its zone, so the zones of a file may differ;
+    ! orion%tec%node is set when every zone has its solution variables at the nodes, cleared when every zone has them at the
+    ! cells, and left as it is when the zones differ or the file has no solution variables.
+    nzonen = 0; nzonec = 0
+    do inputZone = 1, numZones
+      nnodal = 0; ncellc = 0; ncoordc = 0
+      do var = 1, numVars
+        i = tecZoneVarIsPassive(inputFileHandle, inputZone, var, ispassive)
+        if (ispassive /= 0) cycle
+        i = tecZoneVarGetValueLocation(inputFileHandle, inputZone, var, zloc)
+        if (var <= ndir_file) then
+          if (zloc /= 1) ncoordc = ncoordc + 1
+        elseif (zloc == 1) then
+          nnodal = nnodal + 1
+        else
+          ncellc = ncellc + 1
+        endif
+      enddo
+      if (ncoordc > 0) then
+        write(stderr,'(A,I0,A)') 'TECPLOT SZPLT READ ERROR: a coordinate at the cells in zone ', inputZone, &
+          '; ORION reads the coordinates at the nodes.'
+        write(stderr,'(A)') 'File: '//trim(filename)
+        i = tecFileReaderClose(inputFileHandle)
+        i = 1
+        return
+      endif
+      if (nnodal > 0 .and. ncellc > 0) then
+        write(stderr,'(A,I0,A)') 'TECPLOT SZPLT READ ERROR: solution variables at the nodes and at the cells in zone ', &
+          inputZone, '; ORION reads zones whose solution variables are all at the nodes or all at the cells.'
+        write(stderr,'(A)') 'File: '//trim(filename)
+        i = tecFileReaderClose(inputFileHandle)
+        i = 1
+        return
+      endif
+      if (nnodal > 0) nzonen = nzonen + 1
+      if (ncellc > 0) nzonec = nzonec + 1
+    enddo
+    if (nzonen > 0 .and. nzonec == 0) orion%tec%node = .true.
+    if (nzonec > 0 .and. nzonen == 0) orion%tec%node = .false.
 
     ! A caller doing the two-pass dims-then-data read arrives here a second
     ! time with %block already allocated from the header pass.
