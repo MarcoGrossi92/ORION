@@ -213,7 +213,8 @@ end program read_vtk_structured
   when the `.vtm` file cannot be opened, ends before the end of its block list or lists no block file, and when a
   block file cannot be opened or its points or the values of a variable cannot be read; what it has read before the
   error is left in `orion`. It closes each block file once read, and the file of a block it stops on, so the number
-  of blocks of a field is not bounded by the number of files a process can keep open.
+  of blocks of a field is not bounded by the number of files a process can keep open. A read into an object that already
+  holds blocks, from an earlier read or from one that failed, replaces them.
 - **Solution time.** `solutiontime` is 0 in a new `orion_data`. The Tecplot ASCII reader stores the
   `SOLUTIONTIME` of the file, or -10 when its zone headers give none. The `.szplt` reader does not store the
   zone time of the file and leaves `solutiontime` as it was (0 for a new object); so does the PLOT3D reader,

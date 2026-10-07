@@ -11003,7 +11003,11 @@ contains
     enddo
     if (err == 0 .and. Nblocks == 0) err = 1
     if (err /= 0) exit
-    if (pass==1) allocate(orion%block(1:Nblocks))
+    if (pass==1) then
+      ! The blocks of an earlier read into the same object, also of one that failed, give way to those of the file
+      if (allocated(orion%block)) deallocate(orion%block)
+      allocate(orion%block(1:Nblocks))
+    endif
   enddo
   close(nu)
   if (err /= 0) return

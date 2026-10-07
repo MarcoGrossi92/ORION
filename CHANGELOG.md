@@ -178,6 +178,9 @@ Changes on `main` since `v1.6.0`.
   128 characters of the name of a block, path included, now gives the return
   value 1 instead of a name cut short. `vtk_write_structured_multiblock` lists
   a path of any length: it cut the path of the block files at 256 characters.
+- `vtk_read_structured_multiblock` reads into an `orion_data` that already
+  holds blocks, such as one left by a read that failed, and replaces them. It
+  stopped the program on the allocation of the blocks.
 
 ## [1.7.0] - 2026-09-29
 
