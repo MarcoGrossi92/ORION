@@ -2,7 +2,7 @@ file(GLOB_RECURSE TESTS CONFIGURE_DEPENDS *.f90 *.F90)
 
 # Test programs that need TecIO are built only when ORION is built with TecIO.
 if(NOT USE_TECIO)
-  list(FILTER TESTS EXCLUDE REGEX "/(tecplot_read_szplt_plane_xyz|tecplot_read_szplt_long_header)[.]f90$")
+  list(FILTER TESTS EXCLUDE REGEX "/(tecplot_read_szplt_plane_xyz|tecplot_read_szplt_long_header|tecplot_surface_blocks)[.]f90$")
 endif()
 
 set(TESTS ${TESTS} PARENT_SCOPE)

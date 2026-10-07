@@ -147,6 +147,21 @@ Changes on `main` since `v1.6.0`.
   number of coordinates than 1, 2 or 3 is refused (return value 1, nothing
   written). Meshes of two and three coordinates are written and read as
   before.
+- `tec_write_structured_multiblock` writes surface blocks, with one plane of
+  nodes in a direction (`Ni`, `Nj` or `Nk` = 0), and lines of nodes. In a
+  binary file (`.plt`, `.szplt`) the cell values of a block with one plane of
+  nodes in i or j were counted as 0: the values were copied past the end of a
+  buffer of that size (an out-of-bounds error in a build with bound checks,
+  memory overwritten in a release build) and TecIO was handed none. Variables
+  at the nodes (`orion%tec%node`) of a block with one plane of nodes in any
+  direction were taken over two planes there, past the end of the variables:
+  an ASCII file got more values than its zone header declares; in a binary
+  file they were copied past the end of its buffer, and for a plane in i or
+  j values from past the end of the variables were written. A cell-centered
+  variable now has one layer of cells where a direction has one plane of
+  nodes, and a nodal one a value per node, as an ordered zone stores them.
+  Blocks with at least one cell in each direction, two-dimensional ones with
+  at least one cell in i and j, are written as before.
 
 ## [1.7.0] - 2026-09-29
 
