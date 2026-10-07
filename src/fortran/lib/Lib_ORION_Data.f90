@@ -30,7 +30,8 @@ module Lib_ORION_data
 
   ! Structure representing a computational block
   type :: obj_block
-    character(len=128) :: name         ! Block name
+    character(len=4096) :: name        ! Block name. The VTK multi-block reader stores in it the block file listed in the .vtm,
+                                       ! path included, so it holds the longest path that Linux accepts (PATH_MAX, 4096)
     integer :: Ni, Nj, Nk              ! Block dimensions
     real(R8P), dimension(:,:,:,:), allocatable :: mesh  ! Mesh coordinates
     real(R8P), dimension(:,:,:,:), allocatable :: vars  ! Solution variables

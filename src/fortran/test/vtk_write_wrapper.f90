@@ -660,17 +660,19 @@
   !< vtk_read_structured_multiblock, given the directory of the .vtm as vtspath, reads the field back as written. The
   !< subdirectory is made with execute_command_line('mkdir ...'). Paths of any length: the function returns an absolute path2
   !< of 301 characters whole; a field written with an absolute vtspath of 125 characters, a directory made under the current
-  !< one (named from the output of pwd), is listed with DataSet lines of more than 128 characters and files of 128 characters,
-  !< as many as the name of a block holds, and read back as written; a field whose block files are listed with 129 characters
-  !< (path included) is written, and the reader returns 1.
+  !< one (named from the output of pwd), is listed with DataSet lines of more than 128 characters and read back as written; so
+  !< is a field whose block files are under a path of 200 characters (a subdirectory with a name of 199); a .vtm file that
+  !< lists a block file of 4097 characters, more than the name of a block holds (4096), gives the return value 1.
   !< Defects: simplified_relative_path used last_slash, which it set only when the paths share a prefix, so for paths without a
   !< common prefix the .vtm listed what the memory held; the writer kept the prefix in a string as long as vtspath, so a longer
   !< one was cut ('../' became ''); the reader kept each line of the .vtm in 128 characters and the function its result in 256,
-  !< so a long path was cut.
+  !< so a long path was cut; the name of a block, where the reader keeps the listed file, held 128 characters, so a field under
+  !< a path of more than about 120 characters was not read back.
   !< Basis: Fortran 2018, 9.2 (p. 123) and 19.6.4 (p. 512): a variable that is not initially defined is undefined, and a
   !< reference to it is not permitted; 13.7.4 (p. 269) and 10.2.1.3 (p. 162): the A edit descriptor without a width reads as
   !< many characters as the variable holds, and an assignment to a shorter variable truncates; the reader of VTK 9.7.1 takes
-  !< the file of a DataSet relative to the directory of the .vtm file (vtkXMLCompositeDataReader::GetFilePath).
+  !< the file of a DataSet relative to the directory of the .vtm file (vtkXMLCompositeDataReader::GetFilePath); Linux PATH_MAX
+  !< is 4096 (include/uapi/linux/limits.h).
   !---------------------------------------------------------------------------------------------------------------------------------
   integer :: exitstat, cmdstat, u, n
   character(len=4096)           :: cwd
@@ -728,9 +730,10 @@
   else
     write(*,'(A)') '  not run: the current directory is too long for an absolute vtspath of 125 characters'
   endif
-  ! Block files listed with 129 characters, one more than the name of a block holds
-  call write_and_read_paths('relpath_'//repeat('n', 117)//'_', 'fld4_relpath', '', 'listed files longer than a block name', &
-                      too_long=.true.)
+  ! Block files under a path of 200 characters, a subdirectory with a name of 199
+  call execute_command_line('mkdir relpath_'//repeat('m', 191), exitstat=exitstat, cmdstat=cmdstat)  ! it may already be there
+  call write_and_read_paths('relpath_'//repeat('m', 191)//'/', 'fld4_relpath', '', 'block files under a path of 200 characters')
+  call name_too_long
   end subroutine relative_paths
 
   subroutine case(path1, path2, expected, what)
@@ -758,14 +761,13 @@
   write(*,'(A)') what//': returns "'//r//'"'
   end subroutine returns
 
-  subroutine write_and_read_paths(vtspath, vtmpath, vtmdir, what, too_long)
+  subroutine write_and_read_paths(vtspath, vtmpath, vtmdir, what)
   !---------------------------------------------------------------------------------------------------------------------------------
   !< Write a field of two blocks with the block files vtspath//<block>.vts and the .vtm file vtmpath.vtm, whose directory is
   !< vtmdir; check that the .vtm lists the block files as they are on disk, seen from vtmdir, and read the field back, with
-  !< vtmdir as vtspath. With too_long, the listed files are longer than the name of a block: the reader must return 1.
+  !< vtmdir as vtspath.
   !---------------------------------------------------------------------------------------------------------------------------------
   character(len=*), intent(in)  :: vtspath, vtmpath, vtmdir, what
-  logical, intent(in), optional :: too_long
   type(orion_data)              :: w, r
   character(len=16)             :: varnames
   character(len=:), allocatable :: buf
@@ -807,10 +809,6 @@
   call check(nfiles == 2, what//': the .vtm lists two block files')
   r%vtk%format = 'ascii'
   err = vtk_read_structured_multiblock(orion=r, vtmpath=vtmpath, vtspath=vtmdir)
-  if (present(too_long)) then
-    call check(err == 1, what//': the reader returns 1')
-    return
-  endif
   call check(err == 0, what//': field read back without error')
   same = .false.
   if (err == 0 .and. allocated(r%block)) then
@@ -825,6 +823,30 @@
   endif
   call check(same, what//': field read back as written')
   end subroutine write_and_read_paths
+
+  subroutine name_too_long
+  !---------------------------------------------------------------------------------------------------------------------------------
+  !< A .vtm file that lists a block file of 4097 characters, more than the name of a block holds: the reader returns 1.
+  !---------------------------------------------------------------------------------------------------------------------------------
+  type(orion_data) :: r
+  integer          :: u
+  integer(I4P)     :: err
+  !---------------------------------------------------------------------------------------------------------------------------------
+
+  open(newunit=u, file='fld6_relpath.vtm', status='replace', action='write')
+  write(u,'(A)') '<?xml version="1.0"?>'
+  write(u,'(A)') '<VTKFile type="vtkMultiBlockDataSet" version="1.0" byte_order="LittleEndian">'
+  write(u,'(A)') '  <vtkMultiBlockDataSet>'
+  write(u,'(A)') '    <Block index="0">'
+  write(u,'(A)') '      <DataSet index="0" file="'//repeat('g', 4097)//'.vts"/>'
+  write(u,'(A)') '    </Block>'
+  write(u,'(A)') '  </vtkMultiBlockDataSet>'
+  write(u,'(A)') '</VTKFile>'
+  close(u)
+  r%vtk%format = 'ascii'
+  err = vtk_read_structured_multiblock(orion=r, vtmpath='fld6_relpath', vtspath='')
+  call check(err == 1, 'a listed block file of 4097 characters: the reader returns 1')
+  end subroutine name_too_long
 
   subroutine dataset_indices
   !---------------------------------------------------------------------------------------------------------------------------------

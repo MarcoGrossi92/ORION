@@ -31,6 +31,10 @@ Changes on `main` since `v1.6.0`.
 
 ### Changed
 
+- The name of a block, `orion%block(b)%name`, holds 4096 characters, the
+  longest path that Linux accepts, instead of 128: the VTK reader stores in it
+  the block file listed in the `.vtm` file, path included. Programs that use
+  ORION are compiled again; each block takes 3968 bytes more.
 - `vtk_read_structured_multiblock` returns variables at the nodes (point data)
   in `vars(:,0:Ni,0:Nj,0:Nk)` with `Ni`, `Nj` and `Nk` the cells, as the
   Tecplot readers return them, and the node plane of a two-dimensional block
