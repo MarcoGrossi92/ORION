@@ -66,7 +66,7 @@ def read_variables(file_path):
     # reader: see _split_variable_names.
     variables_match = re.search(r'VARIABLES\s*=[ \t]*', head_text, re.IGNORECASE)
     if variables_match:
-        list_end = re.compile(r'^[ \t]*(?:ZONE|[-+]?\.?\d)', re.MULTILINE | re.IGNORECASE)
+        list_end = re.compile(r'^[ \t]*(?:ZONE\b|[-+]?\.?\d)', re.MULTILINE | re.IGNORECASE)
         end_match = list_end.search(head_text, variables_match.end())
         end = end_match.start() if end_match else len(head_text)
         variables = _split_variable_names(head_text[variables_match.end():end])

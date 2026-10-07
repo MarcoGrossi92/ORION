@@ -2,7 +2,8 @@
 !< The reader takes each name on its own: in double quotes, in single quotes or bare, mixed in one
 !< list, separated by blanks, tabs or commas; a name in quotes may hold blanks and commas. A quote
 !< closes the name, so two quoted names with nothing between them ("a""b") are two names. The list
-!< may continue over several lines, up to the first ZONE line, and the keyword is read in any case.
+!< may continue over several lines, up to the first ZONE record (the keyword as a whole word: a name
+!< such as zone_velocity is a name), and the keyword is read in any case.
 !< A quote that is never closed is refused.
 !< Stops with a non-zero code when a check fails.
 program tecplot_read_variable_names
@@ -25,6 +26,9 @@ program tecplot_read_variable_names
                 ' variables = "x", y'//tab//"'z' "//'"a b" b', [character(len=8) :: 'x', 'y', 'z', 'a b', 'b'])
   call names_ok('a quote of the other kind inside a name', ' VARIABLES = x y z "it'//"'"//'s"', &
                 [character(len=8) :: 'x', 'y', 'z', "it's"])
+  call names_ok('names that begin with zone in a continuation line', &
+                ' VARIABLES = x y z'//nl//'zone_velocity Zone2 pressure', &
+                [character(len=16) :: 'x', 'y', 'z', 'zone_velocity', 'Zone2', 'pressure'])
   call names_unclosed('a quote never closed', ' VARIABLES = x y z "a b')
   if (nfail > 0) then
     write(*,'(A,I0,A)') 'tecplot_read_variable_names: ', nfail, ' check(s) FAILED'

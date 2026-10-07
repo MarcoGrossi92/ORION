@@ -1,7 +1,7 @@
 """read_TEC reads back the Tecplot ASCII files that ORION writes.
 
 ctest runs this script (ORION.python_read_tec) in the test runtime directory,
-after ORION.tecplot_write has written tecfile.tec there. It reads seven forms
+after ORION.tecplot_write has written tecfile.tec there. It reads eight forms
 of header, the names being read as the Fortran reader reads them:
 
 1. tecfile.tec, written by the Fortran writer: names and zone titles without
@@ -17,7 +17,9 @@ of header, the names being read as the Fortran reader reads them:
    follows is not a list of names;
 6. names in double quotes, in single quotes and bare in the same list, with
    commas and tabs as separators and a quoted name that holds a blank;
-7. a quote that is never closed: read_TEC raises ValueError.
+7. a quote that is never closed: read_TEC raises ValueError;
+8. a continuation line of the list that begins with a name starting with "zone"
+   (zone_velocity): it is a name, not a zone record.
 
 Exit status 0 when every check passes, 1 otherwise.
 """
@@ -146,6 +148,11 @@ except ValueError:
     check(True, '')
 except Exception as error:
     check(False, '{}: read_TEC raised {} instead of ValueError'.format(path, type(error).__name__))
+
+# 8. A name that begins with "zone" on a continuation line is a name; the ZONE record ends the list.
+path = 'python_read_tec_zone_name.tec'
+write_ascii(path, ' VARIABLES = x y z\nzone_velocity Zone2\n', 'Block{}')
+compare(path, read(path), ['x', 'y', 'z', 'zone_velocity', 'Zone2'], xb, yb, zb, vb)
 
 if failures:
     print('read_TEC: {} of {} checks failed:'.format(len(failures), checks))

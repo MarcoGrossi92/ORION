@@ -918,11 +918,15 @@ contains
 
   contains
 
+    ! A zone record starts with the keyword ZONE as a whole word: a name that merely begins with
+    ! it (zone_velocity, in a continuation line of the VARIABLES list) is not one.
     logical function is_zone_header(text)
       character(len=*), intent(in) :: text
       character(len=len(text)) :: u
-      u = upper_case(text)
-      is_zone_header = (index(adjustl(u),'ZONE')==1)
+      u = adjustl(upper_case(text))
+      is_zone_header = (index(u,'ZONE')==1)
+      if (is_zone_header .and. len(u)>4) &
+        is_zone_header = .not.(scan(u(5:5),'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_')>0)
     endfunction is_zone_header
 
     logical function line_is_numeric_start(text)

@@ -40,6 +40,10 @@ Changes on `main` since `v1.6.0`.
   before 1.7.0 copied into the file) as the two names `a` and `b`; it took them
   for the one name `a"b`. A quote now always closes the name, so a name cannot
   hold the quote character that encloses it.
+- The Tecplot ASCII reader, and `read_TEC`, end the `VARIABLES` list at the
+  keyword `ZONE` as a whole word. A continuation line that began with a name
+  such as `zone_velocity` was taken for a zone record, and the names from it on
+  were lost.
 
 ## [1.7.0] - 2026-09-29
 

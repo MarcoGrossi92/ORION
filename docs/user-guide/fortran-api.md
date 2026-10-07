@@ -222,7 +222,8 @@ end program read_vtk_structured
   a buffer of 32768 characters, and the ASCII reader reads up to 32768 characters of header: the `VARIABLES`
   line, the lines before it and its continuation lines, joined. A longer list is cut without a message.
 - **Forms of the names.** The ASCII reader takes the names from the `VARIABLES` line and its continuation lines,
-  up to the first `ZONE` line. Each name may be in double quotes, in single quotes or bare, and the forms may
+  up to the first `ZONE` record: the keyword `ZONE` as a whole word, so a name that merely begins with it (such
+  as `zone_velocity`) is a name. Each name may be in double quotes, in single quotes or bare, and the forms may
   be mixed in one list; names are separated by blanks, tabs or commas, and a name in quotes may contain them.
   A quote closes the name, so `"a""b"` is the two names `a` and `b`. A quote that is never closed is an error,
   and so is a list with no name. The Python reader `read_TEC` reads the names in the same way, except that it
