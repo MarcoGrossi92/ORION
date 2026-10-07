@@ -279,7 +279,9 @@ contains
                               ni1=ni1,ni2=ni2,nj1=nj1,nj2=nj2,nk1=nk1,nk2=nk2, &
                               ci1=ci1,ci2=ci2,cj1=cj1,cj2=cj2,ck1=ck1,ck2=ck2)
       nnode = (ni2-ni1+1)*(nj2-nj1+1)*(nk2-nk1+1)
-      ncell = (ci2-ci1+1)*(cj2-cj1+1)*(ck2-ck1+1)
+      ! Cell data: a direction with one plane of nodes (a surface block, such as a face of a volume block) has one layer of
+      ! cells, as the variables are written below and as an ordered zone stores its cell-centered values
+      ncell = max(ci2-ci1+1,1)*max(cj2-cj1+1,1)*max(ck2-ck1+1,1)
       ! writing the block data
       select case(orion%tec%format)
       case('binary')
@@ -313,9 +315,12 @@ contains
         if (.not.meshonly) then
           start = 1
           if (orion%tec%node) start = 0
-          if (ni2==0) ni2 = 1
-          if (nj2==0) nj2 = 1
-          if (nk2==0) nk2 = 1
+          ! Cell data: one layer of cells where a direction has one plane of nodes. Data at the nodes keep that plane
+          if (.not.orion%tec%node) then
+            if (ni2==0) ni2 = 1
+            if (nj2==0) nj2 = 1
+            if (nk2==0) nk2 = 1
+          endif
           ! Force values if 2D
           if (ndir==2) then
             nk1 = 1-start; nk2 = 1
@@ -344,9 +349,12 @@ contains
         if (.not.meshonly) then
           start = 1
           if (orion%tec%node) start = 0
-          if (ni2==0) ni2 = 1
-          if (nj2==0) nj2 = 1
-          if (nk2==0) nk2 = 1
+          ! Cell data: one layer of cells where a direction has one plane of nodes. Data at the nodes keep that plane
+          if (.not.orion%tec%node) then
+            if (ni2==0) ni2 = 1
+            if (nj2==0) nj2 = 1
+            if (nk2==0) nk2 = 1
+          endif
           ! Force values if 2D
           if (ndir==2) then
             nk1 = 1-start; nk2 = 1

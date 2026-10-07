@@ -109,6 +109,10 @@ Changes on `main` since `v1.6.0`.
   `vtk_read_structured_multiblock` reads back as such; it left the size of such
   a block undefined. A mesh of another number of coordinates than 1, 2 or 3 is
   refused (return value 1).
+- `tec_write_structured_multiblock` writes surface blocks and lines of nodes,
+  their cell variables with one layer of cells where a direction has one plane
+  of nodes and their nodal variables with one value per node: values were
+  copied past the end of buffers and of the variables.
 
 ## [1.7.0] - 2026-09-29
 
