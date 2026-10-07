@@ -10776,6 +10776,7 @@ contains
   character(len=4)                  :: location
   character(len=len_trim(varnames)) :: varname(200)
   character(len=:), allocatable     :: newvtspath   ! prefix of the block files as the .vtm lists them, from its directory
+  character(len=:), allocatable     :: vtsfiles(:)  ! the block files as the .vtm lists them
   !---------------------------------------------------------------------------------------------------------------------------------
 
   !---------------------------------------------------------------------------------------------------------------------------------
@@ -10877,12 +10878,16 @@ contains
   enddo
 
   newvtspath = trim(simplified_relative_path(vtmpath,vtspath))
+  ! The block files are listed in one call, so that their DataSet elements take the indices 0 to nb-1 (one call per block gave
+  ! every block the index 0, and a VTK reader then keeps none of them)
+  allocate(character(len=len(newvtspath)+len(orion%block(1)%name)+4) :: vtsfiles(1:nb))
+  do b = 1, nb
+    vtsfiles(b) = trim(newvtspath)//trim(orion%block(b)%name)//'.vts'
+  enddo
 
   E_IO = VTM_INI_XML(trim(vtmpath)//'.vtm')
   E_IO = VTM_BLK_XML(block_action='open')
-  do b = 1, nb
-    E_IO = VTM_WRF_XML(flist=[(trim(newvtspath)//trim(orion%block(b)%name)//'.vts')])
-  enddo
+  E_IO = VTM_WRF_XML(flist=vtsfiles)
   E_IO = VTM_BLK_XML(block_action='close')
   E_IO = VTM_END_XML()
   !---------------------------------------------------------------------------------------------------------------------------------

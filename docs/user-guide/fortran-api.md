@@ -371,7 +371,8 @@ cells of a block from its extent and does not read the cell values of a surface 
 variables at the cells only: with `orion%vtk%node` set and variables in the blocks the writer returns 1 and writes nothing, and
 the reader returns 1 for a file whose variables are point data.
 
-The `.vtm` file lists each block file relative to the directory of the `.vtm` file, as VTK readers take it: the block files
+The `.vtm` file lists the block files as the `DataSet` elements of one block, with the indices 0 to nb-1 in the order of
+the blocks, each relative to the directory of the `.vtm` file, as VTK readers take it: the block files
 `vtspath//name//'.vts'` of the file `vtmpath//'.vtm'` are listed with the path that leads from the directory of `vtmpath` to
 `vtspath` (`vtspath = ''` and `vtmpath = 'out/field'` give `../name.vts`). `vtspath` and `vtmpath` are both relative to the
 same directory or both absolute; an absolute `vtspath` that shares no directory with `vtmpath` is listed as it is. An absolute

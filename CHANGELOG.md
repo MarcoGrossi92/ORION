@@ -129,6 +129,14 @@ Changes on `main` since `v1.6.0`.
   checks could stop on it. An absolute `vtspath` that shares no directory
   with `vtmpath` is listed as it is. Paths with a common prefix are listed as
   before.
+- `vtk_write_structured_multiblock` gives the `DataSet` elements of the `.vtm`
+  file the indices 0 to nb-1, in the order of the blocks. It listed every
+  block with `index="0"`, and a reader places each `DataSet` at its index:
+  the reader of VTK 9.7.1 (`vtkXMLMultiBlockDataReader`) gave no block of a
+  field of two or more blocks. The `.vts` files, and the `.vtm` files of
+  fields of one block, are written as before; `vtk_read_structured_multiblock`
+  reads the files of a `.vtm` in the order they are listed, with any index,
+  as before.
 
 ## [1.7.0] - 2026-09-29
 
