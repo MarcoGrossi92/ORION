@@ -13,8 +13,9 @@ contains
   pure function extract_path(inpath) result(outpath)
     implicit none
     integer :: index_start
-    character(len=256), intent(in)    :: inpath
-    character(len=256)                :: outpath
+    ! Paths of any length
+    character(len=*), intent(in)      :: inpath
+    character(len=:), allocatable     :: outpath
 
     ! Find the last occurrence of '/' in the string
     index_start = len_trim(inpath)
@@ -106,8 +107,9 @@ contains
     character(len=*), intent(in)    :: file
     character(len=*), intent(inout) :: varname_scalar
     integer :: E_IO
-    character(32)  :: name
-    character(256) :: path
+    ! Of any length: the output path without its extension, and its directory
+    character(len=:), allocatable :: name
+    character(len=:), allocatable :: path
 
     name = file(1:len_trim(file)-4)
     path = extract_path(file)

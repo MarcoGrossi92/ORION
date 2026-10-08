@@ -206,6 +206,14 @@ Changes on `main` since `v1.6.0`.
   null character (`char(0)`). Zone headers are now as long as they need to be,
   and a block name read from a `.szplt` file is the zone title as written.
   TecIO keeps the first 128 characters of a zone title in a `.szplt` file.
+- The converter writes the `.vtm` file at the path given with `--out-file`,
+  whatever its length. It kept the path without its extension in 32
+  characters, so the `.vtm` file of a longer path went, without a message, to
+  the first 32 characters of the path with `.vtm` added, possibly in another
+  directory. It took the directory of the path with `extract_path`, whose
+  argument had 256 characters: a shorter path may not be passed to it, and a
+  build with bound checks stopped on every `.vtm` output; a longer one was
+  cut.
 
 ## [1.7.0] - 2026-09-29
 
