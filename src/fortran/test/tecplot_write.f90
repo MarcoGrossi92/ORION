@@ -32,6 +32,7 @@ program tecplot_write_multiblock
   call surface_blocks
 #endif
   call variable_bounds
+  call ascii_title_round_trip
   write(*,'(A,I0,A,I0,A)') 'tecplot_write: ', checks, ' checks, ', failures, ' failed'
   if (failures > 0) stop 1
 
@@ -646,4 +647,50 @@ program tecplot_write_multiblock
   call check(same, 'bounds_written_again.szplt: the values written to VTK, one per node')
 #endif
   end subroutine read_and_write_again
+  subroutine ascii_title_round_trip
+  !---------------------------------------------------------------------------------------------------------------------------------
+  !< A Tecplot ASCII file read and written again keeps its zone titles. A two-dimensional file of one zone of 4 x 3 nodes titled
+  !< Z1, with the variables at the nodes, written by hand, is read with the Tecplot ASCII reader (the block named Z1, the
+  !< variables in vars(:,0:3,0:2,0:0)) and written again with tec_write_structured_multiblock: the zone header holds T = Z1, and
+  !< I, J and K and the values are those written by hand.
+  !< Defect: the ASCII reader left the names of the blocks undefined, so a file read and written again got zone titles made of
+  !< what the memory held, and a zone header that could not be read back.
+  !< Basis: Tecplot 360 EX 2023 R1 Data Format Guide, section 4-3.2 (p. 123): T is the zone title.
+  !---------------------------------------------------------------------------------------------------------------------------------
+  type(orion_data)   :: orion
+  real(R8P)          :: x(3), c(2)
+  character(len=256) :: line
+  integer            :: u, v, i, j, err, ios
+  !---------------------------------------------------------------------------------------------------------------------------------
+
+  open(newunit=u, file='bounds_by_hand.tec', status='replace', action='write')
+  write(u,'(A)') 'VARIABLES = x y a b'
+  write(u,'(A)') 'ZONE T = Z1, I=4, J=3, K=1, DATAPACKING=BLOCK'
+  do v = 1, 4
+    do j = 0, 2; do i = 0, 3
+      x = node_bounds(i, j, 0); c = value_bounds(i, j, 0)
+      if (v <= 2) then
+        write(u,'(ES25.17)') x(v)
+      else
+        write(u,'(ES25.17)') c(v-2)
+      endif
+    enddo; enddo
+  enddo
+  close(u)
+  err = tec_read_structured_multiblock(orion=orion, filename='bounds_by_hand.tec')
+  call check(err == 0, 'bounds_by_hand.tec: read without error')
+  if (err /= 0) return
+  call check(trim(orion%block(1)%name) == 'Z1', 'bounds_by_hand.tec: the block named Z1, the title of its zone')
+  call check(orion%tec%node .and. size(orion%block(1)%mesh,1) == 2, 'bounds_by_hand.tec: two coordinates, variables at the nodes')
+  orion%tec%format = 'ascii'
+  err = tec_write_structured_multiblock(orion=orion, varnames='a b', filename='bounds_written_again_ascii.tec')
+  call check(err == 0, 'bounds_written_again_ascii.tec: written without error')
+  line = ''
+  open(newunit=u, file='bounds_written_again_ascii.tec', status='old', action='read')
+  read(u,'(A)',iostat=ios) line
+  read(u,'(A)',iostat=ios) line
+  close(u)
+  call check(index(line, 'T = Z1,') > 0, 'bounds_written_again_ascii.tec: the zone title Z1')
+  call read_ascii_bounds('bounds_written_again_ascii.tec', 2, [3, 2, 0], .true.)
+  end subroutine ascii_title_round_trip
 end program tecplot_write_multiblock

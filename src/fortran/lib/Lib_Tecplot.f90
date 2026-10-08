@@ -875,6 +875,8 @@ contains
       Imax = Ni(b)
       Jmax = Nj(b)
       Kmax = Nk(b)
+      ! The block takes the title of its zone as its name, as in tec_read_szplt
+      orion%block(b)%name = zone_title(header)
 
       allocate(orion%block(b)%mesh(1:ndir,0:Imax-1,0:Jmax-1,0:Kmax-1))
       if (.not.meshonly) then
@@ -1039,41 +1041,6 @@ contains
       if (.not.found) strand_ = -1
     endsubroutine parse_zone_header
 
-    ! Position of the value of `key` (name without '=') in a header line, or 0 if
-    ! absent. The key must be a whole word outside quoted strings, followed by
-    ! '='; whitespace is allowed on both sides of '=', e.g.
-    !   K=2
-    !   K=  2
-    !   K = 2
-    ! so 'K' does not match inside 'BLOCK=' nor in a title such as T="K=99".
-    integer function keyword_value_pos(text,key) result(pos)
-      character(len=*), intent(in) :: text,key
-      integer :: p, q, lt, lk
-      logical :: in_quotes
-
-      pos = 0
-      lt = len_trim(text)
-      lk = len_trim(key)
-      in_quotes = .false.
-
-      do p = 1, lt-lk+1
-        if (text(p:p)=='"') then
-          in_quotes = .not.in_quotes
-          cycle
-        endif
-        if (in_quotes .or. text(p:p+lk-1)/=key(1:lk)) cycle
-        if (p>1) then
-          if (is_word_char(text(p-1:p-1))) cycle
-        endif
-        q = skip_blanks(text,p+lk,lt)
-        if (q>lt) return
-        if (text(q:q)/='=') cycle
-        q = skip_blanks(text,q+1,lt)
-        if (q<=lt) pos = q
-        return
-      enddo
-    endfunction keyword_value_pos
-
     ! Value of `key` up to the next separator (comma, blank, tab or ')').
     subroutine get_word_keyword(text,key,out,found)
       character(len=*), intent(in) :: text,key
@@ -1134,22 +1101,6 @@ contains
       endif
       out = text(q:r)
     endfunction varlocation_value
-
-    pure integer function skip_blanks(text,start,last) result(q)
-      character(len=*), intent(in) :: text
-      integer, intent(in) :: start, last
-      q = start
-      do while (q<=last)
-        if (text(q:q)/=' ' .and. text(q:q)/=char(9)) exit
-        q = q + 1
-      enddo
-    endfunction skip_blanks
-
-    pure logical function is_word_char(c)
-      character(1), intent(in) :: c
-      is_word_char = (c>='A' .and. c<='Z') .or. (c>='a' .and. c<='z') .or. &
-                     (c>='0' .and. c<='9') .or. c=='_'
-    endfunction is_word_char
 
     subroutine next_value(unit,x,istat)
       use, intrinsic :: iso_fortran_env, only : iostat_end
@@ -1322,18 +1273,6 @@ contains
       enddo
     endsubroutine next_value
 
-    function upper_case(text) result(out)
-      character(len=*), intent(in) :: text
-      character(len=len(text)) :: out
-      integer :: q, code
-      out = text
-      do q = 1, len(text)
-        code = iachar(out(q:q))
-        if (code>=iachar('a') .and. code<=iachar('z')) &
-          out(q:q) = achar(code-iachar('a')+iachar('A'))
-      enddo
-    endfunction upper_case
-
     ! Is text (a variable name) the coordinate name c ('X', 'Y' or 'Z'), in any case?
     logical function is_coordinate_name(text,c)
       character(len=*), intent(in) :: text, c
@@ -1410,6 +1349,99 @@ contains
 
   end function tec_read_ascii
 
+  ! Keywords and titles of a zone header: tec_read_ascii and tec_read_points_multivars
+
+  ! Position of the value of `key` (name without '=') in a header line, or 0 if
+  ! absent. The key must be a whole word outside quoted strings, followed by
+  ! '='; whitespace is allowed on both sides of '=', e.g.
+  !   K=2
+  !   K=  2
+  !   K = 2
+  ! so 'K' does not match inside 'BLOCK=' nor in a title such as T="K=99".
+  integer function keyword_value_pos(text,key) result(pos)
+    character(len=*), intent(in) :: text,key
+    integer :: p, q, lt, lk
+    logical :: in_quotes
+
+    pos = 0
+    lt = len_trim(text)
+    lk = len_trim(key)
+    in_quotes = .false.
+
+    do p = 1, lt-lk+1
+      if (text(p:p)=='"') then
+        in_quotes = .not.in_quotes
+        cycle
+      endif
+      if (in_quotes .or. text(p:p+lk-1)/=key(1:lk)) cycle
+      if (p>1) then
+        if (is_word_char(text(p-1:p-1))) cycle
+      endif
+      q = skip_blanks(text,p+lk,lt)
+      if (q>lt) return
+      if (text(q:q)/='=') cycle
+      q = skip_blanks(text,q+1,lt)
+      if (q<=lt) pos = q
+      return
+    enddo
+  endfunction keyword_value_pos
+
+  pure integer function skip_blanks(text,start,last) result(q)
+    character(len=*), intent(in) :: text
+    integer, intent(in) :: start, last
+    q = start
+    do while (q<=last)
+      if (text(q:q)/=' ' .and. text(q:q)/=char(9)) exit
+      q = q + 1
+    enddo
+  endfunction skip_blanks
+
+  pure logical function is_word_char(c)
+    character(1), intent(in) :: c
+    is_word_char = (c>='A' .and. c<='Z') .or. (c>='a' .and. c<='z') .or. &
+                   (c>='0' .and. c<='9') .or. c=='_'
+  endfunction is_word_char
+
+  function upper_case(text) result(out)
+    character(len=*), intent(in) :: text
+    character(len=len(text)) :: out
+    integer :: q, code
+    out = text
+    do q = 1, len(text)
+      code = iachar(out(q:q))
+      if (code>=iachar('a') .and. code<=iachar('z')) &
+        out(q:q) = achar(code-iachar('a')+iachar('A'))
+    enddo
+  endfunction upper_case
+
+  ! The title of a zone, the value of T in its header (the keyword in any case, found as the others): the text between double
+  ! quotes, which the next quote closes, as it closes a variable name; or, without quotes, a word up to the next blank, comma,
+  ! tab or ')' (Tecplot puts a string with blanks in quotes). Blank when the header has no T.
+  function zone_title(text) result(title)
+    character(len=*), intent(in)  :: text
+    character(len=:), allocatable :: title
+    integer :: q, r
+
+    title = ''
+    q = keyword_value_pos(upper_case(text),'T')
+    if (q<=0) return
+    if (text(q:q)=='"') then
+      r = index(text(q+1:),'"')
+      if (r==0) then
+        title = trim(text(q+1:))
+      else
+        title = text(q+1:q+r-1)
+      endif
+    else
+      r = scan(text(q:),', )'//char(9))
+      if (r==0) then
+        title = trim(text(q:))
+      else
+        title = text(q:q+r-2)
+      endif
+    endif
+  endfunction zone_title
+
 
   !> \brief Read ORION point data from Tecplot file.
   !> \details Reads Tecplot point format files into ORION data structure.
@@ -1462,6 +1494,8 @@ contains
       enddo
       if (ios==iostat_end) exit
       b = b+1
+      ! The block takes the title of its zone as its name (on the line of I=), as in tec_read_ascii
+      orion%block(b)%name = zone_title(line)
       ! parse copies each piece whole (split writes it character by character), so the pieces get the length of the line:
       ! the first one holds the block name
       if (allocated(args)) deallocate(args, subargs)

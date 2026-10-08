@@ -168,6 +168,9 @@ Changes on `main` since `v1.6.0`.
 - The `.szplt` reader gives every zone the number of coordinates of the file:
   each zone took the number of its own shape, and the face j of a volume block
   that of the zone before it, or an undefined one when it was the first zone.
+- The Tecplot ASCII readers, `tec_read_structured_multiblock` and
+  `tec_read_points_multivars`, give each block the title of its zone as its
+  name, as `tec_read_szplt` does; the names were undefined.
 
 ## [1.7.0] - 2026-09-29
 

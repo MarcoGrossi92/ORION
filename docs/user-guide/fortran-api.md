@@ -295,8 +295,12 @@ end program read_vtk_structured
   1000 characters. `tec_write_structured_multiblock` writes one value per line; `tec_write_points_multivars`
   writes one point per line, with all its variables on that line. Tecplot keeps the first 128 characters of a
   zone title (Tecplot 360 EX Data Format Guide, section 4-3.2), and TecIO writes only those in a `.szplt` file
-  (a `.plt` file gets the whole title); the `.szplt` reader returns the title of each zone as the name of its
-  block.
+  (a `.plt` file gets the whole title). The readers return the title of each zone as the name of its block: the
+  `.szplt` reader the title stored in the file; the ASCII readers the text between double quotes or, without quotes, a word
+  up to the next blank, comma, tab or `)`, the form in which the writers write the name (a name with blanks or commas is
+  therefore not read back as written), and a blank name when the zone has no title; `tec_read_points_multivars` takes the
+  title from the line of the zone header that holds `I=`. A title longer than the name of a block keeps its first 4096
+  characters.
 
 ### PLOT3D Files
 
