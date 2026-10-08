@@ -122,6 +122,10 @@ Changes on `main` since `v1.6.0`.
   file longer than the name of a block gives the return value 1.
 - `vtk_read_structured_multiblock` reads into an `orion_data` that already
   holds blocks; it stopped the program.
+- The Tecplot writers and readers take block names and file paths of any
+  length: zone headers were cut at 500 characters, lines read in 1000, the
+  path of a `.szplt` file handed to TecIO in 256, and block names read from a
+  `.szplt` file ended with a null character.
 
 ## [1.7.0] - 2026-09-29
 

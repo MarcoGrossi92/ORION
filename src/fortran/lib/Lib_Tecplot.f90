@@ -101,7 +101,7 @@ contains
 # endif
     character(1), parameter:: tecendrec = char(0) !< End-character for binary-record end.
     character(32768)::        tecvarname          !< Variables name for tecplot header file.
-    character(500)::          teczoneheader       !< Tecplot string of zone header.
+    character(len=:), allocatable:: teczoneheader !< Tecplot string of zone header, of any length: the block name is in it.
     character(500)::          tecvarform          !< Format for variables for tecplot file.
     integer, allocatable::    tecvarloc(:)        !< Tecplot array of variables location.
     character(500)::          tecvarlocstr        !< Tecplot string of variables location.
@@ -430,7 +430,7 @@ contains
     integer, intent(in), optional             :: Nvars
     integer :: err
     character(32768)::        tecvarname          !< Variables name for tecplot header file.
-    character(500)::          teczoneheader       !< Tecplot string of zone header.
+    character(len=:), allocatable:: teczoneheader !< Tecplot string of zone header, of any length: the block name is in it.
     character(500)::          tecvarform          !< Format for variables for tecplot file.
     integer::                 tecunit             !< Free logic unit of tecplot file.
     integer::                 Nvar                !< Internal number of variables saved.
@@ -567,8 +567,9 @@ contains
     logical, allocatable :: zone_z_cell(:)   ! variable 3 listed as CELLCENTERED in the zone header
     logical   :: plane_xyz                   ! single node planes that carry x, y and z
     integer, allocatable :: Ni(:), Nj(:), Nk(:)
-    character(1000) :: line
-    character(1000) :: header
+    ! A line and a zone header of any length (read with readline): the title of a zone is as long as its block name
+    character(len=:), allocatable :: line
+    character(len=:), allocatable :: header
     character(32768) :: hline               ! header lines only (VARIABLES and what precedes it)
     character(32768) :: variables_header
     character(32768) :: vline
@@ -654,7 +655,7 @@ contains
     Nblocks = 0
     ios = 0
     do while (ios==0)
-      read(tecunit,'(A)',iostat=ios) line
+      call readline(tecunit,line,ios)
       if (ios/=0) exit
       if (is_zone_header(line)) Nblocks = Nblocks + 1
     enddo
@@ -676,7 +677,7 @@ contains
     b = 0
     ios = 0
     do while (ios==0)
-      read(tecunit,'(A)',iostat=ios) line
+      call readline(tecunit,line,ios)
       if (ios/=0) exit
       physical_line_number = physical_line_number + 1
       if (.not.is_zone_header(line)) cycle
@@ -688,7 +689,7 @@ contains
 
       ! Gather continuation header lines until the first numeric data line.
       do
-        read(tecunit,'(A)',iostat=ios) line
+        call readline(tecunit,line,ios)
         if (ios/=0) exit
         physical_line_number = physical_line_number + 1
         if (line_is_numeric_start(line)) then
@@ -823,7 +824,7 @@ contains
     ios = 0
 
     do while (ios==0 .and. b<Nblocks)
-      read(tecunit,'(A)',iostat=ios) line
+      call readline(tecunit,line,ios)
       if (ios/=0) exit
       if (.not.is_zone_header(line)) cycle
 
@@ -832,7 +833,7 @@ contains
 
       ! Find the first data line for this zone while collecting continuation header lines.
       do
-        read(tecunit,'(A)',iostat=ios) line
+        call readline(tecunit,line,ios)
         if (ios/=0) exit
         if (line_is_numeric_start(line)) then
           data_line = line
@@ -939,7 +940,7 @@ contains
 
     logical function line_is_numeric_start(text)
       character(len=*), intent(in) :: text
-      character(1000) :: t
+      character(len=:), allocatable :: t   ! the line, of any length
       character(100) :: tok
       integer :: p, q, ios_
       t = adjustl(text)
@@ -973,7 +974,7 @@ contains
       logical, intent(out) :: point_,node_
       real(R8P), intent(inout) :: time_
       integer, intent(out) :: strand_   ! STRANDID of this zone, -1 when absent
-      character(1000) :: work
+      character(len=:), allocatable :: work   ! the zone header, of any length
       character(100) :: token
       integer :: ios_
       real(R8P) :: t_
@@ -1403,8 +1404,8 @@ contains
     integer :: i, j, k, b
     integer :: Nzones, nlines
     integer, allocatable :: nskip(:)
-    character(1000) :: line
-    character(100) :: args(20), subargs(2)
+    character(len=:), allocatable :: line   ! a line of any length (read with readline): a zone header holds the block name
+    character(len=:), allocatable :: args(:), subargs(:)   ! pieces of a zone header, as long as its line
 
     ! Open file
     open(newunit=tecunit,file=trim(filename),iostat=err,action='read',status='old')
@@ -1413,7 +1414,7 @@ contains
     ! Count blocks and allocate data
     ios = 0; Nzones = 0; nlines = -1
     do while(ios==0)
-      read(tecunit,'(A)',iostat=ios) line
+      call readline(tecunit,line,ios)
       nlines = nlines+1
       if (index(line,"ZONE")>0 .and. index(line,"ZONETYPE")==0) then
         Nzones = Nzones+1
@@ -1430,10 +1431,14 @@ contains
     ios = 0; b = 0
     do
       do while (index(line,'I=')==0 .and. ios/=iostat_end)
-      read(tecunit,'(A)',iostat=ios) line
+      call readline(tecunit,line,ios)
       enddo
       if (ios==iostat_end) exit
       b = b+1
+      ! parse copies each piece whole (split writes it character by character), so the pieces get the length of the line:
+      ! the first one holds the block name
+      if (allocated(args)) deallocate(args, subargs)
+      allocate(character(len=len(line)) :: args(20), subargs(2))
       call parse(line,',',args)
       do i = 1, 2
         if (index(args(i),'I=')>0) then
@@ -1452,7 +1457,7 @@ contains
     allocate(nskip(Nzones))
     nskip = 0; ios = 0; b = 1; ios_prev = 0
     do
-      read(tecunit,'(A)',iostat=ios) line
+      call readline(tecunit,line,ios)
       if (ios==iostat_end) exit
       read(line,*,iostat=ios) dummy_float
       if ((ios==0 .and. index(line,'DATA')>0) .or. ios/=0) then
@@ -1679,26 +1684,27 @@ contains
 
   !> \brief Convert C character array to Fortran string.
   !> \details Convenience routine for converting C pointers to Fortran strings in TecIO operations.
+  !> The string has the length of the array and its characters only, with no C_NULL_CHAR after them: it is kept as a
+  !> Fortran string (a block name), not handed back to a C function as in the TecIO example rewriteszlf90.f90.
   !> \param[in] charArray C pointer to character array
   !> \param[in] length Length of character array
-  !> \param[out] string Output Fortran string
+  !> \param[out] string Output Fortran string, of that length
   subroutine copyCharArrayToString(charArray, length, string)
-    use iso_c_binding, only : C_NULL_CHAR, c_ptr, c_f_pointer
+    use iso_c_binding, only : c_ptr, c_f_pointer
     implicit none
     type(c_ptr) :: charArray
     integer length
-    character(*) string
+    character(len=:), allocatable, intent(out) :: string
 
     character, pointer :: charPointer(:)
     integer i
 
     call c_f_pointer(charArray, charPointer, [length])
 
-    string = ' '
+    allocate(character(len=length) :: string)
     do i = 1, length
         string(i:i) = charPointer(i)
     enddo
-    string(length+1:length+1) = C_NULL_CHAR
 
   end
 
@@ -1738,8 +1744,8 @@ contains
     logical,          intent(in), optional                 :: dims_only
 
     integer i, j, k, cnt
-    character(256) inputFileName
-    character(256) dataSetTitle, zoneTitle
+    character(len=:), allocatable :: inputFileName           ! the path, of any length, and C_NULL_CHAR for TecIO
+    character(len=:), allocatable :: dataSetTitle, zoneTitle  ! of the length that TecIO gives
     character(32768) varNames
     character, pointer :: stringPtr(:)
     integer nameLen, strLen, q0, q1
@@ -2094,10 +2100,10 @@ contains
   !> \brief Read a line of arbitrary length from a formatted sequential file.
   !> \details Uses non-advancing I/O (F2003) to accumulate chunks into an
   !>          allocatable string. Same pattern as fortran-lang/stdlib getline.
+  !>          The Tecplot ASCII readers read every line with it: a zone header holds the block name.
   !> \param[in]  unit File unit number
   !> \param[out] line Allocatable string containing the full line
   !> \param[out] ios  I/O status (0 = success, iostat_end = end of file)
-  !> Not used for compatibility issues with gfortran
   subroutine readline(unit, line, ios)
     use, intrinsic :: iso_fortran_env, only : iostat_eor
     implicit none
@@ -2115,7 +2121,7 @@ contains
         ios = 0
         return
       elseif (ios /= 0) then
-        line = line // buffer(:sz)
+        ! End of file or error: the buffer is undefined then, and nothing of it is kept
         return
       endif
       line = line // buffer
