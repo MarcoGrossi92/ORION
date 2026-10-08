@@ -191,6 +191,21 @@ Changes on `main` since `v1.6.0`.
 - `vtk_read_structured_multiblock` reads into an `orion_data` that already
   holds blocks, such as one left by a read that failed, and replaces them. It
   stopped the program on the allocation of the blocks.
+- The Tecplot writers and readers take block names and paths of any length.
+  `tec_write_structured_multiblock` (ASCII files) and
+  `tec_write_points_multivars` built each zone header in 500 characters, so a
+  long block name cut it: with a name of 600 characters the header lost `I`,
+  `J` and `K`, the ASCII reader refused the file and
+  `tec_read_points_multivars` returned the zone without points or stopped.
+  The ASCII readers read each line in 1000 characters and lost the dimensions
+  of a longer zone header, and `tec_read_points_multivars` copied the part of
+  a zone header that holds the name into 100 characters, past their end for a
+  longer name. `tec_read_szplt` handed TecIO the path in 256 characters, so a
+  path of 256 characters or more lost its final null and was not read (TecIO
+  read past the end of the path), and every block name it read ended with a
+  null character (`char(0)`). Zone headers are now as long as they need to be,
+  and a block name read from a `.szplt` file is the zone title as written.
+  TecIO keeps the first 128 characters of a zone title in a `.szplt` file.
 
 ## [1.7.0] - 2026-09-29
 
