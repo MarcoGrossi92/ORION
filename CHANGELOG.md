@@ -126,6 +126,8 @@ Changes on `main` since `v1.6.0`.
   length: zone headers were cut at 500 characters, lines read in 1000, the
   path of a `.szplt` file handed to TecIO in 256, and block names read from a
   `.szplt` file ended with a null character.
+- The converter writes the `.vtm` file at the path given with `--out-file`,
+  whatever its length; the file went to the first 32 characters of the path.
 
 ## [1.7.0] - 2026-09-29
 
