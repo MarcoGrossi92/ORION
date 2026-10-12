@@ -50,6 +50,7 @@
   call face_on_z0
   call read_errors
   call point_data
+  call arrays_before_points
 
   write(*,'(A,I0,A,I0,A)') 'vtk_read_wrapper: ', checks, ' checks, ', failures, ' failed'
   if (failures > 0) stop 1
@@ -1216,4 +1217,93 @@
   write(u,'(A)') '</VTKFile>'
   close(u)
   end subroutine point_data_file
+
+  subroutine arrays_before_points
+  !---------------------------------------------------------------------------------------------------------------------------------
+  !< Block files in the layout of VTK, refused. vtk_read_structured_multiblock takes the arrays of a block file in the order in
+  !< which vtk_write_structured_multiblock writes them, the Points first, and refuses a block file that lists its data arrays
+  !< before its Points, as VTK writes them, before reading any block: return value 1, the mesh of the block not read. Block
+  !< files of one cell written here in ascii as VTK 9.7.1 writes them (PointData, then CellData, then Points; data arrays
+  !< without NumberOfComponents): one variable as point data with an empty CellData element; one variable as cell data with
+  !< an empty PointData element; one variable as point data and one as cell data. A mesh in the same layout, with empty
+  !< PointData and CellData elements, is read as before (return value 0, orion%vtk%node unset, Ni Nj Nk = 1 1 1).
+  !< Defect: the reader took the first array of a block file for the Points and the others for its variables: for these
+  !< files it read the arrays under the names shifted by one, for an array without NumberOfComponents with an undefined
+  !< number of components, and stopped with an error at the last one, with the mesh of the first block read.
+  !< Basis: VTK File Formats (p. 13): the structure of a StructuredGrid piece lists PointData, CellData and Points, in this
+  !< order, the order in which VTK 9.7.1 writes them; the reader of ORION takes the order of its writer, the Points first.
+  !---------------------------------------------------------------------------------------------------------------------------------
+  !---------------------------------------------------------------------------------------------------------------------------------
+
+  call read_vtk_layout('vtklayout_point', .true., .false.)
+  call read_vtk_layout('vtklayout_cell', .false., .true.)
+  call read_vtk_layout('vtklayout_both', .true., .true.)
+  call read_vtk_layout('vtklayout_mesh', .false., .false.)
+  end subroutine arrays_before_points
+
+  subroutine read_vtk_layout(stem, point, cell)
+  !---------------------------------------------------------------------------------------------------------------------------------
+  !< Write stem.vtm and its block file stem_V1.vts, one cell in the layout of VTK, with a variable p as point data and a variable
+  !< c as cell data when point and cell are true, and read it: refused when it has a variable, read when it is a mesh.
+  !---------------------------------------------------------------------------------------------------------------------------------
+  character(len=*), intent(in) :: stem
+  logical,          intent(in) :: point, cell
+  type(orion_data)             :: r
+  integer(I4P)                 :: err
+  integer                      :: u
+  !---------------------------------------------------------------------------------------------------------------------------------
+
+  open(newunit=u, file=stem//'_V1.vts', status='replace', action='write')
+  write(u,'(A)') '<?xml version="1.0"?>'
+  write(u,'(A)') '<VTKFile type="StructuredGrid" version="0.1" byte_order="LittleEndian" header_type="UInt32"'// &
+                 ' compressor="vtkZLibDataCompressor">'
+  write(u,'(A)') '  <StructuredGrid WholeExtent="0 1 0 1 0 1">'
+  write(u,'(A)') '  <Piece Extent="0 1 0 1 0 1">'
+  write(u,'(A)') '    <PointData>'
+  if (point) then
+    write(u,'(A)') '      <DataArray type="Float64" Name="p" format="ascii" RangeMin="1" RangeMax="8">'
+    write(u,'(A)') '        1 2 3 4 5 6 7 8'
+    write(u,'(A)') '      </DataArray>'
+  endif
+  write(u,'(A)') '    </PointData>'
+  write(u,'(A)') '    <CellData>'
+  if (cell) then
+    write(u,'(A)') '      <DataArray type="Float64" Name="c" format="ascii" RangeMin="9" RangeMax="9">'
+    write(u,'(A)') '        9'
+    write(u,'(A)') '      </DataArray>'
+  endif
+  write(u,'(A)') '    </CellData>'
+  write(u,'(A)') '    <Points>'
+  write(u,'(A)') '      <DataArray type="Float64" Name="Points" NumberOfComponents="3" format="ascii" RangeMin="1" RangeMax="2">'
+  write(u,'(A)') '        0 0 1 1 0 1 0 1 1 1 1 1 0 0 2 1 0 2 0 1 2 1 1 2'
+  write(u,'(A)') '      </DataArray>'
+  write(u,'(A)') '    </Points>'
+  write(u,'(A)') '  </Piece>'
+  write(u,'(A)') '  </StructuredGrid>'
+  write(u,'(A)') '</VTKFile>'
+  close(u)
+  open(newunit=u, file=stem//'.vtm', status='replace', action='write')
+  write(u,'(A)') '<?xml version="1.0"?>'
+  write(u,'(A)') '<VTKFile type="vtkMultiBlockDataSet" version="1.0" byte_order="LittleEndian">'
+  write(u,'(A)') '  <vtkMultiBlockDataSet>'
+  write(u,'(A)') '    <Block index="0">'
+  write(u,'(A)') '      <DataSet index="0" file="'//stem//'_V1.vts"/>'
+  write(u,'(A)') '    </Block>'
+  write(u,'(A)') '  </vtkMultiBlockDataSet>'
+  write(u,'(A)') '</VTKFile>'
+  close(u)
+  r%vtk%format = 'ascii'
+  err = vtk_read_structured_multiblock(orion=r, vtmpath=stem, vtspath='')
+  if (point .or. cell) then
+    call check(err == 1, stem//': a block file in the layout of VTK refused (return value 1)')
+    if (allocated(r%block)) call check(.not.allocated(r%block(1)%mesh), stem//': no block read')
+  else
+    call check(err == 0, stem//': a mesh in the layout of VTK read (return value 0)')
+    if (allocated(r%block)) then
+      call check(.not.r%vtk%node .and. r%block(1)%Ni == 1 .and. r%block(1)%Nj == 1 .and. r%block(1)%Nk == 1, &
+                 stem//': read with orion%vtk%node unset and Ni, Nj and Nk the cells')
+      if (allocated(r%block(1)%mesh)) call check(all(shape(r%block(1)%mesh) == [3, 2, 2, 2]), stem//': its nodes read')
+    endif
+  endif
+  end subroutine read_vtk_layout
   end program vtk_read_multiblock

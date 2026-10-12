@@ -214,7 +214,12 @@ end program read_vtk_structured
   block file cannot be opened or its points or the values of a variable cannot be read; what it has read before the
   error is left in `orion`. It closes each block file once read, and the file of a block it stops on, so the number
   of blocks of a field is not bounded by the number of files a process can keep open. A read into an object that already
-  holds blocks, from an earlier read or from one that failed, replaces them.
+  holds blocks, from an earlier read or from one that failed, replaces them. The reader takes the files in the layout in
+  which `vtk_write_structured_multiblock` writes them: a `.vtm` file whose `Block` element lists one `DataSet` per line, and
+  block files of one `StructuredGrid` piece whose `Points` array (named `Points`, `Float64`) comes before its `PointData` or
+  `CellData` arrays (`Float64`, `NumberOfComponents="1"`), in the format of `orion%vtk%format`: `ascii`, `binary` (base64
+  with a 4-byte length, not compressed) or `raw` (raw appended data). A block file that lists its data arrays before its
+  `Points`, as VTK and ParaView write them, is refused (return value 1) before any block is read.
 - **Solution time.** `solutiontime` is 0 in a new `orion_data`. The Tecplot ASCII reader stores the
   `SOLUTIONTIME` of the file, or -10 when its zone headers give none. The `.szplt` reader does not store the
   zone time of the file and leaves `solutiontime` as it was (0 for a new object); so does the PLOT3D reader,

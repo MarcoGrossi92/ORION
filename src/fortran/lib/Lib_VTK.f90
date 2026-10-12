@@ -11020,6 +11020,15 @@ contains
   close(nu)
   if (err /= 0) return
   call read_variables_name(trim(vtspath)//trim(orion%block(1)%name)//'.vts',varnames,orion%vtk%node)
+  ! The arrays of a block file are taken in the order in which vtk_write_structured_multiblock writes them, the Points first
+  ! and then the variables. A block file that lists its data arrays before its Points, as VTK writes them, is refused before
+  ! any block is read (a block file that cannot be opened has no names, and stops below with its error)
+  if (size(varnames) > 0) then
+    if (trim(varnames(1)) /= 'Points') then
+      err = 1
+      return
+    endif
+  endif
 
   ! Read VTS file
   do b = 1, Nblocks
