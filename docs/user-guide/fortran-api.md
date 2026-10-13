@@ -31,9 +31,9 @@ Each block contains mesh and solution data:
 ```fortran
 type :: obj_block
   character(len=4096) :: name       ! Block name, as long as a path (PATH_MAX of Linux)
-  integer :: Ni, Nj, Nk             ! Dimensions (I, J, K)
-  real(R8P), allocatable :: mesh(:,:,:,:)  ! Coordinates (Ni, Nj, Nk, 3)
-  real(R8P), allocatable :: vars(:,:,:,:)  ! Variables (Ni, Nj, Nk, nvars)
+  integer :: Ni, Nj, Nk             ! Cells in each direction (I, J, K)
+  real(R8P), allocatable :: mesh(:,:,:,:)  ! Coordinates, mesh(1:ndir,0:Ni,0:Nj,0:Nk)
+  real(R8P), allocatable :: vars(:,:,:,:)  ! Variables, vars(1:nvar,1:Ni,1:Nj,1:Nk) at the cells, vars(1:nvar,0:Ni,...) at the nodes
 end type
 ```
 
@@ -163,15 +163,17 @@ program read_vtk_structured
   type(orion_data) :: IOfield
   integer :: E_IO
   
-  ! Read VTK structured grid
-  E_IO = vtk_read_file(filename='mesh.vtk', orion=IOfield)
+  ! Read the multi-block field out/field.vtm in the raw format; the .vtm lists its block files relative to its
+  ! directory, so vtspath is that directory
+  IOfield%vtk%format = 'raw'
+  E_IO = vtk_read_structured_multiblock(vtspath='out/', vtmpath='out/field', orion=IOfield)
   
   if (E_IO == 0) then
     print *, 'Successfully read VTK file'
     print *, 'Number of blocks:', size(IOfield%block)
-    print *, 'Block 1 points:', IOfield%block(1)%Ni * &
-                                 IOfield%block(1)%Nj * &
-                                 IOfield%block(1)%Nk
+    print *, 'Block 1 cells:', IOfield%block(1)%Ni * &
+                                IOfield%block(1)%Nj * &
+                                IOfield%block(1)%Nk
   endif
 end program read_vtk_structured
 ```
@@ -209,12 +211,23 @@ end program read_vtk_structured
   holds `x` of one node line (`mesh(1:1,...,0:0,0:0)`) and the variables one layer of cells in j and k, or, at the
   nodes, the node line (`vars(:,0:Ni,0:0,0:0)`). Any other block is read with three coordinates, also when
   its `z` add up to 0, as for a slab around `z = 0`, and when it has one node plane in k with `z = 0` at every node,
-  as for the face of a three-dimensional block on the plane `z = 0`. The reader returns a nonzero value, and stops,
-  when the `.vtm` file cannot be opened, ends before the end of its block list or lists no block file, and when a
-  block file cannot be opened or its points or the values of a variable cannot be read; what it has read before the
-  error is left in `orion`. It closes each block file once read, and the file of a block it stops on, so the number
-  of blocks of a field is not bounded by the number of files a process can keep open. A read into an object that already
-  holds blocks, from an earlier read or from one that failed, replaces them. The reader takes the files in the layout in
+  as for the face of a three-dimensional block on the plane `z = 0`; such a block has no layer of cells in k, so the
+  cell values of a two-dimensional field that another program writes as one node plane are not read (`vars(:,1:Ni,1:Nj,1:0)`,
+  return value 0). `Ni`, `Nj` and `Nk` are the cells of the block file: a two-dimensional block has `Nk = 1`, a
+  one-dimensional one `Nj = Nk = 1`, where the Tecplot readers return 0 for the directions of one node plane; the
+  bounds of `mesh` and `vars` are those of the Tecplot readers. The reader opens `vtspath//f` for each block file `f`
+  that the `.vtm` lists, and the `.vtm` lists them relative to its own directory: `vtspath` is the directory of the
+  `.vtm` file (`'out/'` for `vtmpath = 'out/field'`), or `''` when the `.vtm` is in the current directory or lists
+  absolute paths. The reader returns 1 when it refuses its arguments or the layout of a file, and the nonzero code of
+  the read that fails (-1, or an `IOSTAT` value) when the `.vtm` file cannot be opened, ends before the end of its
+  block list or lists no block file, and when a block file cannot be opened or its points or the values of a variable
+  cannot be read; what it has read before the error is left in `orion`. It closes each block file once read, and the
+  file of a block it stops on, so the number of blocks of a field is not bounded by the number of files a process can
+  keep open. A read into an object that already holds blocks, from an earlier read or from one that failed, replaces
+  them once the block list of the `.vtm` file is read; a `.vtm` file that cannot be opened, or whose block list cannot
+  be read, leaves them as they were. The variables of a field are at one location: a block file with arrays at the
+  nodes and at the cells (`PointData` and `CellData`) is not read (a nonzero value after the mesh of that block). The
+  reader takes the files in the layout in
   which `vtk_write_structured_multiblock` writes them: a `.vtm` file whose `Block` element lists one `DataSet` per line, and
   block files of one `StructuredGrid` piece whose `Points` array (named `Points`, `Float64`) comes before its `PointData` or
   `CellData` arrays (`Float64`, `NumberOfComponents="1"`), in the format of `orion%vtk%format`: `ascii`, `binary` (base64
@@ -394,13 +407,15 @@ program write_vtk
   implicit none
   
   type(ORION_data) :: IOfield
+  character(len=64) :: varnames
   integer :: E_IO
   
-  ! Write VTK structured multiblock
-  E_IO = vtk_write_structured_multiblock( &
-           orion=IOfield, &
-           varnames='density,momentum_x,momentum_y,momentum_z,energy', &
-           filename='output.vtk')
+  ! ... the blocks of IOfield, with mesh and vars ...
+  ! Write the multi-block field out/field.vtm and its block files out/<name>.vts (the directory out must exist);
+  ! varnames, a variable, holds the names of the variables separated by blanks
+  IOfield%vtk%format = 'raw'
+  varnames = 'density momentum_x momentum_y momentum_z energy'
+  E_IO = vtk_write_structured_multiblock(vtspath='out/', vtmpath='out/field', orion=IOfield, varnames=varnames)
 end program write_vtk
 ```
 
