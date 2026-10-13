@@ -21,6 +21,12 @@ Changes on `main` since `v1.6.0`.
   returned by the reader, 0 (and `fldfound` false) when the files hold none.
   Names and values of different sizes, and blank names, are refused (return
   value 1); the reader compares the names without regard to case.
+- The same optional arguments for `tec_write_structured_multiblock` and
+  `tec_read_structured_multiblock`, kept as the data set auxiliary data of the
+  Tecplot file: `CYCLE` and one item per name, the reals with 17 significant
+  digits (`DATASETAUXDATA` records after the zones in an ASCII file). Names
+  and values of different sizes, and blank names, are refused (return value
+  1); the writer refuses also the names that an item cannot hold.
 - `read_whole_line` in the module `strings` (`stringmod.f90`): reads the next
   line of a formatted file whole, whatever its length.
 

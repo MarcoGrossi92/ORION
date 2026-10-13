@@ -292,7 +292,16 @@ end program read_vtk_structured
   real. `fldnames` and `fldvalues` (and
   `fldfound`) go together and have the same size, and no name is blank; otherwise both functions return 1 and write
   or read nothing. The reader compares the names without regard to case (`'a'` finds `A`).
-  A program calls the writer without these arguments to get the files it got before.
+  A program calls the writer without these arguments to get the files it got before. `tec_write_structured_multiblock`
+  and `tec_read_structured_multiblock` take the same optional arguments, with the same rules, and keep them as the
+  data set auxiliary data of the Tecplot file (Tecplot 360 EX 2023 R1 Data Format Guide, section 4-3.6, p. 135,
+  and `TECAUXSTR142`, pp. 29-30): the item `CYCLE` and one item per name, the reals with 17 significant digits; in
+  an ASCII file each item is a record `DATASETAUXDATA name = "value"` after the zones. A name must be one that the
+  auxiliary data can hold: not blank, without blanks, equal signs or double quotes, given once, and other than `CYCLE`
+  and `Time`, the items of the writer (in any case); otherwise the writer returns 1 and writes nothing. The readers
+  match the names in any case, as the VTK reader does. The ASCII reader takes the records between the zones and after
+  them: a record between the `VARIABLES` header and the first zone is read as variable names, and the file is refused
+  (return value 1). The `.szplt` reader takes the data set auxiliary data of the file, also with `dims_only`.
 - **Digits of the text formats.** The Tecplot ASCII files and the ascii format of the VTK files hold every 64-bit
   real (coordinates, variables, `SOLUTIONTIME`, field data) with 17 significant digits (Fortran format `E25.17E3`),
   the fewest that give back every 64-bit real, bit for bit, when the file is read. A 64-bit real has a 53-bit

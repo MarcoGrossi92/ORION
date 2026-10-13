@@ -85,13 +85,21 @@ contains
   !> \param[in] varnames Variable names string (optional)
   !> \param[in] filename Output file name (must end with .dat, .tec, .plt, or .szplt)
   !> \param[in] Nvars Number of variables to write (optional, default: all)
+  !> \param[in] cycle Optional step number, written as the data set auxiliary data CYCLE
+  !> \param[in] fldnames,fldvalues Optional names and values of real scalars, each written as data set auxiliary data with its
+  !> name, as vtk_write_structured_multiblock writes them as field data. They go together and have the same size, and each
+  !> name must be one that an auxiliary data item can hold (aux_names_valid): otherwise the function returns 1 and writes
+  !> nothing
   !> \return err Error code (0 if successful)
-  function tec_write_structured_multiblock(orion,varnames,filename,Nvars) result(err)
+  function tec_write_structured_multiblock(orion,varnames,filename,Nvars,cycle,fldnames,fldvalues) result(err)
     implicit none
     type(orion_data), intent(in)              :: orion
     character(len=*), intent(in), optional    :: varnames
     character(len=*), intent(in)              :: filename !< File name of the output file.
     integer, intent(in), optional             :: Nvars    !< Input number of variables saved.
+    integer(I4P), intent(in), optional        :: cycle    !< Step number, written as the data set auxiliary data CYCLE.
+    character(len=*), intent(in), optional    :: fldnames(:)  !< Names of real scalars, written as data set auxiliary data.
+    real(R8P), intent(in), optional           :: fldvalues(:) !< Values of the scalars of fldnames.
     logical :: meshonly, time_accurate
     integer :: err
 # if defined(TECIO)
@@ -120,7 +128,22 @@ contains
     integer::                 NvarTot
     integer::                 gc
     real(R8P)::               time_
-  
+    integer::                 ifld                !< Counter of the named scalars.
+    character(DR_P)::         auxvalue            !< Value of a data set auxiliary data item.
+
+    ! The named scalars go with their values, and their names must be ones that the auxiliary data can hold: otherwise
+    ! nothing is written
+    if (present(fldnames) .neqv. present(fldvalues)) then
+      err = 1
+      return
+    endif
+    if (present(fldnames)) then
+      if (size(fldnames) /= size(fldvalues) .or. .not.aux_names_valid(fldnames)) then
+        err = 1
+        return
+      endif
+    endif
+
     ! Preliminary operations
     FileType   = 0
     Debug      = 0
@@ -165,6 +188,17 @@ contains
       err = tecini142(tecendrec,trim(tecvarname)//tecendrec,trim(filename)//tecendrec,'.'//tecendrec,fileFormat,FileType,Debug,VIsDouble)
       ! The data set auxiliary data Time keeps the absolute value of the time, as before
       err = tecauxstr142("Time"//tecendrec,trim(str(n=abs(time_)))//tecendrec)
+      ! The step number and the named scalars, each a data set auxiliary data item, the scalars with 17 significant digits
+      if (present(cycle)) then
+        write(auxvalue,'(I0)') cycle
+        err = tecauxstr142("CYCLE"//tecendrec,trim(auxvalue)//tecendrec)
+      endif
+      if (present(fldnames)) then
+        do ifld = 1, size(fldnames)
+          write(auxvalue,FR_P) fldvalues(ifld)
+          err = tecauxstr142(trim(adjustl(fldnames(ifld)))//tecendrec,trim(adjustl(auxvalue))//tecendrec)
+        enddo
+      endif
 #   else
       error stop "You can not write in binary format without compiling against TecIO"
 #   endif
@@ -183,6 +217,18 @@ contains
       err = tecend142()
 # endif
     case('ascii')
+      ! The step number and the named scalars, each a data set auxiliary data record, after the zones: the records of a file
+      ! come in any order
+      if (present(cycle)) then
+        write(auxvalue,'(I0)') cycle
+        write(tecunit,'(A)',iostat=err)'DATASETAUXDATA CYCLE = "'//trim(auxvalue)//'"'
+      endif
+      if (present(fldnames)) then
+        do ifld = 1, size(fldnames)
+          write(auxvalue,FR_P) fldvalues(ifld)
+          write(tecunit,'(A)',iostat=err)'DATASETAUXDATA '//trim(adjustl(fldnames(ifld)))//' = "'//trim(adjustl(auxvalue))//'"'
+        enddo
+      endif
       close(tecunit)
     end select
     ! deallocating dynamic arrays
@@ -527,25 +573,64 @@ contains
   !> \param[in] zone_mask Optional per-zone selector: variable data is read only
   !>            for zones whose entry is .true.  Coordinates are always read.
   !> \param[in] dims_only Optional; if .true. read only the zone headers.
+  !> \param[out] cycle Optional; the data set auxiliary data CYCLE, 0 when the file holds none
+  !> \param[in] fldnames Optional; names of real scalars, read from the data set auxiliary data of the same names (any case)
+  !> \param[out] fldvalues Optional; their values, 0 when the file holds none
+  !> \param[out] fldfound Optional; whether the file holds them. fldnames and fldvalues, and fldfound, go together and have the
+  !>            same size, and no name is blank, as in vtk_read_structured_multiblock: otherwise the function returns 1 and
+  !>            reads nothing.
   !> \return err Error code (0 if successful)
   !> \note Only the .szplt path honours zone_mask and dims_only -- the ASCII
   !>       format has no per-zone index, so a caller cannot learn a zone's
   !>       dimensions without reading it.  The ASCII reader therefore ignores
   !>       both arguments and performs a full read, which is correct but not
   !>       lean; callers that care must check the extension first.
-  function tec_read_structured_multiblock(orion,filename,zone_mask,dims_only) result(err)
+  function tec_read_structured_multiblock(orion,filename,zone_mask,dims_only,cycle,fldnames,fldvalues,fldfound) result(err)
     implicit none
     type(orion_data), intent(inout)                        :: orion
     character(len=*), intent(in)                           :: filename
     logical,          intent(in), optional                 :: zone_mask(:)
     logical,          intent(in), optional                 :: dims_only
+    integer(I4P),     intent(out), optional                :: cycle
+    character(len=*), intent(in), optional                 :: fldnames(:)
+    real(R8P),        intent(out), optional                :: fldvalues(:)
+    logical,          intent(out), optional                :: fldfound(:)
     integer :: err
 
+    ! The named scalars go with their values (and fldfound), of the same size: otherwise nothing is read
+    if ((present(fldnames) .neqv. present(fldvalues)) .or. (present(fldfound) .and. .not.present(fldnames))) then
+      err = 1
+      return
+    endif
+    if (present(fldnames)) then
+      if (size(fldvalues) /= size(fldnames)) then
+        err = 1
+        return
+      endif
+      if (present(fldfound)) then
+        if (size(fldfound) /= size(fldnames)) then
+          err = 1
+          return
+        endif
+      endif
+      ! No name is blank, as in vtk_read_structured_multiblock: no item of the auxiliary data has a blank name (TECAUXSTR142
+      ! refuses one, and the ASCII reader takes a record only with a name before its equal sign), so a blank name could never
+      ! be found
+      if (any(len_trim(fldnames) == 0)) then
+        err = 1
+        return
+      endif
+    endif
+    ! Absent from the file: 0 and not found
+    if (present(cycle)) cycle = 0
+    if (present(fldvalues)) fldvalues = 0._R8P
+    if (present(fldfound)) fldfound = .false.
+
     if (index(filename,'.dat')>0 .or. index(filename,'.tec')>0) then
-      err = tec_read_ascii(orion,filename)
+      err = tec_read_ascii(orion,filename,cycle,fldnames,fldvalues,fldfound)
     elseif (index(filename,'.szplt')>0) then
 #     if defined(TECIO)
-      err = tec_read_szplt(orion,filename,zone_mask,dims_only)
+      err = tec_read_szplt(orion,filename,zone_mask,dims_only,cycle,fldnames,fldvalues,fldfound)
 #     else
       ! Error termination: a program that asks for a binary file without TecIO ends with a nonzero exit status
       error stop "You can not read in binary format without compiling against TecIO"
@@ -576,11 +661,17 @@ contains
   !> cells (orion%tec%node): a file with a coordinate at the cells, or with solution variables
   !> at the nodes and at the cells, in a zone or between zones, is refused (return value 1, with
   !> a message).
-  function tec_read_ascii(orion,filename) result(err)
+  !> The data set auxiliary data records (DATASETAUXDATA name = "value") between and after the zones give cyc (CYCLE) and the
+  !> named scalars asked for (aux_item), which are left as they are when the file does not hold them.
+  function tec_read_ascii(orion,filename,cyc,fldnames,fldvalues,fldfound) result(err)
     use, intrinsic :: iso_fortran_env, only : iostat_end
     implicit none
     type(orion_data), intent(inout) :: orion
     character(len=*), intent(in)    :: filename
+    integer(I4P),     intent(inout), optional :: cyc          ! data set auxiliary data CYCLE
+    character(len=*), intent(in),    optional :: fldnames(:)  ! names of real scalars of the data set auxiliary data
+    real(R8P),        intent(inout), optional :: fldvalues(:) ! their values
+    logical,          intent(inout), optional :: fldfound(:)  ! whether the file holds them
 
     real(R8P) :: solutiontime, value
     logical   :: meshonly, zone_node
@@ -712,6 +803,8 @@ contains
       call read_whole_line(tecunit,line,ios)
       if (ios/=0) exit
       physical_line_number = physical_line_number + 1
+      ! A data set auxiliary data record, between the zones or after them
+      if (present(cyc) .or. present(fldnames)) call aux_record(line, cyc, fldnames, fldvalues, fldfound)
       if (.not.is_zone_header(line)) cycle
 
       b = b + 1
@@ -1483,6 +1576,79 @@ contains
     endif
   endfunction zone_title
 
+  ! Data set auxiliary data: the step number (CYCLE) and the named real scalars that tec_write_structured_multiblock writes and
+  ! tec_read_structured_multiblock reads, as the field data of the VTK files (Tecplot 360 EX 2023 R1 Data Format Guide,
+  ! section 4-3.6, p. 135: "DATASETAUXDATA name = "value"", "name is a unique character string with no spaces";
+  ! TECAUXSTR142, pp. 29-30)
+
+  ! Can the names be those of data set auxiliary data items? Each one not blank, without blanks, equal signs or double quotes,
+  ! which the record cannot hold, given once and other than CYCLE and Time, the items of the writer (in any case).
+  logical function aux_names_valid(names) result(valid)
+    character(len=*), intent(in) :: names(:)
+    integer :: i, j
+    valid = .false.
+    do i = 1, size(names)
+      if (len_trim(names(i)) == 0) return
+      if (scan(trim(adjustl(names(i))), ' ="'//char(9)) > 0) return
+      if (upper_case(trim(adjustl(names(i)))) == 'CYCLE' .or. upper_case(trim(adjustl(names(i)))) == 'TIME') return
+      do j = 1, i-1
+        if (upper_case(trim(adjustl(names(i)))) == upper_case(trim(adjustl(names(j))))) return
+      enddo
+    enddo
+    valid = .true.
+  endfunction aux_names_valid
+
+  ! A line of an ASCII file that is a data set auxiliary data record, DATASETAUXDATA name = "value", gives its item to aux_item;
+  ! any other line is left alone.
+  subroutine aux_record(line, cyc, fldnames, fldvalues, fldfound)
+    character(len=*), intent(in)              :: line
+    integer(I4P),     intent(inout), optional :: cyc
+    character(len=*), intent(in),    optional :: fldnames(:)
+    real(R8P),        intent(inout), optional :: fldvalues(:)
+    logical,          intent(inout), optional :: fldfound(:)
+    character(len=:), allocatable :: rest
+    integer :: e, q1, q2
+    rest = adjustl(line)
+    if (len_trim(rest) < 15) return
+    if (upper_case(rest(1:14)) /= 'DATASETAUXDATA' .or. is_word_char(rest(15:15))) return
+    rest = adjustl(rest(15:))
+    e = index(rest, '=')
+    if (e < 2) return
+    q1 = index(rest(e+1:), '"')
+    if (q1 == 0) return
+    q1 = e + q1
+    q2 = index(rest(q1+1:), '"')
+    if (q2 == 0) return
+    q2 = q1 + q2
+    call aux_item(trim(rest(1:e-1)), rest(q1+1:q2-1), cyc, fldnames, fldvalues, fldfound)
+  end subroutine aux_record
+
+  ! An item of the data set auxiliary data, its name and its value as text: CYCLE (any case) gives cyc, a name of fldnames (any
+  ! case) the value of that scalar, with fldfound set; an item whose value does not read as a number of its kind is left out,
+  ! as an item not asked for.
+  subroutine aux_item(name, value, cyc, fldnames, fldvalues, fldfound)
+    character(len=*), intent(in)              :: name, value
+    integer(I4P),     intent(inout), optional :: cyc
+    character(len=*), intent(in),    optional :: fldnames(:)
+    real(R8P),        intent(inout), optional :: fldvalues(:)
+    logical,          intent(inout), optional :: fldfound(:)
+    integer      :: i, ios
+    integer(I4P) :: c
+    real(R8P)    :: v
+    if (present(cyc) .and. upper_case(trim(adjustl(name))) == 'CYCLE') then
+      read(value,*,iostat=ios) c
+      if (ios == 0) cyc = c
+    endif
+    if (.not.present(fldnames)) return
+    do i = 1, size(fldnames)
+      if (upper_case(trim(adjustl(name))) /= upper_case(trim(adjustl(fldnames(i))))) cycle
+      read(value,*,iostat=ios) v
+      if (ios /= 0) cycle
+      fldvalues(i) = v
+      if (present(fldfound)) fldfound(i) = .true.
+    enddo
+  end subroutine aux_item
+
 
   !> \brief Read ORION point data from Tecplot file.
   !> \details Reads Tecplot point format files into ORION data structure.
@@ -1845,14 +2011,20 @@ contains
   !>          %vars is kept allocated with zero cells rather than deallocated
   !>          so that size(...,1) queries for the variable count keep working
   !>          on every zone; an empty allocatable costs nothing.
+  !> \details The data set auxiliary data of the file give cyc (CYCLE) and the named scalars asked for (aux_item), which are
+  !>          left as they are when the file does not hold them; also with dims_only.
   !> \return i Error code (0 if successful)
-  function tec_read_szplt(orion,filename,zone_mask,dims_only) result(i)
+  function tec_read_szplt(orion,filename,zone_mask,dims_only,cyc,fldnames,fldvalues,fldfound) result(i)
     use iso_c_binding
     implicit none
     type(orion_data), intent(inout)                        :: orion
     character(len=*), intent(in)                           :: filename
     logical,          intent(in), optional                 :: zone_mask(:)
     logical,          intent(in), optional                 :: dims_only
+    integer(I4P),     intent(inout), optional              :: cyc          ! data set auxiliary data CYCLE
+    character(len=*), intent(in),    optional              :: fldnames(:)  ! names of real scalars of the auxiliary data
+    real(R8P),        intent(inout), optional              :: fldvalues(:) ! their values
+    logical,          intent(inout), optional              :: fldfound(:)  ! whether the file holds them
 
     integer i, j, k, cnt
     character(len=:), allocatable :: inputFileName           ! the path, of any length, and C_NULL_CHAR for TecIO
@@ -1890,6 +2062,23 @@ contains
     logical :: plane_xyz                    ! the file declares x, y and z as coordinates (a slice)
     logical :: line_xy                      ! the file declares x and y as coordinates (lines of a 2-D field)
     integer(c_int32_t) :: zloc              ! value location of variable 3 in a zone (1 = nodal)
+    integer(c_int32_t) :: numItems, item    ! data set auxiliary data items
+    type(c_ptr) :: auxNamePtr, auxValuePtr  ! name and value of an item, as TecIO hands them over
+    character(len=:), allocatable :: auxName, auxValue
+    ! tecDataSetAuxDataGetItem refuses an item unless its name and value pointers point to NULL when it is called
+    ! (lib/TecIO/teciosrc/tecio.cpp), so they are input too; the interface of tecio.f90 declares them intent(out), and a
+    ! compiler may then drop the NULL stored before the call (gfortran 13 does in a release build). This interface to the
+    ! same function declares them intent(inout).
+    interface
+      integer(c_int32_t) function aux_data_get_item(fileHandle, whichItem, name, value) bind(c, name="tecDataSetAuxDataGetItem")
+        use iso_c_binding, only: c_ptr, c_int32_t
+        implicit none
+        type(c_ptr), value, intent(in)        :: fileHandle
+        integer(c_int32_t), value, intent(in) :: whichItem
+        type(c_ptr), intent(inout)            :: name
+        type(c_ptr), intent(inout)            :: value
+      end function aux_data_get_item
+    end interface
 
     headers_only = .false.
     if (present(dims_only)) headers_only = dims_only
@@ -1946,6 +2135,23 @@ contains
 
     i = tecFileGetType(inputFileHandle, fileType)
     i = tecDataSetGetNumZones(inputFileHandle, numZones)
+
+    ! The data set auxiliary data: CYCLE and the named scalars asked for. TecIO hands over the name and the value of an item
+    ! as strings it allocates, through pointers that must point to NULL when it is called (it refuses the item otherwise), and
+    ! that tecStringFree frees
+    if (present(cyc) .or. present(fldnames)) then
+      if (tecDataSetAuxDataGetNumItems(inputFileHandle, numItems) /= 0) numItems = 0
+      do item = 1, numItems
+        auxNamePtr = C_NULL_PTR
+        auxValuePtr = C_NULL_PTR
+        if (aux_data_get_item(inputFileHandle, item, auxNamePtr, auxValuePtr) /= 0) cycle
+        call copyCharArrayToString(auxNamePtr, tecStringLength(auxNamePtr), auxName)
+        call copyCharArrayToString(auxValuePtr, tecStringLength(auxValuePtr), auxValue)
+        call tecStringFree(auxNamePtr)
+        call tecStringFree(auxValuePtr)
+        call aux_item(auxName, auxValue, cyc, fldnames, fldvalues, fldfound)
+      enddo
+    endif
 
     ! The file declares a third coordinate, with the rule of the ASCII reader, when the first
     ! three variables are named x, y and z (any case) and z is nodal in every zone: its zones

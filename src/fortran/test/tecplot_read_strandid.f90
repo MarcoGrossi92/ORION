@@ -19,9 +19,19 @@
 !< values greater than or equal to 1. By convention strandID's are successive integer values", SOLUTIONTIME a floating
 !< point value; TECZNE142 (p. 61), StrandID "0 = static zone, not associated with a strand. Values greater than 0
 !< indicate a zone is assigned to a given strand"; binary .plt file (p. 185), "-1 = static strand ID, >=0 valid strand ID".
+!< The step number and the named scalars of a field (field_scalars), as the data set auxiliary data of the file:
+!< tec_write_structured_multiblock writes cycle as CYCLE and each of fldnames with its value, and
+!< tec_read_structured_multiblock returns them, in an ASCII file and, with TecIO, a .szplt file (also with dims_only); a
+!< file written without them reads back with cycle 0 and no scalar found; names and values of different sizes, and blank
+!< names, are refused by both functions (blank_name_read for the reader), and the other names that the auxiliary data
+!< cannot hold by the writer. An addition, not a defect: cycle, fldnames, fldvalues and fldfound are new optional
+!< arguments, the same as those of the VTK multi-block functions.
+!< Basis: Tecplot 360 EX 2023 R1 Data Format Guide: data set auxiliary data record (p. 135), "DATASETAUXDATA name =
+!< "value"", "name is a unique character string with no spaces"; TECAUXSTR142 (pp. 29-30); reading auxiliary data with
+!< tecDataSetAuxDataGetNumItems and tecDataSetAuxDataGetItem (p. 172).
 !< Stops with a non-zero code when a check fails.
 program tecplot_read_strandid
-  use IR_Precision, only: R8P
+  use IR_Precision, only: R8P, I4P
   use Lib_Tecplot
   use Lib_ORION_data
 #ifdef TECIO
@@ -49,6 +59,14 @@ program tecplot_read_strandid
   call binary(0.25_R8P, 'unsteady_strandid.szplt')
 #endif
   call no_time_rewritten(-huge(1._R8P))
+  call field_scalars('ascii', 'scalars.tec')
+  call no_scalars('ascii', 'no_scalars.tec')
+  call scalars_refused()
+  call blank_name_read()
+#ifdef TECIO
+  call field_scalars('binary', 'scalars.szplt')
+  call no_scalars('binary', 'no_scalars.szplt')
+#endif
   if (nfail > 0) then
     write(*,'(A,I0,A)') 'tecplot_read_strandid: ', nfail, ' check(s) FAILED'
     error stop 1
@@ -293,5 +311,181 @@ contains
     call binary(d%solutiontime, 'no_time_rewritten.szplt')
 #endif
   end subroutine no_time_rewritten
+
+  ! The field written in the format fmt with cycle 7 and three named scalars, and read back with them, a name asked in another
+  ! case and one that the file does not hold; with TecIO the zone headers of the .szplt file are read with dims_only too. In
+  ! an ASCII file the scalars are DATASETAUXDATA records after the zones.
+  subroutine field_scalars(fmt, filename)
+    character(len=*), intent(in) :: fmt, filename
+    type(orion_data)    :: w, r, h
+    character(len=20)   :: names(3), asked(4)
+    real(R8P)           :: values(3), got(4)
+    logical             :: found(4)
+    integer(I4P)        :: n
+    integer             :: err, u, ios, nrec
+    character(len=1024) :: line
+    logical             :: after_zones
+
+    write(*,'(A)') filename//': written with cycle 7 and three named scalars'
+    call field(0.5_R8P, w)
+    w%tec%format = fmt
+    names = [character(len=20) :: 'ITERATION', 'OUTPUT_NUMBER', 'LAST_OUTPUT_TIME']
+    values = [1234._R8P, 56._R8P, 1._R8P/3._R8P]
+    err = tec_write_structured_multiblock(orion=w, varnames='v', filename=filename, Nvars=1, cycle=7_I4P, &
+                                          fldnames=names, fldvalues=values)
+    call check(err == 0, 'written without error')
+    if (fmt == 'ascii') then
+      ! the records after the last zone: the last lines of the file
+      nrec = 0
+      after_zones = .true.
+      open(newunit=u, file=filename, status='old', action='read')
+      do
+        read(u,'(A)',iostat=ios) line
+        if (ios /= 0) exit
+        if (index(line, 'DATASETAUXDATA') == 1) then
+          nrec = nrec + 1
+        elseif (nrec > 0) then
+          after_zones = .false.
+        endif
+      enddo
+      close(u)
+      call check(nrec == 4 .and. after_zones, 'four DATASETAUXDATA records, after the zones')
+    endif
+    asked = [character(len=20) :: 'last_output_time', 'NOT_WRITTEN', 'ITERATION', 'OUTPUT_NUMBER']
+    n = -1
+    got = 12345._R8P
+    found = [.false., .true., .false., .false.]
+    r%tec%format = fmt
+    err = tec_read_structured_multiblock(orion=r, filename=filename, cycle=n, fldnames=asked, fldvalues=got, fldfound=found)
+    call check(err == 0, 'read without error')
+    if (err /= 0) return
+    call check(size(r%block) == 2 .and. r%solutiontime == 0.5_R8P, 'the field and its time read back')
+    call check(n == 7_I4P, 'the cycle written')
+    call check(found(1) .and. (.not.found(2)) .and. found(3) .and. found(4), 'found exactly the names written, in any case')
+    call check(got(1) == values(3), 'LAST_OUTPUT_TIME as written, bit for bit')
+    call check(got(2) == 0._R8P, 'a name the file does not hold reads as 0')
+    call check(got(3) == values(1) .and. got(4) == values(2), 'ITERATION and OUTPUT_NUMBER as written')
+    if (fmt == 'binary') then
+      n = -1
+      got = 12345._R8P
+      found = .false.
+      h%tec%format = fmt
+      err = tec_read_structured_multiblock(orion=h, filename=filename, dims_only=.true., cycle=n, fldnames=asked, &
+                                           fldvalues=got, fldfound=found)
+      call check(err == 0 .and. n == 7_I4P .and. all(found .eqv. [.true., .false., .true., .true.]) .and. &
+                 got(1) == values(3) .and. got(3) == values(1) .and. got(4) == values(2), &
+                 'the cycle and the named scalars from the zone headers (dims_only)')
+    endif
+  end subroutine field_scalars
+
+  ! The field written in the format fmt without cycle and named scalars: read with them, the cycle is 0 and no scalar is found.
+  subroutine no_scalars(fmt, filename)
+    character(len=*), intent(in) :: fmt, filename
+    type(orion_data)  :: w, r
+    character(len=20) :: asked(2)
+    real(R8P)         :: got(2)
+    logical           :: found(2)
+    integer(I4P)      :: n
+    integer           :: err
+
+    write(*,'(A)') filename//': written without cycle and named scalars'
+    call field(0.5_R8P, w)
+    w%tec%format = fmt
+    err = tec_write_structured_multiblock(orion=w, varnames='v', filename=filename, Nvars=1)
+    call check(err == 0, 'written without error')
+    asked = [character(len=20) :: 'ITERATION', 'LAST_OUTPUT_TIME']
+    n = -1
+    got = 12345._R8P
+    found = .true.
+    r%tec%format = fmt
+    err = tec_read_structured_multiblock(orion=r, filename=filename, cycle=n, fldnames=asked, fldvalues=got, fldfound=found)
+    call check(err == 0, 'read without error')
+    call check(n == 0_I4P .and. .not.any(found) .and. all(got == 0._R8P), 'no cycle and no named scalar: 0, not found')
+  end subroutine no_scalars
+
+  ! Names and values that do not go together, and names that the auxiliary data cannot hold (blank, with a blank, an equal
+  ! sign or a double quote, given twice, or CYCLE and Time, the items of the writer, in any case), are refused by the
+  ! writer, which returns 1 and writes no file; names and values that do not go together by the reader, which returns 1
+  ! (a blank name: blank_name_read).
+  subroutine scalars_refused()
+    type(orion_data)  :: w, r
+    real(R8P)         :: got(2)
+    logical           :: found(1)
+    integer           :: err, u
+
+    write(*,'(A)') 'refused.tec: named scalars that cannot be written'
+    ! no file of an earlier run
+    open(newunit=u, file='refused.tec')
+    close(u, status='delete')
+    call field(0.5_R8P, w)
+    w%tec%format = 'ascii'
+    call writes_nothing(tec_write_structured_multiblock(orion=w, varnames='v', filename='refused.tec', Nvars=1, &
+                        fldnames=['a']), 'names without values')
+    call writes_nothing(tec_write_structured_multiblock(orion=w, varnames='v', filename='refused.tec', Nvars=1, &
+                        fldnames=['a', 'b'], fldvalues=[1._R8P]), 'two names, one value')
+    call writes_nothing(tec_write_structured_multiblock(orion=w, varnames='v', filename='refused.tec', Nvars=1, &
+                        fldnames=['a b'], fldvalues=[1._R8P]), 'a name with a blank')
+    call writes_nothing(tec_write_structured_multiblock(orion=w, varnames='v', filename='refused.tec', Nvars=1, &
+                        fldnames=['a=b'], fldvalues=[1._R8P]), 'a name with an equal sign')
+    call writes_nothing(tec_write_structured_multiblock(orion=w, varnames='v', filename='refused.tec', Nvars=1, &
+                        fldnames=['a"b'], fldvalues=[1._R8P]), 'a name with a double quote')
+    call writes_nothing(tec_write_structured_multiblock(orion=w, varnames='v', filename='refused.tec', Nvars=1, &
+                        fldnames=['   '], fldvalues=[1._R8P]), 'a blank name')
+    call writes_nothing(tec_write_structured_multiblock(orion=w, varnames='v', filename='refused.tec', Nvars=1, &
+                        fldnames=['ab', 'AB'], fldvalues=[1._R8P, 2._R8P]), 'a name given twice')
+    call writes_nothing(tec_write_structured_multiblock(orion=w, varnames='v', filename='refused.tec', Nvars=1, &
+                        fldnames=['cycle'], fldvalues=[1._R8P]), 'the name CYCLE')
+    call writes_nothing(tec_write_structured_multiblock(orion=w, varnames='v', filename='refused.tec', Nvars=1, &
+                        fldnames=['Time'], fldvalues=[1._R8P]), 'the name Time')
+    r%tec%format = 'ascii'
+    err = tec_read_structured_multiblock(orion=r, filename='unsteady_strandid.tec', fldnames=['a'])
+    call check(err == 1, 'reader: names without values refused')
+    err = tec_read_structured_multiblock(orion=r, filename='unsteady_strandid.tec', fldnames=['a', 'b'], fldvalues=got, &
+                                         fldfound=found)
+    call check(err == 1, 'reader: two names and one fldfound refused')
+  end subroutine scalars_refused
+
+  ! A blank name in fldnames, alone or after a name, is refused by the reader as by vtk_read_structured_multiblock: the return
+  ! value 1 and nothing read (no block), for an ASCII file and, with TecIO, a .szplt file. No item of the auxiliary data has a
+  ! blank name (TECAUXSTR142 refuses one, and the ASCII reader takes a record only with a name before its equal sign): such a
+  ! name could never be found.
+  ! Basis: docs/user-guide/fortran-api.md, Cycle and named scalars: "no name is blank; otherwise both functions return 1 and
+  ! write or read nothing", and the Tecplot functions "take the same optional arguments, with the same rules".
+  subroutine blank_name_read()
+    type(orion_data)  :: r
+    real(R8P)         :: got(2)
+    logical           :: found(2)
+    integer           :: err, f, nf
+    character(len=32) :: files(2)
+
+    write(*,'(A)') 'blank names in fldnames: refused by the reader'
+    files(1) = 'unsteady_strandid.tec'
+    nf = 1
+#ifdef TECIO
+    files(2) = 'steady_strandid.szplt'
+    nf = 2
+#endif
+    do f = 1, nf
+      err = tec_read_structured_multiblock(orion=r, filename=trim(files(f)), fldnames=['    '], fldvalues=got(1:1))
+      call check(err == 1 .and. .not.allocated(r%block), trim(files(f))//': a blank name refused, nothing read')
+      err = tec_read_structured_multiblock(orion=r, filename=trim(files(f)), fldnames=['ITERATION', '         '], &
+                                           fldvalues=got, fldfound=found)
+      call check(err == 1 .and. .not.allocated(r%block), trim(files(f))//': a blank name after a name refused, nothing read')
+    enddo
+  end subroutine blank_name_read
+
+  ! The writer returned e for refused.tec: it must be 1, with no file written (one written is removed for the next case).
+  subroutine writes_nothing(e, what)
+    integer,          intent(in) :: e
+    character(len=*), intent(in) :: what
+    integer :: u
+    logical :: there
+    inquire(file='refused.tec', exist=there)
+    call check(e == 1 .and. .not.there, 'writer: '//what//' refused, no file written')
+    if (there) then
+      open(newunit=u, file='refused.tec')
+      close(u, status='delete')
+    endif
+  end subroutine writes_nothing
 
 end program tecplot_read_strandid
