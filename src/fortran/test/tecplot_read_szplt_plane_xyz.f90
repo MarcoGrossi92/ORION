@@ -9,6 +9,8 @@
 !< One location for the solution variables (variable_location).
 !< Files of lines named x and y, read with two coordinates (lines_xy).
 !< Zones whose solution variables are at different locations, each read with its own (zone_locations).
+!< A passive variable does not decide the location of a zone; a zone of passive variables takes that of the file
+!< (passive_variables).
 !< Stops with a non-zero code when a check fails.
 program tecplot_read_szplt_plane_xyz
   use Lib_Tecplot
@@ -33,6 +35,7 @@ program tecplot_read_szplt_plane_xyz
   call variable_location()
   call lines_xy()
   call zone_locations()
+  call passive_variables()
   if (nfail > 0) then
     write(*,'(A,I0,A)') 'tecplot_read_szplt_plane_xyz: ', nfail, ' check(s) FAILED'
     error stop 1
@@ -880,6 +883,132 @@ contains
       deallocate(expected)
     enddo
   end subroutine read_zones
+
+  ! Passive variables, which hold no values in a zone: in a zone with values (passive_one_zone), and
+  ! as all the solution variables of a zone, declared at the nodes and at the cells (passive_zone).
+  subroutine passive_variables()
+    call passive_one_zone()
+    call passive_zone(.false.)
+    call passive_zone(.true.)
+  end subroutine passive_variables
+
+  ! A passive variable, which holds no values in a zone, does not decide the location of the zone,
+  ! and reads as zero: the block takes the location of its solution variables that hold values.
+  ! File written with the TecIO calls that the ORION writer uses, one volume zone of 3 x 3 x 3 nodes
+  ! (x y z p a): x, y and z at the nodes, p passive (declared at the nodes, no values), a at the
+  ! cells; read with orion%tec%node set to true first. Checks: the return value, orion%tec%node
+  ! cleared, the bounds of the variables (from 1, the cells), every value of a, and p zero.
+  ! Defect: the reader gave the zone the bounds of the nodes, as if p held values at the nodes, read
+  ! the 8 values of a over 27 nodes, past the end of TecIO's buffer, and left p as the memory held.
+  ! Basis: Tecplot 360 EX 2023 R1 Data Format Guide, section 1-3, item 7 "Passive Variables" (p. 9):
+  ! "A passive variable is one that will always return the value zero if queried"; ORION holds one
+  ! location for all the solution variables of a block, here that of a, the one that holds values.
+  subroutine passive_one_zone()
+    integer, external :: tecini142, teczne142, tecdatd142, tecend142
+    character(len=1), parameter :: z0 = achar(0)
+    type(orion_data) :: d
+    integer :: e, pas(5), vloc(5), nul(5), m, i, err
+    real(8), allocatable :: buf(:)
+    pas = [0, 0, 0, 1, 0]; vloc = [1, 1, 1, 1, 0]; nul = 0
+    e = tecini142('passive'//z0, 'x y z p a'//z0, 'passive.szplt'//z0, '.'//z0, 1, 0, 0, 1)
+    e = teczne142('zone'//z0, 0, 3, 3, 3, 0, 0, 0, 0.0d0, 0, 0, 1, 0, 0, 0, 0, 0, pas, vloc, nul, 0)
+    do m = 1, 3
+      buf = [(dble(100*m + i), i = 1, 27)]
+      e = tecdatd142(27, buf)
+    enddo
+    buf = [(dble(1000 + i) + 0.25d0, i = 1, 8)]
+    e = tecdatd142(8, buf)
+    e = tecend142()
+    d%tec%format = 'binary'
+    d%tec%node = .true.
+    err = tec_read_structured_multiblock(orion=d, filename='passive.szplt')
+    write(*,'(A,I0,A,L1)') 'passive.szplt: return value ', err, ', orion%tec%node ', d%tec%node
+    call check(err == 0, 'passive.szplt: read (return value 0)')
+    if (err /= 0) return
+    call check(.not.d%tec%node, 'passive.szplt: orion%tec%node cleared (a at the cells)')
+    call check(all(d%block(1)%vars(1,:,:,:) == 0.0d0), 'passive.szplt: p, passive, zero')
+    call check(all(lbound(d%block(1)%vars) == [1, 1, 1, 1]) .and. all(ubound(d%block(1)%vars) == [2, 2, 2, 2]), &
+               'passive.szplt: the variables at the cells, vars(1:2,1:2,1:2,1:2)')
+    if (.not.all(shape(d%block(1)%vars) == [2, 2, 2, 2])) return
+    call check(all(reshape(d%block(1)%vars(2,:,:,:), [8]) == [(dble(1000 + i) + 0.25d0, i = 1, 8)]), &
+               'passive.szplt: every value of a')
+  end subroutine passive_one_zone
+
+  ! A zone whose solution variables are all passive, a zone of coordinates only, takes the location of
+  ! the file, orion%tec%node, at which tec_write_structured_multiblock writes every block. File
+  ! written with the TecIO calls that the ORION writer uses, two volume zones of 3 x 3 x 3 nodes
+  ! (x y z a): a at the nodes with values in zone 1, passive in zone 2, declared at the cells (cellp)
+  ! or at the nodes; read with orion%tec%node cleared first, written again to an ASCII file with
+  ! tec_write_structured_multiblock and read back. Checks: the return value, orion%tec%node set (a at
+  ! the nodes in zone 1), the bounds of the variables of both zones (from 0, the nodes), every value of
+  ! a in zone 1, a zero in zone 2; the file written again: the return value, the return value of the
+  ! reading back, and every value of a in both zones as read.
+  ! Defect: the reader gave zone 2 the bounds of the cells, or those of the location declared for a,
+  ! while it set orion%tec%node, so the writer read the variables of zone 2 from index 0, below their
+  ! lower bound, and wrote what the memory held.
+  ! Basis: Tecplot 360 EX 2023 R1 Data Format Guide, section 1-3, item 7 "Passive Variables" (p. 9):
+  ! a passive variable is one that "will always return the value zero if queried", for zones where it
+  ! is "not important or not calculated"; ORION writes every block of a field at the location of
+  ! orion%tec%node.
+  subroutine passive_zone(cellp)
+    logical, intent(in) :: cellp
+    integer, external :: tecini142, teczne142, tecdatd142, tecend142
+    character(len=1), parameter :: z0 = achar(0)
+    type(orion_data) :: d, r
+    character(len=40) :: fname, ftec
+    integer :: e, pas(4), vloc(4), nul(4), m, i, j, k, n, z, err
+    real(8) :: buf(27)
+    logical :: same
+    fname = 'passive_zone_'//merge('cells', 'nodes', cellp)//'.szplt'
+    ftec = 'passive_zone_'//merge('cells', 'nodes', cellp)//'.tec'
+    nul = 0
+    e = tecini142('passive zone'//z0, 'x y z a'//z0, trim(fname)//z0, '.'//z0, 1, 0, 0, 1)
+    do z = 1, 2
+      pas = 0; vloc = 1
+      if (z == 2) pas(4) = 1
+      if (z == 2 .and. cellp) vloc(4) = 0
+      e = teczne142('zone'//achar(48+z)//z0, 0, 3, 3, 3, 0, 0, 0, 0.0d0, 0, 0, 1, 0, 0, 0, 0, 0, pas, vloc, nul, 0)
+      do m = 1, 3
+        n = 0
+        do k = 1, 3; do j = 1, 3; do i = 1, 3
+          n = n + 1; buf(n) = dble(merge(i, merge(j, k, m == 2), m == 1) + 10*z)
+        enddo; enddo; enddo
+        e = tecdatd142(27, buf)
+      enddo
+      if (z == 1) then
+        buf = [(dble(1000 + i) + 0.25d0, i = 1, 27)]
+        e = tecdatd142(27, buf)
+      endif
+    enddo
+    e = tecend142()
+    d%tec%format = 'binary'
+    d%tec%node = .false.
+    err = tec_read_structured_multiblock(orion=d, filename=trim(fname))
+    write(*,'(A,I0,A,L1)') trim(fname)//': return value ', err, ', orion%tec%node ', d%tec%node
+    call check(err == 0, trim(fname)//': read (return value 0)')
+    if (err /= 0) return
+    call check(d%tec%node, trim(fname)//': orion%tec%node set (a at the nodes in zone 1)')
+    same = .true.
+    do z = 1, 2
+      same = same .and. all(lbound(d%block(z)%vars) == [1, 0, 0, 0]) .and. all(ubound(d%block(z)%vars) == [1, 2, 2, 2])
+    enddo
+    call check(same, trim(fname)//': the variables of both zones at the nodes, vars(1:1,0:2,0:2,0:2)')
+    if (.not.same) return
+    call check(all(reshape(d%block(1)%vars(1,:,:,:), [27]) == [(dble(1000 + i) + 0.25d0, i = 1, 27)]), &
+               trim(fname)//': every value of a in zone 1')
+    call check(all(d%block(2)%vars == 0.0d0), trim(fname)//': a, passive in zone 2, zero')
+    d%tec%format = 'ascii'
+    err = tec_write_structured_multiblock(orion=d, varnames='a', filename=trim(ftec))
+    call check(err == 0, trim(ftec)//': written again (return value 0)')
+    r%tec%format = 'ascii'
+    err = tec_read_structured_multiblock(orion=r, filename=trim(ftec))
+    call check(err == 0, trim(ftec)//': read back (return value 0)')
+    if (err /= 0) return
+    same = size(r%block) == 2
+    if (same) same = all(shape(r%block(1)%vars) == [1, 3, 3, 3]) .and. all(shape(r%block(2)%vars) == [1, 3, 3, 3])
+    if (same) same = all(r%block(1)%vars == d%block(1)%vars) .and. all(r%block(2)%vars == 0.0d0)
+    call check(same, trim(ftec)//': every value of a in both zones, as read')
+  end subroutine passive_zone
 
   ! The number of names in names, separated by blanks.
   pure integer function count_names(names)

@@ -180,6 +180,13 @@ Changes on `main` since `v1.6.0`.
   (it never set it); it leaves the flag as it is for a file without solution
   variables, for which the ASCII reader sets it, and for a file whose zones
   differ in location.
+- The `.szplt` reader returns a passive variable as zero, the value Tecplot
+  gives it, and takes the location of a block from its other variables, or,
+  when they are all passive (a zone of coordinates only), the location of the
+  file, `orion%tec%node`: the passive variable held what the memory held, one
+  declared at the nodes made the values at the cells read past the end of
+  their buffer, and a zone of coordinates only got the bounds of the cells in a
+  field at the nodes, which the writer then read below their lower bound.
 - The Tecplot ASCII reader reads the cell values of a zone with one node plane
   or line in I or J (it read none, without an error), gives every zone the
   number of coordinates of the file, and reads zones whose shape differs from

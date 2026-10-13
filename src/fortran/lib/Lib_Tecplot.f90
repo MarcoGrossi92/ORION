@@ -1885,7 +1885,7 @@ contains
     real(c_double), allocatable :: doubleValues(:)
     type(c_ptr) :: inputFileHandle = C_NULL_PTR
     type(c_ptr) :: stringCPtr = C_NULL_PTR
-    logical :: onlyNode
+    logical :: onlyNode, hasValues     ! the block at the nodes; a solution variable of the zone holds values
     logical :: headers_only, want_data, is_coord
     logical :: plane_xyz                    ! the file declares x, y and z as coordinates (a slice)
     logical :: line_xy                      ! the file declares x and y as coordinates (lines of a 2-D field)
@@ -2069,10 +2069,18 @@ contains
                 var, valueLocation(var))
         enddo
 
-        onlyNode = .false.
+        ! The location of the block is that of the solution variables of its zone: a passive variable, which holds no values,
+        ! does not count, as in the check of the locations above. A zone whose solution variables are all passive (a zone of
+        ! coordinates only) takes the location of the file, orion%tec%node, at which tec_write_structured_multiblock writes
+        ! every block
+        onlyNode = .false.; hasValues = .false.
         do var = ndir+1, numVars
+          i = tecZoneVarIsPassive(inputFileHandle, inputZone, var, ispassive)
+          if (ispassive /= 0) cycle
+          hasValues = .true.
           if (valueLocation(var)==1) onlyNode = .true.
         enddo
+        if (numVars > ndir .and. .not.hasValues) onlyNode = orion%tec%node
 
         if (onlyNode) then
           vstart = 0
@@ -2128,6 +2136,9 @@ contains
             ! Coordinates land in %mesh and are needed on every rank
             is_coord = (valueLocation(var)==1 .and. var<=ndir)
             if (.not. want_data .and. .not. is_coord) cycle
+
+            ! A passive variable holds no values in its zone: it reads as zero, the value Tecplot gives it
+            if (passiveVarList(var) /= 0 .and. var > ndir) orion%block(inputZone)%vars(var-ndir,:,:,:) = 0.0_R8P
 
             if (passiveVarList(var) == 0 .and. &
                   shareVarFromZone(var) == 0) then
