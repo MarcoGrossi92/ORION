@@ -269,6 +269,7 @@ contains
       integer:: err                     ! Error trapping flag: 0 no errors, >0 error occurs.
       integer:: ni1,ni2,nj1,nj2,nk1,nk2 ! Bounds of dimensions of node-centered data.
       integer:: ci1,ci2,cj1,cj2,ck1,ck2 ! Bounds of dimensions of cell-centered data.
+      integer:: vi1,vi2,vj1,vj2,vk1,vk2 ! Bounds of the variables as they are written (vars(s,vi1+start:vi2,...)).
       integer:: nnode,ncell             ! Number of nodes and cells.
       integer:: i,j,k,s                 ! Counters.
       integer:: Nx, Ny, Nz
@@ -284,6 +285,27 @@ contains
       ! Cell data: a direction with one plane of nodes (a surface block, such as a face of a volume block) has one layer of
       ! cells, as the variables are written below and as an ordered zone stores its cell-centered values
       ncell = max(ci2-ci1+1,1)*max(cj2-cj1+1,1)*max(ck2-ck1+1,1)
+      ! The bounds of the variables, the same in the binary and the ASCII file: the nodes, or the cells from start = 1
+      if (.not.meshonly) then
+        start = 1
+        if (orion%tec%node) start = 0
+        vi1 = ni1; vi2 = ni2; vj1 = nj1; vj2 = nj2; vk1 = nk1; vk2 = nk2
+        ! Cell data: one layer of cells where a direction has one plane of nodes. Data at the nodes keep that plane
+        if (.not.orion%tec%node) then
+          if (vi2==0) vi2 = 1
+          if (vj2==0) vj2 = 1
+          if (vk2==0) vk2 = 1
+        endif
+        ! Force values if 2D
+        if (ndir==2) then
+          vk1 = 1-start; vk2 = 1
+        endif
+        ! Variables whose index range in a direction has the length of the values there but other bounds are taken where
+        ! they are, such as the node plane vars(:,:,:,0:0) of a two-dimensional block as the Tecplot readers return it
+        call var_range(b, 2, start, vi1, vi2)
+        call var_range(b, 3, start, vj1, vj2)
+        call var_range(b, 4, start, vk1, vk2)
+      endif
       ! writing the block data
       select case(orion%tec%format)
       case('binary')
@@ -315,25 +337,8 @@ contains
         if (ndir==3) &
           err=tec_dat(N=nnode,dat=orion%block(b)%mesh(3,ni1:ni2,nj1:nj2,nk1:nk2))
         if (.not.meshonly) then
-          start = 1
-          if (orion%tec%node) start = 0
-          ! Cell data: one layer of cells where a direction has one plane of nodes. Data at the nodes keep that plane
-          if (.not.orion%tec%node) then
-            if (ni2==0) ni2 = 1
-            if (nj2==0) nj2 = 1
-            if (nk2==0) nk2 = 1
-          endif
-          ! Force values if 2D
-          if (ndir==2) then
-            nk1 = 1-start; nk2 = 1
-          endif
-          ! Variables whose index range in a direction has the length of the values there but other bounds are taken where
-          ! they are, such as the node plane vars(:,:,:,0:0) of a two-dimensional block as the Tecplot readers return it
-          call var_range(b, 2, start, ni1, ni2)
-          call var_range(b, 3, start, nj1, nj2)
-          call var_range(b, 4, start, nk1, nk2)
           do s=1,Nvar
-            err=tec_dat(N=ncell,dat=orion%block(b)%vars(s,ni1+start:ni2,nj1+start:nj2,nk1+start:nk2))
+            err=tec_dat(N=ncell,dat=orion%block(b)%vars(s,vi1+start:vi2,vj1+start:vj2,vk1+start:vk2))
           enddo
         endif
 #     endif
@@ -354,25 +359,8 @@ contains
         if (ndir>2) &
           write(tecunit,FR_P,iostat=err)(((orion%block(b)%mesh(3,i,j,k),i=ni1,ni2),j=nj1,nj2),k=nk1,nk2)
         if (.not.meshonly) then
-          start = 1
-          if (orion%tec%node) start = 0
-          ! Cell data: one layer of cells where a direction has one plane of nodes. Data at the nodes keep that plane
-          if (.not.orion%tec%node) then
-            if (ni2==0) ni2 = 1
-            if (nj2==0) nj2 = 1
-            if (nk2==0) nk2 = 1
-          endif
-          ! Force values if 2D
-          if (ndir==2) then
-            nk1 = 1-start; nk2 = 1
-          endif
-          ! Variables whose index range in a direction has the length of the values there but other bounds are taken where
-          ! they are, such as the node plane vars(:,:,:,0:0) of a two-dimensional block as the Tecplot readers return it
-          call var_range(b, 2, start, ni1, ni2)
-          call var_range(b, 3, start, nj1, nj2)
-          call var_range(b, 4, start, nk1, nk2)
           do s=1,Nvar
-            write(tecunit,FR_P,iostat=err)(((orion%block(b)%vars(s,i,j,k),i=ni1+start,ni2),j=nj1+start,nj2),k=nk1+start,nk2)
+            write(tecunit,FR_P,iostat=err)(((orion%block(b)%vars(s,i,j,k),i=vi1+start,vi2),j=vj1+start,vj2),k=vk1+start,vk2)
           enddo
         endif
       end select
