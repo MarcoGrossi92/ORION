@@ -1239,7 +1239,43 @@
   call read_vtk_layout('vtklayout_cell', .false., .true.)
   call read_vtk_layout('vtklayout_both', .true., .true.)
   call read_vtk_layout('vtklayout_mesh', .false., .false.)
+  call second_block_vtk_layout()
   end subroutine arrays_before_points
+
+  subroutine second_block_vtk_layout
+  !---------------------------------------------------------------------------------------------------------------------------------
+  !< A field of two blocks whose first block file is in the order of ORION, written by vtk_write_structured_multiblock, and whose
+  !< second one is in the layout of VTK, with the same variable c as cell data: refused before any block is read, as a field
+  !< whose first block file is in the layout of VTK (return value 1, the mesh of neither block read).
+  !< Defect: only the first block file was checked, so the first block was read and the second one with the names of the first.
+  !---------------------------------------------------------------------------------------------------------------------------------
+  type(orion_data)  :: w, r
+  character(len=8)  :: varnames
+  integer(I4P)      :: err
+  integer           :: i, j, k
+  !---------------------------------------------------------------------------------------------------------------------------------
+
+  allocate(w%block(1))
+  w%block(1)%name = 'vtklayout_two_B1'
+  w%block(1)%Ni = 1; w%block(1)%Nj = 1; w%block(1)%Nk = 1
+  allocate(w%block(1)%mesh(3,0:1,0:1,0:1), w%block(1)%vars(1,1:1,1:1,1:1))
+  do k = 0, 1; do j = 0, 1; do i = 0, 1
+    w%block(1)%mesh(:,i,j,k) = [real(i, R8P), real(j, R8P), real(k + 1, R8P)]
+  enddo; enddo; enddo
+  w%block(1)%vars = 9._R8P
+  w%vtk%format = 'ascii'
+  varnames = 'c'
+  err = vtk_write_structured_multiblock(orion=w, vtspath='', vtmpath='vtklayout_two_orion', varnames=varnames)
+  call check(err == 0, 'vtklayout_two: the first block file written by ORION')
+  call write_vtk_layout('vtklayout_two_V2.vts', .false., .true.)
+  call write_vtm('vtklayout_two', [character(len=24) :: 'vtklayout_two_B1.vts', 'vtklayout_two_V2.vts'])
+  r%vtk%format = 'ascii'
+  err = vtk_read_structured_multiblock(orion=r, vtmpath='vtklayout_two', vtspath='')
+  write(*,'(A,I0)') 'vtklayout_two: return value ', err
+  call check(err == 1, 'vtklayout_two: a second block file in the layout of VTK refused (return value 1)')
+  if (allocated(r%block)) call check(.not.allocated(r%block(1)%mesh) .and. .not.allocated(r%block(2)%mesh), &
+                                     'vtklayout_two: no block read')
+  end subroutine second_block_vtk_layout
 
   subroutine read_vtk_layout(stem, point, cell)
   !---------------------------------------------------------------------------------------------------------------------------------
@@ -1253,7 +1289,43 @@
   integer                      :: u
   !---------------------------------------------------------------------------------------------------------------------------------
 
-  open(newunit=u, file=stem//'_V1.vts', status='replace', action='write')
+  call write_vtk_layout(stem//'_V1.vts', point, cell)
+  open(newunit=u, file=stem//'.vtm', status='replace', action='write')
+  write(u,'(A)') '<?xml version="1.0"?>'
+  write(u,'(A)') '<VTKFile type="vtkMultiBlockDataSet" version="1.0" byte_order="LittleEndian">'
+  write(u,'(A)') '  <vtkMultiBlockDataSet>'
+  write(u,'(A)') '    <Block index="0">'
+  write(u,'(A)') '      <DataSet index="0" file="'//stem//'_V1.vts"/>'
+  write(u,'(A)') '    </Block>'
+  write(u,'(A)') '  </vtkMultiBlockDataSet>'
+  write(u,'(A)') '</VTKFile>'
+  close(u)
+  r%vtk%format = 'ascii'
+  err = vtk_read_structured_multiblock(orion=r, vtmpath=stem, vtspath='')
+  if (point .or. cell) then
+    call check(err == 1, stem//': a block file in the layout of VTK refused (return value 1)')
+    if (allocated(r%block)) call check(.not.allocated(r%block(1)%mesh), stem//': no block read')
+  else
+    call check(err == 0, stem//': a mesh in the layout of VTK read (return value 0)')
+    if (allocated(r%block)) then
+      call check(.not.r%vtk%node .and. r%block(1)%Ni == 1 .and. r%block(1)%Nj == 1 .and. r%block(1)%Nk == 1, &
+                 stem//': read with orion%vtk%node unset and Ni, Nj and Nk the cells')
+      if (allocated(r%block(1)%mesh)) call check(all(shape(r%block(1)%mesh) == [3, 2, 2, 2]), stem//': its nodes read')
+    endif
+  endif
+  end subroutine read_vtk_layout
+
+  subroutine write_vtk_layout(fname, point, cell)
+  !---------------------------------------------------------------------------------------------------------------------------------
+  !< Write the block file fname, one cell in the layout of VTK, with a variable p as point data and a variable c as cell data
+  !< when point and cell are true.
+  !---------------------------------------------------------------------------------------------------------------------------------
+  character(len=*), intent(in) :: fname
+  logical,          intent(in) :: point, cell
+  integer                      :: u
+  !---------------------------------------------------------------------------------------------------------------------------------
+
+  open(newunit=u, file=fname, status='replace', action='write')
   write(u,'(A)') '<?xml version="1.0"?>'
   write(u,'(A)') '<VTKFile type="StructuredGrid" version="0.1" byte_order="LittleEndian" header_type="UInt32"'// &
                  ' compressor="vtkZLibDataCompressor">'
@@ -1282,28 +1354,5 @@
   write(u,'(A)') '  </StructuredGrid>'
   write(u,'(A)') '</VTKFile>'
   close(u)
-  open(newunit=u, file=stem//'.vtm', status='replace', action='write')
-  write(u,'(A)') '<?xml version="1.0"?>'
-  write(u,'(A)') '<VTKFile type="vtkMultiBlockDataSet" version="1.0" byte_order="LittleEndian">'
-  write(u,'(A)') '  <vtkMultiBlockDataSet>'
-  write(u,'(A)') '    <Block index="0">'
-  write(u,'(A)') '      <DataSet index="0" file="'//stem//'_V1.vts"/>'
-  write(u,'(A)') '    </Block>'
-  write(u,'(A)') '  </vtkMultiBlockDataSet>'
-  write(u,'(A)') '</VTKFile>'
-  close(u)
-  r%vtk%format = 'ascii'
-  err = vtk_read_structured_multiblock(orion=r, vtmpath=stem, vtspath='')
-  if (point .or. cell) then
-    call check(err == 1, stem//': a block file in the layout of VTK refused (return value 1)')
-    if (allocated(r%block)) call check(.not.allocated(r%block(1)%mesh), stem//': no block read')
-  else
-    call check(err == 0, stem//': a mesh in the layout of VTK read (return value 0)')
-    if (allocated(r%block)) then
-      call check(.not.r%vtk%node .and. r%block(1)%Ni == 1 .and. r%block(1)%Nj == 1 .and. r%block(1)%Nk == 1, &
-                 stem//': read with orion%vtk%node unset and Ni, Nj and Nk the cells')
-      if (allocated(r%block(1)%mesh)) call check(all(shape(r%block(1)%mesh) == [3, 2, 2, 2]), stem//': its nodes read')
-    endif
-  endif
-  end subroutine read_vtk_layout
+  end subroutine write_vtk_layout
   end program vtk_read_multiblock

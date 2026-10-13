@@ -893,17 +893,51 @@ contains
   close(unitfile)
   nodal = point .and. .not.cell
   !---------------------------------------------------------------------------------------------------------------------------------
-  contains
-    !> True when the FieldData start tag on line closes itself (<FieldData/>, <FieldData .../>): an empty element.
-    logical function empty_element(line)
-    character(*), intent(IN) :: line
-    integer(I4P)             :: k, e
-    k = index(line,'<FieldData')
-    e = index(line(k:),'>')
-    empty_element = .false.
-    if (e > 1) empty_element = line(k+e-2:k+e-2) == '/'
-    end function empty_element
   end subroutine
+
+  subroutine first_array_name(filename,name,found)
+  !---------------------------------------------------------------------------------------------------------------------------------
+  !> The first array name of a block file, as read_variables_name finds the names (the names inside <FieldData> skipped), read
+  !> up to that name only: found is false when the file cannot be opened or names no array.
+  !---------------------------------------------------------------------------------------------------------------------------------
+  character(*),   intent(IN)  :: filename !> File name.
+  character(256), intent(OUT) :: name     !> The first array name.
+  logical,        intent(OUT) :: found    !> The file names an array.
+  integer(I4P) :: unitfile, E_IO, start_pos, end_pos
+  character(256) :: line
+  logical :: field                         !> Inside the FieldData element
+  !---------------------------------------------------------------------------------------------------------------------------------
+  name = ''
+  found = .false.
+  open(newunit=unitfile,file=trim(filename),access='SEQUENTIAL',action='READ',status='OLD',iostat=E_IO)
+  if (E_IO /= 0) return
+  field = .false.
+  do
+    read(unitfile,'(A)',iostat=E_IO) line
+    if (E_IO /= 0) exit
+    if (index(line,'<FieldData')>0) field = .not. empty_element(line)
+    if (index(line,'Name')>0 .and. .not.field) then
+      start_pos = index(line, 'Name') + len_trim('Name') + 2
+      end_pos = index(line(start_pos:), '"') + start_pos - 2
+      name = line(start_pos:end_pos)
+      found = .true.
+      exit
+    endif
+    if (index(line,'</FieldData')>0) field = .false.
+  enddo
+  close(unitfile)
+  !---------------------------------------------------------------------------------------------------------------------------------
+  end subroutine first_array_name
+
+  !> True when the FieldData start tag on line closes itself (<FieldData/>, <FieldData .../>): an empty element.
+  logical function empty_element(line)
+  character(*), intent(IN) :: line
+  integer(I4P)             :: k, e
+  k = index(line,'<FieldData')
+  e = index(line(k:),'>')
+  empty_element = .false.
+  if (e > 1) empty_element = line(k+e-2:k+e-2) == '/'
+  end function empty_element
 
   ! VTK functions
   function VTK_INI_XML(output_format,filename,mesh_topology,cf,nx1,nx2,ny1,ny2,nz1,nz2) result(E_IO)
@@ -10945,6 +10979,8 @@ contains
   integer(I4P)                      :: nx1, nx2, ny1, ny2, nz1, nz2, ny1_real, ny2_real, nz1_real, nz2_real
   integer(I4P)                      :: err, start, start_pos, end_pos, pass
   character(256), allocatable       :: varnames(:)
+  character(256)                    :: name1          ! the first array name of a block file
+  logical                           :: found1         ! the block file names an array
   character(len=:), allocatable     :: line           ! a line of the .vtm file, whole
   real(R8P), allocatable            :: x(:),y(:),z(:) ! Input geo arrays
   real(R8P), allocatable            :: v(:)           ! Input var arrays
@@ -11022,13 +11058,15 @@ contains
   call read_variables_name(trim(vtspath)//trim(orion%block(1)%name)//'.vts',varnames,orion%vtk%node)
   ! The arrays of a block file are taken in the order in which vtk_write_structured_multiblock writes them, the Points first
   ! and then the variables. A block file that lists its data arrays before its Points, as VTK writes them, is refused before
-  ! any block is read (a block file that cannot be opened has no names, and stops below with its error)
-  if (size(varnames) > 0) then
-    if (trim(varnames(1)) /= 'Points') then
+  ! any block is read: every block file is read up to its first array name (a block file that cannot be opened has no names,
+  ! and stops below with its error)
+  do b = 1, Nblocks
+    call first_array_name(trim(vtspath)//trim(orion%block(b)%name)//'.vts', name1, found1)
+    if (found1 .and. trim(name1) /= 'Points') then
       err = 1
       return
     endif
-  endif
+  enddo
 
   ! Read VTS file
   do b = 1, Nblocks

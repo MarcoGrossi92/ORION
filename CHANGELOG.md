@@ -129,10 +129,10 @@ Changes on `main` since `v1.6.0`.
 - The converter writes the `.vtm` file at the path given with `--out-file`,
   whatever its length; the file went to the first 32 characters of the path.
 - `vtk_read_structured_multiblock` refuses, before reading any block, a field
-  whose first block file lists its data arrays before its `Points` array, as
-  VTK and ParaView write them (return value 1). On such files it returned -1
-  after reading the mesh of the first block, its arrays read under names
-  shifted by one (an out-of-bounds error in a build with bound checks).
+  whose block files list their data arrays before their `Points` array, as VTK
+  and ParaView write them (return value 1). On such files it returned -1 after
+  reading the mesh of the first block, its arrays read under names shifted by
+  one (an out-of-bounds error in a build with bound checks).
 
 ## [1.7.0] - 2026-09-29
 
