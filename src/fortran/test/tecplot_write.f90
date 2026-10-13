@@ -26,8 +26,9 @@ program tecplot_write_multiblock
   integer            :: i, j, k                            !< Counter.
   integer :: checks = 0, failures = 0
 
-  ! The checks of the writer come first: without TecIO the binary writes below stop the program, with
-  ! exit status 0, so that only the checks that come before them run in every build.
+  ! The checks of the writer come first. The binary files are written only with TecIO: without it the writer stops the
+  ! program with error termination. The ASCII files that tecplot_read and the Python reader read back are written in every
+  ! build.
 #ifdef TECIO
   call surface_blocks
 #endif
@@ -85,11 +86,13 @@ program tecplot_write_multiblock
     enddo
   enddo
 
+#ifdef TECIO
   data%tec%format = 'binary'
   error = tec_write_structured_multiblock(orion=data,varnames='variable1 variable2',filename='tecfile.szplt')
 
   data%tec%format = 'binary'
   error = tec_write_structured_multiblock(orion=data,varnames='variable1 variable2',filename='tecfile.plt')
+#endif
 
   data%tec%format = 'ascii'
   error = tec_write_structured_multiblock(orion=data,varnames='"variable1"',filename='tecfile.tec',Nvars=1)
@@ -133,8 +136,10 @@ program tecplot_write_multiblock
     enddo
   enddo
 
+#ifdef TECIO
   data%tec%format = 'binary'
   error = tec_write_structured_multiblock(orion=data,varnames='variable1 variable2',filename='tec2D.szplt')
+#endif
 
   data%tec%format = 'ascii'
   error = tec_write_structured_multiblock(orion=data,varnames='"variable1"',filename='tec2D.tec',Nvars=1)

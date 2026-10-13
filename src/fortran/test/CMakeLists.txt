@@ -49,9 +49,13 @@ foreach(TEST ${TESTS})
 
 endforeach()
 
-# tecplot_write checks the files of the binary writer too when ORION is built with TecIO.
+# tecplot_write checks the files of the binary writer, tecplot_read reads binary files and converter_app converts to and
+# from one only when ORION is built with TecIO; without it converter_app checks that the converter, asked for a binary
+# file, ends with a nonzero exit status.
 if(USE_TECIO)
   target_compile_definitions(tecplot_write PRIVATE TECIO)
+  target_compile_definitions(tecplot_read PRIVATE TECIO)
+  target_compile_definitions(converter_app PRIVATE TECIO)
 endif()
 
 # converter_app runs the converter (src/fortran/app), whose path it takes from ORION_CONVERTER.
@@ -83,30 +87,27 @@ set_tests_properties(
     TIMEOUT 300
 )
 
-# The Python reader reads back the Tecplot ASCII file of tecplot_write, which
-# writes it only with TecIO (its binary writes come first). The test needs a
-# Python 3 with NumPy; without one it is not registered.
-if(USE_TECIO)
-  find_package(Python3 COMPONENTS Interpreter)
-  if(Python3_Interpreter_FOUND)
-    execute_process(
-      COMMAND ${Python3_EXECUTABLE} -c "import numpy"
-      RESULT_VARIABLE NUMPY_IMPORT_RESULT
-      OUTPUT_QUIET ERROR_QUIET
-    )
-  endif()
-  if(Python3_Interpreter_FOUND AND NUMPY_IMPORT_RESULT EQUAL 0)
-    add_test(
-      NAME ORION.python_read_tec
-      COMMAND ${Python3_EXECUTABLE} -B ${CMAKE_SOURCE_DIR}/src/python/test/read_tec.py
-    )
-    set_tests_properties(
-      ORION.python_read_tec
-      PROPERTIES
-        WORKING_DIRECTORY "${TEST_RUNTIME_DIR}"
-        DEPENDS ORION.tecplot_write
-    )
-  else()
-    message(STATUS "No Python 3 with NumPy: ORION.python_read_tec is not registered")
-  endif()
+# The Python reader reads back the Tecplot ASCII file of tecplot_write. The
+# test needs a Python 3 with NumPy; without one it is not registered.
+find_package(Python3 COMPONENTS Interpreter)
+if(Python3_Interpreter_FOUND)
+  execute_process(
+    COMMAND ${Python3_EXECUTABLE} -c "import numpy"
+    RESULT_VARIABLE NUMPY_IMPORT_RESULT
+    OUTPUT_QUIET ERROR_QUIET
+  )
+endif()
+if(Python3_Interpreter_FOUND AND NUMPY_IMPORT_RESULT EQUAL 0)
+  add_test(
+    NAME ORION.python_read_tec
+    COMMAND ${Python3_EXECUTABLE} -B ${CMAKE_SOURCE_DIR}/src/python/test/read_tec.py
+  )
+  set_tests_properties(
+    ORION.python_read_tec
+    PROPERTIES
+      WORKING_DIRECTORY "${TEST_RUNTIME_DIR}"
+      DEPENDS ORION.tecplot_write
+  )
+else()
+  message(STATUS "No Python 3 with NumPy: ORION.python_read_tec is not registered")
 endif()

@@ -9,7 +9,9 @@
   !> from it with the dimensions, coordinates and values of the input. Every coordinate and value is an integer, a half or a
   !> quarter, exact in every format. The same block with its two variables at the nodes, converted from an ASCII Tecplot file to
   !> a .vtm file, must be read back with its variables at the nodes. An input that the converter cannot read must end it with a
-  !> nonzero exit status. Exit status 0 when every check passes, 1 otherwise.
+  !> nonzero exit status. Then a binary Tecplot file (binary_files): with TecIO the converter writes the input to a .szplt file
+  !> and converts that file to a .vtm one, as above; without TecIO it must end with a nonzero exit status. Exit status 0 when
+  !> every check passes, 1 otherwise.
   !---------------------------------------------------------------------------------------------------------------------------------
   use IR_Precision
   use Lib_ORION_data
@@ -39,6 +41,7 @@
   call convert(dir, 'field', 'output path of '//itoa(len(dir) + 9)//' characters')
   call node_location
   call error_status
+  call binary_files
 
   write(*,'(A,I0,A,I0,A)') 'converter_app: ', checks, ' checks, ', failures, ' failed'
   if (failures > 0) stop 1
@@ -94,19 +97,24 @@
   w%tec%node = .false.
   end subroutine fill
 
-  subroutine convert(dir, base, what)
+  subroutine convert(dir, base, what, infile)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Make the directory dir, run the converter from converter_in.tec to dir//base//'.vtm' and read the field back.
+  !< Make the directory dir, run the converter from infile (converter_in.tec when absent) to dir//base//'.vtm' and read the field
+  !< back.
   !---------------------------------------------------------------------------------------------------------------------------------
-  character(len=*), intent(in) :: dir, base, what
-  type(orion_data)             :: r
-  integer                      :: exitstat, cmdstat, err
-  logical                      :: exists, same
+  character(len=*), intent(in)           :: dir, base, what
+  character(len=*), intent(in), optional :: infile
+  type(orion_data)                       :: r
+  integer                                :: exitstat, cmdstat, err
+  logical                                :: exists, same
+  character(len=:), allocatable          :: input
   !---------------------------------------------------------------------------------------------------------------------------------
 
+  input = 'converter_in.tec'
+  if (present(infile)) input = infile
   call execute_command_line('mkdir -p '//dir, exitstat=exitstat, cmdstat=cmdstat)
   call check(cmdstat == 0 .and. exitstat == 0, what//': directory made')
-  call execute_command_line("'"//converter//"' --in-file=converter_in.tec --out-file="//dir//base//'.vtm > '// &
+  call execute_command_line("'"//converter//"' --in-file="//input//" --out-file="//dir//base//'.vtm > '// &
                             dir//'converter_log.txt 2>&1', exitstat=exitstat, cmdstat=cmdstat)
   call check(cmdstat == 0 .and. exitstat == 0, what//': the converter ends without error')
   inquire(file=dir//base//'.vtm', exist=exists)
@@ -215,4 +223,43 @@
   enddo
   close(u)
   end function log_holds
+
+  subroutine binary_files
+  !---------------------------------------------------------------------------------------------------------------------------------
+  !< A binary Tecplot file, written and read by the Tecplot library with TecIO only. With TecIO the converter writes the input
+  !< to converter_out.szplt, ending without error, and converts that file to a .vtm file, which reads back as the input.
+  !< Without TecIO the converter asked to write a .szplt file, or to read one, must end with a nonzero exit status and the
+  !< message of the library.
+  !< Defect: without TecIO the Tecplot library stopped the program with a STOP statement, normal termination, so the converter
+  !< ended with exit status 0 having written nothing, and a script or a test that ran it took it for a success.
+  !< Basis: Fortran 2018 (ISO/IEC 1539-1:2018, final draft J3/18-007r1), 11.4, paragraph 2 (p. 197): the recommended exit
+  !< status is zero for a STOP statement with a character stop code and a processor-dependent nonzero value for an ERROR STOP
+  !< statement with one.
+  !---------------------------------------------------------------------------------------------------------------------------------
+  integer :: exitstat, cmdstat
+  logical :: exists
+  !---------------------------------------------------------------------------------------------------------------------------------
+
+#ifdef TECIO
+  call execute_command_line("'"//converter//"' --in-file=converter_in.tec --out-file=converter_out.szplt > "// &
+                            'converter_szplt_log.txt 2>&1', exitstat=exitstat, cmdstat=cmdstat)
+  call check(cmdstat == 0 .and. exitstat == 0, 'binary output: the converter ends without error')
+  inquire(file='converter_out.szplt', exist=exists)
+  call check(exists, 'binary output: the .szplt file is written')
+  if (exists) call convert('converter_from_szplt/', 'field', 'binary input', infile='converter_out.szplt')
+#else
+  call execute_command_line("'"//converter//"' --in-file=converter_in.tec --out-file=converter_out.szplt > "// &
+                            'converter_szplt_log.txt 2>&1', exitstat=exitstat, cmdstat=cmdstat)
+  call check(cmdstat == 0 .and. exitstat /= 0, 'binary output without TecIO: the converter ends with a nonzero exit status')
+  call check(log_holds('converter_szplt_log.txt', 'without compiling against TecIO'), &
+             'binary output without TecIO: the message of the library')
+  inquire(file='converter_out.szplt', exist=exists)
+  call check(.not.exists, 'binary output without TecIO: no .szplt file')
+  call execute_command_line("'"//converter//"' --in-file=converter_in.szplt --out-file=converter_from_szplt.vtm > "// &
+                            'converter_szplt_in_log.txt 2>&1', exitstat=exitstat, cmdstat=cmdstat)
+  call check(cmdstat == 0 .and. exitstat /= 0, 'binary input without TecIO: the converter ends with a nonzero exit status')
+  call check(log_holds('converter_szplt_in_log.txt', 'without compiling against TecIO'), &
+             'binary input without TecIO: the message of the library')
+#endif
+  end subroutine binary_files
   endprogram converter_app

@@ -39,6 +39,8 @@ program tecplot_read_multiblock
 
   deallocate(data%block)
 
+  ! The binary files are read only with TecIO: tecplot_write writes them only then
+#ifdef TECIO
   write(*,*) '----------------------------------'
   write(*,*) ' SZPLT BINARY FILES '
   write(*,*) '----------------------------------'
@@ -64,5 +66,6 @@ program tecplot_read_multiblock
   do i = 1, nb
     write(*,*) 'Block size    = ', data%block(i)%Ni, data%block(i)%Nj, data%block(i)%Nk
   enddo
+#endif
 
 end program tecplot_read_multiblock

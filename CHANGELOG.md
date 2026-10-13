@@ -202,6 +202,10 @@ Changes on `main` since `v1.6.0`.
 - The Tecplot ASCII readers, `tec_read_structured_multiblock` and
   `tec_read_points_multivars`, give each block the title of its zone as its
   name, as `tec_read_szplt` does; the names were undefined.
+- Without TecIO, the Tecplot writer and reader stop a program that asks them
+  for a binary file with error termination (`ERROR STOP`, a nonzero exit
+  status): `STOP` gave the exit status 0, so the run passed for a success (the
+  converter, asked for a `.szplt` file, wrote nothing).
 
 ## [1.7.0] - 2026-09-29
 

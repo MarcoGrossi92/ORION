@@ -167,7 +167,7 @@ contains
       err = tecini142(tecendrec,trim(tecvarname)//tecendrec,trim(filename)//tecendrec,'.'//tecendrec,fileFormat,FileType,Debug,VIsDouble)
       err = tecauxstr142("Time"//tecendrec,trim(str(n=time_))//tecendrec)
 #   else
-      stop "You can not write in binary format without compiling against TecIO"
+      error stop "You can not write in binary format without compiling against TecIO"
 #   endif
     case('ascii')
       open(newunit=tecunit,file=trim(filename))
@@ -224,7 +224,8 @@ contains
         ! null array
         tecnull = 0
 #     else
-        stop "You can not write in binary format without compiling against TecIO"
+        ! Error termination: a program that asks for a binary file without TecIO ends with a nonzero exit status
+        error stop "You can not write in binary format without compiling against TecIO"
 #     endif
       case('ascii')
         ! header variables names
@@ -542,7 +543,8 @@ contains
 #     if defined(TECIO)
       err = tec_read_szplt(orion,filename,zone_mask,dims_only)
 #     else
-      stop "You can not read in binary format without compiling against TecIO"
+      ! Error termination: a program that asks for a binary file without TecIO ends with a nonzero exit status
+      error stop "You can not read in binary format without compiling against TecIO"
 #     endif
     endif
 

@@ -150,7 +150,9 @@ E_IO = tec_read_structured_multiblock(filename='solution.plt', orion=IOfield)
 ```
 
 !!! note "TecIO Requirement"
-    Binary format support requires building with `--use-tecio` flag.
+    Binary format support requires building with `--use-tecio` flag. Without TecIO, a call that reads or writes a binary
+    file stops the program with error termination (`ERROR STOP`): the message `You can not read in binary format without
+    compiling against TecIO` (or `write`) and a nonzero exit status.
 
 ### VTK Files
 
@@ -403,6 +405,9 @@ E_IO = tec_write_structured_multiblock( &
          orion=IOfield, &
          filename='output.szplt')
 ```
+
+Without TecIO the binary writer stops the program with error termination and a nonzero exit status, as the reader does
+(see the TecIO note under Reading Data).
 
 ### Format Options
 
