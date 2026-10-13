@@ -20,6 +20,11 @@
   !---------------------------------------------------------------------------------------------------------------------------------
 
   !---------------------------------------------------------------------------------------------------------------------------------
+  ! A child run of split_start_tag: the reads of its fields only
+  if (command_argument_count() > 0) then
+    call split_start_tag_child
+    stop
+  endif
   orion%vtk%format='raw'
   E_IO = vtk_read_structured_multiblock(orion=orion,vtmpath='field3D',vtspath='')
 
@@ -53,7 +58,11 @@
   call point_data
   call arrays_before_points
   call name_in_appended_data
+  call name_in_binary_values
+  call split_start_tag
   call name_with_celldata
+  call name_with_gt
+  call cut_after_start_tag
 
   write(*,'(A,I0,A,I0,A)') 'vtk_read_wrapper: ', checks, ' checks, ', failures, ' failed'
   if (failures > 0) stop 1
@@ -1313,6 +1322,116 @@
   call check_field(r, w, tolerance('ascii'))
   end subroutine name_with_celldata
 
+  subroutine name_with_gt
+  !---------------------------------------------------------------------------------------------------------------------------------
+  !< A variable whose name holds '>' is read back: fields of one block of 2 x 3 x 2 cells with the variables a>b and c at the
+  !< cells, written in the ascii, binary and raw formats, are read back with their two variables, every value as written.
+  !< Defect: array_name took the start tag to end at the first '>' of its line and looked for the closing quote of the Name value
+  !< only before it, so the name a>b was not found and the variable was dropped, with the return value 0.
+  !< Basis: XML 1.0 (Fifth Edition), 2.3, production [10]: an attribute value holds any character but '<', '&' and its quote, so
+  !< it may hold '>'; vtk_write_structured_multiblock writes the names as given.
+  !---------------------------------------------------------------------------------------------------------------------------------
+  character(len=*), parameter :: fmts(3) = ['ascii ', 'binary', 'raw   ']
+  type(orion_data)   :: w, r(3)
+  character(len=8)   :: varnames
+  integer(I4P)       :: err
+  integer            :: f, i, j, k
+  !---------------------------------------------------------------------------------------------------------------------------------
+
+  do f = 1, 3
+    if (allocated(w%block)) deallocate(w%block)
+    allocate(w%block(1))
+    w%block(1)%name = 'gtname_'//trim(fmts(f))//'_B1'
+    w%block(1)%Ni = 2; w%block(1)%Nj = 3; w%block(1)%Nk = 2
+    allocate(w%block(1)%mesh(3,0:2,0:3,0:2), w%block(1)%vars(2,1:2,1:3,1:2))
+    do k = 0, 2; do j = 0, 3; do i = 0, 2
+      w%block(1)%mesh(:,i,j,k) = [real(i, R8P), real(j, R8P), real(k, R8P)]
+    enddo; enddo; enddo
+    do k = 1, 2; do j = 1, 3; do i = 1, 2
+      w%block(1)%vars(1,i,j,k) = real(i + 10*j + 100*k, R8P)
+      w%block(1)%vars(2,i,j,k) = -real(i + j + k, R8P)
+    enddo; enddo; enddo
+    w%vtk%format = trim(fmts(f))
+    varnames = 'a>b c'
+    err = vtk_write_structured_multiblock(orion=w, vtspath='', vtmpath='gtname_'//trim(fmts(f)), varnames=varnames)
+    call check(err == 0, 'gtname_'//trim(fmts(f))//': written')
+    r(f)%vtk%format = trim(fmts(f))
+    err = vtk_read_structured_multiblock(orion=r(f), vtmpath='gtname_'//trim(fmts(f)), vtspath='')
+    write(*,'(A,I0)') 'gtname_'//trim(fmts(f))//': return value ', err
+    call check(err == 0, 'gtname_'//trim(fmts(f))//': read without error')
+    call check_field(r(f), w, tolerance(trim(fmts(f))))
+  enddo
+  end subroutine name_with_gt
+
+  subroutine cut_after_start_tag
+  !---------------------------------------------------------------------------------------------------------------------------------
+  !< A block file that ends right after a DataArray start tag, as a write cut short there leaves it, is refused: fields of one
+  !< block of 2 x 3 x 2 cells with the variables u and p at the cells, written in the ascii format, get their block file cut
+  !< after the start tag of the Points, and of u; each read returns -1, the error of a block file that cannot be read.
+  !< Defect: the second pass of read_variables_name used the last line again at the end of the file, so the name of that tag
+  !< was counted once more than in the first pass and written past the end of the array of the names (a corrupted heap).
+  !< Basis: Fortran 2018 (ISO/IEC 1539-1:2018, final draft J3/18-007r1), 12.11.3, item (3) (p. 254): at an end-of-file
+  !< condition the input list items become undefined.
+  !---------------------------------------------------------------------------------------------------------------------------------
+  character(len=*), parameter :: cuts(2) = ['Points', 'u     ']
+  type(orion_data)   :: w, r(2)
+  character(len=8)   :: varnames
+  character(len=16)  :: field
+  integer(I4P)       :: werr, err
+  integer            :: c, i, j, k
+  logical            :: done
+  !---------------------------------------------------------------------------------------------------------------------------------
+
+  do c = 1, 2
+    field = 'cuttag'//trim(str(no_sign=.true., n=c))
+    if (allocated(w%block)) deallocate(w%block)
+    allocate(w%block(1))
+    w%block(1)%name = trim(field)//'_B1'
+    w%block(1)%Ni = 2; w%block(1)%Nj = 3; w%block(1)%Nk = 2
+    allocate(w%block(1)%mesh(3,0:2,0:3,0:2), w%block(1)%vars(2,1:2,1:3,1:2))
+    do k = 0, 2; do j = 0, 3; do i = 0, 2
+      w%block(1)%mesh(:,i,j,k) = [real(i, R8P), real(j, R8P), real(k, R8P)]
+    enddo; enddo; enddo
+    w%block(1)%vars = 1._R8P
+    w%vtk%format = 'ascii'
+    varnames = 'u p'
+    werr = vtk_write_structured_multiblock(orion=w, vtspath='', vtmpath=trim(field), varnames=varnames)
+    call cut_after_tag(trim(field)//'_B1.vts', trim(cuts(c)), done)
+    call check(werr == 0 .and. done, trim(field)//': written, its block file cut after the start tag of '//trim(cuts(c)))
+    r(c)%vtk%format = 'ascii'
+    err = vtk_read_structured_multiblock(orion=r(c), vtmpath=trim(field), vtspath='')
+    write(*,'(A,I0)') trim(field)//': return value ', err
+    call check(err == -1, trim(field)//': refused (return value -1)')
+  enddo
+  end subroutine cut_after_start_tag
+
+  subroutine cut_after_tag(fname, array, done)
+  !---------------------------------------------------------------------------------------------------------------------------------
+  !< Write the file fname again up to the end of the line that holds the start tag of the data array named array: done tells
+  !< that the tag was found.
+  !---------------------------------------------------------------------------------------------------------------------------------
+  character(len=*), intent(in)  :: fname, array
+  logical,          intent(out) :: done
+  character(len=:), allocatable :: text
+  integer                       :: u, sz, p, q
+  !---------------------------------------------------------------------------------------------------------------------------------
+
+  done = .false.
+  open(newunit=u, file=fname, access='stream', form='unformatted', status='old', action='read')
+  inquire(unit=u, size=sz)
+  allocate(character(len=sz) :: text)
+  read(u) text
+  close(u)
+  p = index(text, 'Name="'//array//'"')
+  if (p == 0) return
+  q = index(text(p:), achar(10))
+  if (q == 0) return
+  open(newunit=u, file=fname, access='stream', form='unformatted', status='replace', action='write')
+  write(u) text(1:p+q-1)
+  close(u)
+  done = .true.
+  end subroutine cut_after_tag
+
   subroutine name_in_appended_data
   !---------------------------------------------------------------------------------------------------------------------------------
   !< The bytes of the raw appended data are not taken for names: a field of one block of 2 x 2 x 2 cells with the variables u and
@@ -1352,6 +1471,206 @@
   call check(err == 0, 'appname: read without error')
   call check_field(r, w, 0._R8P)
   end subroutine name_in_appended_data
+
+  subroutine name_in_binary_values
+  !---------------------------------------------------------------------------------------------------------------------------------
+  !< The base64 code of the values of an array (binary format) is not taken for a name: a field of one block of 2 x 3 x 2 cells
+  !< with the variables u and p at the cells, written in the binary format, the first value of u holding the bytes 0x35 0xA9
+  !< 0x9E where the code turns them into the text "Name" (2.0003026217746083), is read back with its two variables, every value
+  !< as written.
+  !< Defect: read_variables_name took every line of a block file that holds the four characters Name, outside the FieldData
+  !< element, for an array name: the line of the code of u was taken for one more variable, of zeros, between u and p, and the
+  !< reader returned 0.
+  !< Basis: XML 1.0 (Fifth Edition), 3.1, production [40]: the attributes of an element are in its start tag; the name of a
+  !< data array is its Name attribute.
+  !---------------------------------------------------------------------------------------------------------------------------------
+  type(orion_data)   :: w, r
+  character(len=8)   :: varnames
+  character(len=256) :: line
+  integer(I4P)       :: err
+  integer            :: i, j, k, u, ios
+  logical            :: in_data
+  integer(I1P), parameter :: bytes(8) = [0_I1P, 0_I1P, 53_I1P, -87_I1P, -98_I1P, 0_I1P, 0_I1P, 64_I1P] ! 0x35 0xA9 0x9E
+  !---------------------------------------------------------------------------------------------------------------------------------
+
+  allocate(w%block(1))
+  w%block(1)%name = 'binname_B1'
+  w%block(1)%Ni = 2; w%block(1)%Nj = 3; w%block(1)%Nk = 2
+  allocate(w%block(1)%mesh(3,0:2,0:3,0:2), w%block(1)%vars(2,1:2,1:3,1:2))
+  do k = 0, 2; do j = 0, 3; do i = 0, 2
+    w%block(1)%mesh(:,i,j,k) = [real(i, R8P), real(j, R8P), real(k, R8P)]
+  enddo; enddo; enddo
+  do k = 1, 2; do j = 1, 3; do i = 1, 2
+    w%block(1)%vars(1,i,j,k) = real(i + 10*j + 100*k, R8P)
+    w%block(1)%vars(2,i,j,k) = -real(i + j + k, R8P)
+  enddo; enddo; enddo
+  w%block(1)%vars(1,1,1,1) = transfer(bytes, 1._R8P)
+  w%vtk%format = 'binary'
+  varnames = 'u p'
+  err = vtk_write_structured_multiblock(orion=w, vtspath='', vtmpath='binname', varnames=varnames)
+  call check(err == 0, 'binname: written')
+  ! The premise: a line of the code of the values, not a tag, holds the text Name
+  in_data = .false.
+  open(newunit=u, file='binname_B1.vts', status='old', action='read')
+  do
+    read(u,'(A)',iostat=ios) line
+    if (ios /= 0) exit
+    if (index(line,'Name') > 0 .and. index(line,'<') == 0) in_data = .true.
+  enddo
+  close(u)
+  call check(in_data, 'binname: the code of the values of u holds the text Name')
+  r%vtk%format = 'binary'
+  err = vtk_read_structured_multiblock(orion=r, vtmpath='binname', vtspath='')
+  write(*,'(A,I0)') 'binname: return value ', err
+  call check(err == 0, 'binname: read without error')
+  call check_field(r, w, 0._R8P)
+  end subroutine name_in_binary_values
+
+  subroutine split_start_tag
+  !---------------------------------------------------------------------------------------------------------------------------------
+  !< A tag split over lines is refused, with a message: two fields of blocks of 2 x 3 x 2 cells with the variables u and p at the
+  !< cells, written in the ascii format, get a start tag over two lines (its Name attribute on the second): that of u in the one
+  !< block of the first field, and that of p in the second block of the other, past the first array name of that block file.
+  !< Each read returns 1; read again in a child run of this program, each gives on the standard error a message with the block
+  !< file, the line of the tag and the tag.
+  !< Defect: the reader takes the name of a data array from its start tag on one line (array_name): a start tag split over
+  !< lines named no array, and the field was read without that array, with the return value 0.
+  !< Basis: XML 1.0 (Fifth Edition), W3C Recommendation 26 November 2008, 3.1, production [40], and 2.3, production [3]: the
+  !< attributes of a start tag are separated by white space, which holds line breaks; the reader takes each tag on its line.
+  !---------------------------------------------------------------------------------------------------------------------------------
+  character(len=*), parameter :: fields(2) = ['splittag ', 'splittag2']
+  character(len=*), parameter :: files(2) = ['splittag_B1.vts ', 'splittag2_B2.vts']
+  character(len=1), parameter :: arrays(2) = ['u', 'p']
+  type(orion_data)              :: w, r
+  character(len=8)              :: varnames
+  character(len=:), allocatable :: self
+  integer(I4P)                  :: err(2), werr(2)
+  integer                       :: f, b, i, j, k, at(2), length, exitstat, cmdstat
+  logical                       :: split(2)
+  !---------------------------------------------------------------------------------------------------------------------------------
+
+  do f = 1, 2
+    if (allocated(w%block)) deallocate(w%block)
+    allocate(w%block(f))
+    do b = 1, f
+      w%block(b)%name = trim(fields(f))//'_B'//trim(str(no_sign=.true., n=b))
+      w%block(b)%Ni = 2; w%block(b)%Nj = 3; w%block(b)%Nk = 2
+      allocate(w%block(b)%mesh(3,0:2,0:3,0:2), w%block(b)%vars(2,1:2,1:3,1:2))
+      do k = 0, 2; do j = 0, 3; do i = 0, 2
+        w%block(b)%mesh(:,i,j,k) = [real(i + 2*(b-1), R8P), real(j, R8P), real(k, R8P)]
+      enddo; enddo; enddo
+      do k = 1, 2; do j = 1, 3; do i = 1, 2
+        w%block(b)%vars(1,i,j,k) = real(i + 10*j + 100*k, R8P)
+        w%block(b)%vars(2,i,j,k) = -real(i + j + k, R8P)
+      enddo; enddo; enddo
+    enddo
+    w%vtk%format = 'ascii'
+    varnames = 'u p'
+    werr(f) = vtk_write_structured_multiblock(orion=w, vtspath='', vtmpath=trim(fields(f)), varnames=varnames)
+    call split_tag(trim(files(f)), arrays(f), split(f), at(f))
+  enddo
+  call check(all(werr == 0), 'splittag: written')
+  call check(all(split), 'splittag: the start tag of u, and of p in the second block file, over two lines')
+  do f = 1, 2
+    r%vtk%format = 'ascii'
+    err(f) = vtk_read_structured_multiblock(orion=r, vtmpath=trim(fields(f)), vtspath='')
+    write(*,'(A,I0)') trim(fields(f))//': return value ', err(f)
+    call check(err(f) == 1, trim(fields(f))//': refused (return value 1)')
+  enddo
+  ! The messages, from a child run of this program that reads the two fields again
+  call get_command_argument(0, length=length)
+  allocate(character(len=length) :: self)
+  call get_command_argument(0, self)
+  call execute_command_line("'"//self//"' split_start_tag > splittag_log.txt 2>&1", exitstat=exitstat, cmdstat=cmdstat)
+  call check(cmdstat == 0 .and. exitstat == 0, 'splittag: the child run')
+  do f = 1, 2
+    call check(file_holds('splittag_log.txt', 'VTK READ ERROR: '//trim(files(f))//', line '// &
+                          trim(str(no_sign=.true., n=at(f)))//': a tag that does not end on its line') .and. &
+               file_holds('splittag_log.txt', trim(files(f))//', line '//trim(str(no_sign=.true., n=at(f)))// &
+                          ': a tag that does not end on its line (start tags must be on one line): <DataArray'), &
+               trim(fields(f))//': the message gives the block file, the line and the tag')
+  enddo
+  end subroutine split_start_tag
+
+  subroutine split_tag(fname, array, done, at)
+  !---------------------------------------------------------------------------------------------------------------------------------
+  !< Write the file fname again with the start tag of the data array named array over two lines, its Name attribute on the
+  !< second: done tells that the tag was found, at its line (the first of the two).
+  !---------------------------------------------------------------------------------------------------------------------------------
+  character(len=*), intent(in)  :: fname, array
+  logical,          intent(out) :: done
+  integer,          intent(out) :: at
+  character(len=512), allocatable :: lines(:)
+  character(len=512)              :: line
+  integer                         :: u, ios, n, i, p
+  !---------------------------------------------------------------------------------------------------------------------------------
+
+  done = .false.; at = 0; n = 0
+  open(newunit=u, file=fname, status='old', action='read')
+  do
+    read(u,'(A)',iostat=ios) line
+    if (ios /= 0) exit
+    n = n + 1
+  enddo
+  allocate(lines(n))
+  rewind(u)
+  do i = 1, n
+    read(u,'(A)') lines(i)
+  enddo
+  close(u)
+  open(newunit=u, file=fname, status='replace', action='write')
+  do i = 1, n
+    p = index(lines(i), ' Name="'//array//'"')
+    if (.not.done .and. index(lines(i), '<DataArray') > 0 .and. p > 0) then
+      write(u,'(A)') lines(i)(1:p-1)
+      write(u,'(A)') '   '//trim(lines(i)(p+1:))
+      done = .true.
+      at = i
+    else
+      write(u,'(A)') trim(lines(i))
+    endif
+  enddo
+  close(u)
+  end subroutine split_tag
+
+  subroutine split_start_tag_child
+  !---------------------------------------------------------------------------------------------------------------------------------
+  !< The reads of split_start_tag again, in a child run of this program: the messages of the reader go to its standard error.
+  !---------------------------------------------------------------------------------------------------------------------------------
+  type(orion_data) :: r1, r2
+  integer(I4P)     :: err
+  !---------------------------------------------------------------------------------------------------------------------------------
+
+  r1%vtk%format = 'ascii'
+  err = vtk_read_structured_multiblock(orion=r1, vtmpath='splittag', vtspath='')
+  write(*,'(A,I0)') 'splittag (child): return value ', err
+  r2%vtk%format = 'ascii'
+  err = vtk_read_structured_multiblock(orion=r2, vtmpath='splittag2', vtspath='')
+  write(*,'(A,I0)') 'splittag2 (child): return value ', err
+  end subroutine split_start_tag_child
+
+  logical function file_holds(fname, text)
+  !---------------------------------------------------------------------------------------------------------------------------------
+  !< Does a line of the file fname hold text?
+  !---------------------------------------------------------------------------------------------------------------------------------
+  character(len=*), intent(in) :: fname, text
+  character(len=1024)          :: line
+  integer                      :: u, ios
+  !---------------------------------------------------------------------------------------------------------------------------------
+
+  file_holds = .false.
+  open(newunit=u, file=fname, status='old', action='read', iostat=ios)
+  if (ios /= 0) return
+  do
+    read(u, '(A)', iostat=ios) line
+    if (ios /= 0) exit
+    if (index(line, text) > 0) then
+      file_holds = .true.
+      exit
+    endif
+  enddo
+  close(u)
+  end function file_holds
 
   subroutine arrays_before_points
   !---------------------------------------------------------------------------------------------------------------------------------

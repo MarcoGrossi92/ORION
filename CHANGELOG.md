@@ -147,6 +147,12 @@ Changes on `main` since `v1.6.0`.
   the location of its variables comes from its `PointData` and `CellData`
   elements: four bytes `Name` in raw appended data were taken for one more
   variable, and a variable whose name holds `CellData` set the cells.
+- The names of the data arrays of a VTK block file are the `Name` attributes
+  of their `DataArray` start tags: the base64 code of the values of an array
+  (binary format) that holds the text `Name` was taken for one more variable,
+  of zeros, with the return value 0. A tag split over lines, which the reader
+  does not read, is refused (return value 1), with a message that gives the
+  file, the line and the tag.
 - The converter writes the variables of a Tecplot file at the nodes as point
   data of the VTK files; it wrote them as cell data.
 - The converter ends with the exit status 1 when it cannot read its input or

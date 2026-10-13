@@ -840,25 +840,31 @@ contains
   end function
 
 
-  subroutine read_variables_name(filename,varname,nodal)
+  subroutine read_variables_name(filename,varname,nodal,split)
   !---------------------------------------------------------------------------------------------------------------------------------
   !> look for and read variables name
   !> The names inside <FieldData> (TIME, CYCLE, ...) are global data, not variables: they are skipped. The file is read up to
   !> its AppendedData element, where the raw appended data begin: their bytes are not text.
   !> The variables are at the nodes when the file holds them as point data, in a PointData element and no CellData element; a
   !> mesh without variables, with neither element, has no variables at the nodes.
+  !> A name is the Name attribute of a DataArray start tag (array_name), not any text with the four characters Name, such as
+  !> the base64 code of the values of an array in the binary format.
+  !> A tag that does not end on its line (a start tag split over lines: start tags must be on one line) gives no names: split
+  !> is true, and a message on the standard error gives the file, the line and the tag.
   !---------------------------------------------------------------------------------------------------------------------------------
   character(*), intent(IN)                     :: filename   !> File name.
   character(256), allocatable, intent(OUT)     :: varname(:) !> String with the variables name
   logical, intent(inout)                       :: nodal      !> Switch for variables position
+  logical, intent(out), optional               :: split      !> A tag of the file does not end on its line
   integer(I4P)                                 :: E_IO       !> Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done
-  integer(I4P) :: unitfile, n
-  integer(I4P) :: start_pos, end_pos
-  character(256) :: line
+  integer(I4P) :: unitfile, n, nline
+  character(256) :: line, name, tag
+  logical :: complete
   logical :: field                                           !> Inside the FieldData element
   logical :: point, cell                                     !> The file holds a PointData, a CellData element
   !---------------------------------------------------------------------------------------------------------------------------------
   nodal = .false.
+  if (present(split)) split = .false.
   open(newunit=unitfile,file=trim(filename),&
          access='SEQUENTIAL',action='READ',status='OLD',iostat=E_IO)
   ! A file that cannot be opened has no variable names (the reader then stops on it with an error)
@@ -866,12 +872,24 @@ contains
     allocate(varname(0))
     return
   endif
-  E_IO = 0; n = 0; field = .false.
+  E_IO = 0; n = 0; field = .false.; nline = 0
   do while(E_IO==0)
-    read(unitfile,'(A)',iostat=E_IO) line
+    call read_line_start(unitfile, line, complete, E_IO)
+    if (E_IO /= 0) exit
+    nline = nline + 1
     if (index(line,'<AppendedData')>0) exit
+    ! A tag that does not end on its line: no names
+    if (unclosed_tag(line, tag)) then
+      call unclosed_tag_message(filename, nline, complete, tag)
+      if (present(split)) split = .true.
+      close(unitfile)
+      allocate(varname(0))
+      return
+    endif
     if (index(line,'<FieldData')>0) field = .not. empty_element(line)
-    if (index(line,'Name')>0 .and. .not.field) n = n + 1
+    if (.not.field) then
+      if (array_name(line, name)) n = n + 1
+    endif
     if (index(line,'</FieldData')>0) field = .false.
   enddo
   allocate(varname(1:n))
@@ -879,17 +897,17 @@ contains
   E_IO = 0; n = 0; field = .false.; point = .false.; cell = .false.
   do while(E_IO==0)
     read(unitfile,'(A)',iostat=E_IO) line
+    ! At the end of the file the line is undefined: leave before using it, as the first pass does
+    if (E_IO /= 0) exit
     if (index(line,'<AppendedData')>0) exit
     if (index(line,'<PointData')>0) point = .true.
     if (index(line,'<CellData')>0) cell = .true.
     if (index(line,'<FieldData')>0) field = .not. empty_element(line)
-    if (index(line,'Name')>0 .and. .not.field) then
-      n = n + 1
-      ! Find the position of the value after the keyword
-      start_pos = index(line, 'Name') + len_trim('Name') + 2
-      end_pos = index(line(start_pos:), '"') + start_pos - 2
-      ! Extract the value
-      varname(n) = line(start_pos:end_pos)
+    if (.not.field) then
+      if (array_name(line, name)) then
+        n = n + 1
+        varname(n) = name
+      endif
     endif
     if (index(line,'</FieldData')>0) field = .false.
   enddo
@@ -898,10 +916,11 @@ contains
   !---------------------------------------------------------------------------------------------------------------------------------
   end subroutine
 
-  subroutine first_array_name(filename,name,found,field_data)
+  subroutine first_array_name(filename,name,found,field_data,split)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !> The first array name of a block file, as read_variables_name finds the names (the names inside <FieldData> skipped), read
-  !> up to that name, or up to its AppendedData element: found is false when the file cannot be opened or names no array.
+  !> The first array name of a block file, as read_variables_name finds the names (the names inside <FieldData> skipped):
+  !> found is false when the file cannot be opened or names no array. The file is read on to its end, or to its AppendedData
+  !> element, for a tag that does not end on its line: split is true, with the message of read_variables_name.
   !> field_data tells whether a FieldData
   !> element that is not empty comes before that name, where vtk_write_structured_multiblock writes it.
   !---------------------------------------------------------------------------------------------------------------------------------
@@ -909,36 +928,153 @@ contains
   character(256), intent(OUT)           :: name       !> The first array name.
   logical,        intent(OUT)           :: found      !> The file names an array.
   logical,        intent(OUT), optional :: field_data !> A FieldData element comes before the first array name.
-  integer(I4P) :: unitfile, E_IO, start_pos, end_pos
-  character(256) :: line
+  logical,        intent(OUT), optional :: split      !> A tag of the file does not end on its line.
+  integer(I4P) :: unitfile, E_IO, nline
+  character(256) :: line, tag
+  logical :: complete
   logical :: field                         !> Inside the FieldData element
   !---------------------------------------------------------------------------------------------------------------------------------
   name = ''
   found = .false.
   if (present(field_data)) field_data = .false.
+  if (present(split)) split = .false.
   open(newunit=unitfile,file=trim(filename),access='SEQUENTIAL',action='READ',status='OLD',iostat=E_IO)
   if (E_IO /= 0) return
-  field = .false.
+  field = .false.; nline = 0
   do
-    read(unitfile,'(A)',iostat=E_IO) line
+    call read_line_start(unitfile, line, complete, E_IO)
     if (E_IO /= 0) exit
+    nline = nline + 1
     if (index(line,'<AppendedData')>0) exit
+    if (unclosed_tag(line, tag)) then
+      call unclosed_tag_message(filename, nline, complete, tag)
+      if (present(split)) split = .true.
+      exit
+    endif
+    ! After the first array name only the tags are looked at
+    if (found) cycle
     if (index(line,'<FieldData')>0) then
       field = .not. empty_element(line)
       if (present(field_data)) field_data = field_data .or. field
     endif
-    if (index(line,'Name')>0 .and. .not.field) then
-      start_pos = index(line, 'Name') + len_trim('Name') + 2
-      end_pos = index(line(start_pos:), '"') + start_pos - 2
-      name = line(start_pos:end_pos)
-      found = .true.
-      exit
+    if (.not.field) then
+      if (array_name(line, name)) then
+        found = .true.
+        cycle
+      endif
     endif
     if (index(line,'</FieldData')>0) field = .false.
   enddo
   close(unitfile)
   !---------------------------------------------------------------------------------------------------------------------------------
   end subroutine first_array_name
+
+  !> True when line holds the start tag of a DataArray element with a Name attribute, whose value it returns in name. The
+  !> attribute is the word Name after a blank, then an equal sign and the value in double or single quotes, with blanks
+  !> allowed around the equal sign (XML 1.0, productions [25] Eq and [10] AttValue).
+  logical function array_name(line, name)
+  character(*),   intent(IN)  :: line
+  character(256), intent(OUT) :: name
+  integer                     :: t, e, p, k, q
+  character(1)                :: quote
+  array_name = .false.
+  name = ''
+  t = index(line,'<DataArray')
+  if (t == 0) return
+  ! The start tag, up to its '>' or to the end of the line
+  e = index(line(t:),'>')
+  if (e == 0) then
+    e = len(line)
+  else
+    e = t + e - 1
+  endif
+  p = t
+  do
+    k = index(line(p:e),'Name')
+    if (k == 0) return
+    k = p + k - 1
+    p = k + 4
+    if (line(k-1:k-1) /= ' ' .and. line(k-1:k-1) /= achar(9)) cycle
+    q = p
+    do while (q <= e)
+      if (line(q:q) /= ' ' .and. line(q:q) /= achar(9)) exit
+      q = q + 1
+    enddo
+    if (q > e) return
+    if (line(q:q) /= '=') cycle
+    q = q + 1
+    do while (q <= e)
+      if (line(q:q) /= ' ' .and. line(q:q) /= achar(9)) exit
+      q = q + 1
+    enddo
+    if (q > e) return
+    quote = line(q:q)
+    if (quote /= '"' .and. quote /= "'") return
+    ! The value may hold '>' (XML 1.0, production [10]): its closing quote is looked for past the end of the tag found above
+    k = index(line(q+1:), quote)
+    if (k == 0) return
+    name = line(q+1:q+k-1)
+    array_name = .true.
+    return
+  enddo
+  end function array_name
+
+  !> The next line of a file as far as line holds it: complete is true when the line ends there; the rest of a longer line,
+  !> such as the values of a data array, is passed over without being kept. ios is that of the read: 0, or the end of the file.
+  subroutine read_line_start(u, line, complete, ios)
+  integer(I4P), intent(IN)  :: u
+  character(*), intent(OUT) :: line
+  logical,      intent(OUT) :: complete
+  integer(I4P), intent(OUT) :: ios
+  integer(I4P)              :: sz
+  line = ''
+  read(u,'(A)',advance='no',size=sz,iostat=ios) line
+  complete = is_iostat_eor(ios)
+  if (complete) then
+    ios = 0
+  elseif (ios == 0) then
+    read(u,'(A)',iostat=ios)
+  endif
+  end subroutine read_line_start
+
+  !> True when line holds a tag that does not end on it: a '<' with no '>' after it on the line. tag returns the tag as far as
+  !> the line holds it. XML allows a start tag over several lines (white space, line breaks included, may stand between its
+  !> attributes); the reader takes each tag on its line.
+  logical function unclosed_tag(line, tag)
+  character(*), intent(IN)  :: line
+  character(*), intent(OUT) :: tag
+  integer                   :: p, q
+  unclosed_tag = .false.
+  tag = ''
+  p = 1
+  do
+    q = index(line(p:), '<')
+    if (q == 0) return
+    p = p + q - 1
+    if (index(line(p:), '>') == 0) then
+      unclosed_tag = .true.
+      tag = line(p:)
+      return
+    endif
+    p = p + 1
+  enddo
+  end function unclosed_tag
+
+  !> The message of a tag that does not end on its line, on the standard error: the file, the line and the tag; complete is
+  !> false when the line is longer than the part of it that the reader reads.
+  subroutine unclosed_tag_message(filename, nline, complete, tag)
+  character(*), intent(IN) :: filename, tag
+  integer(I4P), intent(IN) :: nline
+  logical,      intent(IN) :: complete
+  if (complete) then
+    write(stderr,'(A)') 'VTK READ ERROR: '//trim(filename)//', line '//trim(str(no_sign=.true.,n=nline))// &
+                        ': a tag that does not end on its line (start tags must be on one line): '//trim(tag)
+  else
+    write(stderr,'(A)') 'VTK READ ERROR: '//trim(filename)//', line '//trim(str(no_sign=.true.,n=nline))// &
+                        ': a tag that does not end in the first '//trim(str(no_sign=.true.,n=len(tag)))// &
+                        ' characters of its line: '//trim(tag)
+  endif
+  end subroutine unclosed_tag_message
 
   !> True when the FieldData start tag on line closes itself (<FieldData/>, <FieldData .../>): an empty element.
   logical function empty_element(line)
@@ -11042,6 +11178,7 @@ contains
   character(256), allocatable       :: varnames(:)
   character(256)                    :: name1          ! the first array name of a block file
   logical                           :: found1         ! the block file names an array
+  logical                           :: split          ! a tag of a block file does not end on its line
   logical, allocatable              :: fields(:)      ! the block file holds a FieldData element
   character(len=:), allocatable     :: line           ! a line of the .vtm file, whole
   real(R8P), allocatable            :: x(:),y(:),z(:) ! Input geo arrays
@@ -11122,15 +11259,21 @@ contains
   enddo
   close(nu)
   if (err /= 0) return
-  call read_variables_name(trim(vtspath)//trim(orion%block(1)%name)//'.vts',varnames,orion%vtk%node)
+  call read_variables_name(trim(vtspath)//trim(orion%block(1)%name)//'.vts',varnames,orion%vtk%node,split)
+  ! A tag that does not end on its line, as a start tag split over lines (XML allows it; the reader takes each tag on its
+  ! line): the field is refused before any block is read, with the message of read_variables_name or first_array_name
+  if (split) then
+    err = 1
+    return
+  endif
   ! The arrays of a block file are taken in the order in which vtk_write_structured_multiblock writes them, the Points first
   ! and then the variables. A block file that lists its data arrays before its Points, as VTK writes them, is refused before
   ! any block is read: every block file is read up to its first array name (a block file that cannot be opened has no names,
   ! and stops below with its error), which tells also whether it holds field data
   allocate(fields(1:Nblocks))
   do b = 1, Nblocks
-    call first_array_name(trim(vtspath)//trim(orion%block(b)%name)//'.vts', name1, found1, fields(b))
-    if (found1 .and. trim(name1) /= 'Points') then
+    call first_array_name(trim(vtspath)//trim(orion%block(b)%name)//'.vts', name1, found1, fields(b), split)
+    if (split .or. (found1 .and. trim(name1) /= 'Points')) then
       err = 1
       return
     endif

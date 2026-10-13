@@ -231,8 +231,10 @@ end program read_vtk_structured
   which `vtk_write_structured_multiblock` writes them: a `.vtm` file whose `Block` element lists one `DataSet` per line, and
   block files of one `StructuredGrid` piece whose `Points` array (named `Points`, `Float64`) comes before its `PointData` or
   `CellData` arrays (`Float64`, `NumberOfComponents="1"`), in the format of `orion%vtk%format`: `ascii`, `binary` (base64
-  with a 4-byte length, not compressed) or `raw` (raw appended data). A block file that lists its data arrays before its
-  `Points`, as VTK and ParaView write them, is refused (return value 1) before any block is read.
+  with a 4-byte length, not compressed) or `raw` (raw appended data). Start tags must be on one line: a block file with a
+  tag split over lines is refused (return value 1) before any block is read, with a message on the standard error that
+  gives the file, the line and the tag. A block file that lists its data arrays before its `Points`, as VTK and ParaView
+  write them, is refused (return value 1) before any block is read.
 - **Solution time.** `solutiontime` is 0 in a new `orion_data`. The Tecplot ASCII reader stores the
   `SOLUTIONTIME` of the file, or -10 when its zone headers give none. The `.szplt` reader does not store the
   zone time of the file and leaves `solutiontime` as it was (0 for a new object); so does the PLOT3D reader,
