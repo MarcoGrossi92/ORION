@@ -586,7 +586,6 @@ contains
     integer   :: Imax, Jmax, Kmax
     integer   :: start
     logical, allocatable :: zone_point(:), zone_node_arr(:)
-    logical, allocatable :: zone_z_cell(:)   ! variable 3 listed as CELLCENTERED in the zone header
     logical, allocatable :: zone_cc(:,:)     ! variable v listed as CELLCENTERED in the header of zone b
     logical   :: plane_xyz                   ! the header declares x, y and z as coordinates (a slice)
     logical   :: line_xy                     ! the header declares x and y as coordinates (lines of a 2-D field)
@@ -594,6 +593,7 @@ contains
     ! A line and a zone header of any length (read with read_whole_line): the title of a zone is as long as its block name
     character(len=:), allocatable :: line
     character(len=:), allocatable :: header
+    character(len=:), allocatable :: uheader ! the zone header in upper case
     character(32768) :: hline               ! header lines only (VARIABLES and what precedes it)
     character(32768) :: variables_header
     character(32768) :: vline
@@ -691,12 +691,10 @@ contains
     endif
 
     allocate(Ni(Nblocks),Nj(Nblocks),Nk(Nblocks),zone_point(Nblocks),zone_node_arr(Nblocks))
-    allocate(zone_z_cell(Nblocks))
     allocate(zone_cc(size(orion%varnames),Nblocks))
     Ni = 0; Nj = 0; Nk = 1
     zone_point = .false.
     zone_node_arr = .true.
-    zone_z_cell = .false.
     zone_cc = .false.
 
     rewind(tecunit)
@@ -729,9 +727,9 @@ contains
       enddo
 
       call parse_zone_header(header,Ni(b),Nj(b),Nk(b),zone_point(b),zone_node_arr(b),solutiontime,strandid)
-      zone_z_cell(b) = var_cellcentered(upper_case(header),3)
+      uheader = upper_case(header)
       do s = 1, size(orion%varnames)
-        zone_cc(s,b) = var_cellcentered(upper_case(header),s)
+        zone_cc(s,b) = var_cellcentered(uheader,s)
       enddo
       if (Ni(b)<=0 .or. Nj(b)<=0 .or. Nk(b)<=0) then
         write(stderr,'(/,A)') 'TECPLOT ASCII READ ERROR: invalid zone dimensions.'
@@ -770,7 +768,7 @@ contains
     if (size(orion%varnames)>=3) then
       plane_xyz = is_coordinate_name(orion%varnames(1),'X') .and. &
                   is_coordinate_name(orion%varnames(2),'Y') .and. &
-                  is_coordinate_name(orion%varnames(3),'Z') .and. .not.any(zone_z_cell)
+                  is_coordinate_name(orion%varnames(3),'Z') .and. .not.any(zone_cc(3,:))
     endif
     ! The same rule for two coordinates: the first two variables named x and y (any case), y NODAL in every zone, are the
     ! coordinates also of a file of single node lines, the lines of a 2-D field
