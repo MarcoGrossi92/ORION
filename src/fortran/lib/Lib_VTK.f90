@@ -10880,12 +10880,15 @@ contains
     ! Variables at the nodes have one value per node of the block file
     if (orion%vtk%node) nnvar = nn
     ! A surface block, one plane of nodes in a direction (N = 0 there) such as a face of a volume block, has one layer of cells
-    ! in that direction, as tec_write_structured_multiblock writes it, when its variables hold that layer
+    ! in that direction, as tec_write_structured_multiblock writes it, when its variables hold that layer: when the index ranges
+    ! of vars hold vars(s,1:ci,1:cj,1:ck), not only when its sizes are as large (node-shaped variables, vars(:,0:Ni,0:Nj,0:0),
+    ! do not hold k = 1)
     surface = .false.
     if (.not.meshonly .and. nnvar == 0) then
       ci = max(nx2,1); cj = max(ny2,1); ck = max(nz2,1)
-      surface = size(orion%block(b)%vars,2) >= ci .and. size(orion%block(b)%vars,3) >= cj .and. &
-                size(orion%block(b)%vars,4) >= ck
+      surface = lbound(orion%block(b)%vars,2) <= 1 .and. ubound(orion%block(b)%vars,2) >= ci .and. &
+                lbound(orion%block(b)%vars,3) <= 1 .and. ubound(orion%block(b)%vars,3) >= cj .and. &
+                lbound(orion%block(b)%vars,4) <= 1 .and. ubound(orion%block(b)%vars,4) >= ck
       if (surface) nnvar = ci*cj*ck
     endif
     E_IO = VTK_INI_XML(cf=mf,output_format=orion%vtk%format, filename=trim(vtspath)//trim(orion%block(b)%name)//'.vts', &

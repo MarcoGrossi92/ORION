@@ -95,6 +95,7 @@
 
   call many_blocks
   call surface_blocks
+  call node_shaped_surface
   call node_variables
   call relative_paths
   call dataset_indices
@@ -230,6 +231,55 @@
     call write_and_check(trim(formats(f)))
   enddo
   end subroutine surface_blocks
+
+  subroutine node_shaped_surface
+  !---------------------------------------------------------------------------------------------------------------------------------
+  !< A surface block whose variables are node-shaped, vars(:,0:Ni,0:Nj,0:0), with orion%vtk%node unset (as the converter hands
+  !< the writer a Tecplot slice at the nodes): its variables do not hold the layer of cells vars(:,1:Ni,1:Nj,1:1), and it is
+  !< written as a surface block whose variables hold no layer: a field of one k-face of 3 x 4 x 0 cells, in the ascii, binary
+  !< and raw formats, whose block file holds its 20 points and no value of its two cell variables.
+  !< Defect: the writer took the block for a surface with a layer of cells because the sizes of vars were large enough, and
+  !< wrote vars(:,1:3,1:4,1:1), past the end of vars in k: values read from past the array.
+  !< Basis: Fortran 2018 (ISO/IEC 1539-1:2018, final draft J3/18-007r1), 9.5.3.1 (p. 128): "The value of a subscript in an array
+  !< element shall be within the bounds for its dimension".
+  !---------------------------------------------------------------------------------------------------------------------------------
+  character(len=6), parameter :: formats(3) = ['ascii ', 'binary', 'raw   ']
+  type(orion_data)              :: w
+  character(len=16)             :: varnames
+  character(len=:), allocatable :: buf
+  real(R8P), allocatable        :: values(:)
+  integer(I4P)                  :: f, i, j, err, u, n
+  !---------------------------------------------------------------------------------------------------------------------------------
+
+  do f = 1, size(formats)
+    if (allocated(w%block)) deallocate(w%block)
+    allocate(w%block(1))
+    w%block(1)%name = 'nodesurf_'//trim(formats(f))//'_B1'
+    w%block(1)%Ni = 3; w%block(1)%Nj = 4; w%block(1)%Nk = 0
+    allocate(w%block(1)%mesh(3,0:3,0:4,0:0), w%block(1)%vars(2,0:3,0:4,0:0))
+    do j = 0, 4; do i = 0, 3
+      w%block(1)%mesh(:,i,j,0) = [real(i, R8P), real(j, R8P), 1._R8P]
+      w%block(1)%vars(:,i,j,0) = [real(i + 10*j, R8P), -1._R8P]
+    enddo; enddo
+    w%vtk%format = trim(formats(f))
+    varnames = 'a b'
+    err = vtk_write_structured_multiblock(orion=w, vtspath='', vtmpath='nodesurf_'//trim(formats(f)), varnames=varnames)
+    call check(err == 0, 'nodesurf '//trim(formats(f))//': written')
+    open(newunit=u, file='nodesurf_'//trim(formats(f))//'_B1.vts', access='stream', form='unformatted', status='old')
+    inquire(unit=u, size=n)
+    if (allocated(buf)) deallocate(buf)
+    allocate(character(len=n) :: buf)
+    read(u) buf
+    close(u)
+    call array_values(buf, trim(formats(f)), 'Points', values)
+    call check(size(values) == 60, 'nodesurf '//trim(formats(f))//': 20 points')
+    call array_values(buf, trim(formats(f)), 'a', values)
+    write(*,'(A,I0)') 'nodesurf '//trim(formats(f))//': values of a written ', size(values)
+    call check(size(values) == 0, 'nodesurf '//trim(formats(f))//': no value of a')
+    call array_values(buf, trim(formats(f)), 'b', values)
+    call check(size(values) == 0, 'nodesurf '//trim(formats(f))//': no value of b')
+  enddo
+  end subroutine node_shaped_surface
 
   subroutine write_and_check(fmt)
   !---------------------------------------------------------------------------------------------------------------------------------

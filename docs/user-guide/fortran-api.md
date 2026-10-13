@@ -395,8 +395,10 @@ end program write_vtk
 
 The block files take their sizes from `Ni`, `Nj` and `Nk`, the number of cells in each direction. A surface block, with one
 plane of nodes in one direction (`Ni`, `Nj` or `Nk` = 0, `mesh(:,0:0,:,:)` for an i-face), has one layer of cells in that
-direction (`vars(:,1:1,:,:)`), as `tec_write_structured_multiblock` writes it. `vtk_read_structured_multiblock` counts the
-cells of a block from its extent and does not read the cell values of a surface block back. Variables at the nodes
+direction (`vars(:,1:1,:,:)`), as `tec_write_structured_multiblock` writes it, when the index ranges of `vars` hold that
+layer; otherwise, as for node-shaped variables `vars(:,0:Ni,0:Nj,0:0)` with `orion%vtk%node` unset, its cell arrays are
+written empty. `vtk_read_structured_multiblock` counts the cells of a block from its extent and does not read the cell
+values of a surface block back. Variables at the nodes
 (`orion%vtk%node`, point data in the block files) hold one value per node, `vars(:,0:Ni,0:Nj,0:Nk)` with `Ni`, `Nj` and `Nk`
 the cells, as the Tecplot readers return them; a two-dimensional block holds the values of its node plane,
 `vars(:,0:Ni,0:Nj,0:0)`, which the writer writes on both planes of nodes of the file. The reader sets `orion%vtk%node` when the
