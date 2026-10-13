@@ -843,7 +843,8 @@ contains
   subroutine read_variables_name(filename,varname,nodal)
   !---------------------------------------------------------------------------------------------------------------------------------
   !> look for and read variables name
-  !> The names inside <FieldData> (TIME, CYCLE, ...) are global data, not variables: they are skipped.
+  !> The names inside <FieldData> (TIME, CYCLE, ...) are global data, not variables: they are skipped. The file is read up to
+  !> its AppendedData element, where the raw appended data begin: their bytes are not text.
   !> The variables are at the nodes when the file holds them as point data, in a PointData element and no CellData element; a
   !> mesh without variables, with neither element, has no variables at the nodes.
   !---------------------------------------------------------------------------------------------------------------------------------
@@ -868,6 +869,7 @@ contains
   E_IO = 0; n = 0; field = .false.
   do while(E_IO==0)
     read(unitfile,'(A)',iostat=E_IO) line
+    if (index(line,'<AppendedData')>0) exit
     if (index(line,'<FieldData')>0) field = .not. empty_element(line)
     if (index(line,'Name')>0 .and. .not.field) n = n + 1
     if (index(line,'</FieldData')>0) field = .false.
@@ -877,6 +879,7 @@ contains
   E_IO = 0; n = 0; field = .false.; point = .false.; cell = .false.
   do while(E_IO==0)
     read(unitfile,'(A)',iostat=E_IO) line
+    if (index(line,'<AppendedData')>0) exit
     if (index(line,'<PointData')>0) point = .true.
     if (index(line,'CellData')>0) cell = .true.
     if (index(line,'<FieldData')>0) field = .not. empty_element(line)
@@ -898,7 +901,8 @@ contains
   subroutine first_array_name(filename,name,found,field_data)
   !---------------------------------------------------------------------------------------------------------------------------------
   !> The first array name of a block file, as read_variables_name finds the names (the names inside <FieldData> skipped), read
-  !> up to that name only: found is false when the file cannot be opened or names no array. field_data tells whether a FieldData
+  !> up to that name, or up to its AppendedData element: found is false when the file cannot be opened or names no array.
+  !> field_data tells whether a FieldData
   !> element that is not empty comes before that name, where vtk_write_structured_multiblock writes it.
   !---------------------------------------------------------------------------------------------------------------------------------
   character(*),   intent(IN)            :: filename   !> File name.
@@ -918,6 +922,7 @@ contains
   do
     read(unitfile,'(A)',iostat=E_IO) line
     if (E_IO /= 0) exit
+    if (index(line,'<AppendedData')>0) exit
     if (index(line,'<FieldData')>0) then
       field = .not. empty_element(line)
       if (present(field_data)) field_data = field_data .or. field

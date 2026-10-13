@@ -52,6 +52,7 @@
   call read_errors
   call point_data
   call arrays_before_points
+  call name_in_appended_data
 
   write(*,'(A,I0,A,I0,A)') 'vtk_read_wrapper: ', checks, ' checks, ', failures, ' failed'
   if (failures > 0) stop 1
@@ -1266,6 +1267,46 @@
   write(u,'(A)') '</VTKFile>'
   close(u)
   end subroutine point_data_file
+
+  subroutine name_in_appended_data
+  !---------------------------------------------------------------------------------------------------------------------------------
+  !< The bytes of the raw appended data are not taken for names: a field of one block of 2 x 2 x 2 cells with the variables u and
+  !< p at the cells, written in the raw format, one value of u holding the bytes of a line feed and of the text "Name" (so that
+  !< a record of the data begins with "Name"), is read back with its two variables, every value as written.
+  !< Defect: read_variables_name read a block file to its end, the raw appended data included, as text, and took a record of the
+  !< data that begins with "Name" for one more variable, whose values the reader then did not find.
+  !< Basis: VTK File Formats (p. 16): the appended data section begins after the underscore inside the AppendedData element,
+  !< and "Data in this section is always in binary form".
+  !---------------------------------------------------------------------------------------------------------------------------------
+  type(orion_data)   :: w, r
+  character(len=8)   :: varnames
+  integer(I4P)       :: err
+  integer            :: i, j, k
+  integer(I1P), parameter :: bytes(8) = [10_I1P, 78_I1P, 97_I1P, 109_I1P, 101_I1P, 32_I1P, 32_I1P, 64_I1P] ! LF "Name  @"
+  !---------------------------------------------------------------------------------------------------------------------------------
+
+  allocate(w%block(1))
+  w%block(1)%name = 'appname_B1'
+  w%block(1)%Ni = 2; w%block(1)%Nj = 2; w%block(1)%Nk = 2
+  allocate(w%block(1)%mesh(3,0:2,0:2,0:2), w%block(1)%vars(2,1:2,1:2,1:2))
+  do k = 0, 2; do j = 0, 2; do i = 0, 2
+    w%block(1)%mesh(:,i,j,k) = [real(i, R8P), real(j, R8P), real(k, R8P)]
+  enddo; enddo; enddo
+  do k = 1, 2; do j = 1, 2; do i = 1, 2
+    w%block(1)%vars(1,i,j,k) = real(i + 10*j + 100*k, R8P)
+    w%block(1)%vars(2,i,j,k) = -real(i + j + k, R8P)
+  enddo; enddo; enddo
+  w%block(1)%vars(1,2,1,1) = transfer(bytes, 1._R8P)
+  w%vtk%format = 'raw'
+  varnames = 'u p'
+  err = vtk_write_structured_multiblock(orion=w, vtspath='', vtmpath='appname', varnames=varnames)
+  call check(err == 0, 'appname: written')
+  r%vtk%format = 'raw'
+  err = vtk_read_structured_multiblock(orion=r, vtmpath='appname', vtspath='')
+  write(*,'(A,I0)') 'appname: return value ', err
+  call check(err == 0, 'appname: read without error')
+  call check_field(r, w, 0._R8P)
+  end subroutine name_in_appended_data
 
   subroutine arrays_before_points
   !---------------------------------------------------------------------------------------------------------------------------------
