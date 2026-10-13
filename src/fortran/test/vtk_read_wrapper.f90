@@ -516,16 +516,18 @@
 
   subroutine misuse()
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Names without values, or of another size, and blank names are refused: return value 1.
+  !< Names without values, or of another size, and blank names are refused: return value 1, and the writer writes nothing.
   !---------------------------------------------------------------------------------------------------------------------------------
   type(orion_data)  :: w, r
   character(len=16) :: varnames
   real(R8P)         :: got(2)
-  logical           :: found(3)
-  integer           :: err
+  logical           :: found(3), exists
+  integer           :: err, b
   !---------------------------------------------------------------------------------------------------------------------------------
 
   write(*,'(A)') 'misuse: names and values that do not match'
+  call remove_file('fld_binary3D_misuse.vtm')
+  call remove_file('fld_binary3D_blank.vtm')
   call make_field_scalars(w, 3, 'binary3D_misuse')
   varnames = 'u p'
   w%vtk%format = 'binary'
@@ -535,6 +537,8 @@
   err = vtk_write_structured_multiblock(orion=w, vtspath='', vtmpath='fld_binary3D_misuse', varnames=varnames, &
                                         fldnames=names, fldvalues=[1._R8P, 2._R8P])
   call check(err == 1, 'write: names and values of different sizes refused')
+  inquire(file='fld_binary3D_misuse.vtm', exist=exists)
+  call check(.not.exists, 'write: nothing written for the names refused')
   err = vtk_write_structured_multiblock(orion=w, vtspath='', vtmpath='fld_binary3D_misuse', varnames=varnames, time=1._R8P)
   call check(err == 0, 'write: time only, no error')
   r%vtk%format = 'binary'
@@ -543,16 +547,40 @@
   err = vtk_read_structured_multiblock(orion=r, vtmpath='fld_binary3D_misuse', vtspath='', fldnames=names(1:2), &
                                        fldvalues=got, fldfound=found)
   call check(err == 1, 'read: found of another size refused')
-  ! A blank name found the first field data of a file whatever its name, in the reader, and was written in the writer
+  ! A blank name found the first field data of a file whatever its name, in the reader, and was written in the writer; the
+  ! blocks get names of their own, so that no block file of this write can be one of the write above
+  do b = 1, size(w%block)
+    w%block(b)%name = 'fld_binary3D_blank_B'//trim(str(.true., b))
+    call remove_file(trim(w%block(b)%name)//'.vts')
+  enddo
   err = vtk_write_structured_multiblock(orion=w, vtspath='', vtmpath='fld_binary3D_blank', varnames=varnames, &
                                         fldnames=[character(len=20) :: ' ', 'LAST_OUTPUT_TIME'], fldvalues=[1._R8P, 2._R8P])
   write(*,'(A,I0)') 'misuse: write with a blank name, return value ', err
   call check(err == 1, 'write: a blank name refused')
+  inquire(file='fld_binary3D_blank.vtm', exist=exists)
+  if (.not.exists) inquire(file='fld_binary3D_blank_B1.vts', exist=exists)
+  call check(.not.exists, 'write: nothing written for a blank name')
   err = vtk_read_structured_multiblock(orion=r, vtmpath='fld_binary3D_misuse', vtspath='', &
                                        fldnames=[character(len=20) :: ' ', 'LAST_OUTPUT_TIME'], fldvalues=got, fldfound=found(1:2))
   write(*,'(A,I0)') 'misuse: read with a blank name, return value ', err
   call check(err == 1, 'read: a blank name refused')
   end subroutine misuse
+
+  subroutine remove_file(fname)
+  !---------------------------------------------------------------------------------------------------------------------------------
+  !< Remove the file fname left by an earlier run, if there is one: it would hide a write that writes nothing.
+  !---------------------------------------------------------------------------------------------------------------------------------
+  character(len=*), intent(in) :: fname
+  integer                      :: u
+  logical                      :: there
+  !---------------------------------------------------------------------------------------------------------------------------------
+
+  inquire(file=fname, exist=there)
+  if (there) then
+    open(newunit=u, file=fname)
+    close(u, status='delete')
+  endif
+  end subroutine remove_file
 
   subroutine large_file_without_field_data
   !---------------------------------------------------------------------------------------------------------------------------------

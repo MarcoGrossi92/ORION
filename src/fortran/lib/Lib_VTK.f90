@@ -921,8 +921,8 @@ contains
   !> The first array name of a block file, as read_variables_name finds the names (the names inside <FieldData> skipped):
   !> found is false when the file cannot be opened or names no array. The file is read on to its end, or to its AppendedData
   !> element, for a tag that does not end on its line: split is true, with the message of read_variables_name.
-  !> field_data tells whether a FieldData
-  !> element that is not empty comes before that name, where vtk_write_structured_multiblock writes it.
+  !> field_data tells whether a FieldData element that is not empty comes before that name, where
+  !> vtk_write_structured_multiblock writes it.
   !---------------------------------------------------------------------------------------------------------------------------------
   character(*),   intent(IN)            :: filename   !> File name.
   character(256), intent(OUT)           :: name       !> The first array name.
