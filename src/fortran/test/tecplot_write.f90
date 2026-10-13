@@ -428,7 +428,8 @@ program tecplot_write_multiblock
   !< and K, the coordinates and the values of the variables, each the value of its node or cell. The two files of each field
   !< must be the same, byte for byte. A two-dimensional field with variables at the nodes is also written with
   !< vtk_write_structured_multiblock, read with vtk_read_structured_multiblock (variables in vars(:,0:3,0:2,0:0)) and written
-  !< to a Tecplot ASCII file: the values must be those written to VTK. Every value is an integer, a half or a quarter.
+  !< to a Tecplot ASCII file, and with TecIO to a .szplt file read back: the values must be those written to VTK. Every value
+  !< is an integer, a half or a quarter.
   !< Defect: the writer took the variables from fixed index ranges, 1:1 in k for a two-dimensional block at the nodes too, so a
   !< two-dimensional field read from a VTK or a Tecplot file (variables at the nodes in vars(:,:,:,0:0)) was written from past
   !< the end of its variables.
@@ -592,12 +593,18 @@ program tecplot_write_multiblock
   !---------------------------------------------------------------------------------------------------------------------------------
   !< A two-dimensional field of one block of 4 x 3 nodes with the variables at the nodes, written with
   !< vtk_write_structured_multiblock in the raw format, read with vtk_read_structured_multiblock (variables in
-  !< vars(:,0:3,0:2,0:0)) and written to a Tecplot ASCII file: the values written to VTK.
+  !< vars(:,0:3,0:2,0:0)) and written to a Tecplot ASCII file: the values written to VTK. With TecIO the same field is also
+  !< written to a .szplt file, by the binary branch of the writer, and read back with tec_read_structured_multiblock: the
+  !< values written to VTK, one per node.
   !---------------------------------------------------------------------------------------------------------------------------------
   type(orion_data) :: w, orion
   character(len=8) :: varnames
   real(R8P)        :: x(3)
   integer          :: i, j, err
+#ifdef TECIO
+  type(orion_data) :: back
+  logical          :: same
+#endif
   !---------------------------------------------------------------------------------------------------------------------------------
 
   allocate(w%block(1))
@@ -625,5 +632,18 @@ program tecplot_write_multiblock
   err = tec_write_structured_multiblock(orion=orion, varnames='a b', filename='bounds_written_again.tec')
   call check(err == 0, 'bounds_written_again.tec: written without error')
   call read_ascii_bounds('bounds_written_again.tec', 2, [3, 2, 0], .true.)
+#ifdef TECIO
+  orion%tec%format = 'binary'
+  err = tec_write_structured_multiblock(orion=orion, varnames='a b', filename='bounds_written_again.szplt')
+  call check(err == 0, 'bounds_written_again.szplt: written without error')
+  back%tec%format = 'binary'
+  err = tec_read_structured_multiblock(orion=back, filename='bounds_written_again.szplt')
+  call check(err == 0, 'bounds_written_again.szplt: read without error')
+  if (err /= 0) return
+  same = size(back%block) == 1
+  if (same) same = all(shape(back%block(1)%vars) == [2, 4, 3, 1])
+  if (same) same = all(back%block(1)%vars(:,:,:,lbound(back%block(1)%vars,4)) == orion%block(1)%vars(:,:,:,0))
+  call check(same, 'bounds_written_again.szplt: the values written to VTK, one per node')
+#endif
   end subroutine read_and_write_again
 end program tecplot_write_multiblock
