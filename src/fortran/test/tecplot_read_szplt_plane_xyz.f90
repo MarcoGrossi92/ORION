@@ -12,6 +12,7 @@
 !< A passive variable does not decide the location of a zone; a zone of passive variables takes that of the file
 !< (passive_variables).
 !< Files with fewer variables than the coordinates of their zones, refused (too_few_variables).
+!< A one-dimensional field whose first variables are named y (and z), read with the rule of the names (field_1d_named_y).
 !< Stops with a non-zero code when a check fails.
 program tecplot_read_szplt_plane_xyz
   use Lib_Tecplot
@@ -38,6 +39,7 @@ program tecplot_read_szplt_plane_xyz
   call zone_locations()
   call passive_variables()
   call too_few_variables()
+  call field_1d_named_y()
   if (nfail > 0) then
     write(*,'(A,I0,A)') 'tecplot_read_szplt_plane_xyz: ', nfail, ' check(s) FAILED'
     error stop 1
@@ -1044,6 +1046,70 @@ contains
     write(*,'(A,I0)') fname//': return value ', err
     call check(err == 1, fname//': refused (return value 1)')
   end subroutine few_variables
+
+  ! A one-dimensional field whose first solution variables are named y (and z). The coordinates of a
+  ! file of lines go by name: the first two variables x and y, with y at the nodes, are the
+  ! coordinates of the lines of a two-dimensional field, and x, y and z, with z at the nodes, those of
+  ! a three-dimensional one. tec_write_structured_multiblock writes a one-dimensional field as x and
+  ! its variables, so a field at the nodes whose first variable is named y (a mass fraction Y, for
+  ! example) is read with two coordinates, and one whose first two are y and z with three, as the
+  ! guide says; at the cells the rule does not apply and the field reads back as written. Fields of
+  ! one block of 4 cells written with tec_write_structured_multiblock to szplt files: Y T at the
+  ! nodes (two coordinates, x and Y, and T), y z T at the nodes (three, and T), and Y T at the cells
+  ! (one, and Y and T). For each: the return value, the number of coordinates, every coordinate and
+  ! every value of the last variable.
+  ! Defect: none; the checks state what the rule of the names does with such a field.
+  ! Basis: by construction, the rule of the coordinates of a file of lines (lines_xy).
+  subroutine field_1d_named_y()
+    call named_y('field1d_Y_nodes.szplt',  'Y T',   .true.,  2)
+    call named_y('field1d_yz_nodes.szplt', 'y z T', .true.,  3)
+    call named_y('field1d_Y_cells.szplt',  'Y T',   .false., 1)
+  end subroutine field_1d_named_y
+
+  ! Write a field of one block of 4 cells with one coordinate, x = i + 0.5, and the variables names (variable s of node or cell i
+  ! = 100 s + i), at the nodes when nodal; read it back and check the number of coordinates nd, the coordinates and the last
+  ! variable.
+  subroutine named_y(fname, names, nodal, nd)
+    character(len=*), intent(in) :: fname, names
+    logical,          intent(in) :: nodal
+    integer,          intent(in) :: nd
+    type(orion_data) :: w, r
+    integer :: nv, i, s, f, err
+    logical :: same
+    nv = count_names(names)
+    f = merge(0, 1, nodal)
+    allocate(w%block(1))
+    w%block(1)%name = 'L1'
+    w%block(1)%Ni = 4; w%block(1)%Nj = 0; w%block(1)%Nk = 0
+    allocate(w%block(1)%mesh(1:1, 0:4, 0:0, 0:0), w%block(1)%vars(1:nv, f:4, f:f, f:f))
+    do i = 0, 4
+      w%block(1)%mesh(1, i, 0, 0) = i + 0.5d0
+    enddo
+    do s = 1, nv
+      do i = f, 4
+        w%block(1)%vars(s, i, f, f) = 100*s + i
+      enddo
+    enddo
+    w%tec%node = nodal
+    w%tec%format = 'binary'
+    err = tec_write_structured_multiblock(orion=w, varnames=names, filename=fname)
+    call check(err == 0, fname//': written')
+    r%tec%format = 'binary'
+    err = tec_read_structured_multiblock(orion=r, filename=fname)
+    write(*,'(A,I0)') fname//': return value ', err
+    call check(err == 0, fname//': read')
+    if (err /= 0) return
+    call check(size(r%block(1)%mesh,1) == nd, fname//': number of coordinates')
+    if (size(r%block(1)%mesh,1) /= nd) return
+    same = all(r%block(1)%mesh(1, :, 0, 0) == w%block(1)%mesh(1, :, 0, 0))
+    do s = 2, nd
+      same = same .and. all(r%block(1)%mesh(s, :, 0, 0) == w%block(1)%vars(s-1, :, f, f))
+    enddo
+    call check(same, fname//': the coordinates, x and the variables read as coordinates')
+    same = size(r%block(1)%vars,1) == nv-(nd-1) .and. size(r%block(1)%vars(nv-(nd-1),:,:,:)) == 5-f
+    if (same) same = all(reshape(r%block(1)%vars(nv-(nd-1),:,:,:), [5-f]) == w%block(1)%vars(nv, :, f, f))
+    call check(same, fname//': the last variable')
+  end subroutine named_y
 
   ! The number of names in names, separated by blanks.
   pure integer function count_names(names)

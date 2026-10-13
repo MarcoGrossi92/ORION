@@ -73,7 +73,9 @@ Changes on `main` since `v1.6.0`.
   name, as those of a file of slices: `x` and `y` (`y` nodal in every zone)
   are two coordinates, the lines of a two-dimensional field as
   `tec_write_structured_multiblock` writes them, and `x`, `y` and `z` (`z`
-  nodal) three; they were read with one.
+  nodal) three; they were read with one. A one-dimensional field at the nodes
+  whose first variable is named `y` (and `z`) is so read with two (three)
+  coordinates: rename them or write the field at the cells.
 
 ### Fixed
 

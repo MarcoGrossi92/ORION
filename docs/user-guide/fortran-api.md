@@ -193,7 +193,10 @@ end program read_vtk_structured
   with one node plane, `Nk = 0`; `mesh(1:2,...)` with two) and the solution variables start after them. The rule
   goes by name: a two-dimensional file whose third variable is nodal and named `z` (a mixture fraction `Z`, for
   example) is read as a slice, so rename that variable or write it cell-centred to read the file as
-  two-dimensional. Any other file of lines does not tell a one-dimensional field from lines of a two-dimensional
+  two-dimensional. In the same way a one-dimensional field at the nodes whose first variable is named `y` (a mass
+  fraction `Y`, for example) is read with two coordinates, and one whose first two variables are `y` and `z` with
+  three: rename them or write the field at the cells to read it with one coordinate. Any other file of lines does
+  not tell a one-dimensional field from lines of a two-dimensional
   one: it is read with one coordinate, with a warning when its second variable is named `y` (at the cells). A
   zone with one node plane or line in a direction holds one layer of cells there: a cell-centred
   variable has `max(I-1,1)*max(J-1,1)*max(K-1,1)` values (Tecplot 360 Data Format Guide, sections 2-1 and 4-4).
@@ -213,8 +216,9 @@ end program read_vtk_structured
   J (`JMax > 1`), or when the first two variables are named `x` and `y` and `y` is nodal in every zone, also in
   a file of lines only; otherwise one, a file of lines. `mesh` holds the coordinates (`mesh(1:3,...)` with three, also
   for a zone with one node plane, `Nk = 0`) and the solution variables start after them. As in the ASCII reader,
-  a two-dimensional file whose third variable is nodal and named `z` is read as a slice. A zone with one node
-  plane or line in a direction holds one layer of cells there. `varnames` is filled with the names stored in the
+  a two-dimensional file whose third variable is nodal and named `z` is read as a slice, and a one-dimensional
+  field at the nodes whose first variables are named `y` (and `z`) with two (three) coordinates. A zone with one
+  node plane or line in a direction holds one layer of cells there. `varnames` is filled with the names stored in the
   file, with the same convention as the ASCII reader (coordinates first). A zone with a coordinate at the cells,
   or with solution variables at the nodes and at the cells, is refused (return value 1, with a message on the
   standard error). Each block takes the location of its zone, `vars(:,0:...)` at the nodes and `vars(:,1:...)` at
