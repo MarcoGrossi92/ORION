@@ -144,13 +144,11 @@ contains
     allocate(tecnull(1:ndir+Nvar))
     ! initializing tecplot variables
     call tec_init()
-    ! time
-    time_accurate = .true.
+    ! time: written with its sign. A negative solutiontime marks a steady solution (minus the iteration count of the run, for
+    ! instance), whose zones are static; the zones of a time-accurate solution (solutiontime >= 0) belong to the strand of
+    ! their block
     time_ = orion%solutiontime
-    if (time_<0) then
-      time_ = abs(time_)
-      time_accurate = .false.
-    endif
+    time_accurate = (time_ >= 0._R8P)
     ! initializing tecplot file
     select case(orion%tec%format)
     case('binary')
@@ -165,7 +163,8 @@ contains
         return
       endif
       err = tecini142(tecendrec,trim(tecvarname)//tecendrec,trim(filename)//tecendrec,'.'//tecendrec,fileFormat,FileType,Debug,VIsDouble)
-      err = tecauxstr142("Time"//tecendrec,trim(str(n=time_))//tecendrec)
+      ! The data set auxiliary data Time keeps the absolute value of the time, as before
+      err = tecauxstr142("Time"//tecendrec,trim(str(n=abs(time_)))//tecendrec)
 #   else
       error stop "You can not write in binary format without compiling against TecIO"
 #   endif
@@ -275,6 +274,7 @@ contains
       integer:: i,j,k,s                 ! Counters.
       integer:: Nx, Ny, Nz
       integer:: start
+      character(DR_P):: timestr          ! The solution time as written in an ASCII zone header.
 
       Nx = size(orion%block(b)%mesh,2)-1; Ny = size(orion%block(b)%mesh,3)-1; Nz = size(orion%block(b)%mesh,4)-1
       ! initialize the zone dimensions
@@ -311,6 +311,7 @@ contains
       select case(orion%tec%format)
       case('binary')
 #     if defined(TECIO)
+        ! StrandID: the number of the block for a time-accurate solution, 0 (a static zone) for a steady one
         err = teczne142(trim(orion%block(b)%name)//tecendrec,         &
                         0,                                            &
                         ni2-ni1+1,                                    &
@@ -320,7 +321,7 @@ contains
                         0,                                            &
                         0,                                            &
                         time_,                                        &
-                        0,                                            &
+                        merge(b, 0, time_accurate),                   &
                         0,                                            &
                         1,                                            & !1=>block,0=>point
                         0,                                            &
@@ -351,8 +352,11 @@ contains
                         ', K='//trim(str(no_sign=.true.,n=nk2-nk1+1))//       &
                         ', DATAPACKING=BLOCK'//adjustl(trim(tecvarlocstr))
         
-        teczoneheader = trim(teczoneheader)//', SOLUTIONTIME='//trim(str(no_sign=.true.,n=time_))
-        if (.not. time_accurate) teczoneheader = trim(teczoneheader)//', STRANDID = 0'
+        ! The solution time with its sign, and the strand of the block for a time-accurate solution (STRANDID >= 1); the zones
+        ! of a steady solution have none: they are static
+        write(timestr,FR_P) time_
+        teczoneheader = trim(teczoneheader)//', SOLUTIONTIME='//trim(adjustl(timestr))
+        if (time_accurate) teczoneheader = trim(teczoneheader)//', STRANDID='//trim(str(.true.,b))
         write(tecunit,'(A)',iostat=err)trim(teczoneheader)
         write(tecunit,FR_P,iostat=err)(((orion%block(b)%mesh(1,i,j,k),i=ni1,ni2),j=nj1,nj2),k=nk1,nk2)
         if (ndir>1) &
@@ -1070,7 +1074,8 @@ contains
         if (ios_==0) time_ = t_
       endif
 
-      ! STRANDID = 0 marks a static zone: tec_write_structured_multiblock writes it for a steady solution
+      ! STRANDID as written, -1 when absent: a static zone, as tec_write_structured_multiblock writes those of a steady solution
+      ! (before it wrote the sign of the time it marked them with STRANDID = 0)
       call get_integer_keyword(work,'STRANDID',strand_,found)
       if (.not.found) strand_ = -1
     endsubroutine parse_zone_header

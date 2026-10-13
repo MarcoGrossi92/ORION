@@ -49,12 +49,13 @@ foreach(TEST ${TESTS})
 
 endforeach()
 
-# tecplot_write checks the files of the binary writer, tecplot_read reads binary files and converter_app converts to and
-# from one only when ORION is built with TecIO; without it converter_app checks that the converter, asked for a binary
-# file, ends with a nonzero exit status.
+# tecplot_write and tecplot_read_strandid check the files of the binary writer, tecplot_read reads binary files and
+# converter_app converts to and from one only when ORION is built with TecIO; without it converter_app checks that the
+# converter, asked for a binary file, ends with a nonzero exit status.
 if(USE_TECIO)
   target_compile_definitions(tecplot_write PRIVATE TECIO)
   target_compile_definitions(tecplot_read PRIVATE TECIO)
+  target_compile_definitions(tecplot_read_strandid PRIVATE TECIO)
   target_compile_definitions(converter_app PRIVATE TECIO)
 endif()
 

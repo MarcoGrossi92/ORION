@@ -12,16 +12,8 @@ Changes on `main` since `v1.6.0`.
 ### Added
 
 - `orion_data%strandid` (integer, default -1): the Tecplot ASCII reader stores
-  the `STRANDID` of the last zone header, -1 when the header has none.
-  `tec_write_structured_multiblock` marks a steady solution (a negative
-  `solutiontime`) by writing `SOLUTIONTIME=|t|` and `STRANDID = 0` in each zone
-  header; `solutiontime` is read back as `|t|`, as before, and `strandid == 0`
-  now tells the reader that the file holds a steady solution. Nothing else
-  changes: the writer, the files and every value read are as before, and code
-  that does not use the new component behaves as before. Known limitation:
-  binary Tecplot files (`.plt`, `.szplt`) are not covered -- the binary writer
-  stores StrandID 0 for every zone and the `.szplt` reader does not store the
-  zone time -- and need a separate change.
+  the `STRANDID` of the last zone header, -1 when the header has none. Code
+  that does not use the new component behaves as before.
 - Optional arguments of `vtk_write_structured_multiblock` and
   `vtk_read_structured_multiblock`: `cycle` and the named real scalars
   `fldnames` and `fldvalues` (with `fldfound` for the reader), written as the
@@ -76,6 +68,15 @@ Changes on `main` since `v1.6.0`.
   nodal) three; they were read with one. A one-dimensional field at the nodes
   whose first variable is named `y` (and `z`) is so read with two (three)
   coordinates: rename them or write the field at the cells.
+- `tec_write_structured_multiblock` writes the solution time with its sign:
+  a negative `solutiontime` marks a steady solution, whose zones are static
+  (no `STRANDID` in an ASCII zone header, StrandID 0 in a binary file), and the
+  zones of a time-accurate one belong to the strand of their block
+  (`STRANDID = b`, StrandID `b`). It wrote `|t|` with `STRANDID = 0`, a strand
+  for Tecplot and not a valid ASCII StrandID, and binary files did not mark a
+  steady solution. A program tells it from the sign of `solutiontime`; a file
+  written before reads back as before. The data set auxiliary data `Time` of a
+  binary file keeps `|t|`.
 - The Tecplot ASCII files and the ascii format of the VTK files hold every
   64-bit real with 17 significant digits (`FR8P` of `IR_Precision`,
   `E25.17E3` instead of `E23.15E3`), the fewest that give it back bit for bit
