@@ -180,57 +180,54 @@ end program read_vtk_structured
 
 ### Dimensions of what a reader returns
 
-- **Tecplot ASCII, structured zones.** A zone header gives `I`, `J` and `K`; a header without `J` is one node
-  line (`J = 1`, an I-ordered zone, as in the examples of the Tecplot Data Format Guide), and one without `K` is
-  one node plane (`K = 1`, Tecplot's default). The number of coordinates is that of the file, the same for every
-  zone, by the rule of the `.szplt` reader: three when a zone has `K > 1`, or when the header declares a third coordinate:
-  the first three variables are named `x`, `y` and `z` (in any case) and `z` is nodal in every zone (not listed as
-  `CELLCENTERED` in `VARLOCATION`), so that its zones of single node planes or lines are part of a
-  three-dimensional field (a slice); otherwise two when a zone has `J > 1`, or when the first two variables are
-  named `x` and `y` (in any case) and `y` is nodal in every zone, a two-dimensional file, also of lines only (the
-  lines of a two-dimensional field); otherwise one, a file of lines (I-ordered zones). `mesh` holds the
-  coordinates (`mesh(1:3,...)` with three, also for a zone
-  with one node plane, `Nk = 0`; `mesh(1:2,...)` with two) and the solution variables start after them. The rule
-  goes by name: a two-dimensional file whose third variable is nodal and named `z` (a mixture fraction `Z`, for
-  example) is read as a slice, so rename that variable or write it cell-centred to read the file as
+- **Tecplot ASCII, structured zones.** A zone header gives `I`, `J` and `K`; a header without `J` is one node line
+  (`J = 1`, an I-ordered zone, as in the examples of the Tecplot Data Format Guide), and one without `K` is one node
+  plane (`K = 1`, Tecplot's default). The number of coordinates is that of the file, the same for every zone, by the
+  rule of the `.szplt` reader: three when a zone has `K > 1`, or when the header declares a third coordinate: the
+  first three variables are named `x`, `y` and `z` (in any case) and `z` is nodal in every zone (not listed as
+  `CELLCENTERED` in `VARLOCATION`), so that its zones of single node planes or lines are part of a three-dimensional
+  field (a slice); otherwise two when a zone has `J > 1`, or when the first two variables are named `x` and `y` (in
+  any case) and `y` is nodal in every zone, a two-dimensional file, also of lines only (the lines of a two-dimensional
+  field); otherwise one, a file of lines (I-ordered zones). `mesh` holds the coordinates (`mesh(1:3,...)` with three,
+  also for a zone with one node plane, `Nk = 0`; `mesh(1:2,...)` with two) and the solution variables start after
+  them. The rule goes by name: a two-dimensional file whose third variable is nodal and named `z` (a mixture fraction
+  `Z`, for example) is read as a slice, so rename that variable or write it cell-centred to read the file as
   two-dimensional. In the same way a one-dimensional field at the nodes whose first variable is named `y` (a mass
   fraction `Y`, for example) is read with two coordinates, and one whose first two variables are `y` and `z` with
-  three: rename them or write the field at the cells to read it with one coordinate. Any other file of lines does
-  not tell a one-dimensional field from lines of a two-dimensional
-  one: it is read with one coordinate, with a warning when its second variable is named `y` (at the cells). A
-  zone with one node plane or line in a direction holds one layer of cells there: a cell-centred
-  variable has `max(I-1,1)*max(J-1,1)*max(K-1,1)` values (Tecplot 360 Data Format Guide, sections 2-1 and 4-4).
-  `varnames` holds the coordinate names followed by the variable names, so
-  `size(varnames) = size(mesh,1) + size(vars,1)`. The solution variables are at the nodes (`orion%tec%node` set)
-  when no variable is listed as `CELLCENTERED` in `VARLOCATION`, at the cells otherwise; a file without solution
-  variables sets `orion%tec%node`, as no variable of it is `CELLCENTERED`, while the `.szplt` reader leaves the flag
-  as it is for such a file. ORION holds the
-  coordinates at the nodes and one location for all solution variables of a file: a file with a coordinate at the
-  cells, or with solution variables at the nodes and at the cells, in a zone or between zones, is refused (return
-  value 1, with a message on the standard error).
-- **Tecplot binary (`.szplt`, TecIO builds).** The number of coordinates is that of the file, the same for every
-  zone, as the variables of a Tecplot file are: three when a zone has more than one node plane in K (`KMax > 1`),
-  or when the file declares a third coordinate by the rule of the ASCII reader: the first three variables are
-  named `x`, `y` and `z` (in any case) and `z` is nodal in every zone, so that its zones of single node planes or
-  lines are part of a three-dimensional field (a slice); otherwise two when a zone has more than one node line in
-  J (`JMax > 1`), or when the first two variables are named `x` and `y` and `y` is nodal in every zone, also in
-  a file of lines only; otherwise one, a file of lines. `mesh` holds the coordinates (`mesh(1:3,...)` with three, also
-  for a zone with one node plane, `Nk = 0`) and the solution variables start after them. As in the ASCII reader,
-  a two-dimensional file whose third variable is nodal and named `z` is read as a slice, and a one-dimensional
-  field at the nodes whose first variables are named `y` (and `z`) with two (three) coordinates. A zone with one
-  node plane or line in a direction holds one layer of cells there. `varnames` is filled with the names stored in the
-  file, with the same convention as the ASCII reader (coordinates first). A zone with a coordinate at the cells,
-  or with solution variables at the nodes and at the cells, is refused (return value 1, with a message on the
-  standard error). Each block takes the location of its zone, `vars(:,0:...)` at the nodes and `vars(:,1:...)` at
-  the cells, so the zones of a file may differ: `lbound(vars,2)` tells the location of each block. The reader sets
-  `orion%tec%node` when the solution variables of every zone are at the nodes, clears it when those of every zone
-  are at the cells, and leaves it as it is when the zones differ or the file has no solution variables. The ASCII
-  reader refuses a file whose zones differ, and `tec_write_structured_multiblock` writes every block of a field at
-  the location of `orion%tec%node`. A passive variable, which holds no values in its zone, reads as zero, the value
-  Tecplot gives it, and does not decide the location of its block; a zone whose solution variables are all passive
-  (a zone of coordinates only) takes the location of the file, that of `orion%tec%node`. A file with fewer variables
-  than the coordinates of its zones (a zone with more than one node line in J and the variable `x` only) is refused
-  (return value 1, with a message); the ASCII reader refuses it too, without a message.
+  three: rename them or write the field at the cells to read it with one coordinate. Any other file of lines does not
+  tell a one-dimensional field from lines of a two-dimensional one: it is read with one coordinate, with a warning
+  when its second variable is named `y` (at the cells). A zone with one node plane or line in a direction holds one
+  layer of cells there: a cell-centred variable has `max(I-1,1)*max(J-1,1)*max(K-1,1)` values (Tecplot 360 Data Format
+  Guide, sections 2-1 and 4-4). `varnames` holds the coordinate names followed by the variable names, so
+  `size(varnames) = size(mesh,1) + size(vars,1)`. The solution variables are at the nodes (`orion%tec%node` set) when
+  no variable is listed as `CELLCENTERED` in `VARLOCATION`, at the cells otherwise; a file without solution variables
+  sets `orion%tec%node`, as no variable of it is `CELLCENTERED`, while the `.szplt` reader leaves the flag as it is
+  for such a file. ORION holds the coordinates at the nodes and one location for all solution variables of a file: a
+  file with a coordinate at the cells, or with solution variables at the nodes and at the cells, in a zone or between
+  zones, is refused (return value 1, with a message on the standard error).
+- **Tecplot binary (`.szplt`, TecIO builds).** The number of coordinates is that of the file, the same for every zone,
+  as the variables of a Tecplot file are: three when a zone has more than one node plane in K (`KMax > 1`), or when
+  the file declares a third coordinate by the rule of the ASCII reader: the first three variables are named `x`, `y`
+  and `z` (in any case) and `z` is nodal in every zone, so that its zones of single node planes or lines are part of a
+  three-dimensional field (a slice); otherwise two when a zone has more than one node line in J (`JMax > 1`), or when
+  the first two variables are named `x` and `y` and `y` is nodal in every zone, also in a file of lines only;
+  otherwise one, a file of lines. `mesh` holds the coordinates (`mesh(1:3,...)` with three, also for a zone with one
+  node plane, `Nk = 0`) and the solution variables start after them. As in the ASCII reader, a two-dimensional file
+  whose third variable is nodal and named `z` is read as a slice, and a one-dimensional field at the nodes whose first
+  variables are named `y` (and `z`) with two (three) coordinates. A zone with one node plane or line in a direction
+  holds one layer of cells there. `varnames` is filled with the names stored in the file, with the same convention as
+  the ASCII reader (coordinates first). A zone with a coordinate at the cells, or with solution variables at the nodes
+  and at the cells, is refused (return value 1, with a message on the standard error). Each block takes the location
+  of its zone, `vars(:,0:...)` at the nodes and `vars(:,1:...)` at the cells, so the zones of a file may differ:
+  `lbound(vars,2)` tells the location of each block. The reader sets `orion%tec%node` when the solution variables of
+  every zone are at the nodes, clears it when those of every zone are at the cells, and leaves it as it is when the
+  zones differ or the file has no solution variables. The ASCII reader refuses a file whose zones differ, and
+  `tec_write_structured_multiblock` writes every block of a field at the location of `orion%tec%node`. A passive
+  variable, which holds no values in its zone, reads as zero, the value Tecplot gives it, and does not decide the
+  location of its block; a zone whose solution variables are all passive (a zone of coordinates only) takes the
+  location of the file, that of `orion%tec%node`. A file with fewer variables than the coordinates of its zones (a
+  zone with more than one node line in J and the variable `x` only) is refused (return value 1, with a message); the
+  ASCII reader refuses it too, without a message.
 - **Values at the cells of `.szplt` zones with one node plane or line.** The `.szplt` reader reads the values at
   the cells of a zone with `IMax`, `JMax` or `KMax` = 1 (a surface, a line or a point, such as the faces of a volume
   block) one layer of cells in K at a time, or one row of cells in I at a time when `KMax` = 1: the TecIO reader
@@ -319,18 +316,20 @@ end program read_vtk_structured
   `.szplt` reader takes the names one by one from the file and has no such limit. Every name is kept to 32
   characters (`varnames` is `character(len=32)`); the ASCII reader warns when it shortens one, the `.szplt`
   reader shortens it without a message.
-- **Zone headers and data lines.** The ASCII readers read each line whatever its length and join the lines of a
-  zone header whatever their length, so a zone header holds a block name of any length (`T =`, the title of the
-  zone, is the name of the block in the files that ORION writes). Each data line of a structured zone must fit in
-  1000 characters. `tec_write_structured_multiblock` writes one value per line; `tec_write_points_multivars`
-  writes one point per line, with all its variables on that line. Tecplot keeps the first 128 characters of a
-  zone title (Tecplot 360 EX Data Format Guide, section 4-3.2), and TecIO writes only those in a `.szplt` file
-  (a `.plt` file gets the whole title). The readers return the title of each zone as the name of its block: the
-  `.szplt` reader the title stored in the file; the ASCII readers the text between double quotes or, without quotes, a word
-  up to the next blank, comma, tab or `)`, the form in which the writers write the name (a name with blanks or commas is
-  therefore not read back as written), and a blank name when the zone has no title; `tec_read_points_multivars` takes the
-  title from the line of the zone header that holds `I=`. A title longer than the name of a block keeps its first 4096
-  characters.
+- **Zone headers and data lines.** The ASCII readers read each line whatever its length and join the lines of a zone
+  header whatever their length, so a zone header holds a block name of any length (`T =`, the title of the zone, is
+  the name of the block in the files that ORION writes). Each data line of a structured zone must fit in 1000
+  characters. `tec_write_structured_multiblock` writes one value per line; `tec_write_points_multivars` writes one
+  point per line, with all its variables on that line. Tecplot keeps the first 128 characters of a zone title (Tecplot
+  360 EX Data Format Guide, section 4-3.2), and TecIO writes only those in a `.szplt` file (a `.plt` file gets the
+  whole title). The readers return the title of each zone as the name of its block: the `.szplt` reader the title
+  stored in the file; the ASCII readers the text between double quotes or, without quotes, a word up to the next
+  blank, comma, tab or `)`, the form in which the writers write the name (a name with blanks or commas is therefore
+  not read back as written), and a blank name when the zone has no title; `tec_read_points_multivars` takes the title
+  from the line of the zone header that holds `I=`. A title longer than the name of a block keeps its first 4096
+  characters. The ASCII readers do not take a backslash before a double quote as an escape (Data Format Guide, section
+  4-2, documents `\"` as a double quote in a string): a title `T="a\"b"` closes at that quote, and when `I`, `J` and
+  `K` come after it the rest of the header counts as quoted text and the zone is refused (invalid zone dimensions).
 
 ### PLOT3D Files
 
