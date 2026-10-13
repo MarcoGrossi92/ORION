@@ -11,6 +11,8 @@ module Lib_Tecplot
   use, intrinsic:: ISO_FORTRAN_ENV, only: stdout => OUTPUT_UNIT, stderr => ERROR_UNIT ! Standard output/error logical units.
   use IR_Precision
   use Lib_ORION_data
+  ! The Tecplot ASCII readers read every line whole, whatever its length: a zone header holds the block name
+  use strings, only: readline => read_whole_line
   implicit none
 # if defined(TECIO)
   include "tecio.f90"
@@ -2121,36 +2123,5 @@ contains
     do i = 1, n; read(u,*); enddo
   end subroutine skip
 
-
-  !> \brief Read a line of arbitrary length from a formatted sequential file.
-  !> \details Uses non-advancing I/O (F2003) to accumulate chunks into an
-  !>          allocatable string. Same pattern as fortran-lang/stdlib getline.
-  !>          The Tecplot ASCII readers read every line with it: a zone header holds the block name.
-  !> \param[in]  unit File unit number
-  !> \param[out] line Allocatable string containing the full line
-  !> \param[out] ios  I/O status (0 = success, iostat_end = end of file)
-  subroutine readline(unit, line, ios)
-    use, intrinsic :: iso_fortran_env, only : iostat_eor
-    implicit none
-    integer, intent(in) :: unit
-    character(len=:), allocatable, intent(out) :: line
-    integer, intent(out) :: ios
-    character(len=512) :: buffer
-    integer :: sz
-
-    line = ''
-    do
-      read(unit, '(A)', advance='no', size=sz, iostat=ios) buffer
-      if (ios == iostat_eor) then
-        line = line // buffer(:sz)
-        ios = 0
-        return
-      elseif (ios /= 0) then
-        ! End of file or error: the buffer is undefined then, and nothing of it is kept
-        return
-      endif
-      line = line // buffer
-    end do
-  end subroutine readline
 
   end module Lib_Tecplot

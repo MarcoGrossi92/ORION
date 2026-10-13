@@ -10996,7 +10996,7 @@ contains
   !> the function returns 1 and reads nothing. The names are compared without regard to case.
   !---------------------------------------------------------------------------------------------------------------------------------
   use Lib_ORION_data
-  use strings, only: parse
+  use strings, only: parse, read_whole_line
   implicit none
   type(orion_data), intent(inout)        :: orion
   character(len=*), intent(in)           :: vtspath, vtmpath
@@ -11060,14 +11060,14 @@ contains
   do pass = 1, 2
     rewind(nu)
     do
-      call read_line(nu, line, err)
+      call read_whole_line(nu, line, err)
       if (err /= 0) exit
       if (index(line,'<Block')==0) cycle
       exit
     enddo
     Nblocks = 0
     do while (err == 0)
-      call read_line(nu, line, err)
+      call read_whole_line(nu, line, err)
       if (err /= 0) exit
       if (index(line,'</Block')>0) exit
       Nblocks = Nblocks+1
@@ -11220,25 +11220,6 @@ contains
     if (fopen) e = VTK_END_XML_READ()
     end subroutine close_block
 
-    subroutine read_line(u, text, e)
-    !-------------------------------------------------------------------------------------------------------------------------------
-    !> Read the next line of the file connected to unit u, whole, whatever its length: a piece at a time, by nonadvancing input,
-    !> up to the end of the record. e is 0, or the code of the end of file or of the error of the read.
-    !-------------------------------------------------------------------------------------------------------------------------------
-    integer(I4P),                  intent(in)  :: u
-    character(len=:), allocatable, intent(out) :: text
-    integer(I4P),                  intent(out) :: e
-    character(len=256)                         :: piece
-    integer(I4P)                               :: n
-    !-------------------------------------------------------------------------------------------------------------------------------
-    text = ''
-    do
-      read(u,'(A)',advance='no',size=n,iostat=e) piece
-      if (e == 0 .or. is_iostat_eor(e)) text = text//piece(1:n)
-      if (e /= 0) exit
-    enddo
-    if (is_iostat_eor(e)) e = 0
-    end subroutine read_line
   end function vtk_read_structured_multiblock
 
 

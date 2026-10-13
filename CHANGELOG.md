@@ -29,6 +29,8 @@ Changes on `main` since `v1.6.0`.
   returned by the reader, 0 (and `fldfound` false) when the files hold none.
   Names and values of different sizes, and blank names, are refused (return
   value 1); the reader compares the names without regard to case.
+- `read_whole_line` in the module `strings` (`stringmod.f90`): reads the next
+  line of a formatted file whole, whatever its length.
 
 ### Changed
 
