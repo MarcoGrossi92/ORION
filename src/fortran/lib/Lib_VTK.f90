@@ -774,6 +774,11 @@ contains
   !---------------------------------------------------------------------------------------------------------------------------------
   !> search: search in VTK file from position 'pos' inside the mark 'inside', until find the mark 'to_find', eventually, having 
   !> attribute 'with_attribute' matching the value 'of_value'
+  !> The marks are found wherever they stand in the records of the file: a record may hold several start and end tags, as a
+  !> FieldData element written on one line (XML puts no line break between elements). buffer returns the start tag found, in
+  !> upper case, and content the text of the element up to its end tag, in the case of the file, from the record of the start
+  !> tag to that of the end tag (the records between are joined as they are). An empty element 'inside' (<FieldData/>) holds
+  !> no 'to_find'. A start tag is on one record.
   !---------------------------------------------------------------------------------------------------------------------------------
   integer(I4P),     optional,    intent(IN)    :: from           !> Offset. Start point
   character(len=*),              intent(IN)    :: inside         !> XML element where to search 'to_find'
@@ -786,8 +791,13 @@ contains
   integer(I4P)                                 :: rf             !> Real file index
   integer(I4P)                                 :: E_IO           !> Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done
   character(len=:), allocatable                :: strng
+  character(len=:), allocatable                :: line           !> A record of the file, as read
+  character(len=:), allocatable                :: uline          !> The same record in upper case
+  character(len=:), allocatable                :: mark_in        !> '<inside', in upper case
+  character(len=:), allocatable                :: mark_find      !> '<to_find', in upper case
   integer(I4P)                                 :: pos
-  integer(I4P)                                 :: p1,p2,p3
+  integer(I4P)                                 :: c              !> Position of uline from which the search goes on
+  integer(I4P)                                 :: p, q, r, e
   !---------------------------------------------------------------------------------------------------------------------------------
 
   !---------------------------------------------------------------------------------------------------------------------------------
@@ -797,45 +807,68 @@ contains
   endif
   pos = 1; if (present(from)) pos = from
   if(present(content)) content = ''
-  E_IO = read_record(buffer, from=pos, cf=rf); if(E_IO /= 0) return
+  mark_in   = '<'//trim(adjustlt(Upper_Case(inside)))
+  mark_find = '<'//trim(adjustlt(Upper_Case(to_find)))
+  E_IO = read_record(line, from=pos, cf=rf); if(E_IO /= 0) return
   do !search the beginnig of the mark 'inside' from position 'pos'
-    buffer = trim(adjustlt(Upper_Case(buffer)))
-    if (index(buffer, '<'//trim(adjustlt(Upper_Case(inside)))) > 0) exit !Mark 'inside' founded once
-    E_IO = read_record(buffer); if(E_IO /= 0) exit
+    uline = Upper_Case(line)
+    c = index(uline, mark_in)
+    if (c > 0) exit !Mark 'inside' founded once
+    E_IO = read_record(line, cf=rf); if(E_IO /= 0) return
   enddo
-  if(E_IO == 0) then
-    do !search 'repeat' times the mark 'to_find'
-      E_IO = read_record(buffer, cf=rf); if(E_IO /= 0) exit
-      buffer = trim(adjustlt(Upper_Case(buffer)))
-      if (index(buffer, '</'//trim(adjustlt(Upper_Case(inside)))) > 0) then
-        E_IO = -1_I4P; return ! Not found
-      endif
-      if (index(buffer, '<'//trim(adjustlt(Upper_Case(to_find)))) > 0) then
-        if (len_trim(of_value) == 0) exit !there is no attribute value to seach
-        call get_char(buffer, with_attribute, strng, E_IO=E_IO)
-        if (E_IO==0 .and. trim(adjustlt(Upper_Case(strng))) == trim(adjustlt(Upper_Case(of_value)))) then  !Attribute match the value
-          if (present(content) .and. index(buffer, '/>') == 0) then
-            p1 = index(buffer, '<'//trim(adjustlt(Upper_Case(to_find)))) 
-            p2 = index(buffer, '>') 
-            p3 = index(buffer, '</'//trim(adjustlt(Upper_Case(to_find)))) 
-            ! Data in the same record
-            if(p1/=0 .and. p2/=0 .and. p3/=0 .and. p2<p3) then
-              content = buffer(p2+1:p3-1)
-            elseif(p1==0 .and. p3/=0) then
-              E_IO = -1_I4P
-            else
-              do
-                E_IO = read_record(strng, cf=rf); if(E_IO /= 0) exit
-                if (index(trim(adjustlt(Upper_Case(strng))), '</'//trim(adjustlt(Upper_Case(to_find)))) > 0) exit
-                content = content//strng
-              enddo
+  ! An empty element 'inside' holds nothing
+  r = tag_end(uline(c:))
+  if (r > 1) then
+    if (uline(c+r-2:c+r-2) == '/') then
+      E_IO = -1_I4P; return
+    endif
+  endif
+  c = c + len(mark_in)
+  do !search the mark 'to_find' with the attribute value, after the mark 'inside', in its record and in the next ones
+    p = index(uline(c:), mark_find)
+    q = index(uline(c:), '</'//mark_in(2:))
+    if (q > 0 .and. (p == 0 .or. q < p)) then
+      E_IO = -1_I4P; return ! Not found: the end of 'inside' comes first
+    endif
+    if (p == 0) then ! no more marks in this record
+      E_IO = read_record(line, cf=rf); if(E_IO /= 0) return
+      uline = Upper_Case(line)
+      c = 1
+      cycle
+    endif
+    ! The start tag, from '<' to its '>' on this record, the first one outside the quotes of its attribute values
+    p = c + p - 1
+    r = tag_end(uline(p:))
+    if (r == 0) then
+      E_IO = -1_I4P; return
+    endif
+    r = p + r - 1
+    c = r + 1
+    buffer = uline(p:r)
+    if (len_trim(of_value) == 0) exit !there is no attribute value to seach
+    call get_char(buffer, with_attribute, strng, E_IO=E_IO)
+    if (E_IO==0 .and. trim(adjustlt(Upper_Case(strng))) == trim(adjustlt(Upper_Case(of_value)))) then  !Attribute match the value
+      if (present(content) .and. uline(r-1:r) /= '/>') then
+        ! The text of the element up to its end tag, in the case of the file
+        e = index(uline(c:), '</'//mark_find(2:))
+        if (e > 0) then
+          content = line(c:c+e-2)
+        else
+          content = line(c:)
+          do
+            E_IO = read_record(strng, cf=rf); if(E_IO /= 0) exit
+            e = index(Upper_Case(strng), '</'//mark_find(2:))
+            if (e > 0) then
+              content = content//strng(1:e-1)
+              exit
             endif
-          endif
-          exit
+            content = content//strng
+          enddo
         endif
       endif
-    enddo
-  endif
+      exit
+    endif
+  enddo
   !---------------------------------------------------------------------------------------------------------------------------------
   end function
 
@@ -851,6 +884,7 @@ contains
   !> the base64 code of the values of an array in the binary format.
   !> A tag that does not end on its line (a start tag split over lines: start tags must be on one line) gives no names: split
   !> is true, and a message on the standard error gives the file, the line and the tag.
+  !> A FieldData element on one line is read whole, whatever its length (read_line_start), so that its end is seen.
   !---------------------------------------------------------------------------------------------------------------------------------
   character(*), intent(IN)                     :: filename   !> File name.
   character(256), allocatable, intent(OUT)     :: varname(:) !> String with the variables name
@@ -858,7 +892,8 @@ contains
   logical, intent(out), optional               :: split      !> A tag of the file does not end on its line
   integer(I4P)                                 :: E_IO       !> Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done
   integer(I4P) :: unitfile, n, nline
-  character(256) :: line, name, tag
+  character(256) :: name, tag
+  character(len=:), allocatable :: line
   logical :: complete
   logical :: field                                           !> Inside the FieldData element
   logical :: point, cell                                     !> The file holds a PointData, a CellData element
@@ -896,8 +931,8 @@ contains
   rewind(unitfile)
   E_IO = 0; n = 0; field = .false.; point = .false.; cell = .false.
   do while(E_IO==0)
-    read(unitfile,'(A)',iostat=E_IO) line
-    ! At the end of the file the line is undefined: leave before using it, as the first pass does
+    call read_line_start(unitfile, line, complete, E_IO)
+    ! At the end of the file leave before using the line, as the first pass does
     if (E_IO /= 0) exit
     if (index(line,'<AppendedData')>0) exit
     if (index(line,'<PointData')>0) point = .true.
@@ -923,6 +958,7 @@ contains
   !> element, for a tag that does not end on its line: split is true, with the message of read_variables_name.
   !> field_data tells whether a FieldData element that is not empty comes before that name, where
   !> vtk_write_structured_multiblock writes it.
+  !> A FieldData element on one line is read whole, whatever its length (read_line_start), so that its end is seen.
   !---------------------------------------------------------------------------------------------------------------------------------
   character(*),   intent(IN)            :: filename   !> File name.
   character(256), intent(OUT)           :: name       !> The first array name.
@@ -930,7 +966,8 @@ contains
   logical,        intent(OUT), optional :: field_data !> A FieldData element comes before the first array name.
   logical,        intent(OUT), optional :: split      !> A tag of the file does not end on its line.
   integer(I4P) :: unitfile, E_IO, nline
-  character(256) :: line, tag
+  character(256) :: tag
+  character(len=:), allocatable :: line
   logical :: complete
   logical :: field                         !> Inside the FieldData element
   !---------------------------------------------------------------------------------------------------------------------------------
@@ -1019,23 +1056,62 @@ contains
   enddo
   end function array_name
 
-  !> The next line of a file as far as line holds it: complete is true when the line ends there; the rest of a longer line,
-  !> such as the values of a data array, is passed over without being kept. ios is that of the read: 0, or the end of the file.
+  !> The next line of a file as far as the reader needs it: its first 256 characters, or the whole line when they open a
+  !> FieldData element and do not close it (a FieldData element on one line, which may be longer); the rest of any other line,
+  !> such as the values of a data array, is passed over without being kept. complete is true when the line read ends there.
+  !> ios is that of the read: 0, or the end of the file.
   subroutine read_line_start(u, line, complete, ios)
-  integer(I4P), intent(IN)  :: u
-  character(*), intent(OUT) :: line
-  logical,      intent(OUT) :: complete
-  integer(I4P), intent(OUT) :: ios
-  integer(I4P)              :: sz
-  line = ''
-  read(u,'(A)',advance='no',size=sz,iostat=ios) line
-  complete = is_iostat_eor(ios)
-  if (complete) then
+  integer(I4P),                  intent(IN)  :: u
+  character(len=:), allocatable, intent(OUT) :: line
+  logical,                       intent(OUT) :: complete
+  integer(I4P),                  intent(OUT) :: ios
+  character(256)                             :: chunk
+  integer(I4P)                               :: sz
+  complete = .false.
+  read(u,'(A)',advance='no',size=sz,iostat=ios) chunk
+  line = chunk(1:sz)
+  if (is_iostat_eor(ios)) then
     ios = 0
-  elseif (ios == 0) then
-    read(u,'(A)',iostat=ios)
+    complete = .true.
+    return
   endif
+  if (ios /= 0) return
+  if (index(line,'<FieldData')>0) then
+    if (index(line,'</FieldData')==0 .and. .not.empty_element(line)) then
+      do
+        read(u,'(A)',advance='no',size=sz,iostat=ios) chunk
+        line = line//chunk(1:sz)
+        if (is_iostat_eor(ios)) then
+          ios = 0
+          complete = .true.
+          return
+        endif
+        if (ios /= 0) return
+      enddo
+    endif
+  endif
+  read(u,'(A)',iostat=ios)
   end subroutine read_line_start
+
+  !> The position in s of the '>' that ends the start tag that s begins with: the first '>' outside the quotes of its attribute
+  !> values, which may hold '>' (XML 1.0, production [10] AttValue); 0 when s holds none.
+  pure integer function tag_end(s)
+  character(*), intent(IN) :: s
+  integer                  :: i
+  character(1)             :: q
+  tag_end = 0
+  q = ' '
+  do i = 1, len(s)
+    if (q /= ' ') then
+      if (s(i:i) == q) q = ' '
+    elseif (s(i:i) == '"' .or. s(i:i) == "'") then
+      q = s(i:i)
+    elseif (s(i:i) == '>') then
+      tag_end = i
+      return
+    endif
+  enddo
+  end function tag_end
 
   !> True when line holds a tag that does not end on it: a '<' with no '>' after it on the line. tag returns the tag as far as
   !> the line holds it. XML allows a start tag over several lines (white space, line breaks included, may stand between its

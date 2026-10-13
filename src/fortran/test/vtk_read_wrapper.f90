@@ -51,6 +51,7 @@
   call files_with_time
   call field_scalars
   call large_file_without_field_data
+  call field_data_one_line
   call mesh_dimension
   call many_blocks
   call face_on_z0
@@ -499,6 +500,220 @@
   call check(n == 7_I4P, 'the cycle written')
   call check_field(r, w)
   end subroutine cycle_only
+
+  subroutine field_data_one_line
+  !---------------------------------------------------------------------------------------------------------------------------------
+  !< A FieldData element on one line, as XML allows: the time, the cycle and the named scalars are read back as written, and so
+  !< is the field. The files that vtk_write_structured_multiblock writes with a time only (a FieldData line of about 100
+  !< characters) and with a time, a cycle and three named scalars (about 600), in the ascii, binary and raw formats, get their
+  !< FieldData element on one line (the line breaks between its tags, and the blanks after them, taken out), and each data array
+  !< of their CellData element on one line too (start tag, values and end tag), and are read with vtk_read_structured_multiblock.
+  !< A block file in the layout of VTK with its FieldData element on one line longer than 256 characters is refused, as the same
+  !< file with the element on lines of their own (arrays_before_points).
+  !< Defect: the reader looked for the field data from the line after the FieldData start tag and took one tag per line, so the
+  !< arrays of a FieldData element on one line were not found: the time and the cycle read as 0 and the scalars as absent, the
+  !< values of a file that holds none, without an error; a FieldData line longer than 256 characters hid the names of the
+  !< variables after it (read_variables_name read 256 characters of a line); and the values of a data array on the line of its
+  !< start tag were taken in upper case, so a base64 code (binary format) was decoded wrong. The first array name of a block file
+  !< was looked for in the first 256 characters of each line too, so a block file in the layout of VTK with a longer FieldData
+  !< line named no array and was not refused: it was read, with the return value 0.
+  !< Basis: XML 1.0 (Fifth Edition), W3C Recommendation 26 November 2008, 2.3, production [3]: a line feed is white space;
+  !< 3.1, production [43]: the content of an element is its elements and its character data one after the other, with no
+  !< white space needed between them.
+  !---------------------------------------------------------------------------------------------------------------------------------
+  character(len=6), parameter :: formats(3) = ['ascii ', 'binary', 'raw   ']
+  integer :: f
+  !---------------------------------------------------------------------------------------------------------------------------------
+
+  do f = 1, size(formats)
+    call one_line(trim(formats(f)), .false.)
+    call one_line(trim(formats(f)), .true.)
+  enddo
+  call vtk_layout_one_line
+  end subroutine field_data_one_line
+
+  subroutine one_line(fmt, scalars)
+  !---------------------------------------------------------------------------------------------------------------------------------
+  !< The field of make_field_scalars written in the format fmt with a time, and with a cycle and three named scalars when scalars
+  !< is true, read back with its FieldData element on one line.
+  !---------------------------------------------------------------------------------------------------------------------------------
+  character(len=*), intent(in) :: fmt
+  logical,          intent(in) :: scalars
+  type(orion_data)  :: w, r
+  character(len=16) :: varnames
+  character(len=32) :: tag
+  character(len=20) :: asked(3)
+  real(R8P)         :: t0, t, values(3), got(3)
+  integer(I4P)      :: n0, n
+  logical           :: found(3), joined
+  integer           :: err, b
+  !---------------------------------------------------------------------------------------------------------------------------------
+
+  tag = fmt//'2D_oneline_time'
+  if (scalars) tag = fmt//'2D_oneline'
+  t0 = 1._R8P/3._R8P
+  n0 = 42_I4P
+  values = [37._R8P, 4._R8P, 0.1_R8P/3._R8P]
+  call make_field_scalars(w, 2, trim(tag))
+  varnames = 'u p'
+  w%vtk%format = fmt
+  if (scalars) then
+    write(*,'(A)') trim(tag)//': written with time, cycle and three named scalars, FieldData put on one line'
+    err = vtk_write_structured_multiblock(orion=w, vtspath='', vtmpath='fld_'//trim(tag), varnames=varnames, &
+                                          time=t0, cycle=n0, fldnames=names, fldvalues=values)
+  else
+    write(*,'(A)') trim(tag)//': written with time, FieldData put on one line'
+    err = vtk_write_structured_multiblock(orion=w, vtspath='', vtmpath='fld_'//trim(tag), varnames=varnames, time=t0)
+  endif
+  call check(err == 0, 'written without error')
+  joined = .true.
+  do b = 1, 2
+    joined = joined .and. field_data_on_one_line(trim(w%block(b)%name)//'.vts')
+    joined = joined .and. arrays_on_one_line(trim(w%block(b)%name)//'.vts')
+  enddo
+  call check(joined, 'FieldData, and each data array of CellData, on one line in every block file')
+  r%vtk%format = fmt
+  t = 12345._R8P
+  if (scalars) then
+    asked = [character(len=20) :: 'LAST_OUTPUT_TIME', 'ITERATION', 'OUTPUT_NUMBER']
+    n = -1_I4P
+    got = 12345._R8P
+    found = .false.
+    err = vtk_read_structured_multiblock(orion=r, vtmpath='fld_'//trim(tag), vtspath='', time=t, cycle=n, &
+                                         fldnames=asked, fldvalues=got, fldfound=found)
+  else
+    err = vtk_read_structured_multiblock(orion=r, vtmpath='fld_'//trim(tag), vtspath='', time=t)
+  endif
+  call check(err == 0, 'read without error')
+  call check(t == t0, 'the time written')
+  if (scalars) then
+    call check(n == n0, 'the cycle written')
+    call check(all(found) .and. got(1) == values(3) .and. got(2) == values(1) .and. got(3) == values(2), &
+               'the named scalars written')
+  endif
+  call check_field(r, w)
+  end subroutine one_line
+
+  subroutine vtk_layout_one_line
+  !---------------------------------------------------------------------------------------------------------------------------------
+  !< A block file in the layout of VTK, its variable c as cell data before its Points (write_vtk_layout), with a FieldData element
+  !< on one line of more than 256 characters (TIME and eight named scalars) after the StructuredGrid start tag, where VTK writes
+  !< it: refused before any block is read (return value 1), as the same file with its FieldData element on lines of their own.
+  !---------------------------------------------------------------------------------------------------------------------------------
+  type(orion_data)              :: r
+  character(len=:), allocatable :: fd
+  integer(I4P)                  :: err
+  integer                       :: i
+  !---------------------------------------------------------------------------------------------------------------------------------
+
+  fd = '  <FieldData><DataArray type="Float64" Name="TIME" NumberOfTuples="1" format="ascii">0.5</DataArray>'
+  do i = 1, 8
+    fd = fd//'<DataArray type="Float64" Name="SCALAR_'//achar(48 + i)//'" NumberOfTuples="1" format="ascii">'// &
+         achar(48 + i)//'</DataArray>'
+  enddo
+  fd = fd//'</FieldData>'
+  call write_vtk_layout('vtklayout_oneline_V1.vts', .false., .true., fd)
+  call write_vtm('vtklayout_oneline', [character(len=24) :: 'vtklayout_oneline_V1.vts'])
+  r%vtk%format = 'ascii'
+  err = vtk_read_structured_multiblock(orion=r, vtmpath='vtklayout_oneline', vtspath='')
+  write(*,'(A,I0,A,I0)') 'vtklayout_oneline: a FieldData line of ', len(fd), ' characters, return value ', err
+  call check(len(fd) > 256 .and. err == 1, 'vtklayout_oneline: a block file in the layout of VTK refused (return value 1)')
+  if (allocated(r%block)) call check(.not.allocated(r%block(1)%mesh), 'vtklayout_oneline: no block read')
+  end subroutine vtk_layout_one_line
+
+  logical function arrays_on_one_line(fname) result(done)
+  !---------------------------------------------------------------------------------------------------------------------------------
+  !< Rewrite the file fname with each data array of its CellData element on one line: the line breaks between '<DataArray' and
+  !< '</DataArray>', and the blanks after them, are taken out. A self-closing array (raw format) has none. The file is read and
+  !< written as a stream of bytes, as in field_data_on_one_line.
+  !---------------------------------------------------------------------------------------------------------------------------------
+  character(len=*), intent(in)  :: fname
+  character(len=:), allocatable :: s, t
+  integer                       :: u, n, cs, ce, k, a, z
+  !---------------------------------------------------------------------------------------------------------------------------------
+
+  done = .false.
+  open(newunit=u, file=fname, access='stream', form='unformatted', status='old', action='read')
+  inquire(unit=u, size=n)
+  allocate(character(len=n) :: s)
+  read(u) s
+  close(u)
+  cs = index(s, '<CellData>')
+  ce = index(s, '</CellData>')
+  if (cs == 0 .or. ce < cs) return
+  t = s(1:cs-1)
+  k = cs
+  do while (k < ce)
+    a = index(s(k:ce-1), '<DataArray')
+    if (a == 0) exit
+    a = k + a - 1
+    z = index(s(a:ce-1), '</DataArray>')
+    t = t//s(k:a-1)
+    if (z == 0) then
+      k = a
+      exit
+    endif
+    z = a + z - 1
+    ! the array from its start tag to its end tag, without the line breaks and the blanks after them
+    k = a
+    do while (k < z)
+      if (s(k:k) == achar(10)) then
+        k = k + 1
+        do while (k < z .and. s(k:k) == ' ')
+          k = k + 1
+        enddo
+      else
+        t = t//s(k:k)
+        k = k + 1
+      endif
+    enddo
+  enddo
+  t = t//s(k:)
+  open(newunit=u, file=fname, access='stream', form='unformatted', status='replace', action='write')
+  write(u) t
+  close(u)
+  done = .true.
+  end function arrays_on_one_line
+
+  logical function field_data_on_one_line(fname) result(done)
+  !---------------------------------------------------------------------------------------------------------------------------------
+  !< Rewrite the file fname with its FieldData element on one line: the line breaks between '<FieldData>' and '</FieldData>', and
+  !< the blanks after them, are taken out. The file is read and written as a stream of bytes, so the appended data of the raw
+  !< format, after the element, are kept as they are.
+  !---------------------------------------------------------------------------------------------------------------------------------
+  character(len=*), intent(in)  :: fname
+  character(len=:), allocatable :: s, t
+  integer                       :: u, n, i, j, k
+  !---------------------------------------------------------------------------------------------------------------------------------
+
+  done = .false.
+  open(newunit=u, file=fname, access='stream', form='unformatted', status='old', action='read')
+  inquire(unit=u, size=n)
+  allocate(character(len=n) :: s)
+  read(u) s
+  close(u)
+  i = index(s, '<FieldData>')
+  j = index(s, '</FieldData>')
+  if (i == 0 .or. j < i) return
+  t = s(1:i-1)
+  k = i
+  do while (k < j)
+    if (s(k:k) == achar(10)) then
+      k = k + 1
+      do while (k < j .and. s(k:k) == ' ')
+        k = k + 1
+      enddo
+    else
+      t = t//s(k:k)
+      k = k + 1
+    endif
+  enddo
+  t = t//s(j:)
+  open(newunit=u, file=fname, access='stream', form='unformatted', status='replace', action='write')
+  write(u) t
+  close(u)
+  done = .true.
+  end function field_data_on_one_line
 
   subroutine misuse()
   !---------------------------------------------------------------------------------------------------------------------------------
@@ -1783,14 +1998,16 @@
   endif
   end subroutine read_vtk_layout
 
-  subroutine write_vtk_layout(fname, point, cell)
+  subroutine write_vtk_layout(fname, point, cell, field_line)
   !---------------------------------------------------------------------------------------------------------------------------------
   !< Write the block file fname, one cell in the layout of VTK, with a variable p as point data and a variable c as cell data
-  !< when point and cell are true.
+  !< when point and cell are true, and with the line field_line, a FieldData element, after the StructuredGrid start tag when
+  !< it is given.
   !---------------------------------------------------------------------------------------------------------------------------------
-  character(len=*), intent(in) :: fname
-  logical,          intent(in) :: point, cell
-  integer                      :: u
+  character(len=*), intent(in)           :: fname
+  logical,          intent(in)           :: point, cell
+  character(len=*), intent(in), optional :: field_line
+  integer                                :: u
   !---------------------------------------------------------------------------------------------------------------------------------
 
   open(newunit=u, file=fname, status='replace', action='write')
@@ -1798,6 +2015,7 @@
   write(u,'(A)') '<VTKFile type="StructuredGrid" version="0.1" byte_order="LittleEndian" header_type="UInt32"'// &
                  ' compressor="vtkZLibDataCompressor">'
   write(u,'(A)') '  <StructuredGrid WholeExtent="0 1 0 1 0 1">'
+  if (present(field_line)) write(u,'(A)') field_line
   write(u,'(A)') '  <Piece Extent="0 1 0 1 0 1">'
   write(u,'(A)') '    <PointData>'
   if (point) then

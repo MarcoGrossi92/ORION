@@ -289,7 +289,10 @@ end program read_vtk_structured
   `TIME`, in the `FieldData` element of every block file that has one before its first data array, where
   `vtk_write_structured_multiblock` writes it (a `FieldData` element after the arrays is not read): when the
   files differ, the values are those of the last block file that holds them. Every format keeps every bit of a
-  real. `fldnames` and `fldvalues` (and
+  real. The reader takes the `FieldData` element with its arrays on lines of their own, as ORION writes it, or on
+  one line, as XML allows (XML 1.0 (Fifth Edition), W3C Recommendation 26 November 2008, section 3.1, production
+  [43]: the content of an element holds its elements with no line break needed between them).
+  `fldnames` and `fldvalues` (and
   `fldfound`) go together and have the same size, and no name is blank; otherwise both functions return 1 and write
   or read nothing. The reader compares the names without regard to case (`'a'` finds `A`).
   A program calls the writer without these arguments to get the files it got before. `tec_write_structured_multiblock`

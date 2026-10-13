@@ -225,6 +225,12 @@ Changes on `main` since `v1.6.0`.
   zone in `solutiontime` and `strandid` (-1 for a static zone), also with
   `dims_only`; it dropped them, so a solution read from a `.szplt` file came
   without its time.
+- `vtk_read_structured_multiblock` reads a `FieldData` element written on
+  one line, as XML allows: the time, the cycle and the named scalars of such
+  a file were read as 0, and a line longer than 256 characters hid the names
+  of the variables after it. The text of a data array on the line of its
+  start tag is read in the case of the file: a base64 code there was read in
+  upper case.
 
 ## [1.7.0] - 2026-09-29
 
