@@ -143,11 +143,14 @@ end program read_tecplot_ascii
 
 Binary Format (with TecIO)
 
-For `.plt` or `.szplt` files, use the same function—ORION auto-detects the format:
+For `.szplt` files, use the same function: ORION takes the format from the extension.
 
 ```fortran
-E_IO = tec_read_structured_multiblock(filename='solution.plt', orion=IOfield)
+E_IO = tec_read_structured_multiblock(filename='solution.szplt', orion=IOfield)
 ```
+
+A `.plt` file, which `tec_write_structured_multiblock` writes, is not read: the function returns 1, with a message, for a
+file name that holds none of the extensions `.dat`, `.tec` and `.szplt`.
 
 !!! note "TecIO Requirement"
     Binary format support requires building with `--use-tecio` flag. Without TecIO, a call that reads or writes a binary

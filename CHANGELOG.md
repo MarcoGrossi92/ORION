@@ -239,6 +239,10 @@ Changes on `main` since `v1.6.0`.
   `p3d_read_multiblock` read into an `orion_data` that already holds blocks:
   the blocks of the file take their place, as in the `.szplt` and VTK
   readers; they stopped the program (an allocated variable allocated again).
+- `tec_read_structured_multiblock` refuses, with a message and the return
+  value 1, a file name that holds none of the extensions it reads (`.dat`,
+  `.tec`, `.szplt`), such as that of a `.plt` file, which the writer writes:
+  the value it returned was undefined.
 
 ## [1.7.0] - 2026-09-29
 

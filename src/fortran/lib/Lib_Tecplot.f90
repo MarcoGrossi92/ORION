@@ -569,7 +569,7 @@ contains
   !> \details Reads Tecplot structured format files (ASCII or binary) into ORION data structure.
   !> Automatically detects file format based on extension.
   !> \param[inout] orion ORION data structure to fill with data
-  !> \param[in] filename Input file name (.dat, .tec, or .szplt)
+  !> \param[in] filename Input file name (.dat, .tec, or .szplt); another name, such as that of a .plt file, is refused (1)
   !> \param[in] zone_mask Optional per-zone selector: variable data is read only
   !>            for zones whose entry is .true.  Coordinates are always read.
   !> \param[in] dims_only Optional; if .true. read only the zone headers.
@@ -635,6 +635,12 @@ contains
       ! Error termination: a program that asks for a binary file without TecIO ends with a nonzero exit status
       error stop "You can not read in binary format without compiling against TecIO"
 #     endif
+    else
+      ! A name with none of the extensions read, such as that of a .plt file (which the writer writes), is refused: the
+      ! function result is defined on every path
+      write(stderr,'(A)') 'TECPLOT READ ERROR: '//trim(filename)//': the name holds none of the extensions .dat, .tec and'// &
+        ' .szplt (.plt files are not read).'
+      err = 1
     endif
 
   end function tec_read_structured_multiblock

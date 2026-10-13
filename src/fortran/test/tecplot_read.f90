@@ -39,6 +39,17 @@ program tecplot_read_multiblock
 
   deallocate(data%block)
 
+  ! A name that holds none of the extensions read (.dat, .tec and .szplt), such as that of the .plt files that
+  ! tec_write_structured_multiblock writes, is refused with the return value 1 and a message, in every build; the value
+  ! returned was undefined (Fortran 2018, ISO/IEC 1539-1:2018, final draft J3/18-007r1, 15.6.2.2, paragraph 4, p. 319:
+  ! the value of a function result that is not a pointer "shall be defined by the function")
+  error = tec_read_structured_multiblock(orion=data,filename='tecfile.plt')
+  write(*,*) 'tecfile.plt: return value ', error
+  if (error /= 1 .or. allocated(data%block)) then
+    write(*,*) 'A name without the extensions read is not refused with the return value 1'
+    stop 1
+  endif
+
   ! The binary files are read only with TecIO: tecplot_write writes them only then
 #ifdef TECIO
   write(*,*) '----------------------------------'
