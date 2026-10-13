@@ -231,6 +231,10 @@ Changes on `main` since `v1.6.0`.
   of the variables after it. The text of a data array on the line of its
   start tag is read in the case of the file: a base64 code there was read in
   upper case.
+- `copyORION` copies every member of the source: the time (`solutiontime`),
+  the strand (`strandid`) and every format option; it copied four of the
+  options only, so the copy held the defaults of the others (`tec%node`,
+  `tec%bc`, `tec%extension`, `vtk%node`), a time of 0 and the strand -1.
 
 ## [1.7.0] - 2026-09-29
 

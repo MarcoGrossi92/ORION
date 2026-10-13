@@ -58,11 +58,13 @@ contains
     type(orion_data), intent(out) :: b  ! Destination data
     integer :: i
 
-    ! Copy non-allocatable members
-    b%tec%format = a%tec%format
-    b%tec%double = a%tec%double
-    b%vtk%format = a%vtk%format
-    b%p3d%format = a%p3d%format
+    ! Copy the scalar members: the time, the strand and every format option (b, intent(out), holds the defaults of its type
+    ! on entry)
+    b%solutiontime = a%solutiontime
+    b%strandid     = a%strandid
+    b%tec          = a%tec
+    b%vtk          = a%vtk
+    b%p3d          = a%p3d
 
     ! Handle allocation of block array
     if (allocated(b%block)) then

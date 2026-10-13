@@ -333,8 +333,8 @@ end program read_vtk_structured
   to 1.7.0 wrote `|t|` and, for a steady solution, `STRANDID = 0` in every ASCII zone header (a strand for Tecplot,
   not a static zone): such a file reads back with a positive `solutiontime` and `strandid` 0. `strandid` is -1 in a
   new `orion_data` and only these two readers set it: the VTK and PLOT3D readers and `tec_read_points_multivars`
-  leave it as it was, and `copyORION` does not copy it (nor `solutiontime`). The data set auxiliary data `Time` of a
-  binary file holds `|t|`.
+  leave it as it was; `copyORION` copies it, with `solutiontime` and every format option. The data set auxiliary data
+  `Time` of a binary file holds `|t|`.
 
 ### Length of the Tecplot header and lines
 
