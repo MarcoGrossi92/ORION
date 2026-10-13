@@ -12,7 +12,7 @@ module Lib_Tecplot
   use IR_Precision
   use Lib_ORION_data
   ! The Tecplot ASCII readers read every line whole, whatever its length: a zone header holds the block name
-  use strings, only: readline => read_whole_line
+  use strings, only: read_whole_line
   implicit none
 # if defined(TECIO)
   include "tecio.f90"
@@ -594,7 +594,7 @@ contains
     logical, allocatable :: zone_z_cell(:)   ! variable 3 listed as CELLCENTERED in the zone header
     logical   :: plane_xyz                   ! single node planes that carry x, y and z
     integer, allocatable :: Ni(:), Nj(:), Nk(:)
-    ! A line and a zone header of any length (read with readline): the title of a zone is as long as its block name
+    ! A line and a zone header of any length (read with read_whole_line): the title of a zone is as long as its block name
     character(len=:), allocatable :: line
     character(len=:), allocatable :: header
     character(32768) :: hline               ! header lines only (VARIABLES and what precedes it)
@@ -682,7 +682,7 @@ contains
     Nblocks = 0
     ios = 0
     do while (ios==0)
-      call readline(tecunit,line,ios)
+      call read_whole_line(tecunit,line,ios)
       if (ios/=0) exit
       if (is_zone_header(line)) Nblocks = Nblocks + 1
     enddo
@@ -704,7 +704,7 @@ contains
     b = 0
     ios = 0
     do while (ios==0)
-      call readline(tecunit,line,ios)
+      call read_whole_line(tecunit,line,ios)
       if (ios/=0) exit
       physical_line_number = physical_line_number + 1
       if (.not.is_zone_header(line)) cycle
@@ -716,7 +716,7 @@ contains
 
       ! Gather continuation header lines until the first numeric data line.
       do
-        call readline(tecunit,line,ios)
+        call read_whole_line(tecunit,line,ios)
         if (ios/=0) exit
         physical_line_number = physical_line_number + 1
         if (line_is_numeric_start(line)) then
@@ -851,7 +851,7 @@ contains
     ios = 0
 
     do while (ios==0 .and. b<Nblocks)
-      call readline(tecunit,line,ios)
+      call read_whole_line(tecunit,line,ios)
       if (ios/=0) exit
       if (.not.is_zone_header(line)) cycle
 
@@ -860,7 +860,7 @@ contains
 
       ! Find the first data line for this zone while collecting continuation header lines.
       do
-        call readline(tecunit,line,ios)
+        call read_whole_line(tecunit,line,ios)
         if (ios/=0) exit
         if (line_is_numeric_start(line)) then
           data_line = line
@@ -1431,7 +1431,7 @@ contains
     integer :: i, j, k, b
     integer :: Nzones, nlines
     integer, allocatable :: nskip(:)
-    character(len=:), allocatable :: line   ! a line of any length (read with readline): a zone header holds the block name
+    character(len=:), allocatable :: line   ! a line of any length (read with read_whole_line): a zone header holds the block name
     character(len=:), allocatable :: args(:), subargs(:)   ! pieces of a zone header, as long as its line
 
     ! Open file
@@ -1441,7 +1441,7 @@ contains
     ! Count blocks and allocate data
     ios = 0; Nzones = 0; nlines = -1
     do while(ios==0)
-      call readline(tecunit,line,ios)
+      call read_whole_line(tecunit,line,ios)
       nlines = nlines+1
       if (index(line,"ZONE")>0 .and. index(line,"ZONETYPE")==0) then
         Nzones = Nzones+1
@@ -1458,7 +1458,7 @@ contains
     ios = 0; b = 0
     do
       do while (index(line,'I=')==0 .and. ios/=iostat_end)
-      call readline(tecunit,line,ios)
+      call read_whole_line(tecunit,line,ios)
       enddo
       if (ios==iostat_end) exit
       b = b+1
@@ -1484,7 +1484,7 @@ contains
     allocate(nskip(Nzones))
     nskip = 0; ios = 0; b = 1; ios_prev = 0
     do
-      call readline(tecunit,line,ios)
+      call read_whole_line(tecunit,line,ios)
       if (ios==iostat_end) exit
       read(line,*,iostat=ios) dummy_float
       if ((ios==0 .and. index(line,'DATA')>0) .or. ios/=0) then
