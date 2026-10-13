@@ -521,8 +521,37 @@
     call node_round_trip(trim(formats(f)), '2d')
     call node_round_trip(trim(formats(f)), 'face')
     call cell_and_mesh(trim(formats(f)))
+    call node_flag_cell_variables(trim(formats(f)))
   enddo
   end subroutine node_variables
+
+  subroutine node_flag_cell_variables(fmt)
+  !---------------------------------------------------------------------------------------------------------------------------------
+  !< With orion%vtk%node set, variables that do not start at index 0, such as the cell variables vars(:,1:2,1:3,1:2) of a 3-D
+  !< block, are refused: return value 1, and no file written.
+  !< Defect: the writer took the values of such variables from vars(s,0:Ni,:,:), from below their first index: a file of
+  !< values read from outside the array in a release build, an out-of-bounds error in a build with bound checks.
+  !< Basis: Fortran 2018 (ISO/IEC 1539-1:2018, final draft J3/18-007r1), 9.5.3.1 (p. 128): "The value of a subscript in an array
+  !< element shall be within the bounds for its dimension".
+  !---------------------------------------------------------------------------------------------------------------------------------
+  character(len=*), intent(in) :: fmt
+  type(orion_data)             :: o
+  character(len=16)            :: varnames
+  integer(I4P)                 :: err
+  logical                      :: exists
+  !---------------------------------------------------------------------------------------------------------------------------------
+
+  call remove_field('nodeflag_'//fmt)
+  call node_block(o, '3d', 'cell')
+  o%vtk%format = fmt
+  o%vtk%node = .true.
+  varnames = 'a b'
+  err = vtk_write_structured_multiblock(orion=o, vtspath='nodeflag_'//fmt//'_', vtmpath='nodeflag_'//fmt, varnames=varnames)
+  write(*,'(A,I0)') 'nodeflag '//fmt//': cell variables with orion%vtk%node set, return value ', err
+  call check(err == 1, 'nodeflag '//fmt//': refused (return value 1)')
+  inquire(file='nodeflag_'//fmt//'.vtm', exist=exists)
+  call check(.not.exists, 'nodeflag '//fmt//': no .vtm file written')
+  end subroutine node_flag_cell_variables
 
   subroutine node_block(o, shape_, vars)
   !---------------------------------------------------------------------------------------------------------------------------------

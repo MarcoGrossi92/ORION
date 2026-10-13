@@ -400,7 +400,8 @@ layer; otherwise, as for node-shaped variables `vars(:,0:Ni,0:Nj,0:0)` with `ori
 written empty. `vtk_read_structured_multiblock` counts the cells of a block from its extent and does not read the cell
 values of a surface block back. Variables at the nodes
 (`orion%vtk%node`, point data in the block files) hold one value per node, `vars(:,0:Ni,0:Nj,0:Nk)` with `Ni`, `Nj` and `Nk`
-the cells, as the Tecplot readers return them; a two-dimensional block holds the values of its node plane,
+the cells, as the Tecplot readers return them (variables at the nodes that do not start at index 0 in each direction of
+the mesh are refused, return value 1, nothing written); a two-dimensional block holds the values of its node plane,
 `vars(:,0:Ni,0:Nj,0:0)`, which the writer writes on both planes of nodes of the file. The reader sets `orion%vtk%node` when the
 block files hold point data and no cell data, not for a mesh without variables. A mesh of three coordinates is written as it
 is, one of two coordinates (`mesh(1:2,...)`) as two node planes in k with `z = 0` and one layer of cells in k, one of one

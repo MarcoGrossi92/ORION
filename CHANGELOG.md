@@ -44,7 +44,8 @@ Changes on `main` since `v1.6.0`.
   change, is read with `Ni`, `Nj` and `Nk` the cells, one less than before in
   each direction, and with `orion%vtk%node` unset (it was set).
   `vtk_write_structured_multiblock` writes variables at the nodes with one
-  value per node (it wrote as many as cells).
+  value per node (it wrote as many as cells) and refuses variables at the
+  nodes that do not start at index 0 (return value 1).
 - `vtk_read_structured_multiblock` reads a block file of one plane of nodes in
   k with `z = 0` at every node, such as the face of a three-dimensional block
   on the plane z = 0, with three coordinates; it read it with two, and gave its

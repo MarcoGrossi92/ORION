@@ -10859,6 +10859,18 @@ contains
     E_IO = 1
     return
   endif
+  ! Variables at the nodes are written from index 0 in each direction of the mesh, vars(s,0:Ni,0:Nj,0:Nk) as the readers
+  ! return them: variables that start at another index, such as those of the cells, vars(:,1:Ni,...), would be taken from
+  ! below their first index. They are refused before any file is written
+  if (orion%vtk%node .and. .not.meshonly) then
+    do b = 1, nb
+      if (lbound(orion%block(b)%vars,2) /= 0 .or. (ndir >= 2 .and. lbound(orion%block(b)%vars,3) /= 0) .or. &
+          (ndir == 3 .and. lbound(orion%block(b)%vars,4) /= 0)) then
+        E_IO = 1
+        return
+      endif
+    enddo
+  endif
   location = 'cell'
   if (orion%vtk%node) location = 'node'
   call parse(varnames,' ',varname(1:Nvar))
