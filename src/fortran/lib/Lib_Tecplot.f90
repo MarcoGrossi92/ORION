@@ -1870,7 +1870,7 @@ contains
     integer(c_int32_t) :: strandID
     integer(c_int32_t), allocatable :: int32Values(:)
     integer(c_int64_t) :: numValues
-    integer(c_int64_t) :: layer, first     ! values read by one call (all, or one row of cells in I) and the first of them
+    integer(c_int64_t) :: layer, first     ! values read by one call (all, a layer of cells in K or a row in I) and the first
     integer(c_int64_t) :: iMax, jMax, kMax, ndir
     integer(c_int64_t) :: ndir_file         ! number of coordinates of the file, the same for every zone
     integer :: nnodal, ncellc, ncoordc      ! solution variables at the nodes and at the cells, coordinates at the cells, of a zone
@@ -2154,13 +2154,20 @@ contains
                   shareVarFromZone(var) == 0) then
                 i = tecZoneVarGetNumValues(inputFileHandle, &
                           inputZone, var, numValues)
-                ! The TecIO reader does not give right, in one call, the values at the cells of some zones with one node plane
-                ! or line in a direction (such as the faces i, j and k of a volume block); it gives them right one row of cells
-                ! in I at a time. So a variable at the cells of a zone with IMax, JMax or KMax = 1 is read one row of cells in
-                ! I per call; the variables at the nodes, and those of zones with more than one node plane in each direction,
-                ! are read with one call.
+                ! The TecIO reader of this repository (lib/TecIO, TecVersionId 2018.3.0.94816) does not give right, in one call,
+                ! the values at the cells of some zones with one node plane or line in a direction (such as the faces i, j and k
+                ! of a volume block); it gives them right one layer of cells in K at a time when KMax > 1, and one row of cells
+                ! in I at a time when KMax = 1, where a layer in K is the whole zone. So a variable at the cells of a zone with
+                ! IMax, JMax or KMax = 1 is read so; the variables at the nodes, and those of zones with more than one node
+                ! plane in each direction, are read with one call.
                 layer = max(numValues, 1_c_int64_t)
-                if (valueLocation(var) /= 1 .and. (iMax == 1 .or. jMax == 1 .or. kMax == 1)) layer = max(iMax-1, 1_c_int64_t)
+                if (valueLocation(var) /= 1 .and. (iMax == 1 .or. jMax == 1 .or. kMax == 1)) then
+                  if (kMax > 1) then
+                    layer = max(iMax-1, 1_c_int64_t)*max(jMax-1, 1_c_int64_t)
+                  else
+                    layer = max(iMax-1, 1_c_int64_t)
+                  endif
+                endif
                 select case (varTypes(var))
                 case (1) ! float
                     allocate(floatValues(numValues))
