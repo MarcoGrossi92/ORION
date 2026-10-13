@@ -13,6 +13,7 @@
 !< (passive_variables).
 !< Files with fewer variables than the coordinates of their zones, refused (too_few_variables).
 !< A one-dimensional field whose first variables are named y (and z), read with the rule of the names (field_1d_named_y).
+!< A .szplt file that TecIO opens and then cannot read gives a nonzero return value (damaged_file).
 !< Stops with a non-zero code when a check fails.
 program tecplot_read_szplt_plane_xyz
   use Lib_Tecplot
@@ -40,6 +41,7 @@ program tecplot_read_szplt_plane_xyz
   call passive_variables()
   call too_few_variables()
   call field_1d_named_y()
+  call damaged_file()
   if (nfail > 0) then
     write(*,'(A,I0,A)') 'tecplot_read_szplt_plane_xyz: ', nfail, ' check(s) FAILED'
     error stop 1
@@ -1110,6 +1112,56 @@ contains
     if (same) same = all(reshape(r%block(1)%vars(nv-(nd-1),:,:,:), [5-f]) == w%block(1)%vars(nv, :, f, f))
     call check(same, fname//': the last variable')
   end subroutine named_y
+
+  ! A .szplt file whose zone header is damaged, which TecIO opens and then cannot read (it prints its own messages), gives a
+  ! nonzero return value: the reader ends at the TecIO call that fails. The file is a field of one block of 3 x 2 cells with
+  ! two variables at the cells, written by the ORION writer in 64-bit values (960 bytes with the TecIO of this repository),
+  ! with 16 bytes overwritten at 45 % of its length, in the header of its zone; the whole file reads with 0.
+  ! Defect: the reader returned the status of its last TecIO call, the one that closes the file (0), so such a file came back
+  ! with the return value 0 and the values of a zone that TecIO could not read.
+  ! Basis: Tecplot 360 EX 2023 R1 Data Format Guide, section 5-1.3, "Errors" (p. 161): "Functions return zero on success and
+  ! non-zero on failure", and such errors "may also indicate a corrupted or truncated file".
+  subroutine damaged_file()
+    type(orion_data) :: w, d
+    integer :: i, j, n, err, u, sz
+    character(len=:), allocatable :: bytes
+    allocate(w%block(1))
+    w%block(1)%name = 'B1'
+    w%block(1)%Ni = 3; w%block(1)%Nj = 2; w%block(1)%Nk = 0
+    allocate(w%block(1)%mesh(1:2,0:3,0:2,0:0), w%block(1)%vars(1:2,1:3,1:2,1:1))
+    n = 0
+    do j = 0, 2; do i = 0, 3
+      n = n + 1; w%block(1)%mesh(1,i,j,0) = 0.1d0*n + 1.0d0/3.0d0
+      n = n + 1; w%block(1)%mesh(2,i,j,0) = 0.1d0*n + 1.0d0/3.0d0
+    enddo; enddo
+    do j = 1, 2; do i = 1, 3
+      n = n + 1; w%block(1)%vars(1,i,j,1) = 0.1d0*n + 1.0d0/3.0d0
+      n = n + 1; w%block(1)%vars(2,i,j,1) = 0.1d0*n + 1.0d0/3.0d0
+    enddo; enddo
+    w%tec%node = .false.
+    w%tec%format = 'binary'
+    err = tec_write_structured_multiblock(orion=w, varnames='a b', filename='damaged_whole.szplt')
+    write(*,'(A)') 'damaged_header.szplt: a .szplt file with 16 bytes of the header of its zone overwritten'
+    call check(err == 0, 'damaged: the whole file written')
+    d%tec%format = 'binary'
+    err = tec_read_structured_multiblock(orion=d, filename='damaged_whole.szplt')
+    call check(err == 0, 'damaged: the whole file read with the return value 0')
+    inquire(file='damaged_whole.szplt', size=sz)
+    call check(sz == 960, 'damaged: the whole file of 960 bytes, the layout that this check knows')
+    if (sz /= 960) return
+    allocate(character(len=sz) :: bytes)
+    open(newunit=u, file='damaged_whole.szplt', access='stream', form='unformatted', status='old', action='read')
+    read(u) bytes
+    close(u)
+    bytes(433:448) = repeat(char(255), 16)   ! 16 bytes of value 255
+    open(newunit=u, file='damaged_header.szplt', access='stream', form='unformatted', status='replace', action='write')
+    write(u) bytes
+    close(u)
+    if (allocated(d%block)) deallocate(d%block)
+    err = tec_read_structured_multiblock(orion=d, filename='damaged_header.szplt')
+    write(*,'(A,I0)') 'damaged_header.szplt: return value ', err
+    call check(err /= 0, 'damaged: the damaged file read with a nonzero return value')
+  end subroutine damaged_file
 
   ! The number of names in names, separated by blanks.
   pure integer function count_names(names)

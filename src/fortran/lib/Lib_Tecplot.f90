@@ -2023,8 +2023,8 @@ contains
   !>          on every zone; an empty allocatable costs nothing.
   !> \details The data set auxiliary data of the file give cyc (CYCLE) and the named scalars asked for (aux_item), which are
   !>          left as they are when the file does not hold them; also with dims_only.
-  !> \return i Error code (0 if successful)
-  function tec_read_szplt(orion,filename,zone_mask,dims_only,cyc,fldnames,fldvalues,fldfound) result(i)
+  !> \return err 0 if successful; the status of the TecIO call that failed (the read ends there); 1 for a file refused
+  function tec_read_szplt(orion,filename,zone_mask,dims_only,cyc,fldnames,fldvalues,fldfound) result(err)
     use iso_c_binding
     implicit none
     type(orion_data), intent(inout)                        :: orion
@@ -2036,6 +2036,7 @@ contains
     real(R8P),        intent(inout), optional              :: fldvalues(:) ! their values
     logical,          intent(inout), optional              :: fldfound(:)  ! whether the file holds them
 
+    integer :: err                          ! 0, or the status of the TecIO call that failed (or 1)
     integer i, j, k, cnt
     character(len=:), allocatable :: inputFileName           ! the path, of any length, and C_NULL_CHAR for TecIO
     character(len=:), allocatable :: dataSetTitle, zoneTitle  ! of the length that TecIO gives
@@ -2096,16 +2097,16 @@ contains
     inputFileName = trim(filename) // C_NULL_CHAR
 
     ! Open the input file for reading
-    i = tecFileReaderOpen(inputFileName, inputFileHandle)
+    err = tecFileReaderOpen(inputFileName, inputFileHandle)
 
-    if (i/=0) return
+    if (err/=0) return
 
     ! Read info about the data set
-    i = tecDataSetGetTitle(inputFileHandle, stringCPtr)
+    if (failed(tecDataSetGetTitle(inputFileHandle, stringCPtr), 'tecDataSetGetTitle')) return
     call copyCharArrayToString(stringCPtr, &
         tecStringLength(stringCPtr), dataSetTitle)
     call tecStringFree(stringCPtr)
-    i = tecDataSetGetNumVars(inputFileHandle, numVars)
+    if (failed(tecDataSetGetNumVars(inputFileHandle, numVars), 'tecDataSetGetNumVars')) return
 
     ! Export the variable names to the caller, coordinates included, with the
     ! same convention as the ASCII reader (size(orion%varnames) = ndir + nvar),
@@ -2115,7 +2116,7 @@ contains
     orion%varnames = ' '
     strLen = 0
     do var = 1, numVars
-        i = tecVarGetName(inputFileHandle, var, stringCPtr)
+        if (failed(tecVarGetName(inputFileHandle, var, stringCPtr), 'tecVarGetName')) return
         nameLen = tecStringLength(stringCPtr)
         call c_f_pointer(stringCPtr, stringPtr, [nameLen])
         ! a name written from a quoted list keeps its quotes in the file: drop one
@@ -2143,8 +2144,8 @@ contains
     enddo
     if (strLen + 1 <= len(varNames)) varNames(strLen + 1 : strlen + 1) = C_NULL_CHAR
 
-    i = tecFileGetType(inputFileHandle, fileType)
-    i = tecDataSetGetNumZones(inputFileHandle, numZones)
+    if (failed(tecFileGetType(inputFileHandle, fileType), 'tecFileGetType')) return
+    if (failed(tecDataSetGetNumZones(inputFileHandle, numZones), 'tecDataSetGetNumZones')) return
 
     ! The data set auxiliary data: CYCLE and the named scalars asked for. TecIO hands over the name and the value of an item
     ! as strings it allocates, through pointers that must point to NULL when it is called (it refuses the item otherwise), and
@@ -2174,7 +2175,7 @@ contains
                   is_coordinate_name(orion%varnames(3),'Z')
       do inputZone = 1, numZones
         if (.not. plane_xyz) exit
-        i = tecZoneVarGetValueLocation(inputFileHandle, inputZone, 3_c_int32_t, zloc)
+        if (failed(tecZoneVarGetValueLocation(inputFileHandle, inputZone, 3_c_int32_t, zloc), 'tecZoneVarGetValueLocation')) return
         if (zloc /= 1) plane_xyz = .false.
       enddo
     endif
@@ -2186,7 +2187,7 @@ contains
     ! with it: no zone takes it from the zone before it.
     ndir_file = 1
     do inputZone = 1, numZones
-      i = tecZoneGetIJK(inputFileHandle, inputZone, iMax, jMax, kMax)
+      if (failed(tecZoneGetIJK(inputFileHandle, inputZone, iMax, jMax, kMax), 'tecZoneGetIJK')) return
       if (kMax > 1) ndir_file = 3
       if (jMax > 1 .and. ndir_file < 2) ndir_file = 2
     enddo
@@ -2198,7 +2199,7 @@ contains
       line_xy = is_coordinate_name(orion%varnames(1),'X') .and. is_coordinate_name(orion%varnames(2),'Y')
       do inputZone = 1, numZones
         if (.not. line_xy) exit
-        i = tecZoneVarGetValueLocation(inputFileHandle, inputZone, 2_c_int32_t, zloc)
+        if (failed(tecZoneVarGetValueLocation(inputFileHandle, inputZone, 2_c_int32_t, zloc), 'tecZoneVarGetValueLocation')) return
         if (zloc /= 1) line_xy = .false.
       enddo
     endif
@@ -2210,7 +2211,7 @@ contains
       write(stderr,'(A,I0,A,I0,A)') 'TECPLOT SZPLT READ ERROR: ', numVars, ' variables for ', ndir_file, ' coordinates.'
       write(stderr,'(A)') 'File: '//trim(filename)
       i = tecFileReaderClose(inputFileHandle)
-      i = 1
+      err = 1
       return
     endif
 
@@ -2223,9 +2224,9 @@ contains
     do inputZone = 1, numZones
       nnodal = 0; ncellc = 0; ncoordc = 0
       do var = 1, numVars
-        i = tecZoneVarIsPassive(inputFileHandle, inputZone, var, ispassive)
+        if (failed(tecZoneVarIsPassive(inputFileHandle, inputZone, var, ispassive), 'tecZoneVarIsPassive')) return
         if (ispassive /= 0) cycle
-        i = tecZoneVarGetValueLocation(inputFileHandle, inputZone, var, zloc)
+        if (failed(tecZoneVarGetValueLocation(inputFileHandle, inputZone, var, zloc), 'tecZoneVarGetValueLocation')) return
         if (var <= ndir_file) then
           if (zloc /= 1) ncoordc = ncoordc + 1
         elseif (zloc == 1) then
@@ -2239,7 +2240,7 @@ contains
           '; ORION reads the coordinates at the nodes.'
         write(stderr,'(A)') 'File: '//trim(filename)
         i = tecFileReaderClose(inputFileHandle)
-        i = 1
+        err = 1
         return
       endif
       if (nnodal > 0 .and. ncellc > 0) then
@@ -2247,7 +2248,7 @@ contains
           inputZone, '; ORION reads zones whose solution variables are all at the nodes or all at the cells.'
         write(stderr,'(A)') 'File: '//trim(filename)
         i = tecFileReaderClose(inputFileHandle)
-        i = 1
+        err = 1
         return
       endif
       if (nnodal > 0) nzonen = nzonen + 1
@@ -2268,25 +2269,25 @@ contains
           if (inputZone <= size(zone_mask)) want_data = zone_mask(inputZone)
         endif
 
-        i = tecZoneGetType(inputFileHandle, inputZone, zoneType)
+        if (failed(tecZoneGetType(inputFileHandle, inputZone, zoneType), 'tecZoneGetType')) return
         if (zoneType == 6 .or. zoneType == 7) &
             stop "Unsupported inputZone type."
           
         ! Retrieve info about the inputZone
-        i = tecZoneGetTitle(inputFileHandle, inputZone, stringCPtr)
+        if (failed(tecZoneGetTitle(inputFileHandle, inputZone, stringCPtr), 'tecZoneGetTitle')) return
         call copyCharArrayToString(stringCPtr, &
             tecStringLength(stringCPtr), zoneTitle)
         call tecStringFree(stringCPtr)
 
         orion%block(inputZone)%name = zoneTitle
         
-        i = tecZoneGetIJK(inputFileHandle, inputZone, &
-            iMax, jMax, kMax)
+        if (failed(tecZoneGetIJK(inputFileHandle, inputZone, &
+            iMax, jMax, kMax), 'tecZoneGetIJK')) return
 
         ! The solution time and the StrandID of the zone, also in a pass with dims_only: the last zone gives those of the file
-        i = tecZoneGetSolutionTime(inputFileHandle, inputZone, &
-            solutionTime)
-        i = tecZoneGetStrandID(inputFileHandle, inputZone, strandID)
+        if (failed(tecZoneGetSolutionTime(inputFileHandle, inputZone, &
+            solutionTime), 'tecZoneGetSolutionTime')) return
+        if (failed(tecZoneGetStrandID(inputFileHandle, inputZone, strandID), 'tecZoneGetStrandID')) return
 
         orion%block(inputZone)%Ni = iMax-1
         orion%block(inputZone)%Nj = jMax-1
@@ -2296,8 +2297,8 @@ contains
 
         allocate(valueLocation(numVars))
         do var = 1, numVars
-            i = tecZoneVarGetValueLocation(inputFileHandle, inputZone, &
-                var, valueLocation(var))
+            if (failed(tecZoneVarGetValueLocation(inputFileHandle, inputZone, &
+                var, valueLocation(var)), 'tecZoneVarGetValueLocation')) return
         enddo
 
         ! The location of the block is that of the solution variables of its zone: a passive variable, which holds no values,
@@ -2306,7 +2307,7 @@ contains
         ! every block
         onlyNode = .false.; hasValues = .false.
         do var = ndir+1, numVars
-          i = tecZoneVarIsPassive(inputFileHandle, inputZone, var, ispassive)
+          if (failed(tecZoneVarIsPassive(inputFileHandle, inputZone, var, ispassive), 'tecZoneVarIsPassive')) return
           if (ispassive /= 0) cycle
           hasValues = .true.
           if (valueLocation(var)==1) onlyNode = .true.
@@ -2339,12 +2340,12 @@ contains
         allocate(passiveVarList(numVars))
         allocate(shareVarFromZone(numVars))
         do var = 1, numVars
-            i = tecZoneVarGetType(inputFileHandle, inputZone, &
-                var, varTypes(var))
-            i = tecZoneVarIsPassive(inputFileHandle, inputZone, &
-                var, passiveVarList(var))
-            i = tecZoneVarGetSharedZone(inputFileHandle, inputZone, &
-                var, shareVarFromZone(var))
+            if (failed(tecZoneVarGetType(inputFileHandle, inputZone, &
+                var, varTypes(var)), 'tecZoneVarGetType')) return
+            if (failed(tecZoneVarIsPassive(inputFileHandle, inputZone, &
+                var, passiveVarList(var)), 'tecZoneVarIsPassive')) return
+            if (failed(tecZoneVarGetSharedZone(inputFileHandle, inputZone, &
+                var, shareVarFromZone(var)), 'tecZoneVarGetSharedZone')) return
         enddo
 
         ! i = tecZoneConnectivityGetSharedZone(inputFileHandle, &
@@ -2370,8 +2371,8 @@ contains
 
             if (passiveVarList(var) == 0 .and. &
                   shareVarFromZone(var) == 0) then
-                i = tecZoneVarGetNumValues(inputFileHandle, &
-                          inputZone, var, numValues)
+                if (failed(tecZoneVarGetNumValues(inputFileHandle, &
+                          inputZone, var, numValues), 'tecZoneVarGetNumValues')) return
                 ! The TecIO reader of this repository (lib/TecIO, TecVersionId 2018.3.0.94816) does not give right, in one call,
                 ! the values at the cells of some zones with one node plane or line in a direction (such as the faces i, j and k
                 ! of a volume block); it gives them right one layer of cells in K at a time when KMax > 1, and one row of cells
@@ -2390,9 +2391,9 @@ contains
                 case (1) ! float
                     allocate(floatValues(numValues))
                     do first = 1, numValues, layer
-                      i = tecZoneVarGetFloatValues(inputFileHandle, &
+                      if (failed(tecZoneVarGetFloatValues(inputFileHandle, &
                           inputZone, var, first, min(layer, numValues-first+1), &
-                          floatValues(first:))
+                          floatValues(first:)), 'tecZoneVarGetFloatValues')) return
                     enddo
                     if (valueLocation(var)==1 .and. var<=ndir) then
                       cnt = 1
@@ -2411,9 +2412,9 @@ contains
                 case (2) ! double
                     allocate(doubleValues(numValues))
                     do first = 1, numValues, layer
-                      i = tecZoneVarGetDoubleValues(inputFileHandle, &
+                      if (failed(tecZoneVarGetDoubleValues(inputFileHandle, &
                           inputZone, var, first, min(layer, numValues-first+1), &
-                          doubleValues(first:))
+                          doubleValues(first:)), 'tecZoneVarGetDoubleValues')) return
                     enddo
                     if (is_coord) then
                       cnt = 1
@@ -2432,9 +2433,9 @@ contains
                 case (3) ! int32_t
                     allocate(int32Values(numValues))
                     do first = 1, numValues, layer
-                      i = tecZoneVarGetInt32Values(inputFileHandle, &
+                      if (failed(tecZoneVarGetInt32Values(inputFileHandle, &
                           inputZone, var, first, min(layer, numValues-first+1), &
-                          int32Values(first:))
+                          int32Values(first:)), 'tecZoneVarGetInt32Values')) return
                     enddo
                     if (is_coord) then
                       cnt = 1
@@ -2453,9 +2454,9 @@ contains
                 case (4) ! int16_t
                     allocate(int16Values(numValues))
                     do first = 1, numValues, layer
-                      i = tecZoneVarGetInt16Values(inputFileHandle, &
+                      if (failed(tecZoneVarGetInt16Values(inputFileHandle, &
                           inputZone, var, first, min(layer, numValues-first+1), &
-                          int16Values(first:))
+                          int16Values(first:)), 'tecZoneVarGetInt16Values')) return
                     enddo
                     if (is_coord) then
                       cnt = 1
@@ -2474,9 +2475,9 @@ contains
                 case (5) ! uint8_t
                     allocate(int8Values(numValues))
                     do first = 1, numValues, layer
-                      i = tecZoneVarGetUInt8Values(inputFileHandle, &
+                      if (failed(tecZoneVarGetUInt8Values(inputFileHandle, &
                           inputZone, var, first, min(layer, numValues-first+1), &
-                          int8Values(first:))
+                          int8Values(first:)), 'tecZoneVarGetUInt8Values')) return
                     enddo
                     if (is_coord) then
                       cnt = 1
@@ -2516,9 +2517,24 @@ contains
     endif
 
     ! Close old and new files
-    i = tecFileReaderClose(inputFileHandle)
+    err = tecFileReaderClose(inputFileHandle)
 
   contains
+
+    ! A TecIO call returns a nonzero status when it fails, for instance on a damaged or truncated file: the read ends there,
+    ! since what the call returns, the counts that size the arrays among them, is not that of the file. The status is the
+    ! return value, a message names the call and the file, and the file is closed.
+    logical function failed(status, what)
+      integer, intent(in)          :: status
+      character(len=*), intent(in) :: what
+      integer :: closed
+      failed = (status /= 0)
+      if (.not. failed) return
+      err = status
+      write(stderr,'(A,I0,A)') 'TECPLOT SZPLT READ ERROR: '//what//' failed (status ', status, ').'
+      write(stderr,'(A)') 'File: '//trim(filename)
+      closed = tecFileReaderClose(inputFileHandle)
+    endfunction failed
 
     ! Is text (a variable name) the coordinate name c ('X', 'Y' or 'Z'), in any case?
     ! The same test as in tec_read_ascii.

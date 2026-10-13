@@ -243,6 +243,10 @@ Changes on `main` since `v1.6.0`.
   value 1, a file name that holds none of the extensions it reads (`.dat`,
   `.tec`, `.szplt`), such as that of a `.plt` file, which the writer writes:
   the value it returned was undefined.
+- The `.szplt` reader returns, with a message, the nonzero status of the
+  first TecIO call that fails, and ends the read there: it returned the status
+  of the call that closes the file, so a file that TecIO opens and then cannot
+  read, such as a damaged one, came back with the return value 0.
 
 ## [1.7.0] - 2026-09-29
 

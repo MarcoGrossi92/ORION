@@ -149,8 +149,10 @@ For `.szplt` files, use the same function: ORION takes the format from the exten
 E_IO = tec_read_structured_multiblock(filename='solution.szplt', orion=IOfield)
 ```
 
-A `.plt` file, which `tec_write_structured_multiblock` writes, is not read: the function returns 1, with a message, for a
-file name that holds none of the extensions `.dat`, `.tec` and `.szplt`.
+A `.plt` file, which `tec_write_structured_multiblock` writes, is not read: the function returns 1, with a message,
+for a file name that holds none of the extensions `.dat`, `.tec` and `.szplt`. A `.szplt` file that TecIO opens and
+then cannot read, such as a damaged one, gives the nonzero status of the TecIO call that fails, with a message: the
+read ends there, and the blocks hold only what was read before it.
 
 !!! note "TecIO Requirement"
     Binary format support requires building with `--use-tecio` flag. Without TecIO, a call that reads or writes a binary
