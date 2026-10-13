@@ -154,6 +154,9 @@ E_IO = tec_read_structured_multiblock(filename='solution.plt', orion=IOfield)
     file stops the program with error termination (`ERROR STOP`): the message `You can not read in binary format without
     compiling against TecIO` (or `write`) and a nonzero exit status.
 
+A read into an `orion_data` that already holds blocks, from an earlier read, replaces them: the ASCII, the `.szplt` and
+the points readers (`tec_read_points_multivars`) alike.
+
 ### VTK Files
 
 ```fortran
@@ -391,6 +394,9 @@ program read_plot3d
   endif
 end program read_plot3d
 ```
+
+A read into an `orion_data` that already holds blocks, from an earlier read, replaces them, as the Tecplot and VTK
+readers do.
 
 ## Writing Data
 

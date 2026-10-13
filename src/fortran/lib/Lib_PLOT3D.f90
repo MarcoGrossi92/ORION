@@ -91,6 +91,8 @@ contains
     read(unit,*,iostat=err) Nblocks
     if (err /= 0) then; close(unit); return; endif
     if (Nblocks < 1) then; err = 1; close(unit); return; endif
+    ! The blocks of an earlier read into the same object give way to those of the file, as in the .szplt and VTK readers
+    if (allocated(orion%block)) deallocate(orion%block)
     allocate(orion%block(1:Nblocks))
 
     ! Check ndir: the first dimensions line holds 2 integers (2D) or 3 (3D).

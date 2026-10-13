@@ -949,6 +949,8 @@ contains
     endif
 
     ! Allocate ORION blocks once the zone geometry is known.
+    ! The blocks of an earlier read into the same object give way to those of the file, as in the .szplt and VTK readers
+    if (allocated(orion%block)) deallocate(orion%block)
     allocate(orion%block(1:Nblocks))
     do b = 1, Nblocks
       orion%block(b)%Ni = Ni(b)-1
@@ -1690,6 +1692,8 @@ contains
         Nzones = Nzones+1
       endif
     enddo
+    ! The blocks of an earlier read into the same object give way to those of the file, as in the .szplt and VTK readers
+    if (allocated(orion%block)) deallocate(orion%block)
     allocate(orion%block(1:Nzones))
     rewind(tecunit)
 

@@ -13,6 +13,7 @@ program p3d_read
 
   call grids_of_p3d_write
   call counts_refused
+  call read_again
 
   write(*,'(A,I0,A,I0,A)') 'p3d_read: ', checks, ' checks, ', failures, ' failed'
   if (failures > 0) stop 1
@@ -115,5 +116,28 @@ program p3d_read
     call check(err == expected(c), trim(what(c))//': refused (return value '//trim(str(no_sign=.true., n=expected(c)))//')')
   enddo
   end subroutine counts_refused
+
+  subroutine read_again
+  !---------------------------------------------------------------------------------------------------------------------------------
+  !< A grid read into an orion_data that already holds blocks: the blocks of the file take their place (return value 0, the
+  !< two blocks of mesh2D.p3d after those of mesh.p3d), as in the .szplt and VTK readers.
+  !< Defect: the reader allocated the blocks of the file over those already allocated, and the program stopped with "Attempting
+  !< to allocate already allocated variable".
+  !< Basis: Fortran 2018 (ISO/IEC 1539-1:2018, final draft J3/18-007r1), 9.7.1.3, paragraph 1 (p. 135): allocating an allocated
+  !< variable "causes an error condition in the ALLOCATE statement".
+  !---------------------------------------------------------------------------------------------------------------------------------
+  type(orion_data) :: d
+  integer          :: err
+  !---------------------------------------------------------------------------------------------------------------------------------
+
+  d%p3d%format = 'ascii'
+  err = p3d_read_multiblock(orion=d, filename='mesh.p3d')
+  call check(err == 0, 'read again: the 3-D grid read')
+  err = p3d_read_multiblock(orion=d, filename='mesh2D.p3d')
+  call check(err == 0, 'read again: the 2-D grid read into the same object, without error')
+  if (err == 0 .and. allocated(d%block)) &
+    call check(size(d%block) == 2 .and. d%block(1)%Nk == 0 .and. size(d%block(1)%mesh, 1) == 2, &
+               'read again: the blocks of the 2-D grid')
+  end subroutine read_again
 
 end program p3d_read

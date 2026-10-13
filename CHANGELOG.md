@@ -235,6 +235,10 @@ Changes on `main` since `v1.6.0`.
   the strand (`strandid`) and every format option; it copied four of the
   options only, so the copy held the defaults of the others (`tec%node`,
   `tec%bc`, `tec%extension`, `vtk%node`), a time of 0 and the strand -1.
+- The Tecplot ASCII reader, `tec_read_points_multivars` and
+  `p3d_read_multiblock` read into an `orion_data` that already holds blocks:
+  the blocks of the file take their place, as in the `.szplt` and VTK
+  readers; they stopped the program (an allocated variable allocated again).
 
 ## [1.7.0] - 2026-09-29
 
