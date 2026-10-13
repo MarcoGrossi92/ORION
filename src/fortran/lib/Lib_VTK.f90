@@ -10802,8 +10802,8 @@ contains
   !---------------------------------------------------------------------------------------------------------------------------------
   !> Function to write multi-block structured data in a VTS folder
   !> The optional time, cycle and named scalars (fldnames, fldvalues) are written as the field data TIME, CYCLE and
-  !> fldnames(i) of every .vts file. fldnames and fldvalues go together and have the same size: otherwise the function
-  !> returns 1 and writes nothing.
+  !> fldnames(i) of every .vts file. fldnames and fldvalues go together and have the same size, and no name is blank:
+  !> otherwise the function returns 1 and writes nothing.
   !---------------------------------------------------------------------------------------------------------------------------------
   use Lib_ORION_data
   use strings, only: parse, simplified_relative_path
@@ -10837,6 +10837,11 @@ contains
   endif
   if (present(fldnames)) then
     if (size(fldnames) /= size(fldvalues)) then
+      E_IO = 1
+      return
+    endif
+    ! A blank name would be read back as the first field data of the file, whatever its name
+    if (any(len_trim(fldnames) == 0)) then
       E_IO = 1
       return
     endif
@@ -10972,8 +10977,8 @@ contains
   !> Function to read multi-block structured data from a VTS folder
   !> The optional time and cycle return the field data TIME and CYCLE of the files, 0 when they hold none; fldvalues(i)
   !> returns the real field data named fldnames(i), 0 when the files hold none, and fldfound(i) whether they hold it.
-  !> fldnames and fldvalues go together and have the same size, as fldfound when present: otherwise the function
-  !> returns 1 and reads nothing.
+  !> fldnames and fldvalues go together and have the same size, as fldfound when present, and no name is blank: otherwise
+  !> the function returns 1 and reads nothing. The names are compared without regard to case.
   !---------------------------------------------------------------------------------------------------------------------------------
   use Lib_ORION_data
   use strings, only: parse
@@ -11018,6 +11023,11 @@ contains
         err = 1
         return
       endif
+    endif
+    ! A blank name would find the first field data of a file, whatever its name
+    if (any(len_trim(fldnames) == 0)) then
+      err = 1
+      return
     endif
   elseif (present(fldfound)) then
     err = 1

@@ -507,7 +507,7 @@
 
   subroutine misuse()
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Names without values, or of another size, are refused: return value 1.
+  !< Names without values, or of another size, and blank names are refused: return value 1.
   !---------------------------------------------------------------------------------------------------------------------------------
   type(orion_data)  :: w, r
   character(len=16) :: varnames
@@ -534,6 +534,15 @@
   err = vtk_read_structured_multiblock(orion=r, vtmpath='fld_binary3D_misuse', vtspath='', fldnames=names(1:2), &
                                        fldvalues=got, fldfound=found)
   call check(err == 1, 'read: found of another size refused')
+  ! A blank name found the first field data of a file whatever its name, in the reader, and was written in the writer
+  err = vtk_write_structured_multiblock(orion=w, vtspath='', vtmpath='fld_binary3D_blank', varnames=varnames, &
+                                        fldnames=[character(len=20) :: ' ', 'LAST_OUTPUT_TIME'], fldvalues=[1._R8P, 2._R8P])
+  write(*,'(A,I0)') 'misuse: write with a blank name, return value ', err
+  call check(err == 1, 'write: a blank name refused')
+  err = vtk_read_structured_multiblock(orion=r, vtmpath='fld_binary3D_misuse', vtspath='', &
+                                       fldnames=[character(len=20) :: ' ', 'LAST_OUTPUT_TIME'], fldvalues=got, fldfound=found(1:2))
+  write(*,'(A,I0)') 'misuse: read with a blank name, return value ', err
+  call check(err == 1, 'read: a blank name refused')
   end subroutine misuse
 
   subroutine large_file_without_field_data

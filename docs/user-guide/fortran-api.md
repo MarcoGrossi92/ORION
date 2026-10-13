@@ -236,7 +236,8 @@ end program read_vtk_structured
   `TIME`, in the `FieldData` element of every block file that has one: when the files differ, the values are those
   of the last block file that holds them. The binary and raw formats
   keep every bit; the ascii format keeps 15 significant digits of a real. `fldnames` and `fldvalues` (and
-  `fldfound`) go together and have the same size; otherwise both functions return 1 and write or read nothing.
+  `fldfound`) go together and have the same size, and no name is blank; otherwise both functions return 1 and write
+  or read nothing. The reader compares the names without regard to case (`'a'` finds `A`).
   A program calls the writer without these arguments to get the files it got before.
 - **Steady solutions and `strandid`.** `tec_write_structured_multiblock` treats a negative `solutiontime` as the
   mark of a steady solution (for instance minus the iteration count of the run): it writes the absolute value

@@ -27,7 +27,8 @@ Changes on `main` since `v1.6.0`.
   `fldnames` and `fldvalues` (with `fldfound` for the reader), written as the
   field data `CYCLE` and `fldnames(i)` of every `.vts` file next to `TIME`, and
   returned by the reader, 0 (and `fldfound` false) when the files hold none.
-  Names and values of different sizes are refused (return value 1).
+  Names and values of different sizes, and blank names, are refused (return
+  value 1); the reader compares the names without regard to case.
 
 ### Changed
 
