@@ -73,6 +73,9 @@ ORION --input-format tecplot --input-file results.szplt \
       --output-format vtk --output-file results.vtk
 ```
 
+The variables stay where the Tecplot file holds them: variables at the nodes are written as point data of the VTK files,
+variables at the cells as cell data.
+
 **VTK to Tecplot**
 
 ```bash

@@ -156,6 +156,8 @@ contains
       write(*,'(A)')' ERROR read Tecplot file'
       stop
     endif
+    ! The reader tells where the variables are in orion%tec%node; the VTK writer takes it from orion%vtk%node
+    orion%vtk%node = orion%tec%node
 
   end subroutine read_tec
 

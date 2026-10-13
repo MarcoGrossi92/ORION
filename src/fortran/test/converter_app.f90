@@ -7,7 +7,8 @@
   !> and one of more than 256, under two directories (a name in a path holds at most 255 bytes). Each time the converter must
   !> end without error, the .vtm file must be at the path given, and vtk_read_structured_multiblock must read the field back
   !> from it with the dimensions, coordinates and values of the input. Every coordinate and value is an integer, a half or a
-  !> quarter, exact in every format. Exit status 0 when every check passes, 1 otherwise.
+  !> quarter, exact in every format. The same block with its two variables at the nodes, converted from an ASCII Tecplot file to
+  !> a .vtm file, must be read back with its variables at the nodes. Exit status 0 when every check passes, 1 otherwise.
   !---------------------------------------------------------------------------------------------------------------------------------
   use IR_Precision
   use Lib_ORION_data
@@ -35,6 +36,7 @@
   call convert(dir, 'field', 'output path of '//itoa(len(dir) + 9)//' characters')
   dir = 'converter_out_'//repeat('e', 120)//'/'//repeat('f', 130)//'/'
   call convert(dir, 'field', 'output path of '//itoa(len(dir) + 9)//' characters')
+  call node_location
 
   write(*,'(A,I0,A,I0,A)') 'converter_app: ', checks, ' checks, ', failures, ' failed'
   if (failures > 0) stop 1
@@ -119,4 +121,45 @@
   if (same) same = all(r%block(1)%mesh == w%block(1)%mesh) .and. all(r%block(1)%vars == w%block(1)%vars)
   call check(same, what//': the field read back with the dimensions, coordinates and values of the input')
   end subroutine convert
+
+  subroutine node_location
+  !---------------------------------------------------------------------------------------------------------------------------------
+  !< Variables at the nodes stay at the nodes: the block of fill with its two variables at the nodes instead of the cells,
+  !< written to an ASCII Tecplot file and converted to a .vtm file in a subdirectory, is read back from it with its variables
+  !< at the nodes (orion%vtk%node set) and the dimensions, coordinates and values of the input.
+  !< Defect: the Tecplot reader tells where the variables are in orion%tec%node and the VTK writer takes orion%vtk%node, which
+  !< the converter left unset: the values at the nodes were written as values at the cells, without an error.
+  !---------------------------------------------------------------------------------------------------------------------------------
+  type(orion_data)             :: wn, r
+  integer                      :: i, j, k, exitstat, cmdstat, err
+  logical                      :: same
+  !---------------------------------------------------------------------------------------------------------------------------------
+
+  call fill(wn)
+  deallocate(wn%block(1)%vars)
+  allocate(wn%block(1)%vars(1:2,0:3,0:2,0:1))
+  do k = 0, 1; do j = 0, 2; do i = 0, 3
+    wn%block(1)%vars(:,i,j,k) = [real(100*i + 10*j + k, R8P), -0.5_R8P*i]
+  enddo; enddo; enddo
+  wn%tec%node = .true.
+  wn%tec%format = 'ascii'
+  call check(tec_write_structured_multiblock(orion=wn, varnames='u v', filename='converter_nodes.tec') == 0, &
+             'nodes: input file written')
+  call execute_command_line('mkdir -p converter_nodes', exitstat=exitstat, cmdstat=cmdstat)
+  call check(cmdstat == 0 .and. exitstat == 0, 'nodes: directory made')
+  call execute_command_line("'"//converter//"' --in-file=converter_nodes.tec --out-file=converter_nodes/field.vtm > "// &
+                            'converter_nodes/converter_log.txt 2>&1', exitstat=exitstat, cmdstat=cmdstat)
+  call check(cmdstat == 0 .and. exitstat == 0, 'nodes: the converter ends without error')
+  err = vtk_read_structured_multiblock(orion=r, vtmpath='converter_nodes/field', vtspath='converter_nodes/')
+  call check(err == 0 .and. r%vtk%node, 'nodes: the field read back without error, its variables at the nodes')
+  if (err /= 0) return
+  same = size(r%block) == 1
+  if (same) same = r%block(1)%Ni == 3 .and. r%block(1)%Nj == 2 .and. r%block(1)%Nk == 1
+  if (same) same = allocated(r%block(1)%mesh) .and. allocated(r%block(1)%vars)
+  if (same) same = all(shape(r%block(1)%mesh) == shape(wn%block(1)%mesh)) .and. &
+                   all(shape(r%block(1)%vars) == shape(wn%block(1)%vars)) .and. &
+                   all(lbound(r%block(1)%vars) == lbound(wn%block(1)%vars))
+  if (same) same = all(r%block(1)%mesh == wn%block(1)%mesh) .and. all(r%block(1)%vars == wn%block(1)%vars)
+  call check(same, 'nodes: the field read back with the dimensions, coordinates and values of the input')
+  end subroutine node_location
   endprogram converter_app
