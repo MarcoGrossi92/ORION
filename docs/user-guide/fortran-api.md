@@ -218,12 +218,13 @@ end program read_vtk_structured
   bounds of `mesh` and `vars` are those of the Tecplot readers. The reader opens `vtspath//f` for each block file `f`
   that the `.vtm` lists, and the `.vtm` lists them relative to its own directory: `vtspath` is the directory of the
   `.vtm` file (`'out/'` for `vtmpath = 'out/field'`), or `''` when the `.vtm` is in the current directory or lists
-  absolute paths. The reader returns 1 when it refuses its arguments or the layout of a file, and the nonzero code of
-  the read that fails (-1, or an `IOSTAT` value) when the `.vtm` file cannot be opened, ends before the end of its
-  block list or lists no block file, and when a block file cannot be opened or its points or the values of a variable
-  cannot be read; what it has read before the error is left in `orion`. It closes each block file once read, and the
-  file of a block it stops on, so the number of blocks of a field is not bounded by the number of files a process can
-  keep open. A read into an object that already holds blocks, from an earlier read or from one that failed, replaces
+  absolute paths. The reader returns 1 when it refuses its arguments or the layout of a file, or when the `.vtm` file
+  lists no block file, and the nonzero code of the read that fails (-1, or an `IOSTAT` value) when the `.vtm` file
+  cannot be opened or ends before the end of its block list, and when a block file cannot be opened or its points or
+  the values of a variable cannot be read; what it has read before the error is left in `orion`. It closes each block
+  file once read, and the file of a block it stops on, so the number of blocks of a field is not bounded by the number
+  of files a process can keep open. A read into an object that already holds blocks, from an earlier read or from one
+  that failed, replaces
   them once the block list of the `.vtm` file is read; a `.vtm` file that cannot be opened, or whose block list cannot
   be read, leaves them as they were. The variables of a field are at one location: a block file with arrays at the
   nodes and at the cells (`PointData` and `CellData`) is not read (a nonzero value after the mesh of that block). The
@@ -248,8 +249,9 @@ end program read_vtk_structured
   `fldnames(:)` and `fldvalues(:)` (each written as field data with its name), and writes them in every `.vts`
   file. `vtk_read_structured_multiblock` takes the same arguments and returns them, with `fldfound(:)` telling
   which names the files hold: an absent `CYCLE` or name reads as 0 (and `.false.`). It looks for them, and for
-  `TIME`, in the `FieldData` element of every block file that has one: when the files differ, the values are those
-  of the last block file that holds them. The binary and raw formats
+  `TIME`, in the `FieldData` element of every block file that has one before its first data array, where
+  `vtk_write_structured_multiblock` writes it (a `FieldData` element after the arrays is not read): when the
+  files differ, the values are those of the last block file that holds them. The binary and raw formats
   keep every bit; the ascii format keeps 15 significant digits of a real. `fldnames` and `fldvalues` (and
   `fldfound`) go together and have the same size, and no name is blank; otherwise both functions return 1 and write
   or read nothing. The reader compares the names without regard to case (`'a'` finds `A`).
