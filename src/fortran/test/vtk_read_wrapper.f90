@@ -45,6 +45,7 @@
 
   call files_with_time
   call field_scalars
+  call large_file_without_field_data
   call mesh_dimension
   call many_blocks
   call face_on_z0
@@ -532,6 +533,54 @@
                                        fldvalues=got, fldfound=found)
   call check(err == 1, 'read: found of another size refused')
   end subroutine misuse
+
+  subroutine large_file_without_field_data
+  !---------------------------------------------------------------------------------------------------------------------------------
+  !< A block file without field data, read with time, cycle and a name of field data, is read as one read without them: one
+  !< block of 48 x 48 x 48 cells with two variables at the cells, written in the raw format without a time (a block file of
+  !< 4.6 MB), read with time, cycle and fldnames = ['ABSENT']: return value 0, time, cycle and the value 0, the
+  !< name not found, the field as written. The test program has a time limit (TIMEOUT of ORION.vtk_read_wrapper in
+  !< src/fortran/test/CMakeLists.txt), which a read of minutes exceeds.
+  !< Defect: the reader looked for TIME, CYCLE and each name in every block file through VTK_FLD_XML_READ, which reads a file
+  !< record by record, one character at a time, until it meets the FieldData element: in a file without it, the whole file,
+  !< the raw appended data included, at a cost that grows with the square of the length of the records.
+  !< Basis: the reader returns 0 for the field data that the block files do not hold (Fortran API guide), and a block file
+  !< without a FieldData element holds none.
+  !---------------------------------------------------------------------------------------------------------------------------------
+  integer, parameter :: n = 48
+  type(orion_data)   :: w, r
+  character(len=8)   :: varnames
+  real(R8P)          :: t, v(1)
+  integer(I4P)       :: c, err
+  logical            :: found(1)
+  integer            :: i, j, k
+  !---------------------------------------------------------------------------------------------------------------------------------
+
+  allocate(w%block(1))
+  w%block(1)%name = 'nofld_B1'
+  w%block(1)%Ni = n; w%block(1)%Nj = n; w%block(1)%Nk = n
+  allocate(w%block(1)%mesh(3,0:n,0:n,0:n), w%block(1)%vars(2,1:n,1:n,1:n))
+  do k = 0, n; do j = 0, n; do i = 0, n
+    w%block(1)%mesh(:,i,j,k) = [real(i, R8P), real(j, R8P), real(k, R8P)]/real(n, R8P)
+  enddo; enddo; enddo
+  do k = 1, n; do j = 1, n; do i = 1, n
+    w%block(1)%vars(1,i,j,k) = real(i + n*(j + n*k), R8P)
+    w%block(1)%vars(2,i,j,k) = -1._R8P/real(i + j + k, R8P)
+  enddo; enddo; enddo
+  w%vtk%format = 'raw'
+  varnames = 'u p'
+  err = vtk_write_structured_multiblock(orion=w, vtspath='', vtmpath='nofld', varnames=varnames)
+  call check(err == 0, 'nofld: written without time')
+  r%vtk%format = 'raw'
+  t = 12345._R8P; c = 12345; v = 12345._R8P; found = .true.
+  err = vtk_read_structured_multiblock(orion=r, vtmpath='nofld', vtspath='', time=t, cycle=c, fldnames=['ABSENT'], &
+                                       fldvalues=v, fldfound=found)
+  write(*,'(A,I0)') 'nofld: read with time, cycle and a name, return value ', err
+  call check(err == 0, 'nofld: read with time, cycle and a name: no error')
+  call check(t == 0._R8P .and. c == 0 .and. v(1) == 0._R8P .and. .not.found(1), &
+             'nofld: time, cycle and the value 0, the name not found')
+  call check_field(r, w, 0._R8P)
+  end subroutine large_file_without_field_data
 
   subroutine mesh_dimension
   !---------------------------------------------------------------------------------------------------------------------------------

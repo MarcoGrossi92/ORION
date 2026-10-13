@@ -83,7 +83,8 @@ Changes on `main` since `v1.6.0`.
 - `vtk_read_structured_multiblock` reads back the files that
   `vtk_write_structured_multiblock` writes with a time, and its `time` argument
   returns the `TIME` of the files, 0 when they hold none: the reader took the
-  field data for variables (a segmentation fault) and never set `time`.
+  field data for variables (a segmentation fault) and never set `time`. It
+  looks for field data only in the block files that hold a `FieldData` element.
 - `vtk_read_structured_multiblock` reads as three-dimensional a block whose z
   coordinates add up to 0, such as a slab around z = 0; it read it as
   two-dimensional, its z lost.

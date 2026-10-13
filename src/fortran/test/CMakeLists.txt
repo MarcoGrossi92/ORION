@@ -74,10 +74,13 @@ set_tests_properties(
     DEPENDS ORION.tecplot_write
 )
 
+# vtk_read_wrapper has a time limit: one of its reads took about 15 minutes when the reader looked for field data through a
+# block file that holds none. The program takes less than a second on a local disk; the limit leaves room for a slow one.
 set_tests_properties(
   ORION.vtk_read_wrapper
   PROPERTIES
     DEPENDS ORION.vtk_write_wrapper
+    TIMEOUT 300
 )
 
 # The Python reader reads back the Tecplot ASCII file of tecplot_write, which

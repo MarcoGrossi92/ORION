@@ -232,7 +232,9 @@ end program read_vtk_structured
   (integer, written as the field data `CYCLE`, a step number) and the named real scalars
   `fldnames(:)` and `fldvalues(:)` (each written as field data with its name), and writes them in every `.vts`
   file. `vtk_read_structured_multiblock` takes the same arguments and returns them, with `fldfound(:)` telling
-  which names the files hold: an absent `CYCLE` or name reads as 0 (and `.false.`). The binary and raw formats
+  which names the files hold: an absent `CYCLE` or name reads as 0 (and `.false.`). It looks for them, and for
+  `TIME`, in the `FieldData` element of every block file that has one: when the files differ, the values are those
+  of the last block file that holds them. The binary and raw formats
   keep every bit; the ascii format keeps 15 significant digits of a real. `fldnames` and `fldvalues` (and
   `fldfound`) go together and have the same size; otherwise both functions return 1 and write or read nothing.
   A program calls the writer without these arguments to get the files it got before.
