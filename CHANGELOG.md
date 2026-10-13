@@ -77,6 +77,9 @@ Changes on `main` since `v1.6.0`.
   steady solution. A program tells it from the sign of `solutiontime`; a file
   written before reads back as before. The data set auxiliary data `Time` of a
   binary file keeps `|t|`.
+- The Tecplot ASCII reader gives `solutiontime = -huge(1._R8P)` for a file
+  without `SOLUTIONTIME`, instead of -10, the time of a steady solution at
+  iteration 10.
 - The Tecplot ASCII files and the ascii format of the VTK files hold every
   64-bit real with 17 significant digits (`FR8P` of `IR_Precision`,
   `E25.17E3` instead of `E23.15E3`), the fewest that give it back bit for bit

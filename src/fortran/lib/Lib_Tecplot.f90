@@ -616,7 +616,9 @@ contains
 
     meshonly = .false.
     orion%tec%node = .true.
-    solutiontime = -10._R8P
+    ! A file whose zone headers give no SOLUTIONTIME reads with the most negative real, a time that no solution has: -10, as
+    ! before, is the time of a steady solution at iteration 10
+    solutiontime = -huge(1._R8P)
     strandid = -1
     err = 0
 

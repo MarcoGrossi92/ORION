@@ -271,7 +271,9 @@ end program read_vtk_structured
   gives the file, the line and the tag. A block file that lists its data arrays before its `Points`, as VTK and ParaView
   write them, is refused (return value 1) before any block is read.
 - **Solution time.** `solutiontime` is 0 in a new `orion_data`. The Tecplot ASCII reader stores the
-  `SOLUTIONTIME` of the file, or -10 when its zone headers give none. The `.szplt` reader does not store the
+  `SOLUTIONTIME` of the file, or `-huge(1._R8P)`, the most negative real, when its zone headers give none: a time
+  that no solution has, so that a program can tell a file without a time (with signed times, the -10 that the
+  reader gave before is the time of a steady solution at iteration 10). The `.szplt` reader does not store the
   zone time of the file and leaves `solutiontime` as it was (0 for a new object); so does the PLOT3D reader,
   since a PLOT3D grid has no time. The VTK multi-block reader `vtk_read_structured_multiblock` does not set
   `solutiontime` either: its optional `time` argument returns the `TIME` field data that

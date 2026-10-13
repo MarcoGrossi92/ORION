@@ -4,7 +4,8 @@
 !< strand of their block: STRANDID = b in the header of zone b of an ASCII file, StrandID b in a binary file. The zones
 !< of a steady solution are static: no STRANDID in an ASCII file, StrandID 0 (static) for TecIO. The ASCII reader keeps
 !< solutiontime as written, sign included, and stores the STRANDID of the last zone header in orion%strandid, -1 when that
-!< header has none.
+!< header has none; a file whose zone headers hold no SOLUTIONTIME reads with solutiontime = -huge(1._R8P), the most negative
+!< real, which no solution has (it gave -10, the time of a steady solution at iteration 10).
 !< With TecIO, the .szplt files are read back with the TecIO reader: the solution time and the StrandID of every zone.
 !< A file without SOLUTIONTIME, read and written again, reads back with the time of the first read and static zones.
 !< Defect: the writer wrote the absolute value of the time, with STRANDID = 0 for a steady solution, which the Tecplot
@@ -39,12 +40,13 @@ program tecplot_read_strandid
   call handwritten(', SOLUTIONTIME=-40', '', -40._R8P, -1, 'a negative SOLUTIONTIME, no STRANDID')
   call handwritten(', SOLUTIONTIME=5, STRANDID = 0', ', SOLUTIONTIME=7', 7._R8P, -1, &
                    'two zones, STRANDID only on the first: the last zone counts')
-  call handwritten('', '', -10._R8P, -1, 'neither SOLUTIONTIME nor STRANDID')
+  call handwritten('', '', -huge(1._R8P), -1, 'neither SOLUTIONTIME nor STRANDID: the most negative real')
+  call handwritten(', SOLUTIONTIME=-10', '', -10._R8P, -1, 'SOLUTIONTIME = -10, a steady solution at iteration 10')
 #ifdef TECIO
   call binary(-5._R8P, 'steady_strandid.szplt')
   call binary(0.25_R8P, 'unsteady_strandid.szplt')
 #endif
-  call no_time_rewritten(-10._R8P)
+  call no_time_rewritten(-huge(1._R8P))
   if (nfail > 0) then
     write(*,'(A,I0,A)') 'tecplot_read_strandid: ', nfail, ' check(s) FAILED'
     error stop 1
