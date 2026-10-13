@@ -1988,6 +1988,16 @@ contains
     endif
     if (line_xy .and. ndir_file < 2) ndir_file = 2
 
+    ! A file with fewer variables than the coordinates of its zones, such as a zone with more than one node line in J and the
+    ! variable x only, cannot be held: it is refused, as the ASCII reader refuses it
+    if (numVars < ndir_file) then
+      write(stderr,'(A,I0,A,I0,A)') 'TECPLOT SZPLT READ ERROR: ', numVars, ' variables for ', ndir_file, ' coordinates.'
+      write(stderr,'(A)') 'File: '//trim(filename)
+      i = tecFileReaderClose(inputFileHandle)
+      i = 1
+      return
+    endif
+
     ! ORION holds the coordinates at the nodes, and one location for all solution variables of a block: a zone with a coordinate
     ! at the cells, or with solution variables at the nodes and at the cells, is refused with a message (passive variables,
     ! which hold no values, do not count). Each block takes the location of its zone, so the zones of a file may differ;

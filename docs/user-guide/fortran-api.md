@@ -223,7 +223,9 @@ end program read_vtk_structured
   reader refuses a file whose zones differ, and `tec_write_structured_multiblock` writes every block of a field at
   the location of `orion%tec%node`. A passive variable, which holds no values in its zone, reads as zero, the value
   Tecplot gives it, and does not decide the location of its block; a zone whose solution variables are all passive
-  (a zone of coordinates only) takes the location of the file, that of `orion%tec%node`.
+  (a zone of coordinates only) takes the location of the file, that of `orion%tec%node`. A file with fewer variables
+  than the coordinates of its zones (a zone with more than one node line in J and the variable `x` only) is refused
+  (return value 1, with a message); the ASCII reader refuses it too, without a message.
 - **Values at the cells of `.szplt` zones with one node plane or line.** The `.szplt` reader reads the values at
   the cells of a zone with `IMax`, `JMax` or `KMax` = 1 (a surface, a line or a point, such as the faces of a volume
   block) one row of cells in I at a time: the TecIO reader gives some of them right only so.

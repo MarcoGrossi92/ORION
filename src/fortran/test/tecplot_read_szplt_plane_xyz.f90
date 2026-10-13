@@ -11,6 +11,7 @@
 !< Zones whose solution variables are at different locations, each read with its own (zone_locations).
 !< A passive variable does not decide the location of a zone; a zone of passive variables takes that of the file
 !< (passive_variables).
+!< Files with fewer variables than the coordinates of their zones, refused (too_few_variables).
 !< Stops with a non-zero code when a check fails.
 program tecplot_read_szplt_plane_xyz
   use Lib_Tecplot
@@ -36,6 +37,7 @@ program tecplot_read_szplt_plane_xyz
   call lines_xy()
   call zone_locations()
   call passive_variables()
+  call too_few_variables()
   if (nfail > 0) then
     write(*,'(A,I0,A)') 'tecplot_read_szplt_plane_xyz: ', nfail, ' check(s) FAILED'
     error stop 1
@@ -1009,6 +1011,39 @@ contains
     if (same) same = all(r%block(1)%vars == d%block(1)%vars) .and. all(r%block(2)%vars == 0.0d0)
     call check(same, trim(ftec)//': every value of a in both zones, as read')
   end subroutine passive_zone
+
+  ! Files with fewer variables than the coordinates of their zones cannot be held and are refused
+  ! (return value 1), as the ASCII reader refuses them. File written with the TecIO calls that the
+  ! ORION writer uses: a zone of 3 x 3 x 1 nodes with the variable x only (two coordinates, one
+  ! variable). TecIO does not write a volume zone with fewer than three variables ("Variables 1,2
+  ! and 3 are needed to calculate subzones"), so that case is not written here.
+  ! Defect: the reader returned 0, with the coordinate it had no variable for never set.
+  ! Basis: by construction: a zone with more than one node line in J has two coordinates, and the
+  ! coordinates are the first variables of the file.
+  subroutine too_few_variables()
+    call few_variables('few_vars_2d.szplt', 'x', [3, 3, 1])
+  end subroutine too_few_variables
+
+  ! Write a file of one zone of dims nodes with the variables names, all at the nodes, read it and check that it is refused.
+  subroutine few_variables(fname, names, dims)
+    character(len=*), intent(in) :: fname, names
+    integer,          intent(in) :: dims(3)
+    type(orion_data) :: d
+    integer, allocatable :: loc(:,:), nval(:,:)
+    real(8), allocatable :: vals(:,:,:)
+    integer :: v, nv, err
+    nv = count_names(names)
+    allocate(loc(nv,1), nval(nv,1), vals(product(dims),nv,1))
+    loc = 1; nval = product(dims)
+    do v = 1, nv
+      vals(:,v,1) = 1.5d0*v
+    enddo
+    call write_szplt(fname, names, reshape(dims, [3,1]), loc, nval, vals)
+    d%tec%format = 'binary'
+    err = tec_read_structured_multiblock(orion=d, filename=fname)
+    write(*,'(A,I0)') fname//': return value ', err
+    call check(err == 1, fname//': refused (return value 1)')
+  end subroutine few_variables
 
   ! The number of names in names, separated by blanks.
   pure integer function count_names(names)

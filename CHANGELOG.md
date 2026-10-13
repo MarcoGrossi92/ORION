@@ -187,6 +187,9 @@ Changes on `main` since `v1.6.0`.
   declared at the nodes made the values at the cells read past the end of
   their buffer, and a zone of coordinates only got the bounds of the cells in a
   field at the nodes, which the writer then read below their lower bound.
+- The `.szplt` reader refuses (return value 1, with a message) a file with
+  fewer variables than the coordinates of its zones, as the ASCII reader
+  refuses it (without a message); it returned 0 with a coordinate never set.
 - The Tecplot ASCII reader reads the cell values of a zone with one node plane
   or line in I or J (it read none, without an error), gives every zone the
   number of coordinates of the file, and reads zones whose shape differs from
