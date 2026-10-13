@@ -10859,13 +10859,13 @@ contains
     E_IO = 1
     return
   endif
-  ! Variables at the nodes are written from index 0 in each direction of the mesh, vars(s,0:Ni,0:Nj,0:Nk) as the readers
-  ! return them: variables that start at another index, such as those of the cells, vars(:,1:Ni,...), would be taken from
-  ! below their first index. They are refused before any file is written
+  ! Variables at the nodes are written one value per node of the block file, from vars(s,0:Ni,0:Nj,0:Nk) as the readers return
+  ! them (node_bounds): variables with other bounds, such as those of the cells, vars(:,1:Ni,...), or the cells counted from 0,
+  ! vars(:,0:Ni-1,...), would be taken from outside their bounds or written to other nodes. They are refused before any file
+  ! is written
   if (orion%vtk%node .and. .not.meshonly) then
     do b = 1, nb
-      if (lbound(orion%block(b)%vars,2) /= 0 .or. (ndir >= 2 .and. lbound(orion%block(b)%vars,3) /= 0) .or. &
-          (ndir == 3 .and. lbound(orion%block(b)%vars,4) /= 0)) then
+      if (.not.node_bounds(orion, b, ndir)) then
         E_IO = 1
         return
       endif
@@ -10984,6 +10984,36 @@ contains
   E_IO = VTM_END_XML()
   !---------------------------------------------------------------------------------------------------------------------------------
   end function vtk_write_structured_multiblock
+
+  logical function node_bounds(orion, b, ndir)
+  !---------------------------------------------------------------------------------------------------------------------------------
+  !> True when the variables of the block b of orion, with a mesh of ndir coordinates, hold the values of its nodes as
+  !> vtk_write_structured_multiblock writes them, one per node of its block file: vars(:,0:Ni,0:Nj,0:Nk) for a mesh of three
+  !> coordinates; for a mesh of two, whose block file has two planes of nodes in k, vars(:,0:Ni,0:Nj,0:0), the node plane that
+  !> the readers return and the writer writes on both planes, or vars(:,0:Ni,0:Nj,0:1); for a mesh of one, whose block file has
+  !> two lines of nodes in j and two planes in k, vars(:,0:Ni,0:0,0:0), the node line, or vars(:,0:Ni,0:1,0:1).
+  !---------------------------------------------------------------------------------------------------------------------------------
+  use Lib_ORION_data
+  type(orion_data), intent(in) :: orion
+  integer(I4P),     intent(in) :: b, ndir
+  integer                      :: uj, uk
+  !---------------------------------------------------------------------------------------------------------------------------------
+
+  node_bounds = .false.
+  associate(blk => orion%block(b))
+  if (lbound(blk%vars,2) /= 0 .or. lbound(blk%vars,3) /= 0 .or. lbound(blk%vars,4) /= 0) return
+  if (ubound(blk%vars,2) /= blk%Ni) return
+  uj = ubound(blk%vars,3); uk = ubound(blk%vars,4)
+  select case(ndir)
+  case(3)
+    node_bounds = uj == blk%Nj .and. uk == blk%Nk
+  case(2)
+    node_bounds = uj == blk%Nj .and. (uk == 0 .or. uk == 1)
+  case default
+    node_bounds = (uj == 0 .and. uk == 0) .or. (uj == 1 .and. uk == 1)
+  end select
+  end associate
+  end function node_bounds
 
 
 

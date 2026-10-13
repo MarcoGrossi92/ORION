@@ -528,9 +528,13 @@
   subroutine node_flag_cell_variables(fmt)
   !---------------------------------------------------------------------------------------------------------------------------------
   !< With orion%vtk%node set, variables that do not start at index 0, such as the cell variables vars(:,1:2,1:3,1:2) of a 3-D
-  !< block, are refused: return value 1, and no file written.
+  !< block, are refused: return value 1, and no file written. So are variables that start at 0 with other bounds than the
+  !< nodes of the block (node_bounds_refused): the cells counted from 0, one node more in i, one plane of nodes less in k, and
+  !< three planes of nodes in k for a 2-D block.
   !< Defect: the writer took the values of such variables from vars(s,0:Ni,:,:), from below their first index: a file of
-  !< values read from outside the array in a release build, an out-of-bounds error in a build with bound checks.
+  !< values read from outside the array in a release build, an out-of-bounds error in a build with bound checks. It checked
+  !< only the first index, so variables from 0 with other bounds were written with values read past the array or put on other
+  !< nodes, with the return value 0.
   !< Basis: Fortran 2018 (ISO/IEC 1539-1:2018, final draft J3/18-007r1), 9.5.3.1 (p. 128): "The value of a subscript in an array
   !< element shall be within the bounds for its dimension".
   !---------------------------------------------------------------------------------------------------------------------------------
@@ -551,7 +555,46 @@
   call check(err == 1, 'nodeflag '//fmt//': refused (return value 1)')
   inquire(file='nodeflag_'//fmt//'.vtm', exist=exists)
   call check(.not.exists, 'nodeflag '//fmt//': no .vtm file written')
+  inquire(file='nodeflag_'//fmt//'_N1.vts', exist=exists)
+  call check(.not.exists, 'nodeflag '//fmt//': no block file written')
+  call node_bounds_refused(fmt, 'cells0', '3d', [0,0,0], [1,2,1])
+  call node_bounds_refused(fmt, 'onemore', '3d', [0,0,0], [3,3,2])
+  call node_bounds_refused(fmt, 'planeless', '3d', [0,0,0], [2,3,1])
+  call node_bounds_refused(fmt, 'threeplanes', '2d', [0,0,0], [2,3,2])
   end subroutine node_flag_cell_variables
+
+  subroutine node_bounds_refused(fmt, tag, shape_, lo, hi)
+  !---------------------------------------------------------------------------------------------------------------------------------
+  !< The block of node_block of shape shape_ ('3d': 2 x 3 x 2 cells, nodes vars(:,0:2,0:3,0:2); '2d': 2 x 3 cells, node plane
+  !< vars(:,0:2,0:3,0:0)) with orion%vtk%node set and its two variables in vars(:,lo(1):hi(1),lo(2):hi(2),lo(3):hi(3)), from
+  !< index 0 but not as the nodes of the block: refused, return value 1, no .vtm and no block file written.
+  !---------------------------------------------------------------------------------------------------------------------------------
+  character(len=*), intent(in)  :: fmt, tag, shape_
+  integer,          intent(in)  :: lo(3), hi(3)
+  type(orion_data)              :: o
+  character(len=16)             :: varnames
+  character(len=:), allocatable :: stem
+  integer(I4P)                  :: err
+  logical                       :: exists
+  !---------------------------------------------------------------------------------------------------------------------------------
+
+  stem = 'nodebounds_'//tag//'_'//fmt
+  call remove_field(stem)
+  call node_block(o, shape_, 'node')
+  deallocate(o%block(1)%vars)
+  allocate(o%block(1)%vars(1:2,lo(1):hi(1),lo(2):hi(2),lo(3):hi(3)))
+  o%block(1)%vars = 1._R8P
+  o%vtk%format = fmt
+  o%vtk%node = .true.
+  varnames = 'a b'
+  err = vtk_write_structured_multiblock(orion=o, vtspath=stem//'_', vtmpath=stem, varnames=varnames)
+  write(*,'(A,I0)') stem//': variables at the nodes from index 0 with other bounds, return value ', err
+  call check(err == 1, stem//': refused (return value 1)')
+  inquire(file=stem//'.vtm', exist=exists)
+  call check(.not.exists, stem//': no .vtm file written')
+  inquire(file=stem//'_N1.vts', exist=exists)
+  call check(.not.exists, stem//': no block file written')
+  end subroutine node_bounds_refused
 
   subroutine node_block(o, shape_, vars)
   !---------------------------------------------------------------------------------------------------------------------------------
