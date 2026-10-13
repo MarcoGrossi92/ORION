@@ -33,7 +33,8 @@ type :: obj_block
   character(len=4096) :: name       ! Block name, as long as a path (PATH_MAX of Linux)
   integer :: Ni, Nj, Nk             ! Cells in each direction (I, J, K)
   real(R8P), allocatable :: mesh(:,:,:,:)  ! Coordinates, mesh(1:ndir,0:Ni,0:Nj,0:Nk)
-  real(R8P), allocatable :: vars(:,:,:,:)  ! Variables, vars(1:nvar,1:Ni,1:Nj,1:Nk) at the cells, vars(1:nvar,0:Ni,...) at the nodes
+  real(R8P), allocatable :: vars(:,:,:,:)  ! Variables, vars(1:nvar,1:max(Ni,1),1:max(Nj,1),1:max(Nk,1)) at the cells,
+                                           ! vars(1:nvar,0:Ni,0:Nj,0:Nk) at the nodes
 end type
 ```
 
@@ -357,11 +358,11 @@ end program read_vtk_structured
   A quote closes the name, so `"a""b"` is the two names `a` and `b`. A quote that is never closed is an error,
   and so is a list with no name. The Python reader `read_TEC` reads the names in the same way, except that it
   returns an empty list for a list with no name.
-- **Number of names.** The ASCII reader keeps at most 512 names, coordinates included. A header with more
-  names is refused: the reader returns `err /= 0` and prints `no variables found in VARIABLES header`. The
-  `.szplt` reader takes the names one by one from the file and has no such limit. Every name is kept to 32
-  characters (`varnames` is `character(len=32)`); the ASCII reader warns when it shortens one, the `.szplt`
-  reader shortens it without a message.
+- **Number of names.** The ASCII reader keeps at most 512 names, coordinates included. A header with more names is
+  refused: the reader returns 1 and prints `no variables found in VARIABLES header`, a message that does not name the
+  limit; a list of 512 names followed by a comma is refused in the same way. The `.szplt` reader takes the names one
+  by one from the file and has no such limit. Every name is kept to 32 characters (`varnames` is `character(len=32)`);
+  the ASCII reader warns when it shortens one, the `.szplt` reader shortens it without a message.
 - **Zone headers and data lines.** The ASCII readers read each line whatever its length and join the lines of a zone
   header whatever their length, so a zone header holds a block name of any length (`T =`, the title of the zone, is
   the name of the block in the files that ORION writes). Each data line of a structured zone must fit in 1000
@@ -592,7 +593,7 @@ program multiblock_example
     
     ! Access solution variables (if present)
     if (allocated(IOfield%block(iblock)%vars)) then
-      print *, '  Number of variables:', size(IOfield%block(iblock)%vars, 4)
+      print *, '  Number of variables:', size(IOfield%block(iblock)%vars, 1)
     endif
   enddo
 end program multiblock_example
@@ -612,30 +613,27 @@ Ni = IOfield%block(iblock)%Ni
 Nj = IOfield%block(iblock)%Nj
 Nk = IOfield%block(iblock)%Nk
 
-! Allocate and extract coordinates
-allocate(x(Ni, Nj, Nk))
-allocate(y(Ni, Nj, Nk))
-allocate(z(Ni, Nj, Nk))
-
+! Extract the coordinates of the nodes: arrays of (Ni+1) x (Nj+1) x (Nk+1) values, allocated by the assignment,
+! with lower bounds 1 (the node (0,0,0) of the block is x(1,1,1)); z only when the block has three coordinates
 x = IOfield%block(iblock)%mesh(1,:,:,:)
 y = IOfield%block(iblock)%mesh(2,:,:,:)
-z = IOfield%block(iblock)%mesh(3,:,:,:)
+if (size(IOfield%block(iblock)%mesh, 1) == 3) z = IOfield%block(iblock)%mesh(3,:,:,:)
 ```
 
 ### Accessing Solution Variables
 
 ```fortran
-! Variables are stored as vars(i, j, k, var_index)
+! Variables are stored as vars(var_index, i, j, k), at the cells or at the nodes (see The obj_block Type)
 real(R8P), allocatable :: variables(:,:,:,:)
+real(R8P), allocatable :: pressure(:,:,:)
 integer :: nvars
 
-! Extract all variables for a block
+! Extract all variables for a block, with the bounds of vars
 variables = IOfield%block(iblock)%vars
-nvars = size(variables, 4)
+nvars = size(variables, 1)
 
-! Extract specific variable (e.g., pressure at index 4)
-real(R8P), allocatable :: pressure(:,:,:)
-allocate(pressure(Ni, Nj, Nk))
+! Extract a specific variable (e.g., pressure at index 4): an array of the values of the block, allocated by the
+! assignment, with lower bounds 1
 pressure = IOfield%block(iblock)%vars(4,:,:,:)
 ```
 
