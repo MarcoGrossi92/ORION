@@ -148,6 +148,8 @@ Changes on `main` since `v1.6.0`.
   variable, and a variable whose name holds `CellData` set the cells.
 - The converter writes the variables of a Tecplot file at the nodes as point
   data of the VTK files; it wrote them as cell data.
+- The converter ends with the exit status 1 when it cannot read its input or
+  write its output; it ended with the exit status 0, as a success.
 
 ## [1.7.0] - 2026-09-29
 

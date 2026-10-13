@@ -94,7 +94,7 @@ contains
     E_IO = vtk_read_structured_multiblock(orion=orion,vtmpath=trim(file),vtspath='')
     if (E_IO/=0) then
       write(*,'(A)')' ERROR read VTK files'
-      stop
+      stop 1
     endif
 
   end subroutine read_vtm
@@ -116,7 +116,7 @@ contains
     E_IO = vtk_write_structured_multiblock(orion=orion,vtspath=trim(path),vtmpath=trim(name),varnames=varname_scalar)
     if (E_IO/=0) then
       write(*,'(A)')' ERROR write VTK files'
-      stop
+      stop 1
     endif
 
   end subroutine write_vtm
@@ -139,7 +139,7 @@ contains
 
     if (E_IO/=0) then
       write(*,'(A)')' ERROR read Tecplot file'
-      stop
+      stop 1
     endif
 
   end subroutine read_dat
@@ -154,7 +154,7 @@ contains
     E_IO = tec_read_structured_multiblock(orion=orion,filename=trim(file))
     if (E_IO/=0) then
       write(*,'(A)')' ERROR read Tecplot file'
-      stop
+      stop 1
     endif
     ! The reader tells where the variables are in orion%tec%node; the VTK writer takes it from orion%vtk%node
     orion%vtk%node = orion%tec%node
@@ -171,7 +171,7 @@ contains
     E_IO = tec_write_structured_multiblock(orion=orion,varnames=varname_scalar,filename=trim(file))
     if (E_IO/=0) then
       write(*,'(A)')' ERROR write Tecplot file'
-      stop
+      stop 1
     endif
 
   end subroutine write_tec
@@ -186,7 +186,7 @@ contains
     E_IO = tec_write_points_multivars(orion=orion,varnames=varname_scalar,filename=trim(file))
     if (E_IO/=0) then
       write(*,'(A)')' ERROR write Tecplot file'
-      stop
+      stop 1
     endif
 
   end subroutine write_dat
@@ -201,7 +201,7 @@ contains
     E_IO = p3d_read_multiblock(orion=orion,filename=trim(file))
     if (E_IO/=0) then
       write(*,'(A)')' ERROR write PLOT3D file'
-      stop
+      stop 1
     endif
 
   end subroutine read_p3d
@@ -216,7 +216,7 @@ contains
     E_IO = p3d_write_multiblock(orion=orion,filename=trim(file))
     if (E_IO/=0) then
       write(*,'(A)')' ERROR write PLOT3D file'
-      stop
+      stop 1
     endif
 
   end subroutine write_p3d

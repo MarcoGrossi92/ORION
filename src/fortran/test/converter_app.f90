@@ -8,7 +8,8 @@
   !> end without error, the .vtm file must be at the path given, and vtk_read_structured_multiblock must read the field back
   !> from it with the dimensions, coordinates and values of the input. Every coordinate and value is an integer, a half or a
   !> quarter, exact in every format. The same block with its two variables at the nodes, converted from an ASCII Tecplot file to
-  !> a .vtm file, must be read back with its variables at the nodes. Exit status 0 when every check passes, 1 otherwise.
+  !> a .vtm file, must be read back with its variables at the nodes. An input that the converter cannot read must end it with a
+  !> nonzero exit status. Exit status 0 when every check passes, 1 otherwise.
   !---------------------------------------------------------------------------------------------------------------------------------
   use IR_Precision
   use Lib_ORION_data
@@ -37,6 +38,7 @@
   dir = 'converter_out_'//repeat('e', 120)//'/'//repeat('f', 130)//'/'
   call convert(dir, 'field', 'output path of '//itoa(len(dir) + 9)//' characters')
   call node_location
+  call error_status
 
   write(*,'(A,I0,A,I0,A)') 'converter_app: ', checks, ' checks, ', failures, ' failed'
   if (failures > 0) stop 1
@@ -162,4 +164,55 @@
   if (same) same = all(r%block(1)%mesh == wn%block(1)%mesh) .and. all(r%block(1)%vars == wn%block(1)%vars)
   call check(same, 'nodes: the field read back with the dimensions, coordinates and values of the input')
   end subroutine node_location
+
+  subroutine error_status
+  !---------------------------------------------------------------------------------------------------------------------------------
+  !< An input that the converter cannot read ends it with its message, a nonzero exit status and no output file (in a
+  !< directory made for the outputs, without the files of an earlier run, so that the check measures the converter): an empty
+  !< Tecplot file, and the .vtm file written by the first conversion (the converter does not read .vtm files, a known limit).
+  !< Defect: every error of the converter ended it with a STOP statement without a stop code, so with the exit status 0, as a
+  !< success; with the .vtm input the VTK reader of before stopped it with a runtime error, a nonzero exit status.
+  !---------------------------------------------------------------------------------------------------------------------------------
+  integer                      :: u, exitstat, cmdstat
+  logical                      :: exists
+  !---------------------------------------------------------------------------------------------------------------------------------
+
+  call execute_command_line('mkdir -p converter_errors && rm -f converter_errors/empty.vtm converter_errors/field.tec', &
+                            exitstat=exitstat, cmdstat=cmdstat)
+  call check(cmdstat == 0 .and. exitstat == 0, 'errors: directory made')
+  open(newunit=u, file='converter_empty.tec', status='replace', action='write')
+  close(u)
+  call execute_command_line("'"//converter//"' --in-file=converter_empty.tec --out-file=converter_errors/empty.vtm > "// &
+                            'converter_errors_empty.txt 2>&1', exitstat=exitstat, cmdstat=cmdstat)
+  call check(cmdstat == 0 .and. exitstat /= 0, 'errors: an empty Tecplot input ends the converter with a nonzero exit status')
+  call check(log_holds('converter_errors_empty.txt', 'ERROR read Tecplot file'), 'errors: the message of the empty Tecplot input')
+  inquire(file='converter_errors/empty.vtm', exist=exists)
+  call check(.not.exists, 'errors: no output file for the empty Tecplot input')
+  call execute_command_line("'"//converter//"' --in-file=converter_out/field.vtm --out-file=converter_errors/field.tec > "// &
+                            'converter_errors_vtm.txt 2>&1', exitstat=exitstat, cmdstat=cmdstat)
+  call check(cmdstat == 0 .and. exitstat /= 0, 'errors: a .vtm input ends the converter with a nonzero exit status')
+  call check(log_holds('converter_errors_vtm.txt', 'ERROR read VTK files'), 'errors: the message of the .vtm input')
+  inquire(file='converter_errors/field.tec', exist=exists)
+  call check(.not.exists, 'errors: no output file for the .vtm input')
+  end subroutine error_status
+
+  logical function log_holds(fname, text)
+  !---------------------------------------------------------------------------------------------------------------------------------
+  !< True when a line of the text file fname holds text.
+  !---------------------------------------------------------------------------------------------------------------------------------
+  character(len=*), intent(in) :: fname, text
+  character(len=512)           :: line
+  integer                      :: u, ios
+  !---------------------------------------------------------------------------------------------------------------------------------
+
+  log_holds = .false.
+  open(newunit=u, file=fname, status='old', action='read', iostat=ios)
+  if (ios /= 0) return
+  do
+    read(u, '(A)', iostat=ios) line
+    if (ios /= 0) exit
+    if (index(line, text) > 0) log_holds = .true.
+  enddo
+  close(u)
+  end function log_holds
   endprogram converter_app

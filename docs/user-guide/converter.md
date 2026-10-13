@@ -83,6 +83,10 @@ ORION --input-format vtk --input-file mesh.vtk \
       --output-format tecplot --output-file mesh.tec
 ```
 
+!!! warning "VTK input"
+    Not supported: the converter does not read VTK input (a `.vtk` file is not one of its formats, and a `.vtm` file
+    given as input is not read, see Troubleshooting), so this conversion ends with an error.
+
 **PLOT3D to Tecplot**
 
 ```bash
@@ -174,6 +178,9 @@ chmod +x convert_batch.sh
 ```
 
 ## Troubleshooting
+
+When the converter cannot read its input or write its output, it prints a line that begins with `ERROR` and ends with the
+exit status 1. It does not read a `.vtm` file given as input.
 
 ### File Not Found
 
