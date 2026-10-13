@@ -6,6 +6,7 @@
 !< Zones of every shape, with the coordinates of the file (zone_shapes).
 !< One location for the solution variables (variable_location).
 !< Files of lines named x and y, read with two coordinates (lines_xy).
+!< Zone headers without J: zones of one node line, as in the I-ordered examples of Tecplot (zones_without_j).
 !< Stops with a non-zero code when a check fails.
 program tecplot_read_plane_xyz
   use Lib_Tecplot
@@ -22,6 +23,7 @@ program tecplot_read_plane_xyz
   call zone_shapes()
   call variable_location()
   call lines_xy()
+  call zones_without_j()
   if (nfail > 0) then
     write(*,'(A,I0,A)') 'tecplot_read_plane_xyz: ', nfail, ' check(s) FAILED'
     error stop 1
@@ -618,6 +620,67 @@ contains
       call check(same, trim(fname)//': values read back as written')
     enddo
   end subroutine written_again
+
+  ! Zone headers without J. An I-ordered zone has one index, I, and J = K = 1; the zone header of
+  ! such a zone gives I only, as in the examples of the Data Format Guide: a header without J is one
+  ! node line (J = 1), as one without K is one node plane (K = 1). Files written by hand: the
+  ! example of section 4-2, VARIABLES="X" "Y" with ZONE I=4 DATAPACKING=POINT and four points; the
+  ! example of section 4-4.4, VARIABLES = "X", "Y" with ZONE I=5, DATAPACKING=BLOCK; and x p with
+  ! ZONE T = "L1", I=3 in BLOCK packing. The two examples, of lines named x and y with y at the
+  ! nodes, read with two coordinates, x p with one. For each: the return value, one zone of I nodes
+  ! (Ni = I-1, Nj = Nk = 0), every coordinate and every value of the last variable. A header whose J
+  ! is not a whole number (J=***) is refused, as before.
+  ! Defect: the reader took a missing J for 0 and refused the zone (invalid zone dimensions), so the
+  ! I-ordered examples of the Data Format Guide were not read.
+  ! Basis: Tecplot 360 EX 2023 R1 Data Format Guide, section 2-1 (p. 15): one-dimensional ordered
+  ! data has IMAX, JMAX or KMAX of one or more "and the others are equal to one"; section 4-4.1
+  ! (p. 137): "I-ordered data has only one index, the I-index"; the I-ordered zones of its examples
+  ! give I only, section 4-2 (p. 120) and section 4-4.4 (p. 139).
+  subroutine zones_without_j()
+    call case_without_j('noj_guide_point.tec', &
+      [character(len=60) :: 'VARIABLES="X" "Y"', 'ZONE I=4 DATAPACKING=POINT', '1 1', '2 1', '2 2', '1 2'], &
+      0, 4, 2, [1d0, 2d0, 2d0, 1d0], [1d0, 1d0, 2d0, 2d0])
+    call case_without_j('noj_guide_block.tec', &
+      [character(len=60) :: 'VARIABLES = "X", "Y"', 'ZONE I=5, DATAPACKING=BLOCK', '2 3 5 6 7', '4 9 25 36 49'], &
+      0, 5, 2, [2d0, 3d0, 5d0, 6d0, 7d0], [4d0, 9d0, 25d0, 36d0, 49d0])
+    call case_without_j('noj_xp.tec', &
+      [character(len=60) :: 'VARIABLES = x p', 'ZONE T = "L1", I=3, DATAPACKING=BLOCK', '0.5 1.5 2.5', '10.25 11.25 12.25'], &
+      0, 3, 1, [0.5d0, 1.5d0, 2.5d0], [10.25d0, 11.25d0, 12.25d0])
+    call case_without_j('noj_bad_j.tec', &
+      [character(len=60) :: 'VARIABLES = x p', 'ZONE T = "L1", I=3, J=***, DATAPACKING=BLOCK', '0.5 1.5 2.5', &
+       '10.25 11.25 12.25'], 1, 3, 1, [0.5d0, 1.5d0, 2.5d0], [10.25d0, 11.25d0, 12.25d0])
+  end subroutine zones_without_j
+
+  ! Write the lines of the file, read it, and check the return value err0 and, for a file read: one zone of ni nodes, nd
+  ! coordinates, the first coordinate x and the last variable last (the second coordinate when nd = 2: y).
+  subroutine case_without_j(fname, lines, err0, ni, nd, x, last)
+    character(len=*), intent(in) :: fname, lines(:)
+    integer,          intent(in) :: err0, ni, nd
+    real(8),          intent(in) :: x(:), last(:)
+    type(orion_data) :: d
+    integer :: u, l, err
+    open(newunit=u, file=fname, status='replace', action='write')
+    do l = 1, size(lines)
+      write(u,'(A)') trim(lines(l))
+    enddo
+    close(u)
+    err = tec_read_structured_multiblock(orion=d, filename=fname)
+    write(*,'(A,I0)') fname//': return value ', err
+    call check((err == 0) .eqv. (err0 == 0), fname//': return value')
+    if (err /= 0 .or. err0 /= 0) return
+    call check(size(d%block) == 1, fname//': one zone')
+    if (size(d%block) /= 1) return
+    call check(d%block(1)%Ni == ni-1 .and. d%block(1)%Nj == 0 .and. d%block(1)%Nk == 0, fname//': Ni = I-1, Nj = Nk = 0')
+    call check(size(d%block(1)%mesh,1) == nd, fname//': number of coordinates')
+    if (size(d%block(1)%mesh,1) /= nd .or. size(d%block(1)%mesh,2) /= ni) return
+    call check(all(d%block(1)%mesh(1,:,0,0) == x), fname//': every node, x')
+    if (nd == 2) then
+      call check(all(d%block(1)%mesh(2,:,0,0) == last), fname//': every node, y')
+    else
+      call check(size(d%block(1)%vars) == ni, fname//': one value of p per node')
+      if (size(d%block(1)%vars) == ni) call check(all(reshape(d%block(1)%vars, [ni]) == last), fname//': every value of p')
+    endif
+  end subroutine case_without_j
 
   ! The number of names in names, separated by blanks.
   pure integer function count_names(names)

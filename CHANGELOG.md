@@ -194,6 +194,9 @@ Changes on `main` since `v1.6.0`.
   or line in I or J (it read none, without an error), gives every zone the
   number of coordinates of the file, and reads zones whose shape differs from
   that of the first one (refused with error 1 and no message).
+- The Tecplot ASCII reader reads a zone header without `J` as one node line,
+  an I-ordered zone, as in the examples of the Tecplot Data Format Guide; it
+  refused it as a zone of invalid dimensions.
 - The Tecplot ASCII readers, `tec_read_structured_multiblock` and
   `tec_read_points_multivars`, give each block the title of its zone as its
   name, as `tec_read_szplt` does; the names were undefined.

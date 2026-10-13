@@ -180,9 +180,10 @@ end program read_vtk_structured
 
 ### Dimensions of what a reader returns
 
-- **Tecplot ASCII, structured zones.** A zone header gives `I`, `J` and `K`; a header without `K` is one node
-  plane (`K = 1`, Tecplot's default). The number of coordinates is that of the file, the same for every zone, by
-  the rule of the `.szplt` reader: three when a zone has `K > 1`, or when the header declares a third coordinate:
+- **Tecplot ASCII, structured zones.** A zone header gives `I`, `J` and `K`; a header without `J` is one node
+  line (`J = 1`, an I-ordered zone, as in the examples of the Tecplot Data Format Guide), and one without `K` is
+  one node plane (`K = 1`, Tecplot's default). The number of coordinates is that of the file, the same for every
+  zone, by the rule of the `.szplt` reader: three when a zone has `K > 1`, or when the header declares a third coordinate:
   the first three variables are named `x`, `y` and `z` (in any case) and `z` is nodal in every zone (not listed as
   `CELLCENTERED` in `VARLOCATION`), so that its zones of single node planes or lines are part of a
   three-dimensional field (a slice); otherwise two when a zone has `J > 1`, or when the first two variables are

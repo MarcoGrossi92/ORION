@@ -1060,6 +1060,9 @@ contains
 
       call get_integer_keyword(work,'I',I_)
       call get_integer_keyword(work,'J',J_)
+      ! J omitted: one node line, an I-ordered zone (I only, as in the examples of Tecplot); a J that is not a whole number
+      ! stays 0, and the zone is refused
+      if (keyword_value_pos(work,'J')==0) J_ = 1
       call get_integer_keyword(work,'K',K_,found)
       if (.not.found) K_ = 1   ! K omitted: one node plane (Tecplot's default K = 1)
 
