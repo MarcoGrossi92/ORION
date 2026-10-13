@@ -1825,6 +1825,8 @@ contains
   !> message). Each block takes the location of its zone (vars from 0 at the nodes, from 1 at the cells), so the zones of a file
   !> may differ. orion%tec%node is set when the solution variables of every zone are at the nodes, cleared when those of every
   !> zone are at the cells, and left as it is when the zones differ or the file has no solution variables.
+  !> The solution time and the StrandID of the last zone go to orion%solutiontime and orion%strandid (-1 for a static zone,
+  !> StrandID 0 for TecIO), as the ASCII reader stores those of the last zone header; also with dims_only.
   !> \param[inout] orion ORION data structure to fill with data
   !> \param[in] filename Input file name (.szplt)
   !> \param[in] zone_mask Optional per-zone selector, indexed by zone number.
@@ -2065,6 +2067,11 @@ contains
         i = tecZoneGetIJK(inputFileHandle, inputZone, &
             iMax, jMax, kMax)
 
+        ! The solution time and the StrandID of the zone, also in a pass with dims_only: the last zone gives those of the file
+        i = tecZoneGetSolutionTime(inputFileHandle, inputZone, &
+            solutionTime)
+        i = tecZoneGetStrandID(inputFileHandle, inputZone, strandID)
+
         orion%block(inputZone)%Ni = iMax-1
         orion%block(inputZone)%Nj = jMax-1
         orion%block(inputZone)%Nk = kMax-1
@@ -2132,9 +2139,6 @@ contains
         ! i = tecZoneFaceNbrGetNumConnections(inputfileHandle, &
         !     inputZone, numFaceConnections)
 
-        i = tecZoneGetSolutionTime(inputFileHandle, inputZone, &
-            solutionTime)
-        i = tecZoneGetStrandID(inputFileHandle, inputZone, strandID)
         ! if (solutionTime /= 0.0 .or. strandID /= 0) &
         !     i = tecZoneSetUnsteadyOptions(outputFileHandle, &
         !         outputZone, solutionTime, strandID)
@@ -2282,6 +2286,18 @@ contains
         deallocate(shareVarFromZone)
                   
     enddo ! inputZone loop
+
+    ! The solution time and the StrandID of the last zone, as the ASCII reader returns those of the last zone header: every zone
+    ! of a binary file has a solution time, and a static zone, StrandID 0 for TecIO, gets -1, as a zone header without STRANDID.
+    ! A file without zones has no time: the most negative real, as for an ASCII file without SOLUTIONTIME
+    if (numZones > 0) then
+      orion%solutiontime = solutionTime
+      orion%strandid = strandID
+      if (strandID == 0) orion%strandid = -1
+    else
+      orion%solutiontime = -huge(1._R8P)
+      orion%strandid = -1
+    endif
 
     ! Close old and new files
     i = tecFileReaderClose(inputFileHandle)

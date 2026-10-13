@@ -6,7 +6,9 @@
 !< solutiontime as written, sign included, and stores the STRANDID of the last zone header in orion%strandid, -1 when that
 !< header has none; a file whose zone headers hold no SOLUTIONTIME reads with solutiontime = -huge(1._R8P), the most negative
 !< real, which no solution has (it gave -10, the time of a steady solution at iteration 10).
-!< With TecIO, the .szplt files are read back with the TecIO reader: the solution time and the StrandID of every zone.
+!< With TecIO, the .szplt files are read back with the TecIO reader, the solution time and the StrandID of every zone, and
+!< with tec_read_structured_multiblock, with and without dims_only: the time and the StrandID of the last zone, -1 for a
+!< static zone (StrandID 0 for TecIO), as the ASCII reader gives them.
 !< A file without SOLUTIONTIME, read and written again, reads back with the time of the first read and static zones.
 !< Defect: the writer wrote the absolute value of the time, with STRANDID = 0 for a steady solution, which the Tecplot
 !< Data Format Guide does not allow in an ASCII file (STRANDID >= 1) and which marks a strand, not a static zone, in a
@@ -184,11 +186,13 @@ contains
 #ifdef TECIO
 
   ! The two zones of field written to a .szplt file with tec_write_structured_multiblock and read with the TecIO reader:
-  ! every zone has the signed time, and StrandID b for a time-accurate solution, 0 (static) for a steady one.
+  ! every zone has the signed time, and StrandID b for a time-accurate solution, 0 (static) for a steady one. Then read with
+  ! tec_read_structured_multiblock, with and without dims_only: the time of the last zone and its StrandID, 2, or -1 for a
+  ! static zone.
   subroutine binary(time, filename)
     real(R8P),        intent(in) :: time
     character(len=*), intent(in) :: filename
-    type(orion_data)   :: written
+    type(orion_data)   :: written, read_back, headers
     type(c_ptr)        :: h
     integer            :: err
     integer(c_int32_t) :: e, nzones, z, strand
@@ -223,6 +227,18 @@ contains
     else
       call check(strands_right, 'StrandID 0 for every zone (static zones)')
     endif
+    read_back%tec%format = 'binary'
+    err = tec_read_structured_multiblock(orion=read_back, filename=filename)
+    call check(err == 0, 'read without error')
+    write(ts,'(ES12.4)') read_back%solutiontime
+    call check(read_back%solutiontime == time, 'solutiontime read back '//trim(adjustl(ts))//', sign included')
+    write(ts,'(I0)') read_back%strandid
+    call check(read_back%strandid == merge(2, -1, time >= 0._R8P), 'strandid '//trim(ts))
+    headers%tec%format = 'binary'
+    err = tec_read_structured_multiblock(orion=headers, filename=filename, dims_only=.true.)
+    call check(err == 0, 'zone headers read without error (dims_only)')
+    call check(headers%solutiontime == time .and. headers%strandid == merge(2, -1, time >= 0._R8P), &
+               'solutiontime and strandid from the zone headers (dims_only)')
   end subroutine binary
 #endif
 

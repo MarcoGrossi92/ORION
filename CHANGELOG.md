@@ -215,6 +215,10 @@ Changes on `main` since `v1.6.0`.
   for a binary file with error termination (`ERROR STOP`, a nonzero exit
   status): `STOP` gave the exit status 0, so the run passed for a success (the
   converter, asked for a `.szplt` file, wrote nothing).
+- The `.szplt` reader stores the solution time and the StrandID of the last
+  zone in `solutiontime` and `strandid` (-1 for a static zone), also with
+  `dims_only`; it dropped them, so a solution read from a `.szplt` file came
+  without its time.
 
 ## [1.7.0] - 2026-09-29
 

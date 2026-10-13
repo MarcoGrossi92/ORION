@@ -273,9 +273,10 @@ end program read_vtk_structured
 - **Solution time.** `solutiontime` is 0 in a new `orion_data`. The Tecplot ASCII reader stores the
   `SOLUTIONTIME` of the file, or `-huge(1._R8P)`, the most negative real, when its zone headers give none: a time
   that no solution has, so that a program can tell a file without a time (with signed times, the -10 that the
-  reader gave before is the time of a steady solution at iteration 10). The `.szplt` reader does not store the
-  zone time of the file and leaves `solutiontime` as it was (0 for a new object); so does the PLOT3D reader,
-  since a PLOT3D grid has no time. The VTK multi-block reader `vtk_read_structured_multiblock` does not set
+  reader gave before is the time of a steady solution at iteration 10). The `.szplt` reader stores the solution
+  time of the last zone (every zone of a binary file has one), also in a read with `dims_only`. The PLOT3D reader
+  leaves `solutiontime` as it was (0 for a new object), since a PLOT3D grid has no time. The VTK multi-block reader
+  `vtk_read_structured_multiblock` does not set
   `solutiontime` either: its optional `time` argument returns the `TIME` field data that
   `vtk_write_structured_multiblock` writes when it is given `time` (every format keeps every bit, sign included;
   see Digits of the text formats), or 0 when the `.vts` files hold none. Field data are not variables: the reader
@@ -315,12 +316,13 @@ end program read_vtk_structured
   2023 R1 Data Format Guide: a `STRANDID` of 1 or more in the ASCII zone record, p. 124, "by convention ... successive
   integer values"; TECZNE142, p. 61, "0 = static zone, not associated with a strand"). The ASCII reader returns
   `SOLUTIONTIME` as written, sign included, and stores the `STRANDID` of the last zone header in `strandid`, -1 when
-  the header has none (a static zone). A program tells a steady solution from the sign of `solutiontime`. ORION 1.5.5
+  the header has none (a static zone); the `.szplt` reader stores the StrandID of the last zone the same way, -1 for a
+  static zone (StrandID 0 for TecIO). A program tells a steady solution from the sign of `solutiontime`. ORION 1.5.5
   to 1.7.0 wrote `|t|` and, for a steady solution, `STRANDID = 0` in every ASCII zone header (a strand for Tecplot,
   not a static zone): such a file reads back with a positive `solutiontime` and `strandid` 0. `strandid` is -1 in a
-  new `orion_data` and only this reader sets it: the `.szplt`, VTK and PLOT3D readers and
-  `tec_read_points_multivars` leave it as it was, and `copyORION` does not copy it (nor `solutiontime`). The data set
-  auxiliary data `Time` of a binary file holds `|t|`.
+  new `orion_data` and only these two readers set it: the VTK and PLOT3D readers and `tec_read_points_multivars`
+  leave it as it was, and `copyORION` does not copy it (nor `solutiontime`). The data set auxiliary data `Time` of a
+  binary file holds `|t|`.
 
 ### Length of the Tecplot header and lines
 
