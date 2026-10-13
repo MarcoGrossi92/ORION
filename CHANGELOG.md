@@ -76,6 +76,11 @@ Changes on `main` since `v1.6.0`.
   nodal) three; they were read with one. A one-dimensional field at the nodes
   whose first variable is named `y` (and `z`) is so read with two (three)
   coordinates: rename them or write the field at the cells.
+- The Tecplot ASCII files and the ascii format of the VTK files hold every
+  64-bit real with 17 significant digits (`FR8P` of `IR_Precision`,
+  `E25.17E3` instead of `E23.15E3`), the fewest that give it back bit for bit
+  when the file is read: every text file changes, each real taking two
+  characters more, and `str` of a 64-bit real gives 17 digits.
 
 ### Fixed
 

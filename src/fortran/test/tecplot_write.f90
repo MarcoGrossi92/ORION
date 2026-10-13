@@ -34,6 +34,7 @@ program tecplot_write_multiblock
 #endif
   call variable_bounds
   call ascii_title_round_trip
+  call digits_ascii
   write(*,'(A,I0,A,I0,A)') 'tecplot_write: ', checks, ' checks, ', failures, ' failed'
   if (failures > 0) stop 1
 
@@ -698,4 +699,82 @@ program tecplot_write_multiblock
   call check(index(line, 'T = Z1,') > 0, 'bounds_written_again_ascii.tec: the zone title Z1')
   call read_ascii_bounds('bounds_written_again_ascii.tec', 2, [3, 2, 0], .true.)
   end subroutine ascii_title_round_trip
+
+  subroutine digits_ascii
+  !---------------------------------------------------------------------------------------------------------------------------------
+  !< Every 64-bit real of an ASCII file comes back, bit for bit, when the file is read. A two-dimensional field of one block of
+  !< 3 x 2 cells with two variables at the cells and solutiontime = 0.1 + 0.2 is written to an ASCII file and read back with
+  !< tec_read_structured_multiblock: every coordinate, every value of the variables and the solution time must be the real
+  !< written (==). They are reals that 15 significant digits do not give back (hard_real).
+  !< Defect: the writer wrote 15 significant digits (format E23.15E3), and a real that needs more came back as another real: a
+  !< field written and read again, as a solution from which a run continues, was not the field written.
+  !< Basis: the Fortran API guide (the derivation of the 17 significant digits): the decimal numbers of n significant digits are
+  !< closer to one another than the 64-bit reals (53-bit significand) in every range when 10**(n-1) > 2**53, n >= 17, so the
+  !< nearest decimal number of 17 digits reads back as the real it was written from.
+  !---------------------------------------------------------------------------------------------------------------------------------
+  type(orion_data) :: w, r
+  integer          :: i, j, n, err
+  logical          :: same
+  !---------------------------------------------------------------------------------------------------------------------------------
+
+  allocate(w%block(1))
+  w%block(1)%name = 'B1'
+  w%block(1)%Ni = 3; w%block(1)%Nj = 2; w%block(1)%Nk = 0
+  allocate(w%block(1)%mesh(1:2,0:3,0:2,0:0), w%block(1)%vars(1:2,1:3,1:2,1:1))
+  n = 0
+  do j = 0, 2; do i = 0, 3
+    n = n + 1; w%block(1)%mesh(1,i,j,0) = hard_real(n)
+    n = n + 1; w%block(1)%mesh(2,i,j,0) = hard_real(n)
+  enddo; enddo
+  do j = 1, 2; do i = 1, 3
+    n = n + 1; w%block(1)%vars(1,i,j,1) = hard_real(n)
+    n = n + 1; w%block(1)%vars(2,i,j,1) = hard_real(n)
+  enddo; enddo
+  w%solutiontime = 0.1_R8P + 0.2_R8P
+  w%tec%node = .false.
+  w%tec%format = 'ascii'
+  err = tec_write_structured_multiblock(orion=w, varnames='a b', filename='digits.tec')
+  call check(err == 0, 'digits.tec: written without error')
+  r%tec%format = 'ascii'
+  err = tec_read_structured_multiblock(orion=r, filename='digits.tec')
+  call check(err == 0, 'digits.tec: read without error')
+  if (err /= 0) return
+  same = size(r%block) == 1
+  if (same) same = all(shape(r%block(1)%mesh) == shape(w%block(1)%mesh)) .and. &
+                   all(shape(r%block(1)%vars) == shape(w%block(1)%vars))
+  call check(same, 'digits.tec: one block of two coordinates and two variables at the cells')
+  if (.not.same) return
+  call check(all(r%block(1)%mesh == w%block(1)%mesh), 'digits.tec: every coordinate, bit for bit')
+  call check(all(r%block(1)%vars == w%block(1)%vars), 'digits.tec: every value of the variables, bit for bit')
+  call check(r%solutiontime == w%solutiontime, 'digits.tec: the solution time, bit for bit')
+  end subroutine digits_ascii
+
+  pure function hard_real(n) result(x)
+  !---------------------------------------------------------------------------------------------------------------------------------
+  !< The n-th of a list of 64-bit reals that 15 significant digits do not give back: 0.1 + 0.2, the thirds, pi, the reals next to
+  !< 1, the smallest normal real, and multiples of 1/7 from about 1e-297 to 1e297, of both signs.
+  !---------------------------------------------------------------------------------------------------------------------------------
+  integer, intent(in) :: n
+  real(R8P)           :: x
+  !---------------------------------------------------------------------------------------------------------------------------------
+
+  select case(mod(n, 8))
+  case(0)
+    x = 0.1_R8P + 0.2_R8P
+  case(1)
+    x = 1._R8P/3._R8P
+  case(2)
+    x = -2._R8P/3._R8P
+  case(3)
+    x = acos(-1._R8P)
+  case(4)
+    x = nearest(1._R8P, 1._R8P)
+  case(5)
+    x = -nearest(1._R8P, -1._R8P)
+  case(6)
+    x = tiny(1._R8P)
+  case default
+    x = real(n, R8P)/7._R8P*10._R8P**(27*mod(n, 23) - 297)
+  end select
+  end function hard_real
 end program tecplot_write_multiblock

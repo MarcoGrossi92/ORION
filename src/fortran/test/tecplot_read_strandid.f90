@@ -39,7 +39,7 @@ contains
     endif
   end subroutine check
 
-  ! The file holds 15 significant digits: the times used here come back exactly. The tolerance only
+  ! The file holds 17 significant digits: every time comes back exactly. The tolerance only
   ! spares an equality test of reals.
   logical function same(a, b)
     real(R8P), intent(in) :: a, b

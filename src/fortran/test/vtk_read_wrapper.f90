@@ -90,8 +90,9 @@
   !< given as the TIME field data of every .vts file; vtk_read_structured_multiblock must read such files back, with or without
   !< its optional time argument, and with it return the time written: a positive time (time-accurate run) and a negative one (a
   !< steady run that stores minus its iteration count). A file written without a time reads back as time 0, and an empty
-  !< <FieldData/> element does not hide the variables. Checked on a 2-D and a 3-D field of two blocks: bit for bit in the
-  !< binary and raw formats, to the 15 significant digits of the writer in the ascii format.
+  !< <FieldData/> element does not hide the variables. Checked on a 2-D and a 3-D field of two blocks, bit for bit in the
+  !< binary, raw and ascii formats (the ascii format writes 17 significant digits; with the 15 it wrote, coordinates, values
+  !< and times that are not short decimals came back as other reals).
   !< Defect: the reader took every Name attribute of a block file for a variable name, the field data included, and stopped
   !< with a segmentation fault on a file written with a time; with the time argument it called the field-data writer on the
   !< unit it was reading, so the time was never set.
@@ -112,18 +113,6 @@
   enddo
   call empty_field_data()
   end subroutine files_with_time
-
-  pure function tolerance(fmt) result(tol)
-  !---------------------------------------------------------------------------------------------------------------------------------
-  !< Relative tolerance of a format: binary and raw keep every bit, ascii 15 significant digits.
-  !---------------------------------------------------------------------------------------------------------------------------------
-  character(len=*), intent(in) :: fmt
-  real(R8P) :: tol
-  !---------------------------------------------------------------------------------------------------------------------------------
-
-  tol = 0._R8P
-  if (fmt == 'ascii') tol = 1.e-14_R8P
-  end function tolerance
 
   subroutine make_field(d, ndir, tag)
   !---------------------------------------------------------------------------------------------------------------------------------
@@ -170,12 +159,11 @@
   enddo
   end subroutine make_field
 
-  subroutine check_field(r, w, tol)
+  subroutine check_field(r, w)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< The mesh and the variables read are those written: bit for bit, or within tol relative.
+  !< The mesh and the variables read are those written, bit for bit.
   !---------------------------------------------------------------------------------------------------------------------------------
   type(orion_data), intent(in) :: r, w
-  real(R8P),        intent(in) :: tol
   integer :: b
   !---------------------------------------------------------------------------------------------------------------------------------
 
@@ -190,15 +178,13 @@
     if (allocated(r%block(b)%mesh)) then
       call check(all(shape(r%block(b)%mesh) == shape(w%block(b)%mesh)), 'shape of the mesh of block '//trim(str(.true., b)))
       if (all(shape(r%block(b)%mesh) == shape(w%block(b)%mesh))) &
-        call check(all(abs(r%block(b)%mesh - w%block(b)%mesh) <= tol*abs(w%block(b)%mesh)), &
-                   'mesh of block '//trim(str(.true., b))//' as written')
+        call check(all(r%block(b)%mesh == w%block(b)%mesh), 'mesh of block '//trim(str(.true., b))//' as written')
     endif
     call check(allocated(r%block(b)%vars), 'variables of block '//trim(str(.true., b))//' read')
     if (.not. allocated(r%block(b)%vars)) cycle
     call check(all(shape(r%block(b)%vars) == shape(w%block(b)%vars)), 'shape of block '//trim(str(.true., b)))
     if (any(shape(r%block(b)%vars) /= shape(w%block(b)%vars))) cycle
-    call check(all(abs(r%block(b)%vars - w%block(b)%vars) <= tol*abs(w%block(b)%vars)), &
-               'variables of block '//trim(str(.true., b))//' as written')
+    call check(all(r%block(b)%vars == w%block(b)%vars), 'variables of block '//trim(str(.true., b))//' as written')
   enddo
   end subroutine check_field
 
@@ -229,14 +215,14 @@
   t = 12345._R8P
   err = vtk_read_structured_multiblock(orion=r, vtmpath='time_'//trim(tag), vtspath='', time=t)
   call check(err == 0, 'read with time: no error')
-  call check(abs(t - t0) <= tolerance(fmt)*abs(t0), 'read with time: the time written')
-  call check_field(r, w, tolerance(fmt))
+  call check(t == t0, 'read with time: the time written')
+  call check_field(r, w)
 
   ! read without the time argument: the field data are not taken for variables
   r2%vtk%format = fmt
   err = vtk_read_structured_multiblock(orion=r2, vtmpath='time_'//trim(tag), vtspath='')
   call check(err == 0, 'read without time: no error')
-  call check_field(r2, w, tolerance(fmt))
+  call check_field(r2, w)
   end subroutine round_trip
 
   subroutine no_time(fmt)
@@ -263,7 +249,7 @@
   err = vtk_read_structured_multiblock(orion=r, vtmpath='time_'//trim(tag), vtspath='', time=t)
   call check(err == 0, 'read with time: no error')
   call check(t == 0._R8P, 'read with time: 0 when the file holds none')
-  call check_field(r, w, tolerance(fmt))
+  call check_field(r, w)
   end subroutine no_time
 
   subroutine empty_field_data()
@@ -303,7 +289,7 @@
   err = vtk_read_structured_multiblock(orion=r, vtmpath='time_ascii2D_emptyfd', vtspath='', time=t)
   call check(err == 0, 'read with time: no error')
   call check(t == 0._R8P, 'read with time: 0 when the file holds none')
-  call check_field(r, w, tolerance('ascii'))
+  call check_field(r, w)
   end subroutine empty_field_data
 
   subroutine rename_file(old_name, new_name)
@@ -333,7 +319,7 @@
   !< time and cycle are 0 when the files hold none, a named scalar is 0 with fldfound .false. when the files do not hold it. A
   !< file written with the time only reads back with no cycle and no named scalar; the field data are never taken for
   !< variables. Names and values of different sizes are refused by both functions. Checked on 2-D and 3-D fields of two blocks
-  !< in the binary, raw and ascii formats: bit for bit in binary and raw, to the 15 significant digits of the writer in ascii.
+  !< in the binary, raw and ascii formats, bit for bit in each.
   !< An addition, not a defect: cycle, fldnames, fldvalues and fldfound are new optional arguments.
   !< Basis: the readers of VTK 9.7.1 read the arrays of a FieldData element as values of the whole dataset
   !< (vtkXMLReader::ReadFieldData); TIME and CYCLE are the names that ORION writes.
@@ -435,18 +421,18 @@
   err = vtk_read_structured_multiblock(orion=r, vtmpath='fld_'//trim(tag), vtspath='', time=t, cycle=n, &
                                        fldnames=asked, fldvalues=got, fldfound=found)
   call check(err == 0, 'read with all the field data: no error')
-  call check(abs(t - t0) <= tolerance(fmt)*abs(t0), 'the time written')
+  call check(t == t0, 'the time written')
   call check(n == n0, 'the cycle written')
   call check(found(1) .and. (.not. found(2)) .and. found(3) .and. found(4), 'found exactly the names written')
-  call check(abs(got(1) - values(3)) <= tolerance(fmt)*abs(values(3)), 'LAST_OUTPUT_TIME as written')
+  call check(got(1) == values(3), 'LAST_OUTPUT_TIME as written')
   call check(got(2) == 0._R8P, 'a name the files do not hold reads as 0')
   call check(got(3) == values(1) .and. got(4) == values(2), 'ITERATION and OUTPUT_NUMBER as written')
-  call check_field(r, w, tolerance(fmt))
+  call check_field(r, w)
 
   r2%vtk%format = fmt
   err = vtk_read_structured_multiblock(orion=r2, vtmpath='fld_'//trim(tag), vtspath='')
   call check(err == 0, 'read without the field data: no error')
-  call check_field(r2, w, tolerance(fmt))
+  call check_field(r2, w)
   end subroutine all_scalars
 
   subroutine time_only(fmt)
@@ -481,7 +467,7 @@
   call check(t == -5._R8P, 'the time written')
   call check(n == 0_I4P, 'no cycle: 0')
   call check(.not. any(found) .and. all(got == 0._R8P), 'no named scalar: not found, 0')
-  call check_field(r, w, tolerance(fmt))
+  call check_field(r, w)
   end subroutine time_only
 
   subroutine cycle_only(fmt)
@@ -511,7 +497,7 @@
   call check(err == 0, 'read with time and cycle: no error')
   call check(t == 0._R8P, 'no time: 0')
   call check(n == 7_I4P, 'the cycle written')
-  call check_field(r, w, tolerance(fmt))
+  call check_field(r, w)
   end subroutine cycle_only
 
   subroutine misuse()
@@ -627,7 +613,7 @@
   call check(err == 0, 'nofld: read with time, cycle and a name: no error')
   call check(t == 0._R8P .and. c == 0 .and. v(1) == 0._R8P .and. .not.found(1), &
              'nofld: time, cycle and the value 0, the name not found')
-  call check_field(r, w, 0._R8P)
+  call check_field(r, w)
   end subroutine large_file_without_field_data
 
   subroutine mesh_dimension
@@ -1347,7 +1333,7 @@
   err = vtk_read_structured_multiblock(orion=r, vtmpath='cdname', vtspath='')
   write(*,'(A,I0,A,L1)') 'cdname: return value ', err, ', orion%vtk%node ', r%vtk%node
   call check(err == 0 .and. r%vtk%node, 'cdname: read at the nodes without error')
-  call check_field(r, w, tolerance('ascii'))
+  call check_field(r, w)
   end subroutine name_with_celldata
 
   subroutine name_with_gt
@@ -1387,7 +1373,7 @@
     err = vtk_read_structured_multiblock(orion=r(f), vtmpath='gtname_'//trim(fmts(f)), vtspath='')
     write(*,'(A,I0)') 'gtname_'//trim(fmts(f))//': return value ', err
     call check(err == 0, 'gtname_'//trim(fmts(f))//': read without error')
-    call check_field(r(f), w, tolerance(trim(fmts(f))))
+    call check_field(r(f), w)
   enddo
   end subroutine name_with_gt
 
@@ -1497,7 +1483,7 @@
   err = vtk_read_structured_multiblock(orion=r, vtmpath='appname', vtspath='')
   write(*,'(A,I0)') 'appname: return value ', err
   call check(err == 0, 'appname: read without error')
-  call check_field(r, w, 0._R8P)
+  call check_field(r, w)
   end subroutine name_in_appended_data
 
   subroutine name_in_binary_values
@@ -1551,7 +1537,7 @@
   err = vtk_read_structured_multiblock(orion=r, vtmpath='binname', vtspath='')
   write(*,'(A,I0)') 'binname: return value ', err
   call check(err == 0, 'binname: read without error')
-  call check_field(r, w, 0._R8P)
+  call check_field(r, w)
   end subroutine name_in_binary_values
 
   subroutine split_start_tag

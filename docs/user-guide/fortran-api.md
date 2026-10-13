@@ -275,9 +275,9 @@ end program read_vtk_structured
   zone time of the file and leaves `solutiontime` as it was (0 for a new object); so does the PLOT3D reader,
   since a PLOT3D grid has no time. The VTK multi-block reader `vtk_read_structured_multiblock` does not set
   `solutiontime` either: its optional `time` argument returns the `TIME` field data that
-  `vtk_write_structured_multiblock` writes when it is given `time` (the binary and raw formats keep every bit,
-  sign included; the ascii format keeps 15 significant digits), or 0 when the `.vts` files hold none. Field data
-  are not variables: the reader skips them when it lists the variable names.
+  `vtk_write_structured_multiblock` writes when it is given `time` (every format keeps every bit, sign included;
+  see Digits of the text formats), or 0 when the `.vts` files hold none. Field data are not variables: the reader
+  skips them when it lists the variable names.
 - **Cycle and named scalars.** Besides `time`, `vtk_write_structured_multiblock` takes the optional `cycle`
   (integer, written as the field data `CYCLE`, a step number) and the named real scalars
   `fldnames(:)` and `fldvalues(:)` (each written as field data with its name), and writes them in every `.vts`
@@ -285,11 +285,25 @@ end program read_vtk_structured
   which names the files hold: an absent `CYCLE` or name reads as 0 (and `.false.`). It looks for them, and for
   `TIME`, in the `FieldData` element of every block file that has one before its first data array, where
   `vtk_write_structured_multiblock` writes it (a `FieldData` element after the arrays is not read): when the
-  files differ, the values are those of the last block file that holds them. The binary and raw formats
-  keep every bit; the ascii format keeps 15 significant digits of a real. `fldnames` and `fldvalues` (and
+  files differ, the values are those of the last block file that holds them. Every format keeps every bit of a
+  real. `fldnames` and `fldvalues` (and
   `fldfound`) go together and have the same size, and no name is blank; otherwise both functions return 1 and write
   or read nothing. The reader compares the names without regard to case (`'a'` finds `A`).
   A program calls the writer without these arguments to get the files it got before.
+- **Digits of the text formats.** The Tecplot ASCII files and the ascii format of the VTK files hold every 64-bit
+  real (coordinates, variables, `SOLUTIONTIME`, field data) with 17 significant digits (Fortran format `E25.17E3`),
+  the fewest that give back every 64-bit real, bit for bit, when the file is read. A 64-bit real has a 53-bit
+  significand: the reals of a range [2^e, 2^(e+1)) are 2^(e-52) apart, more than x/2^53 for every x of the range,
+  while the decimal numbers of n significant digits of a range [10^d, 10^(d+1)) are 10^(d-n+1) apart, at most
+  x/10^(n-1). When 10^(n-1) > 2^53, that is n >= 17 (2^53 is about 9.0e15), the decimal numbers are closer
+  together than the reals everywhere, so the decimal number of n digits nearest to a real is closer to it than to
+  any other real and reads back as that real. With 15 digits, as the writers used, `0.1 + 0.2` was written
+  `0.300000000000000E+000` and read back as `0.3`; with 17 it is `0.30000000000000004E+000`. Both conversions must
+  round to the nearest value, while the input/output rounding mode of a file opened without `ROUND=`, and of an
+  internal file, is processor dependent (Fortran 2018, ISO/IEC 1539-1:2018, final draft J3/18-007r1, 12.5.6.16,
+  paragraph 1, p. 223, and 12.5.2, paragraph 2, p. 217): the tests `tecplot_write` and `vtk_read_wrapper` check that
+  the values read back are those written, bit for bit. The binary formats (Tecplot `.plt` and `.szplt` with 64-bit
+  values, VTK `binary` and `raw`) hold the bits themselves.
 - **Steady solutions and `strandid`.** `tec_write_structured_multiblock` treats a negative `solutiontime` as the
   mark of a steady solution (for instance minus the iteration count of the run): it writes the absolute value
   as `SOLUTIONTIME` and, in an ASCII file, adds `STRANDID = 0` (a static zone) to every zone header. The ASCII
