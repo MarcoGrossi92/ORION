@@ -53,6 +53,7 @@
   call point_data
   call arrays_before_points
   call name_in_appended_data
+  call name_with_celldata
 
   write(*,'(A,I0,A,I0,A)') 'vtk_read_wrapper: ', checks, ' checks, ', failures, ' failed'
   if (failures > 0) stop 1
@@ -1267,6 +1268,41 @@
   write(u,'(A)') '</VTKFile>'
   close(u)
   end subroutine point_data_file
+
+  subroutine name_with_celldata
+  !---------------------------------------------------------------------------------------------------------------------------------
+  !< A variable whose name holds the text CellData is not taken for a CellData element: a field of one block of 2 x 2 x 2 cells
+  !< with the variable CellData_x at the nodes, written in the ascii format, is read back at the nodes (return value 0,
+  !< orion%vtk%node set), every value as written.
+  !< Defect: read_variables_name took any line that holds the text CellData for the CellData element, as it did not for
+  !< <PointData, so the variables of such a file were taken for cell data and not found there.
+  !< Basis: VTK File Formats (p. 12): the variables of a piece are the arrays of its PointData and CellData elements.
+  !---------------------------------------------------------------------------------------------------------------------------------
+  type(orion_data)   :: w, r
+  character(len=16)  :: varnames
+  integer(I4P)       :: err
+  integer            :: i, j, k
+  !---------------------------------------------------------------------------------------------------------------------------------
+
+  allocate(w%block(1))
+  w%block(1)%name = 'cdname_B1'
+  w%block(1)%Ni = 2; w%block(1)%Nj = 2; w%block(1)%Nk = 2
+  allocate(w%block(1)%mesh(3,0:2,0:2,0:2), w%block(1)%vars(1,0:2,0:2,0:2))
+  do k = 0, 2; do j = 0, 2; do i = 0, 2
+    w%block(1)%mesh(:,i,j,k) = [real(i, R8P), real(j, R8P), real(k, R8P)]
+    w%block(1)%vars(1,i,j,k) = real(i + 10*j + 100*k, R8P)
+  enddo; enddo; enddo
+  w%vtk%format = 'ascii'
+  w%vtk%node = .true.
+  varnames = 'CellData_x'
+  err = vtk_write_structured_multiblock(orion=w, vtspath='', vtmpath='cdname', varnames=varnames)
+  call check(err == 0, 'cdname: written')
+  r%vtk%format = 'ascii'
+  err = vtk_read_structured_multiblock(orion=r, vtmpath='cdname', vtspath='')
+  write(*,'(A,I0,A,L1)') 'cdname: return value ', err, ', orion%vtk%node ', r%vtk%node
+  call check(err == 0 .and. r%vtk%node, 'cdname: read at the nodes without error')
+  call check_field(r, w, tolerance('ascii'))
+  end subroutine name_with_celldata
 
   subroutine name_in_appended_data
   !---------------------------------------------------------------------------------------------------------------------------------

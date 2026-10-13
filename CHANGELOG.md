@@ -134,8 +134,10 @@ Changes on `main` since `v1.6.0`.
   and ParaView write them (return value 1). On such files it returned -1 after
   reading the mesh of the first block, its arrays read under names shifted by
   one (an out-of-bounds error in a build with bound checks).
-- The variable names of a VTK block file are read up to its appended data:
-  four bytes `Name` in raw appended data were taken for one more variable.
+- The variable names of a VTK block file are read up to its appended data, and
+  the location of its variables comes from its `PointData` and `CellData`
+  elements: four bytes `Name` in raw appended data were taken for one more
+  variable, and a variable whose name holds `CellData` set the cells.
 
 ## [1.7.0] - 2026-09-29
 

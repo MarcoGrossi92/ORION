@@ -881,7 +881,7 @@ contains
     read(unitfile,'(A)',iostat=E_IO) line
     if (index(line,'<AppendedData')>0) exit
     if (index(line,'<PointData')>0) point = .true.
-    if (index(line,'CellData')>0) cell = .true.
+    if (index(line,'<CellData')>0) cell = .true.
     if (index(line,'<FieldData')>0) field = .not. empty_element(line)
     if (index(line,'Name')>0 .and. .not.field) then
       n = n + 1
