@@ -31,6 +31,7 @@ program tecplot_write_multiblock
   ! build.
 #ifdef TECIO
   call surface_blocks
+  call precision_szplt
 #endif
   call variable_bounds
   call ascii_title_round_trip
@@ -748,6 +749,66 @@ program tecplot_write_multiblock
   call check(all(r%block(1)%vars == w%block(1)%vars), 'digits.tec: every value of the variables, bit for bit')
   call check(r%solutiontime == w%solutiontime, 'digits.tec: the solution time, bit for bit')
   end subroutine digits_ascii
+
+#ifdef TECIO
+  subroutine precision_szplt
+  !---------------------------------------------------------------------------------------------------------------------------------
+  !< The precision of the values of a .szplt file follows orion%tec%double: a two-dimensional field of one block of 3 x 2 cells,
+  !< two variables at the cells, every coordinate and value 0.1*n + 1/3 (n = 1, 2, ..., none of them a 32-bit real), is written
+  !< with tec%double true and false and read back with tec_read_structured_multiblock: with true every real is the one written
+  !< (==); with false every real is the one written rounded to 32 bits, real(real(x, R4P), R8P), and not the one written.
+  !< Change of main checked (99e843a): the writer asks TecIO for 64-bit values when tec%double is true (VIsDouble = 1); before
+  !< it, every binary file held 32-bit values.
+  !< Basis: Tecplot 360 EX 2023 R1 Data Format Guide, TECINI142 (p. 45): VIsDouble is "the integer flag for specifying whether
+  !< field data generated in future calls to TECDAT142 are to be written in single or double precision. 0=Single 1=Double".
+  !---------------------------------------------------------------------------------------------------------------------------------
+  type(orion_data)              :: w, r
+  integer                       :: i, j, n, err, f
+  logical                       :: same, rounded, other
+  character(len=*), parameter   :: files(2) = ['precision_double.szplt', 'precision_single.szplt']
+  !---------------------------------------------------------------------------------------------------------------------------------
+
+  allocate(w%block(1))
+  w%block(1)%name = 'B1'
+  w%block(1)%Ni = 3; w%block(1)%Nj = 2; w%block(1)%Nk = 0
+  allocate(w%block(1)%mesh(1:2,0:3,0:2,0:0), w%block(1)%vars(1:2,1:3,1:2,1:1))
+  n = 0
+  do j = 0, 2; do i = 0, 3
+    n = n + 1; w%block(1)%mesh(1,i,j,0) = 0.1_R8P*n + 1._R8P/3._R8P
+    n = n + 1; w%block(1)%mesh(2,i,j,0) = 0.1_R8P*n + 1._R8P/3._R8P
+  enddo; enddo
+  do j = 1, 2; do i = 1, 3
+    n = n + 1; w%block(1)%vars(1,i,j,1) = 0.1_R8P*n + 1._R8P/3._R8P
+    n = n + 1; w%block(1)%vars(2,i,j,1) = 0.1_R8P*n + 1._R8P/3._R8P
+  enddo; enddo
+  w%tec%node = .false.
+  w%tec%format = 'binary'
+  do f = 1, 2
+    w%tec%double = (f == 1)
+    err = tec_write_structured_multiblock(orion=w, varnames='a b', filename=files(f))
+    call check(err == 0, files(f)//': written without error')
+    if (allocated(r%block)) deallocate(r%block)
+    r%tec%format = 'binary'
+    err = tec_read_structured_multiblock(orion=r, filename=files(f))
+    call check(err == 0, files(f)//': read without error')
+    if (err /= 0) cycle
+    same = size(r%block) == 1
+    if (same) same = all(shape(r%block(1)%mesh) == shape(w%block(1)%mesh)) .and. &
+                     all(shape(r%block(1)%vars) == shape(w%block(1)%vars))
+    call check(same, files(f)//': the shape of the field')
+    if (.not.same) cycle
+    if (f == 1) then
+      call check(all(r%block(1)%mesh == w%block(1)%mesh) .and. all(r%block(1)%vars == w%block(1)%vars), &
+                 files(f)//': every real as written (64 bits)')
+    else
+      rounded = all(r%block(1)%mesh == real(real(w%block(1)%mesh, R4P), R8P)) .and. &
+                all(r%block(1)%vars == real(real(w%block(1)%vars, R4P), R8P))
+      other = any(r%block(1)%vars /= w%block(1)%vars)
+      call check(rounded .and. other, files(f)//': every real rounded to 32 bits')
+    endif
+  enddo
+  end subroutine precision_szplt
+#endif
 
   pure function hard_real(n) result(x)
   !---------------------------------------------------------------------------------------------------------------------------------

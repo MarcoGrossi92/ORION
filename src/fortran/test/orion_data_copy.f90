@@ -1,7 +1,7 @@
   program orion_data_copy
   !---------------------------------------------------------------------------------------------------------------------------------
-  !> Procedure for testing the type orion_data and its copy, copyORION. Each subroutine says what it checks, the defect it
-  !> closes and its basis. Exit status 0 when every check passes, 1 otherwise.
+  !> Procedure for testing the type orion_data, its default values and its copy, copyORION. Each subroutine says what it
+  !> checks, the defect it closes and its basis. Exit status 0 when every check passes, 1 otherwise.
   !---------------------------------------------------------------------------------------------------------------------------------
   use IR_Precision
   use Lib_ORION_data
@@ -9,6 +9,7 @@
   integer :: checks = 0, failures = 0
   !---------------------------------------------------------------------------------------------------------------------------------
 
+  call defaults
   call copy_every_member
 
   write(*,'(A,I0,A,I0,A)') 'orion_data_copy: ', checks, ' checks, ', failures, ' failed'
@@ -32,6 +33,26 @@
     write(*,'(A)') '  ok    '//message
   endif
   end subroutine check
+
+  subroutine defaults
+  !---------------------------------------------------------------------------------------------------------------------------------
+  !< A new orion_data: solutiontime 0 (the time of a field read from a file that holds none, such as a PLOT3D grid), strandid -1,
+  !< and the format options of their declarations.
+  !< Change of main checked (20e2b82): solutiontime is initialized to 0; before it, it had no initial value, and a field read
+  !< from a PLOT3D file had an undefined time.
+  !< Basis: Fortran 2018 (ISO/IEC 1539-1:2018, final draft J3/18-007r1), 7.5.4.6, paragraph 1 (p. 73): default initialization
+  !< gives "nonpointer nonallocatable components ... a particular value".
+  !---------------------------------------------------------------------------------------------------------------------------------
+  type(orion_data) :: d
+  !---------------------------------------------------------------------------------------------------------------------------------
+
+  call check(d%solutiontime == 0._R8P, 'defaults: solutiontime 0')
+  call check(d%strandid == -1, 'defaults: strandid -1')
+  call check(d%tec%extension == '.tec' .and. d%tec%format == 'binary' .and. .not.d%tec%node .and. .not.d%tec%bc .and. &
+             d%tec%double, 'defaults: the Tecplot options')
+  call check(d%vtk%format == 'binary' .and. .not.d%vtk%node, 'defaults: the VTK options')
+  call check(d%p3d%format == 'binary', 'defaults: the PLOT3D options')
+  end subroutine defaults
 
   subroutine copy_every_member
   !---------------------------------------------------------------------------------------------------------------------------------
