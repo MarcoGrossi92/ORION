@@ -292,6 +292,11 @@ Changes on `main` since `v1.6.0`.
   number of coordinates from block 1, so a block with fewer was read past the
   end of its `mesh`, and the file got the values that followed it in memory;
   a block with more lost the others.
+- `tec_write_structured_multiblock` with `Nvars = 0` gives the zone header of
+  an ASCII file the coordinates alone in `VARLOCATION`: the variables at the
+  cells got the range `[3-2]` (from the first variable after the coordinates
+  to the last one written, which came before it), a form that the ranges of
+  the Data Format Guide do not have.
 
 ## [1.7.0] - 2026-09-29
 

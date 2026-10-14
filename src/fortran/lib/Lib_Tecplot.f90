@@ -367,8 +367,9 @@ contains
         else
           write(tecvarform,'(A)')'('//trim(str(no_sign=.true.,n=3))//'('//FR_P//',1X))'
         endif
-        ! variables location
-        if (.not.meshonly) then
+        ! variables location: the coordinates alone when no variable is written (Nvars = 0), whose range of cell-centered
+        ! variables would be the reversed [ndir+1-ndir], a form that the ranges of the Data Format Guide do not have
+        if (.not.meshonly .and. Nvar > 0) then
           if (orion%tec%node) then
             tecvarlocstr = ', VARLOCATION=([1-'//trim(str(.true.,NvarTot))//']=NODAL)'
           else

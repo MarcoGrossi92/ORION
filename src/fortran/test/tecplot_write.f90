@@ -43,6 +43,7 @@ program tecplot_write_multiblock
   call mesh_only_counts
   call nvars_range
   call coordinates_per_block
+  call no_variables
   write(*,'(A,I0,A,I0,A)') 'tecplot_write: ', checks, ' checks, ', failures, ' failed'
   if (failures > 0) stop 1
 
@@ -1200,6 +1201,50 @@ program tecplot_write_multiblock
     enddo
   enddo
   end subroutine coordinates_per_block
+
+  subroutine no_variables
+  !---------------------------------------------------------------------------------------------------------------------------------
+  !< Nvars = 0 writes the coordinates alone: a two-dimensional field of one block of 2 x 1 cells with two variables at the
+  !< cells, written to an ASCII file with Nvars = 0 (and no varnames), gives 0, a zone header whose VARLOCATION names the two
+  !< coordinates only, ([1-2]=NODAL), and a file read back with the two coordinates and no variable.
+  !< Defect: the writer gave the variables at the cells the range [3-2] (VARLOCATION=([1-2]=NODAL,[3-2]=CELLCENTERED)), from
+  !< the first variable after the coordinates to the last one written, which comes before it.
+  !< Basis: Tecplot 360 EX 2023 R1 Data Format Guide, section 4-3.2: VARLOCATION=([set-of-vars]=<varlocation>, ...) (p. 124),
+  !< and the forms of a set of variables, such as [4-6,11] (p. 127), ranges from a variable to a later one.
+  !---------------------------------------------------------------------------------------------------------------------------------
+  type(orion_data)   :: w, r
+  integer            :: i, j, err, u, ios
+  character(len=512) :: line
+  !---------------------------------------------------------------------------------------------------------------------------------
+
+  allocate(w%block(1))
+  w%block(1)%name = 'B1'
+  w%block(1)%Ni = 2; w%block(1)%Nj = 1; w%block(1)%Nk = 0
+  allocate(w%block(1)%mesh(1:2,0:2,0:1,0:0), w%block(1)%vars(1:2,1:2,1:1,1:1))
+  do j = 0, 1; do i = 0, 2
+    w%block(1)%mesh(:,i,j,0) = [real(i, R8P), real(j, R8P)]
+  enddo; enddo
+  w%block(1)%vars = 1._R8P
+  w%tec%node = .false.
+  w%tec%format = 'ascii'
+  err = tec_write_structured_multiblock(orion=w, filename='no_variables.tec', Nvars=0)
+  call check(err == 0, 'no_variables.tec: written with 0')
+  line = ''
+  open(newunit=u, file='no_variables.tec', status='old', action='read', iostat=ios)
+  if (ios == 0) then
+    read(u,'(A)',iostat=ios) line
+    read(u,'(A)',iostat=ios) line
+    close(u)
+  endif
+  write(*,'(A)') 'no_variables.tec: '//trim(line)
+  call check(index(line, 'VARLOCATION=([1-2]=NODAL)') > 0 .and. index(line, 'CELLCENTERED') == 0, &
+             'no_variables.tec: the zone header locates the two coordinates only')
+  r%tec%format = 'ascii'
+  err = tec_read_structured_multiblock(orion=r, filename='no_variables.tec')
+  call check(err == 0, 'no_variables.tec: read back with 0')
+  if (err /= 0) return
+  call check(size(r%block(1)%mesh,1) == 2 .and. size(r%varnames) == 2, 'no_variables.tec: two coordinates and no variable')
+  end subroutine no_variables
 
   function itoa(n) result(s)
   !---------------------------------------------------------------------------------------------------------------------------------
