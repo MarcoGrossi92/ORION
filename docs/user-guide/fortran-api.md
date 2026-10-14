@@ -324,7 +324,9 @@ end program read_vtk_structured
   while the decimal numbers of n significant digits of a range [10^d, 10^(d+1)) are 10^(d-n+1) apart, at most
   x/10^(n-1). When 10^(n-1) > 2^53, that is n >= 17 (2^53 is about 9.0e15), the decimal numbers are closer
   together than the reals everywhere, so the decimal number of n digits nearest to a real is closer to it than to
-  any other real and reads back as that real. With 15 digits, as the writers used, `0.1 + 0.2` was written
+  any other real and reads back as that real. Sixteen digits are not enough: in [1, 2) the reals are 2^-52 (about
+  2.2e-16) apart and the decimal numbers of 16 digits 10^-15 apart, so 1, 1 + 2^-52 and 1 + 2^-51 are all written
+  `1.000000000000000` and read back as 1. With 15 digits, as the writers used, `0.1 + 0.2` was written
   `0.300000000000000E+000` and read back as `0.3`; with 17 it is `0.30000000000000004E+000`. Both conversions must
   round to the nearest value, while the input/output rounding mode of a file opened without `ROUND=`, and of an
   internal file, is processor dependent (Fortran 2018, ISO/IEC 1539-1:2018, final draft J3/18-007r1, 12.5.6.16,
