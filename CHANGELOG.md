@@ -275,6 +275,12 @@ Changes on `main` since `v1.6.0`.
   took it from any part of the name, so `cases.data/f.szplt` and
   `a.dat.szplt` went to the ASCII reader, and the writer wrote a `.plt` file
   under the name `a.plt.szplt`.
+- `tec_write_structured_multiblock` refuses, with a message and the return
+  value 1, an `Nvars` out of the variables that `vars` holds (0 to
+  `size(vars,1)`, 0 when block 1 has no `vars`), before writing anything: a
+  larger `Nvars` read past the end of `vars` (the file got the values that
+  followed it in memory), a negative one wrote past the end of an array of the
+  writer in a binary file.
 
 ## [1.7.0] - 2026-09-29
 

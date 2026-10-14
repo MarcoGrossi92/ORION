@@ -86,7 +86,9 @@ contains
   !> commas (double quotes count as blanks, so a name holds none of them), as many as the variables written (Nvars, or
   !> size(vars,1); none when block 1 has no vars): otherwise the function returns 1 and writes nothing
   !> \param[in] filename Output file name (must end with .dat, .tec, .plt, or .szplt)
-  !> \param[in] Nvars Number of variables to write (optional, default: all)
+  !> \param[in] Nvars Number of variables to write (optional, default: all), the first Nvars of vars: from 0 to size(vars,1),
+  !> 0 when block 1 has no vars (a write of the mesh only),
+  !> otherwise the function returns 1 and writes nothing
   !> \param[in] cycle Optional step number, written as the data set auxiliary data CYCLE
   !> \param[in] fldnames,fldvalues Optional names and values of real scalars, each written as data set auxiliary data with its
   !> name, as vtk_write_structured_multiblock writes them as field data. They go together and have the same size, and each
@@ -125,6 +127,7 @@ contains
     integer::                 FileType   = 0
     integer::                 fileFormat ! 0 == PLT, 1 == SZPLT
     integer::                 Nvar                !< Internal number of variables saved.
+    integer::                 nv1                 !< Number of the variables of block 1 (0 when it has no vars).
     integer::                 ndir                !< Internal number of dimensions.
     integer::                 Nblocks             !< Number of blocks.
     integer::                 b                   !< Counter.
@@ -161,6 +164,20 @@ contains
     elseif (.not.allocated(orion%block(1)%vars)) then
       meshonly = .true.
       Nvar = 0
+    endif
+    ! Nvars is a number of the variables that vars holds: the writer takes the first Nvars of them, and a larger Nvars read
+    ! past the end of vars, a negative one wrote past the end of the locations of the variables of a binary file (tecvarloc).
+    ! A block 1 without vars holds none, so Nvars is 0 there: another value was taken for a write of the mesh only
+    if (present(Nvars)) then
+      nv1 = 0
+      if (allocated(orion%block(1)%vars)) nv1 = size(orion%block(1)%vars,1)
+      if (Nvars < 0 .or. Nvars > nv1) then
+        write(stderr,'(A,I0,A,I0,A)') 'TECPLOT WRITE ERROR: Nvars = ', Nvars, ', not a number of the variables of vars (0 to ', &
+          nv1, '). Nothing is written.'
+        write(stderr,'(A)') 'File: '//trim(filename)
+        err = 1
+        return
+      endif
     endif
     ! The names given are as many as the variables written: TecIO takes the number of names (with the coordinates) as that of
     ! the values of each zone, and in a .plt file it writes the values beyond them past the end of its buffers. A write of the
