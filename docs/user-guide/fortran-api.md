@@ -153,7 +153,9 @@ E_IO = tec_read_structured_multiblock(filename='solution.szplt', orion=IOfield)
 A `.plt` file, which `tec_write_structured_multiblock` writes, is not read: the function returns 1, with a message,
 for a file name that holds none of the extensions `.dat`, `.tec` and `.szplt`. A `.szplt` file that TecIO opens and
 then cannot read, such as a damaged one, gives the nonzero status of the TecIO call that fails, with a message: the
-read ends there, and the blocks hold only what was read before it.
+read ends there, and the blocks hold only what was read before it. ORION reads ordered zones: a `.szplt` file with a
+finite-element zone (`FELINESEG` to `FEPOLYHEDRON`, Data Format Guide, TECZNE142) is refused with the return value 1 and a
+message that names the zone and its type, before any zone is read.
 
 !!! note "TecIO Requirement"
     Binary format support requires building with `--use-tecio` flag. Without TecIO, a call that reads or writes a binary

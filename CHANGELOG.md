@@ -264,6 +264,12 @@ Changes on `main` since `v1.6.0`.
   a `VARIABLES` line that did not match its values. The names may be separated
   by blanks, tabs or commas in every format: a comma made TecIO split the
   whole list at its commas, coordinate names included.
+- The `.szplt` reader refuses, with a message and the return value 1, a file
+  with a zone that is not ordered, a finite-element zone, and closes it, before
+  any zone is read: a `FEPOLYGON` or `FEPOLYHEDRON` zone stopped the program
+  with a `STOP` statement, so with the exit status 0, as a success, the file
+  left open; any other finite-element zone was read as an ordered zone, its
+  nodes, elements and corners taken for I, J and K, with the return value 0.
 
 ## [1.7.0] - 2026-09-29
 

@@ -14,6 +14,7 @@
 !< Files with fewer variables than the coordinates of their zones, refused (too_few_variables).
 !< A one-dimensional field whose first variables are named y (and z), read with the rule of the names (field_1d_named_y).
 !< A .szplt file that TecIO opens and then cannot read gives a nonzero return value (damaged_file).
+!< A file with a zone that is not ordered, a finite-element zone, is refused with the return value 1 (not_ordered_zones).
 !< Stops with a non-zero code when a check fails.
 program tecplot_read_szplt_plane_xyz
   use Lib_Tecplot
@@ -42,6 +43,7 @@ program tecplot_read_szplt_plane_xyz
   call too_few_variables()
   call field_1d_named_y()
   call damaged_file()
+  call not_ordered_zones()
   if (nfail > 0) then
     write(*,'(A,I0,A)') 'tecplot_read_szplt_plane_xyz: ', nfail, ' check(s) FAILED'
     error stop 1
@@ -1162,6 +1164,91 @@ contains
     write(*,'(A,I0)') 'damaged_header.szplt: return value ', err
     call check(err /= 0, 'damaged: the damaged file read with a nonzero return value')
   end subroutine damaged_file
+
+  ! A file with a zone that is not ordered is refused with the return value 1 and a message, and the file is closed: ORION
+  ! reads ordered zones only. A finite-element zone written by TecIO, FEQUADRILATERAL (one element of 4 nodes, x, y and a at
+  ! the nodes, with its node map), and three copies of a .szplt file of one ordered zone, polyzone, written by the ORION writer
+  ! (read with 0), with the type of the zone in the header of the file, the byte after the zone name and its separator
+  ! char(13), changed from o (ORDERED) to q (FEQUADRILATERAL), g (FEPOLYGON) and p (FEPOLYHEDRON), which the TecIO of this
+  ! repository does not write in a .szplt file (lib/TecIO/teciosrc/fileStuff.h: the characters of the zone types).
+  ! Defect: a FEPOLYGON or FEPOLYHEDRON zone stopped the program with a STOP statement, so with the exit status 0, as a
+  ! success, the file left open; any other finite-element zone was read as an ordered zone, with its nodes, elements and
+  ! corners as I, J and K: the FEQUADRILATERAL zone came back with the return value 0 and values that the file does not hold.
+  ! Basis: Tecplot 360 EX 2023 R1 Data Format Guide, TECZNE142 (p. 61): the zone types (0 ORDERED, 1 to 7 finite-element
+  ! zones) and, for a finite-element zone, IMax "the number of nodes" and JMax "the number of elements"; tecZoneGetIJK
+  ! (p. 166): "I, J, K extent of Specified Zone for ordered zones; number of points and elements for FE zones".
+  ! Fortran 2018 (ISO/IEC 1539-1:2018, final draft J3/18-007r1), 11.4, paragraph 2 (p. 197): the recommended exit status of
+  ! a STOP statement with a character stop code is zero.
+  subroutine not_ordered_zones()
+    type(orion_data) :: w, d
+    integer, external :: tecini142, teczne142, tecdatd142, tecnod142, tecend142
+    character(len=1), parameter :: z0 = achar(0)
+    character(len=1), parameter :: types(3) = ['q', 'g', 'p']
+    character(len=*), parameter :: names(3) = ['FEQUADRILATERAL', 'FEPOLYGON      ', 'FEPOLYHEDRON   ']
+    integer :: st(7), nul(3), loc(3), i, j, t, err
+    real(8) :: x(4), y(4), a(4)
+    ! The finite-element zone written by TecIO
+    x = [0d0, 1d0, 1d0, 0d0]; y = [0d0, 0d0, 1d0, 1d0]; a = [5d0, 6d0, 7d0, 8d0]; nul = 0; loc = 1
+    st(1) = tecini142('test'//z0, 'x y a'//z0, 'fe_quad.szplt'//z0, '.'//z0, 1, 0, 0, 1)
+    st(2) = teczne142('quad'//z0, 3, 4, 1, 0, 0, 0, 0, 0.0d0, 0, 0, 1, 0, 0, 0, 0, 0, nul, loc, nul, 0)
+    st(3) = tecdatd142(4, x); st(4) = tecdatd142(4, y); st(5) = tecdatd142(4, a)
+    st(6) = tecnod142([1, 2, 3, 4])
+    st(7) = tecend142()
+    call check(all(st == 0), 'not ordered: fe_quad.szplt, a FEQUADRILATERAL zone, written by TecIO')
+    d%tec%format = 'binary'
+    err = tec_read_structured_multiblock(orion=d, filename='fe_quad.szplt')
+    write(*,'(A,I0)') 'fe_quad.szplt: return value ', err
+    call check(err == 1, 'not ordered: fe_quad.szplt refused with the return value 1')
+    ! The ordered zone and its copies
+    allocate(w%block(1))
+    w%block(1)%name = 'polyzone'
+    w%block(1)%Ni = 2; w%block(1)%Nj = 1; w%block(1)%Nk = 0
+    allocate(w%block(1)%mesh(1:2,0:2,0:1,0:0), w%block(1)%vars(1:1,1:2,1:1,1:1))
+    do j = 0, 1; do i = 0, 2
+      w%block(1)%mesh(1,i,j,0) = real(i,8); w%block(1)%mesh(2,i,j,0) = real(j,8)
+    enddo; enddo
+    w%block(1)%vars(1,:,1,1) = [1.0d0, 2.0d0]
+    w%tec%format = 'binary'
+    err = tec_write_structured_multiblock(orion=w, varnames='a', filename='zone_ordered.szplt')
+    call check(err == 0, 'not ordered: zone_ordered.szplt, one ordered zone, written')
+    if (allocated(d%block)) deallocate(d%block)
+    err = tec_read_structured_multiblock(orion=d, filename='zone_ordered.szplt')
+    call check(err == 0, 'not ordered: zone_ordered.szplt read with the return value 0')
+    do t = 1, 3
+      if (.not.retyped('zone_ordered.szplt', 'zone_'//types(t)//'.szplt', 'polyzone', types(t))) then
+        call check(.false., 'not ordered: zone_'//types(t)//'.szplt made (the zone type found in the header)')
+        cycle
+      endif
+      if (allocated(d%block)) deallocate(d%block)
+      err = tec_read_structured_multiblock(orion=d, filename='zone_'//types(t)//'.szplt')
+      write(*,'(A,I0)') 'zone_'//types(t)//'.szplt: return value ', err
+      call check(err == 1, 'not ordered: zone_'//types(t)//'.szplt, a '//trim(names(t))//' zone, refused with the return value 1')
+    enddo
+  end subroutine not_ordered_zones
+
+  ! Copy the .szplt file src to dst with the type of its zone named zname changed to the character t: the byte after the zone
+  ! name and the separator char(13) in the header, o for an ordered zone (lib/TecIO/teciosrc/fileStuff.h). False when the name
+  ! and the byte o are not found once.
+  logical function retyped(src, dst, zname, t)
+    character(len=*), intent(in) :: src, dst, zname
+    character(len=1), intent(in) :: t
+    character(len=:), allocatable :: bytes
+    integer :: u, sz, k
+    retyped = .false.
+    inquire(file=src, size=sz)
+    if (sz <= 0) return
+    allocate(character(len=sz) :: bytes)
+    open(newunit=u, file=src, access='stream', form='unformatted', status='old', action='read')
+    read(u) bytes
+    close(u)
+    k = index(bytes, zname//achar(13)//'o')
+    if (k == 0 .or. index(bytes, zname//achar(13)//'o', back=.true.) /= k) return
+    bytes(k+len(zname)+1:k+len(zname)+1) = t
+    open(newunit=u, file=dst, access='stream', form='unformatted', status='replace', action='write')
+    write(u) bytes
+    close(u)
+    retyped = .true.
+  end function retyped
 
   ! The number of names in names, separated by blanks.
   pure integer function count_names(names)

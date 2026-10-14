@@ -10,8 +10,9 @@
   !> quarter, exact in every format. The same block with its two variables at the nodes, converted from an ASCII Tecplot file to
   !> a .vtm file, must be read back with its variables at the nodes. An input that the converter cannot read must end it with a
   !> nonzero exit status. Then a binary Tecplot file (binary_files): with TecIO the converter writes the input to a .szplt file
-  !> and converts that file to a .vtm one, as above; without TecIO it must end with a nonzero exit status. Exit status 0 when
-  !> every check passes, 1 otherwise.
+  !> and converts that file to a .vtm one, as above, and a .szplt file with a FEPOLYGON zone, which ORION does not read, must
+  !> end it with a nonzero exit status; without TecIO it must end with a nonzero exit status. Exit status 0 when every check
+  !> passes, 1 otherwise.
   !---------------------------------------------------------------------------------------------------------------------------------
   use IR_Precision
   use Lib_ORION_data
@@ -230,8 +231,12 @@
   !< to converter_out.szplt, ending without error, and converts that file to a .vtm file, which reads back as the input.
   !< Without TecIO the converter asked to write a .szplt file, or to read one, must end with a nonzero exit status and the
   !< message of the library.
+  !< With TecIO, a .szplt file of one zone that is not ordered, a FEPOLYGON zone (a file of one ordered zone written by the
+  !< Tecplot library, with the type of the zone in its header changed, as tecplot_read_szplt_plane_xyz makes it), must end
+  !< the converter with a nonzero exit status, the message of the library and no output file.
   !< Defect: without TecIO the Tecplot library stopped the program with a STOP statement, normal termination, so the converter
-  !< ended with exit status 0 having written nothing, and a script or a test that ran it took it for a success.
+  !< ended with exit status 0 having written nothing, and a script or a test that ran it took it for a success; the .szplt
+  !< reader did the same for a FEPOLYGON or FEPOLYHEDRON zone.
   !< Basis: Fortran 2018 (ISO/IEC 1539-1:2018, final draft J3/18-007r1), 11.4, paragraph 2 (p. 197): the recommended exit
   !< status is zero for a STOP statement with a character stop code and a processor-dependent nonzero value for an ERROR STOP
   !< statement with one.
@@ -247,6 +252,7 @@
   inquire(file='converter_out.szplt', exist=exists)
   call check(exists, 'binary output: the .szplt file is written')
   if (exists) call convert('converter_from_szplt/', 'field', 'binary input', infile='converter_out.szplt')
+  call not_ordered_input
 #else
   call execute_command_line("'"//converter//"' --in-file=converter_in.tec --out-file=converter_out.szplt > "// &
                             'converter_szplt_log.txt 2>&1', exitstat=exitstat, cmdstat=cmdstat)
@@ -262,4 +268,58 @@
              'binary input without TecIO: the message of the library')
 #endif
   end subroutine binary_files
+
+#ifdef TECIO
+  subroutine not_ordered_input
+  !---------------------------------------------------------------------------------------------------------------------------------
+  !< The converter on a .szplt file with a FEPOLYGON zone: a nonzero exit status, the message of the library, no output file.
+  !< The file is a copy of a .szplt file of one ordered zone, polyzone, written by the Tecplot library, with the type of the
+  !< zone, the byte after the zone name and the separator char(13) in the header of the file, changed from o (ORDERED) to g
+  !< (FEPOLYGON), the characters of lib/TecIO/teciosrc/fileStuff.h.
+  !---------------------------------------------------------------------------------------------------------------------------------
+  type(orion_data)              :: p
+  integer                       :: i, j, u, sz, k, exitstat, cmdstat
+  logical                       :: exists
+  character(len=:), allocatable :: bytes
+  !---------------------------------------------------------------------------------------------------------------------------------
+
+  allocate(p%block(1))
+  p%block(1)%name = 'polyzone'
+  p%block(1)%Ni = 2; p%block(1)%Nj = 1; p%block(1)%Nk = 0
+  allocate(p%block(1)%mesh(1:2,0:2,0:1,0:0), p%block(1)%vars(1:1,1:2,1:1,1:1))
+  do j = 0, 1; do i = 0, 2
+    p%block(1)%mesh(:,i,j,0) = [real(i, R8P), real(j, R8P)]
+  enddo; enddo
+  p%block(1)%vars(1,:,1,1) = [1._R8P, 2._R8P]
+  p%tec%node = .false.
+  p%tec%format = 'binary'
+  call check(tec_write_structured_multiblock(orion=p, varnames='a', filename='converter_ordered.szplt') == 0, &
+             'not ordered: the file of one ordered zone written')
+  inquire(file='converter_ordered.szplt', size=sz)
+  call check(sz > 0, 'not ordered: the file of one ordered zone is there')
+  if (sz <= 0) return
+  allocate(character(len=sz) :: bytes)
+  open(newunit=u, file='converter_ordered.szplt', access='stream', form='unformatted', status='old', action='read')
+  read(u) bytes
+  close(u)
+  k = index(bytes, 'polyzone'//achar(13)//'o')
+  call check(k > 0 .and. index(bytes, 'polyzone'//achar(13)//'o', back=.true.) == k, &
+             'not ordered: the type of the zone found once in the header')
+  if (k == 0) return
+  bytes(k+9:k+9) = 'g'
+  open(newunit=u, file='converter_polygon.szplt', access='stream', form='unformatted', status='replace', action='write')
+  write(u) bytes
+  close(u)
+  call execute_command_line('mkdir -p converter_errors && rm -f converter_errors/polygon.vtm', exitstat=exitstat, &
+                            cmdstat=cmdstat)
+  call check(cmdstat == 0 .and. exitstat == 0, 'not ordered: directory made')
+  call execute_command_line("'"//converter//"' --in-file=converter_polygon.szplt --out-file=converter_errors/polygon.vtm > "// &
+                            'converter_polygon_log.txt 2>&1', exitstat=exitstat, cmdstat=cmdstat)
+  call check(cmdstat == 0 .and. exitstat /= 0, 'not ordered: a FEPOLYGON zone ends the converter with a nonzero exit status')
+  call check(log_holds('converter_polygon_log.txt', 'FEPOLYGON zone; ORION reads ordered zones only') .and. &
+             log_holds('converter_polygon_log.txt', 'ERROR read Tecplot file'), 'not ordered: the messages of the library and the converter')
+  inquire(file='converter_errors/polygon.vtm', exist=exists)
+  call check(.not.exists, 'not ordered: no output file')
+  end subroutine not_ordered_input
+#endif
   endprogram converter_app

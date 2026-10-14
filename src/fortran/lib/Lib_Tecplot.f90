@@ -2119,6 +2119,9 @@ contains
     integer(c_int32_t) :: vstart
     integer(c_int32_t) :: inputZone, numZones
     integer(c_int32_t) :: zoneType
+    ! The finite-element zone types of TECZNE142, 1 to 7 (Tecplot 360 EX 2023 R1 Data Format Guide, p. 61; 0 is ORDERED)
+    character(len=15), parameter :: fe_type(7) = [character(len=15) :: 'FELINESEG', 'FETRIANGLE', 'FEQUADRILATERAL', &
+                                                  'FETETRAHEDRON', 'FEBRICK', 'FEPOLYGON', 'FEPOLYHEDRON']
     integer(c_int32_t) :: strandID
     integer(c_int32_t), allocatable :: int32Values(:)
     integer(c_int64_t) :: numValues
@@ -2215,6 +2218,25 @@ contains
 
     if (failed(tecFileGetType(inputFileHandle, fileType), 'tecFileGetType')) return
     if (failed(tecDataSetGetNumZones(inputFileHandle, numZones), 'tecDataSetGetNumZones')) return
+
+    ! ORION reads ordered zones only: a finite-element zone has its nodes, elements and faces where an ordered zone has the
+    ! nodes in I, J and K (TECZNE142, p. 61; tecZoneGetIJK, p. 166), so a file with one is refused, with a message, before
+    ! any zone is read
+    do inputZone = 1, numZones
+      if (failed(tecZoneGetType(inputFileHandle, inputZone, zoneType), 'tecZoneGetType')) return
+      if (zoneType == 0) cycle
+      if (zoneType >= 1 .and. zoneType <= 7) then
+        write(stderr,'(A,I0,A)') 'TECPLOT SZPLT READ ERROR: zone ', inputZone, ' is a '//trim(fe_type(zoneType))// &
+          ' zone; ORION reads ordered zones only.'
+      else
+        write(stderr,'(A,I0,A,I0,A)') 'TECPLOT SZPLT READ ERROR: zone ', inputZone, ' is of zone type ', zoneType, &
+          '; ORION reads ordered zones only.'
+      endif
+      write(stderr,'(A)') 'File: '//trim(filename)
+      i = tecFileReaderClose(inputFileHandle)
+      err = 1
+      return
+    enddo
 
     ! The data set auxiliary data: CYCLE and the named scalars asked for. TecIO hands over the name and the value of an item
     ! as strings it allocates, through pointers that must point to NULL when it is called (it refuses the item otherwise), and
@@ -2338,10 +2360,6 @@ contains
           if (inputZone <= size(zone_mask)) want_data = zone_mask(inputZone)
         endif
 
-        if (failed(tecZoneGetType(inputFileHandle, inputZone, zoneType), 'tecZoneGetType')) return
-        if (zoneType == 6 .or. zoneType == 7) &
-            stop "Unsupported inputZone type."
-          
         ! Retrieve info about the inputZone
         if (failed(tecZoneGetTitle(inputFileHandle, inputZone, stringCPtr), 'tecZoneGetTitle')) return
         call copyCharArrayToString(stringCPtr, &
