@@ -42,6 +42,7 @@ program tecplot_write_multiblock
   call names_count
   call mesh_only_counts
   call nvars_range
+  call coordinates_per_block
   write(*,'(A,I0,A,I0,A)') 'tecplot_write: ', checks, ' checks, ', failures, ' failed'
   if (failures > 0) stop 1
 
@@ -1148,6 +1149,57 @@ program tecplot_write_multiblock
                'return value 1, no file written')
   enddo
   end subroutine nvars_range
+
+  subroutine coordinates_per_block
+  !---------------------------------------------------------------------------------------------------------------------------------
+  !< Every block holds the coordinates of block 1: a field of two blocks of 2 x 1 cells with two variables at the cells, block 1
+  !< with three coordinates (x, y and z = 0) and block 2 with two (mesh(1:2,...)), gives the return value 1 and no file, in an
+  !< ASCII file and, with TecIO, in a .szplt file; so does the field with the coordinates the other way round (block 1 with
+  !< two, block 2 with three), in an ASCII file.
+  !< Defect: the writer took the number of coordinates from block 1 and wrote mesh(1:ndir,...) of every block: block 2, of two
+  !< coordinates, was read past the end of its mesh for the third, in the ASCII and in the .szplt file, with the return value
+  !< 0 (a build with bounds checks stops there); the other way round, the third coordinate of block 2 was left out, with 0.
+  !< Basis: Fortran 2018 (ISO/IEC 1539-1:2018, final draft J3/18-007r1), 9.5.3.1 (p. 128): a subscript within the bounds of its
+  !< dimension.
+  !---------------------------------------------------------------------------------------------------------------------------------
+  type(orion_data)              :: w
+  integer                       :: i, j, err, f, k
+  character(len=:), allocatable :: name
+#ifdef TECIO
+  character(len=*), parameter   :: exts(2) = ['.tec  ', '.szplt']
+#else
+  character(len=*), parameter   :: exts(1) = ['.tec  ']
+#endif
+  !---------------------------------------------------------------------------------------------------------------------------------
+
+  do k = 1, 2
+    if (allocated(w%block)) deallocate(w%block)
+    allocate(w%block(2))
+    w%block(1)%name = 'B1'; w%block(2)%name = 'B2'
+    w%block(1)%Ni = 2; w%block(1)%Nj = 1; w%block(1)%Nk = 0
+    w%block(2)%Ni = 2; w%block(2)%Nj = 1; w%block(2)%Nk = 0
+    ! k = 1: block 1 with three coordinates, block 2 with two; k = 2: the other way round
+    allocate(w%block(1)%mesh(1:merge(3, 2, k == 1),0:2,0:1,0:0), w%block(2)%mesh(1:merge(2, 3, k == 1),0:2,0:1,0:0))
+    w%block(1)%mesh = 0._R8P; w%block(2)%mesh = 0._R8P
+    do j = 0, 1; do i = 0, 2
+      w%block(1)%mesh(1:2,i,j,0) = [real(i, R8P), real(j, R8P)]
+      w%block(2)%mesh(1:2,i,j,0) = [real(i + 10, R8P), real(j, R8P)]
+    enddo; enddo
+    allocate(w%block(1)%vars(1:2,1:2,1:1,1:1), w%block(2)%vars(1:2,1:2,1:1,1:1))
+    w%block(1)%vars = 1._R8P; w%block(2)%vars = 2._R8P
+    w%tec%node = .false.
+    do f = 1, merge(size(exts), 1, k == 1)
+      w%tec%format = merge('ascii ', 'binary', f == 1)
+      name = 'coordinates_'//trim(itoa(k))//trim(exts(f))
+      call remove_file(name)
+      err = tec_write_structured_multiblock(orion=w, varnames='a b', filename=name)
+      write(*,'(A,I0)') name//' (block 1 with '//trim(itoa(size(w%block(1)%mesh,1)))//' coordinates, block 2 with '// &
+                        trim(itoa(size(w%block(2)%mesh,1)))//'): return value ', err
+      call check(err == 1 .and. .not.exists_file(name), name//': a block with another number of coordinates than block 1 '// &
+                 'refused with the return value 1, no file written')
+    enddo
+  enddo
+  end subroutine coordinates_per_block
 
   function itoa(n) result(s)
   !---------------------------------------------------------------------------------------------------------------------------------

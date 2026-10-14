@@ -286,6 +286,12 @@ Changes on `main` since `v1.6.0`.
   than those written (those of block 1, or `Nvars`), before writing anything:
   such a block was read past the end of its `vars`, and the file got the
   values that followed it in memory.
+- `tec_write_structured_multiblock` refuses, with a message that names the
+  block and the return value 1, a block whose `mesh` holds another number of
+  coordinates than block 1, before writing anything: the writer took the
+  number of coordinates from block 1, so a block with fewer was read past the
+  end of its `mesh`, and the file got the values that followed it in memory;
+  a block with more lost the others.
 
 ## [1.7.0] - 2026-09-29
 

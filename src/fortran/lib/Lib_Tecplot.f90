@@ -133,6 +133,7 @@ contains
     integer::                 Nblocks             !< Number of blocks.
     integer::                 b                   !< Counter.
     integer::                 nvb                 !< Number of the variables of a block.
+    integer::                 ncb                 !< Number of the coordinates of a block.
     integer::                 NvarTot
     integer::                 gc
     real(R8P)::               time_
@@ -196,6 +197,19 @@ contains
         endif
       enddo
     endif
+    ! Every block holds the coordinates of block 1: the writer takes their number from block 1 and writes mesh(1:ndir,...) of
+    ! each block, so a block with fewer coordinates was read past the end of its mesh, and one with more lost the others
+    do b = 2, size(orion%block)
+      ncb = 0
+      if (allocated(orion%block(b)%mesh)) ncb = size(orion%block(b)%mesh,1)
+      if (ncb /= size(orion%block(1)%mesh,1)) then
+        write(stderr,'(A,I0,A,I0,A,I0,A)') 'TECPLOT WRITE ERROR: block ', b, ': number of coordinates in mesh: ', ncb, &
+          '; number of coordinates written: ', size(orion%block(1)%mesh,1), '. Nothing is written.'
+        write(stderr,'(A)') 'File: '//trim(filename)
+        err = 1
+        return
+      endif
+    enddo
     ! The names given are as many as the variables written: TecIO takes the number of names (with the coordinates) as that of
     ! the values of each zone, and in a .plt file it writes the values beyond them past the end of its buffers. A write of the
     ! mesh only writes no variable (Nvar is 0): names given to it were left out

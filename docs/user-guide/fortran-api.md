@@ -364,7 +364,8 @@ end program read_vtk_structured
   from 0 to `size(vars,1)`, 0 when block 1 has no `vars` (the first `Nvars` variables are
   written); another value gives the return value 1, with a message, and no file is written. Every block holds the variables
   written: a block whose `vars` holds fewer of them than block 1 (or than `Nvars`) gives the return value 1, with a message
-  that names the block, and no file is written.
+  that names the block, and no file is written. Every block holds the coordinates of block 1: a block whose `mesh` holds
+  another number of coordinates gives the return value 1, with a message that names the block, and no file is written.
 - **Forms of the names.** The ASCII reader takes the names from the `VARIABLES` line and its continuation lines,
   up to the first `ZONE` record: the keyword `ZONE` as a whole word, so a name that merely begins with it (such
   as `zone_velocity`) is a name. Each name may be in double quotes, in single quotes or bare, and the forms may
