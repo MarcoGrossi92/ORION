@@ -91,6 +91,11 @@ Changes on `main` since `v1.6.0`.
   `E25.17E3` instead of `E23.15E3`), the fewest that give it back bit for bit
   when the file is read: every text file changes, each real taking two
   characters more, and `str` of a 64-bit real gives 17 digits.
+- The Tecplot reader takes the format from the extension of the file name
+  only: a name that holds `.dat` or `.tec` elsewhere, such as `grid.data`,
+  `mesh.tecplot` or `field.tec.bak`, which it read as an ASCII file, is
+  refused with the return value 1 and a message; rename such files with the
+  extension `.dat` or `.tec`. The ASCII writer writes a file under any name.
 
 ### Fixed
 
