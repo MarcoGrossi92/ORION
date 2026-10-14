@@ -253,6 +253,7 @@
   call check(exists, 'binary output: the .szplt file is written')
   if (exists) call convert('converter_from_szplt/', 'field', 'binary input', infile='converter_out.szplt')
   call not_ordered_input
+  call missing_input
 #else
   call execute_command_line("'"//converter//"' --in-file=converter_in.tec --out-file=converter_out.szplt > "// &
                             'converter_szplt_log.txt 2>&1', exitstat=exitstat, cmdstat=cmdstat)
@@ -321,5 +322,27 @@
   inquire(file='converter_errors/polygon.vtm', exist=exists)
   call check(.not.exists, 'not ordered: no output file')
   end subroutine not_ordered_input
+
+  subroutine missing_input
+  !---------------------------------------------------------------------------------------------------------------------------------
+  !< The converter on a .szplt file that is not there: a nonzero exit status, the message of the library, which names the TecIO
+  !< call that fails and the file, and the message of the converter.
+  !< Defect: the .szplt reader returned the status of tecFileReaderOpen without a message of its own (TecIO printed its own),
+  !< while it gives one for every other TecIO call that fails.
+  !---------------------------------------------------------------------------------------------------------------------------------
+  integer :: exitstat, cmdstat
+  logical :: exists
+  !---------------------------------------------------------------------------------------------------------------------------------
+
+  inquire(file='converter_missing.szplt', exist=exists)
+  call check(.not.exists, 'missing input: no file converter_missing.szplt')
+  call execute_command_line("'"//converter//"' --in-file=converter_missing.szplt --out-file=converter_errors/missing.vtm > "// &
+                            'converter_missing_log.txt 2>&1', exitstat=exitstat, cmdstat=cmdstat)
+  call check(cmdstat == 0 .and. exitstat /= 0, 'missing input: the converter ends with a nonzero exit status')
+  call check(log_holds('converter_missing_log.txt', 'TECPLOT SZPLT READ ERROR: tecFileReaderOpen failed') .and. &
+             log_holds('converter_missing_log.txt', 'File: converter_missing.szplt') .and. &
+             log_holds('converter_missing_log.txt', 'ERROR read Tecplot file'), &
+             'missing input: the messages of the library, with the call and the file, and of the converter')
+  end subroutine missing_input
 #endif
   endprogram converter_app

@@ -302,6 +302,9 @@ Changes on `main` since `v1.6.0`.
   cells got the range `[3-2]` (from the first variable after the coordinates
   to the last one written, which came before it), a form that the ranges of
   the Data Format Guide do not have.
+- The `.szplt` reader gives its message, with the call and the file, also when
+  TecIO cannot open the file (`tecFileReaderOpen`), as for the other calls: it
+  returned the status with the messages of TecIO only.
 
 ## [1.7.0] - 2026-09-29
 

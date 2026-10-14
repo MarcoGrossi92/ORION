@@ -2238,10 +2238,14 @@ contains
 
     inputFileName = trim(filename) // C_NULL_CHAR
 
-    ! Open the input file for reading
+    ! Open the input file for reading: a file that TecIO cannot open, such as one that is not there or not a .szplt file,
+    ! gives the status of the call with the message of the reader, as the calls that follow (no file to close)
     err = tecFileReaderOpen(inputFileName, inputFileHandle)
-
-    if (err/=0) return
+    if (err/=0) then
+      write(stderr,'(A,I0,A)') 'TECPLOT SZPLT READ ERROR: tecFileReaderOpen failed (status ', err, ').'
+      write(stderr,'(A)') 'File: '//trim(filename)
+      return
+    endif
 
     ! Read info about the data set
     if (failed(tecDataSetGetTitle(inputFileHandle, stringCPtr), 'tecDataSetGetTitle')) return
