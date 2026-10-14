@@ -32,6 +32,7 @@ program tecplot_write_multiblock
 #ifdef TECIO
   call surface_blocks
   call precision_szplt
+  call binary_name
 #endif
   call variable_bounds
   call ascii_title_round_trip
@@ -808,6 +809,43 @@ program tecplot_write_multiblock
     endif
   enddo
   end subroutine precision_szplt
+
+  subroutine binary_name
+  !---------------------------------------------------------------------------------------------------------------------------------
+  !< A binary Tecplot file is a .plt or a .szplt file: a two-dimensional field of one block of 2 x 1 cells with one variable at
+  !< the cells, asked for in the binary format under the name tecfile.bin, gives the return value 1 and no file.
+  !< Defect: the writer printed its message and returned without giving its result a value: the value returned was undefined
+  !< (-77 in a build where an integer without a value is -77), as that of the reader for a name without the extensions it reads.
+  !< Basis: Fortran 2018 (ISO/IEC 1539-1:2018, final draft J3/18-007r1), 15.6.2.2, paragraph 4 (p. 319): "If the function
+  !< result is not a pointer, its value shall be defined by the function".
+  !---------------------------------------------------------------------------------------------------------------------------------
+  type(orion_data) :: w
+  integer          :: i, j, err, u
+  logical          :: exists
+  !---------------------------------------------------------------------------------------------------------------------------------
+
+  allocate(w%block(1))
+  w%block(1)%name = 'B1'
+  w%block(1)%Ni = 2; w%block(1)%Nj = 1; w%block(1)%Nk = 0
+  allocate(w%block(1)%mesh(1:2,0:2,0:1,0:0), w%block(1)%vars(1:1,1:2,1:1,1:1))
+  do j = 0, 1; do i = 0, 2
+    w%block(1)%mesh(:,i,j,0) = [real(i, R8P), real(j, R8P)]
+  enddo; enddo
+  w%block(1)%vars(1,:,1,1) = [1._R8P, 2._R8P]
+  w%tec%node = .false.
+  w%tec%format = 'binary'
+  ! No file of that name from an earlier run, so that the check measures this write
+  inquire(file='tecfile.bin', exist=exists)
+  if (exists) then
+    open(newunit=u, file='tecfile.bin', status='old')
+    close(u, status='delete')
+  endif
+  err = tec_write_structured_multiblock(orion=w, varnames='a', filename='tecfile.bin')
+  write(*,'(A,I0)') 'tecfile.bin: return value ', err
+  call check(err == 1, 'tecfile.bin: a binary file name without .plt or .szplt refused with the return value 1')
+  inquire(file='tecfile.bin', exist=exists)
+  call check(.not.exists, 'tecfile.bin: no file written')
+  end subroutine binary_name
 #endif
 
   pure function hard_real(n) result(x)

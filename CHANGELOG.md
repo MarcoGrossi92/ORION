@@ -247,6 +247,9 @@ Changes on `main` since `v1.6.0`.
   first TecIO call that fails, and ends the read there: it returned the status
   of the call that closes the file, so a file that TecIO opens and then cannot
   read, such as a damaged one, came back with the return value 0.
+- `tec_write_structured_multiblock` asked for a binary file whose name holds
+  neither `.plt` nor `.szplt` returns 1, with its message, and writes no file:
+  the value it returned was undefined.
 
 ## [1.7.0] - 2026-09-29
 

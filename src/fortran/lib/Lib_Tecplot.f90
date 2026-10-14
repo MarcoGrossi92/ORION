@@ -90,7 +90,7 @@ contains
   !> name, as vtk_write_structured_multiblock writes them as field data. They go together and have the same size, and each
   !> name must be one that an auxiliary data item can hold (aux_names_valid): otherwise the function returns 1 and writes
   !> nothing
-  !> \return err Error code (0 if successful)
+  !> \return err Error code (0 if successful; 1 for a binary file name that holds neither .plt nor .szplt)
   function tec_write_structured_multiblock(orion,varnames,filename,Nvars,cycle,fldnames,fldvalues) result(err)
     implicit none
     type(orion_data), intent(in)              :: orion
@@ -181,8 +181,10 @@ contains
       elseif (index(filename,'.szplt')>0) then
         fileFormat = 1
       else
+        ! A name that holds neither .plt nor .szplt is refused, with the return value 1, before a file is opened
         write(stderr,'(A)')'File name to be written = "'//trim(filename)//'"'
         write(stderr,'(A)')'Tecplot binary file must end with ".plt" or ".szplt"'
+        err = 1
         return
       endif
       err = tecini142(tecendrec,trim(tecvarname)//tecendrec,trim(filename)//tecendrec,'.'//tecendrec,fileFormat,FileType,Debug,VIsDouble)

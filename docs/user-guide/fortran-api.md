@@ -455,7 +455,8 @@ E_IO = tec_write_structured_multiblock( &
 ```
 
 Without TecIO the binary writer stops the program with error termination and a nonzero exit status, as the reader does
-(see the TecIO note under Reading Data).
+(see the TecIO note under Reading Data). A binary file is a `.plt` or a `.szplt` file, as the name says: a name that holds
+neither gives the return value 1, with a message, and no file is written.
 
 ### Format Options
 
