@@ -92,8 +92,8 @@ contains
   !> name, as vtk_write_structured_multiblock writes them as field data. They go together and have the same size, and each
   !> name must be one that an auxiliary data item can hold (aux_names_valid): otherwise the function returns 1 and writes
   !> nothing
-  !> \return err Error code (0 if successful; 1 for a binary file name that holds neither .plt nor .szplt; for a binary
-  !> file, the nonzero status of the first TecIO call that fails, which ends the write and closes the file)
+  !> \return err Error code (0 if successful; 1 for a binary file name whose extension is neither .plt nor .szplt; for a
+  !> binary file, the nonzero status of the first TecIO call that fails, which ends the write and closes the file)
   function tec_write_structured_multiblock(orion,varnames,filename,Nvars,cycle,fldnames,fldvalues) result(err)
     implicit none
     type(orion_data), intent(in)              :: orion
@@ -191,17 +191,19 @@ contains
     select case(orion%tec%format)
     case('binary')
 #   if defined(TECIO)
-      if (index(filename,'.plt')>0) then
+      ! The format is that of the extension of the name (file_extension)
+      select case(file_extension(filename))
+      case('plt')
         fileFormat = 0
-      elseif (index(filename,'.szplt')>0) then
+      case('szplt')
         fileFormat = 1
-      else
-        ! A name that holds neither .plt nor .szplt is refused, with the return value 1, before a file is opened
+      case default
+        ! A name whose extension is neither .plt nor .szplt is refused, with the return value 1, before a file is opened
         write(stderr,'(A)')'File name to be written = "'//trim(filename)//'"'
         write(stderr,'(A)')'Tecplot binary file must end with ".plt" or ".szplt"'
         err = 1
         return
-      endif
+      end select
       ! Each TecIO call is checked: the first that fails ends the write (tec_failed)
       err = tecini142(tecendrec,trim(tecvarname)//tecendrec,trim(filename)//tecendrec,'.'//tecendrec,fileFormat,FileType,Debug,VIsDouble)
       if (tec_failed(err, 'tecini142', close_file=.false.)) return
@@ -695,22 +697,24 @@ contains
     if (present(fldvalues)) fldvalues = 0._R8P
     if (present(fldfound)) fldfound = .false.
 
-    if (index(filename,'.dat')>0 .or. index(filename,'.tec')>0) then
+    ! The format is that of the extension of the name (file_extension)
+    select case(file_extension(filename))
+    case('dat', 'tec')
       err = tec_read_ascii(orion,filename,cycle,fldnames,fldvalues,fldfound)
-    elseif (index(filename,'.szplt')>0) then
+    case('szplt')
 #     if defined(TECIO)
       err = tec_read_szplt(orion,filename,zone_mask,dims_only,cycle,fldnames,fldvalues,fldfound)
 #     else
       ! Error termination: a program that asks for a binary file without TecIO ends with a nonzero exit status
       error stop "You can not read in binary format without compiling against TecIO"
 #     endif
-    else
-      ! A name with none of the extensions read, such as that of a .plt file (which the writer writes), is refused: the
+    case default
+      ! A name whose extension is none of those read, such as that of a .plt file (which the writer writes), is refused: the
       ! function result is defined on every path
-      write(stderr,'(A)') 'TECPLOT READ ERROR: '//trim(filename)//': the name holds none of the extensions .dat, .tec and'// &
+      write(stderr,'(A)') 'TECPLOT READ ERROR: '//trim(filename)//': the extension of the name is none of .dat, .tec and'// &
         ' .szplt (.plt files are not read).'
       err = 1
-    endif
+    end select
 
   end function tec_read_structured_multiblock
 
@@ -1652,6 +1656,23 @@ contains
       endif
     endif
   endfunction zone_title
+
+  ! The extension of a file name, by which the Tecplot reader and the binary writer take the format: the text after the last dot
+  ! of the last component of the name (after its last /), '' when that component holds no dot. A dot elsewhere, as in the
+  ! directory of cases.data/f.szplt or in a.dat.szplt, does not count.
+  pure function file_extension(filename) result(ext)
+    character(len=*), intent(in)  :: filename
+    character(len=:), allocatable :: ext
+    integer :: n, slash, dot
+    n = len_trim(filename)
+    slash = index(filename(1:n), '/', back=.true.)
+    dot = index(filename(1:n), '.', back=.true.)
+    if (dot > slash) then
+      ext = filename(dot+1:n)
+    else
+      ext = ''
+    endif
+  endfunction file_extension
 
   ! Data set auxiliary data: the step number (CYCLE) and the named real scalars that tec_write_structured_multiblock writes and
   ! tec_read_structured_multiblock reads, as the field data of the VTK files (Tecplot 360 EX 2023 R1 Data Format Guide,

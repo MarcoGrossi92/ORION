@@ -240,16 +240,16 @@ Changes on `main` since `v1.6.0`.
   the blocks of the file take their place, as in the `.szplt` and VTK
   readers; they stopped the program (an allocated variable allocated again).
 - `tec_read_structured_multiblock` refuses, with a message and the return
-  value 1, a file name that holds none of the extensions it reads (`.dat`,
+  value 1, a file name whose extension is none of those it reads (`.dat`,
   `.tec`, `.szplt`), such as that of a `.plt` file, which the writer writes:
   the value it returned was undefined.
 - The `.szplt` reader returns, with a message, the nonzero status of the
   first TecIO call that fails, and ends the read there: it returned the status
   of the call that closes the file, so a file that TecIO opens and then cannot
   read, such as a damaged one, came back with the return value 0.
-- `tec_write_structured_multiblock` asked for a binary file whose name holds
-  neither `.plt` nor `.szplt` returns 1, with its message, and writes no file:
-  the value it returned was undefined.
+- `tec_write_structured_multiblock` asked for a binary file whose name has
+  neither the extension `.plt` nor `.szplt` returns 1, with its message, and
+  writes no file: the value it returned was undefined.
 - The binary writer returns, with a message, the nonzero status of the first
   TecIO call that fails, ends the write there and closes the file: it returned
   the status of the call that closes the file, so a write in which TecIO
@@ -270,6 +270,11 @@ Changes on `main` since `v1.6.0`.
   with a `STOP` statement, so with the exit status 0, as a success, the file
   left open; any other finite-element zone was read as an ordered zone, its
   nodes, elements and corners taken for I, J and K, with the return value 0.
+- The Tecplot reader and the binary writer take the format from the extension
+  of the file name, the text after the last dot of its last component: they
+  took it from any part of the name, so `cases.data/f.szplt` and
+  `a.dat.szplt` went to the ASCII reader, and the writer wrote a `.plt` file
+  under the name `a.plt.szplt`.
 
 ## [1.7.0] - 2026-09-29
 

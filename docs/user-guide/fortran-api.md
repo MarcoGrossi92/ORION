@@ -144,14 +144,15 @@ end program read_tecplot_ascii
 
 Binary Format (with TecIO)
 
-For `.szplt` files, use the same function: ORION takes the format from the extension.
+For `.szplt` files, use the same function: ORION takes the format from the extension, the text after the last dot of
+the last component of the name (`cases.data/f.szplt` and `a.dat.szplt` are `.szplt` files).
 
 ```fortran
 E_IO = tec_read_structured_multiblock(filename='solution.szplt', orion=IOfield)
 ```
 
 A `.plt` file, which `tec_write_structured_multiblock` writes, is not read: the function returns 1, with a message,
-for a file name that holds none of the extensions `.dat`, `.tec` and `.szplt`. A `.szplt` file that TecIO opens and
+for a file name whose extension is none of `.dat`, `.tec` and `.szplt`. A `.szplt` file that TecIO opens and
 then cannot read, such as a damaged one, gives the nonzero status of the TecIO call that fails, with a message: the
 read ends there, and the blocks hold only what was read before it. ORION reads ordered zones: a `.szplt` file with a
 finite-element zone (`FELINESEG` to `FEPOLYHEDRON`, Data Format Guide, TECZNE142) is refused with the return value 1 and a
@@ -462,8 +463,8 @@ E_IO = tec_write_structured_multiblock( &
 ```
 
 Without TecIO the binary writer stops the program with error termination and a nonzero exit status, as the reader does
-(see the TecIO note under Reading Data). A binary file is a `.plt` or a `.szplt` file, as the name says: a name that holds
-neither gives the return value 1, with a message, and no file is written. Each TecIO call of the binary writer is checked:
+(see the TecIO note under Reading Data). A binary file is a `.plt` or a `.szplt` file, as the extension of its name says: a
+name with another extension, or none, gives the return value 1, with a message, and no file is written. Each TecIO call of the binary writer is checked:
 the first that fails, such as one for a file that cannot be opened or for a named scalar whose name TecIO does not take (a
 letter or `_` first, then letters, digits, `_` and `.`), ends the write, and its nonzero status is the return value, with a
 message that names the call and the file; the file is closed, and what TecIO leaves on disk may be incomplete.

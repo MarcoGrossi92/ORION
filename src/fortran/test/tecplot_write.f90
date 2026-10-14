@@ -34,6 +34,7 @@ program tecplot_write_multiblock
   call precision_szplt
   call binary_name
   call binary_status
+  call extension_names
 #endif
   call variable_bounds
   call ascii_title_round_trip
@@ -888,6 +889,58 @@ program tecplot_write_multiblock
     call check(err /= 0, trim(files(f))//': the named scalar mass-flow, which TecIO refuses, gives a nonzero return value')
   enddo
   end subroutine binary_status
+
+  subroutine extension_names
+  !---------------------------------------------------------------------------------------------------------------------------------
+  !< The format of a file is that of the extension of its name, the text after the last dot of its last component: a
+  !< two-dimensional field of one block of 2 x 1 cells with one variable at the cells is written in the binary format as
+  !< ext.dat.szplt and as ext.plt.szplt, and each file is read back, with 0, as the field written (a .szplt file); a binary
+  !< write and a read of ext.szplt/field, a name without an extension (ext.szplt is a directory name, not made), give the
+  !< return value 1, as a name without the extensions of the format.
+  !< Defect: the reader and the binary writer took the format from any part of the name: ext.dat.szplt went to the ASCII
+  !< reader, which refused it; the writer wrote a .plt file under the name ext.plt.szplt, which the .szplt reader could not
+  !< read; ext.szplt/field went to the .szplt reader and writer, which got the error of a file that cannot be opened.
+  !< Basis: the Fortran API guide, Reading Data: "ORION takes the format from the extension".
+  !---------------------------------------------------------------------------------------------------------------------------------
+  type(orion_data)            :: w, r
+  integer                     :: i, j, err, f
+  logical                     :: same
+  character(len=*), parameter :: files(2) = ['ext.dat.szplt', 'ext.plt.szplt']
+  !---------------------------------------------------------------------------------------------------------------------------------
+
+  allocate(w%block(1))
+  w%block(1)%name = 'B1'
+  w%block(1)%Ni = 2; w%block(1)%Nj = 1; w%block(1)%Nk = 0
+  allocate(w%block(1)%mesh(1:2,0:2,0:1,0:0), w%block(1)%vars(1:1,1:2,1:1,1:1))
+  do j = 0, 1; do i = 0, 2
+    w%block(1)%mesh(:,i,j,0) = [real(i, R8P), real(j, R8P)]
+  enddo; enddo
+  w%block(1)%vars(1,:,1,1) = [1._R8P, 2._R8P]
+  w%tec%node = .false.
+  w%tec%format = 'binary'
+  do f = 1, 2
+    err = tec_write_structured_multiblock(orion=w, varnames='a', filename=files(f))
+    call check(err == 0, files(f)//': written without error')
+    if (allocated(r%block)) deallocate(r%block)
+    r%tec%format = 'binary'
+    err = tec_read_structured_multiblock(orion=r, filename=files(f))
+    write(*,'(A,I0)') files(f)//': read with the return value ', err
+    call check(err == 0, files(f)//': read without error, a .szplt file')
+    if (err /= 0) cycle
+    same = size(r%block) == 1
+    if (same) same = all(shape(r%block(1)%mesh) == shape(w%block(1)%mesh)) .and. &
+                     all(shape(r%block(1)%vars) == shape(w%block(1)%vars))
+    if (same) same = all(r%block(1)%mesh == w%block(1)%mesh) .and. all(r%block(1)%vars == w%block(1)%vars)
+    call check(same, files(f)//': the field written')
+  enddo
+  err = tec_write_structured_multiblock(orion=w, varnames='a', filename='ext.szplt/field')
+  write(*,'(A,I0)') 'ext.szplt/field written: return value ', err
+  call check(err == 1, 'ext.szplt/field: a name without an extension refused by the binary writer with the return value 1')
+  if (allocated(r%block)) deallocate(r%block)
+  err = tec_read_structured_multiblock(orion=r, filename='ext.szplt/field')
+  write(*,'(A,I0)') 'ext.szplt/field read: return value ', err
+  call check(err == 1, 'ext.szplt/field: a name without an extension refused by the reader with the return value 1')
+  end subroutine extension_names
 #endif
 
   subroutine names_count
