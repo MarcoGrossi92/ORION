@@ -30,10 +30,10 @@ Each block contains mesh and solution data:
 
 ```fortran
 type :: obj_block
-  character(len=128) :: name        ! Block name
-  integer :: Ni, Nj, Nk             ! Dimensions (I, J, K)
-  real(R8P), allocatable :: mesh(:,:,:,:)  ! Coordinates (Ni, Nj, Nk, 3)
-  real(R8P), allocatable :: vars(:,:,:,:)  ! Variables (Ni, Nj, Nk, nvars)
+  character(len=4096) :: name       ! Block name, as long as a path (PATH_MAX of Linux)
+  integer :: Ni, Nj, Nk             ! Cells in each direction (I, J, K)
+  real(R8P), allocatable :: mesh(:,:,:,:)  ! Coordinates, mesh(1:ndir,0:Ni,0:Nj,0:Nk)
+  real(R8P), allocatable :: vars(:,:,:,:)  ! Variables, vars(1:nvar,1:Ni,1:Nj,1:Nk) at the cells, vars(1:nvar,0:Ni,...) at the nodes
 end type
 ```
 
@@ -163,15 +163,17 @@ program read_vtk_structured
   type(orion_data) :: IOfield
   integer :: E_IO
   
-  ! Read VTK structured grid
-  E_IO = vtk_read_file(filename='mesh.vtk', orion=IOfield)
+  ! Read the multi-block field out/field.vtm in the raw format; the .vtm lists its block files relative to its
+  ! directory, so vtspath is that directory
+  IOfield%vtk%format = 'raw'
+  E_IO = vtk_read_structured_multiblock(vtspath='out/', vtmpath='out/field', orion=IOfield)
   
   if (E_IO == 0) then
     print *, 'Successfully read VTK file'
     print *, 'Number of blocks:', size(IOfield%block)
-    print *, 'Block 1 points:', IOfield%block(1)%Ni * &
-                                 IOfield%block(1)%Nj * &
-                                 IOfield%block(1)%Nk
+    print *, 'Block 1 cells:', IOfield%block(1)%Ni * &
+                                IOfield%block(1)%Nj * &
+                                IOfield%block(1)%Nk
   endif
 end program read_vtk_structured
 ```
@@ -201,10 +203,59 @@ end program read_vtk_structured
 - **PLOT3D grids.** The first dimensions record decides the dimension of the whole file: two integers
   (`Ni Nj`) give a two-dimensional grid (two coordinates, `Nk = 0`), three integers (`Ni Nj Nk`) a
   three-dimensional one. Each block has its own dimensions record; a node count below 1 is refused.
+- **VTK multi-block (`vtk_read_structured_multiblock`).** A block is read as two-dimensional when it has two node
+  planes in k and every node has `z = 0`, the form in which `vtk_write_structured_multiblock` writes a
+  two-dimensional mesh (two node planes with the same `x` and `y`, one layer of cells): `mesh` holds the two
+  coordinates of one node plane (`mesh(1:2,...,0:0)`). A block that also has two node lines in j with `y = 0` at
+  every node is read as one-dimensional, the form in which the writer writes a mesh of one coordinate: `mesh`
+  holds `x` of one node line (`mesh(1:1,...,0:0,0:0)`) and the variables one layer of cells in j and k, or, at the
+  nodes, the node line (`vars(:,0:Ni,0:0,0:0)`). Any other block is read with three coordinates, also when
+  its `z` add up to 0, as for a slab around `z = 0`, and when it has one node plane in k with `z = 0` at every node,
+  as for the face of a three-dimensional block on the plane `z = 0`; such a block has no layer of cells in k, so the
+  cell values of a two-dimensional field that another program writes as one node plane are not read (`vars(:,1:Ni,1:Nj,1:0)`,
+  return value 0). `Ni`, `Nj` and `Nk` are the cells of the block file: a two-dimensional block has `Nk = 1`, a
+  one-dimensional one `Nj = Nk = 1`, where the Tecplot readers return 0 for the directions of one node plane; the
+  bounds of `mesh` and `vars` are those of the Tecplot readers. The reader opens `vtspath//f` for each block file `f`
+  that the `.vtm` lists, and the `.vtm` lists them relative to its own directory: `vtspath` is the directory of the
+  `.vtm` file (`'out/'` for `vtmpath = 'out/field'`), or `''` when the `.vtm` is in the current directory or lists
+  absolute paths. The reader returns 1 when it refuses its arguments or the layout of a file, or when the `.vtm` file
+  lists no block file, and the nonzero code of the read that fails (-1, or an `IOSTAT` value) when the `.vtm` file
+  cannot be opened or ends before the end of its block list, and when a block file cannot be opened or its points or
+  the values of a variable cannot be read; what it has read before the error is left in `orion`. It closes each block
+  file once read, and the file of a block it stops on, so the number of blocks of a field is not bounded by the number
+  of files a process can keep open. A read into an object that already holds blocks, from an earlier read or from one
+  that failed, replaces
+  them once the block list of the `.vtm` file is read; a `.vtm` file that cannot be opened, or whose block list cannot
+  be read, leaves them as they were. The variables of a field are at one location: a block file with arrays at the
+  nodes and at the cells (`PointData` and `CellData`) is not read (a nonzero value after the mesh of that block). The
+  reader takes the files in the layout in
+  which `vtk_write_structured_multiblock` writes them: a `.vtm` file whose `Block` element lists one `DataSet` per line, and
+  block files of one `StructuredGrid` piece whose `Points` array (named `Points`, `Float64`) comes before its `PointData` or
+  `CellData` arrays (`Float64`, `NumberOfComponents="1"`), in the format of `orion%vtk%format`: `ascii`, `binary` (base64
+  with a 4-byte length, not compressed) or `raw` (raw appended data). Start tags must be on one line: a block file with a
+  tag split over lines is refused (return value 1) before any block is read, with a message on the standard error that
+  gives the file, the line and the tag. A block file that lists its data arrays before its `Points`, as VTK and ParaView
+  write them, is refused (return value 1) before any block is read.
 - **Solution time.** `solutiontime` is 0 in a new `orion_data`. The Tecplot ASCII reader stores the
   `SOLUTIONTIME` of the file, or -10 when its zone headers give none. The `.szplt` reader does not store the
   zone time of the file and leaves `solutiontime` as it was (0 for a new object); so does the PLOT3D reader,
-  since a PLOT3D grid has no time.
+  since a PLOT3D grid has no time. The VTK multi-block reader `vtk_read_structured_multiblock` does not set
+  `solutiontime` either: its optional `time` argument returns the `TIME` field data that
+  `vtk_write_structured_multiblock` writes when it is given `time` (the binary and raw formats keep every bit,
+  sign included; the ascii format keeps 15 significant digits), or 0 when the `.vts` files hold none. Field data
+  are not variables: the reader skips them when it lists the variable names.
+- **Cycle and named scalars.** Besides `time`, `vtk_write_structured_multiblock` takes the optional `cycle`
+  (integer, written as the field data `CYCLE`, a step number) and the named real scalars
+  `fldnames(:)` and `fldvalues(:)` (each written as field data with its name), and writes them in every `.vts`
+  file. `vtk_read_structured_multiblock` takes the same arguments and returns them, with `fldfound(:)` telling
+  which names the files hold: an absent `CYCLE` or name reads as 0 (and `.false.`). It looks for them, and for
+  `TIME`, in the `FieldData` element of every block file that has one before its first data array, where
+  `vtk_write_structured_multiblock` writes it (a `FieldData` element after the arrays is not read): when the
+  files differ, the values are those of the last block file that holds them. The binary and raw formats
+  keep every bit; the ascii format keeps 15 significant digits of a real. `fldnames` and `fldvalues` (and
+  `fldfound`) go together and have the same size, and no name is blank; otherwise both functions return 1 and write
+  or read nothing. The reader compares the names without regard to case (`'a'` finds `A`).
+  A program calls the writer without these arguments to get the files it got before.
 - **Steady solutions and `strandid`.** `tec_write_structured_multiblock` treats a negative `solutiontime` as the
   mark of a steady solution (for instance minus the iteration count of the run): it writes the absolute value
   as `SOLUTIONTIME` and, in an ASCII file, adds `STRANDID = 0` (a static zone) to every zone header. The ASCII
@@ -233,11 +284,14 @@ end program read_vtk_structured
   `.szplt` reader takes the names one by one from the file and has no such limit. Every name is kept to 32
   characters (`varnames` is `character(len=32)`); the ASCII reader warns when it shortens one, the `.szplt`
   reader shortens it without a message.
-- **Zone headers and data lines.** The ASCII reader reads each zone-header line and each data line into a
-  buffer of 1000 characters, and joins the lines of a zone header in another buffer of 1000 characters: each
-  data line, and each zone header with all its lines joined, must fit in 1000 characters.
-  `tec_write_structured_multiblock` writes one value per line; `tec_write_points_multivars` writes one point
-  per line, with all its variables on that line.
+- **Zone headers and data lines.** The ASCII readers read each line whatever its length and join the lines of a
+  zone header whatever their length, so a zone header holds a block name of any length (`T =`, the title of the
+  zone, is the name of the block in the files that ORION writes). Each data line of a structured zone must fit in
+  1000 characters. `tec_write_structured_multiblock` writes one value per line; `tec_write_points_multivars`
+  writes one point per line, with all its variables on that line. Tecplot keeps the first 128 characters of a
+  zone title (Tecplot 360 EX Data Format Guide, section 4-3.2), and TecIO writes only those in a `.szplt` file
+  (a `.plt` file gets the whole title); the `.szplt` reader returns the title of each zone as the name of its
+  block.
 
 ### PLOT3D Files
 
@@ -330,6 +384,24 @@ IOfield%tec%node = .false.
 IOfield%tec%bc = .false.
 ```
 
+**Variables written.** A block is written as an ordered zone of `Ni+1` x `Nj+1` x `Nk+1` nodes, with `Ni`, `Nj` and `Nk`
+the cells of its mesh in each direction (`size(mesh,2)-1` and so on; `Nk` = 0 for a two-dimensional mesh, `mesh(1:2,...)`). In
+each direction the writer writes `max(N,1)` values of each variable at the cells, or `N+1` at the nodes (`orion%tec%node`), and
+one value in k for a two-dimensional block. It takes them from `vars`, direction by direction:
+
+- when `vars` has that many indices there, all of them, whatever their bounds: at the cells `vars(:,1:Ni,...)` or
+  `vars(:,0:Ni-1,...)`, at the nodes `vars(:,0:Ni,...)` or `vars(:,1:Ni+1,...)`; the node plane of a two-dimensional block may
+  be `vars(:,:,:,0:0)`, as the Tecplot readers return it, or `vars(:,:,:,1:1)`;
+- otherwise the indices `1:max(N,1)` at the cells and `0:N` at the nodes (`1:1` in k for a two-dimensional block), which
+  `vars` must hold: variables with ghost cells, such as `vars(:,0:Ni+1,0:Nj+1,0:Nk+1)` at the cells, are written without
+  them (with `orion%tec%bc = .false.`, the default; writing ghost cells is not supported).
+
+A surface block, with one plane of nodes in a direction (`Ni`, `Nj` or `Nk` = 0, such as a face of a volume block), and a line
+of nodes are written as such zones in ASCII and binary files alike: variables at the cells hold one layer of cells where a
+direction has one plane of nodes (`vars(:,1:1,:,:)` for an i-face, `max(Ni,1)*max(Nj,1)*max(Nk,1)` values), as an ordered zone
+stores its cell-centered values (Tecplot 360 Data Format Guide, section 2-1); variables at the nodes hold one value per node
+(`vars(:,0:0,:,:)` for an i-face).
+
 ### VTK Files
 
 ```fortran
@@ -339,15 +411,47 @@ program write_vtk
   implicit none
   
   type(ORION_data) :: IOfield
+  character(len=64) :: varnames
   integer :: E_IO
   
-  ! Write VTK structured multiblock
-  E_IO = vtk_write_structured_multiblock( &
-           orion=IOfield, &
-           varnames='density,momentum_x,momentum_y,momentum_z,energy', &
-           filename='output.vtk')
+  ! ... the blocks of IOfield, with mesh and vars ...
+  ! Write the multi-block field out/field.vtm and its block files out/<name>.vts (the directory out must exist);
+  ! varnames, a variable, holds the names of the variables separated by blanks
+  IOfield%vtk%format = 'raw'
+  varnames = 'density momentum_x momentum_y momentum_z energy'
+  E_IO = vtk_write_structured_multiblock(vtspath='out/', vtmpath='out/field', orion=IOfield, varnames=varnames)
 end program write_vtk
 ```
+
+The block files take their sizes from `Ni`, `Nj` and `Nk`, the number of cells in each direction. A surface block, with one
+plane of nodes in one direction (`Ni`, `Nj` or `Nk` = 0, `mesh(:,0:0,:,:)` for an i-face), has one layer of cells in that
+direction (`vars(:,1:1,:,:)`), as `tec_write_structured_multiblock` writes it, when the index ranges of `vars` hold that
+layer; otherwise, as for node-shaped variables `vars(:,0:Ni,0:Nj,0:0)` with `orion%vtk%node` unset, its cell arrays are
+written empty. `vtk_read_structured_multiblock` counts the cells of a block from its extent and does not read the cell
+values of a surface block back. Variables at the nodes
+(`orion%vtk%node`, point data in the block files) hold one value per node, `vars(:,0:Ni,0:Nj,0:Nk)` with `Ni`, `Nj` and `Nk`
+the cells, as the Tecplot readers return them; a two-dimensional block holds the values of its node plane,
+`vars(:,0:Ni,0:Nj,0:0)`, which the writer writes on both planes of nodes of the file, or of both planes
+(`vars(:,0:Ni,0:Nj,0:1)`). Variables at the nodes with other bounds, such as those of the cells, from 1 or from 0, are refused
+(return value 1, nothing written). The reader sets `orion%vtk%node` when the
+block files hold point data and no cell data, not for a mesh without variables. A mesh of three coordinates is written as it
+is, one of two coordinates (`mesh(1:2,...)`) as two node planes in k with `z = 0` and one layer of cells in k, one of one
+coordinate (`mesh(1:1,...)`) as two node lines in j and two node planes in k with `y = z = 0` and one layer of cells in j and k,
+the values of its node line at the nodes (`vars(:,0:Ni,0:0,0:0)`) on each of the four lines of nodes, or those of the four
+lines (`vars(:,0:Ni,0:1,0:1)`); a mesh of another number
+of coordinates is refused (return value 1, nothing written).
+
+The `.vtm` file lists the block files as the `DataSet` elements of one block, with the indices 0 to nb-1 in the order of
+the blocks, each relative to the directory of the `.vtm` file, as VTK readers take it: the block files
+`vtspath//name//'.vts'` of the file `vtmpath//'.vtm'` are listed with the path that leads from the directory of `vtmpath` to
+`vtspath` (`vtspath = ''` and `vtmpath = 'out/field'` give `../name.vts`). `vtspath` and `vtmpath` are both relative to the
+same directory or both absolute; an absolute `vtspath` that shares no directory with `vtmpath` is listed as it is. An absolute
+`vtmpath` with a relative `vtspath`, or the same directory written in two forms (`./out` and `out`), would need the current
+directory, which the writer does not take: write both paths in the same form. A field written with `vtspath` and `vtmpath`
+is read back with `vtk_read_structured_multiblock(vtspath=<the directory of vtmpath>, vtmpath=vtmpath, ...)`, or with
+`vtspath = ''` when the `.vtm` lists absolute paths. The reader reads the lines of the `.vtm` file
+whatever their length and takes each listed file, path included and without `.vts`, as the `name` of its block, which holds
+4096 characters, the longest path that Linux accepts (`PATH_MAX`); a longer listed file gives the return value 1.
 
 ### PLOT3D Files
 

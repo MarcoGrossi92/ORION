@@ -1,7 +1,7 @@
 """read_TEC reads back the Tecplot ASCII files that ORION writes.
 
 ctest runs this script (ORION.python_read_tec) in the test runtime directory,
-after ORION.tecplot_write has written tecfile.tec there. It reads eight forms
+after ORION.tecplot_write has written tecfile.tec there. It reads ten forms
 of header, the names being read as the Fortran reader reads them:
 
 1. tecfile.tec, written by the Fortran writer: names and zone titles without
@@ -19,7 +19,16 @@ of header, the names being read as the Fortran reader reads them:
    commas and tabs as separators and a quoted name that holds a blank;
 7. a quote that is never closed: read_TEC raises ValueError;
 8. a continuation line of the list that begins with a name starting with "zone"
-   (zone_velocity): it is a name, not a zone record.
+   (zone_velocity): it is a name, not a zone record;
+9. zone titles that hold numbers: in quotes after a blank (T = "Block 1"),
+   without quotes after a hyphen (T = B1-of-2, as written by a block
+   splitter), in quotes with a keyword (T = "K=1 plane 1"), and dimensions
+   written with blanks (I = 4, J = 3, K = 3): the dimensions of a zone are
+   its I, J and K, not the first numbers of the line nor text in quotes;
+10. a dimension that is not a number on a ZONE record, I=*** in the first
+    zone and J=*** in the second, as a Fortran writer leaves them when the
+    number does not fit its field: read_TEC raises a ValueError that names
+    the file, the zone and the keyword.
 
 Exit status 0 when every check passes, 1 otherwise.
 """
@@ -105,14 +114,14 @@ path = 'python_read_tec_quoted.tec'
 write_TEC(path, xb, yb, zb, vb, names)
 compare(path, read(path), names, xb, yb, zb, vb)
 
-def write_ascii(path, header, title, with_variables=True):
+def write_ascii(path, header, title, with_variables=True, dims='I={}, J={}, K={}'):
     """Write xb, yb, zb (and vb) after the given header, one value per line, zone titles from title."""
     with open(path, 'w') as f:
         f.write(header)
         for b in range(len(xb)):
             location = ', VARLOCATION=([1-3]=NODAL,[4-5]=CELLCENTERED)' if with_variables else ''
-            f.write(' ZONE  T = {}, I={}, J={}, K={}, DATAPACKING=BLOCK{}, SOLUTIONTIME=0.5\n'.format(
-                title.format(b + 1), *xb[b].shape, location))
+            f.write(' ZONE  T = {}, {}, DATAPACKING=BLOCK{}, SOLUTIONTIME=0.5\n'.format(
+                title.format(b + 1), dims.format(*xb[b].shape), location))
             for a in [xb[b], yb[b], zb[b]] + (vb[b] if with_variables else []):
                 f.write(''.join('{!r}\n'.format(float(value)) for value in a.flatten(order='F')))
 
@@ -153,6 +162,48 @@ except Exception as error:
 path = 'python_read_tec_zone_name.tec'
 write_ascii(path, ' VARIABLES = x y z\nzone_velocity Zone2\n', 'Block{}')
 compare(path, read(path), ['x', 'y', 'z', 'zone_velocity', 'Zone2'], xb, yb, zb, vb)
+
+# 9. Zone titles that hold numbers, and dimensions written with blanks.
+path = 'python_read_tec_title_numbers.tec'
+write_ascii(path, ' VARIABLES = "x" "y" "z" "a" "b"\n', '"Block {}"')
+compare(path, read(path), names, xb, yb, zb, vb)
+path = 'python_read_tec_title_hyphen.tec'
+write_ascii(path, ' VARIABLES = "x" "y" "z" "a" "b"\n', 'B{}-of-2')
+compare(path, read(path), names, xb, yb, zb, vb)
+path = 'python_read_tec_title_keyword.tec'
+write_ascii(path, ' VARIABLES = "x" "y" "z" "a" "b"\n', '"K=1 plane {}"')
+compare(path, read(path), names, xb, yb, zb, vb)
+path = 'python_read_tec_dims_blanks.tec'
+write_ascii(path, ' VARIABLES = "x" "y" "z" "a" "b"\n', 'Block{}', dims='I = {}, J = {}, K = {}')
+compare(path, read(path), names, xb, yb, zb, vb)
+
+
+def expect_error(path, *parts):
+    """read_TEC(path) must raise a ValueError whose message holds every one of parts."""
+    try:
+        read_TEC(path)
+    except ValueError as error:
+        for part in parts:
+            check(part in str(error), '{}: the error "{}" does not name {}'.format(path, error, part))
+        return
+    except Exception as error:
+        check(False, '{}: read_TEC raised {} instead of ValueError: {}'.format(path, type(error).__name__, error))
+        return
+    check(False, '{}: read_TEC raised no error for a zone whose size is not a number'.format(path))
+
+
+# 10. A dimension that is not a number: I=*** in zone 1, J=*** in zone 2 (whose J is 4).
+path = 'python_read_tec_overflow_i.tec'
+write_ascii(path, ' VARIABLES = "x" "y" "z" "a" "b"\n', '"block: {}"', dims='I=***,J={1},K={2}')
+expect_error(path, path, 'zone 1 (T = "block: 1")', "I = '***'")
+path = 'python_read_tec_overflow_j.tec'
+write_ascii(path, ' VARIABLES = "x" "y" "z" "a" "b"\n', 'Block{}')
+with open(path) as f:
+    text = f.read()
+check(text.count('J=4') == 1, '{}: the second zone header was not written as expected'.format(path))
+with open(path, 'w') as f:
+    f.write(text.replace('J=4', 'J=***'))
+expect_error(path, path, 'zone 2 (T = Block2)', "J = '***'")
 
 if failures:
     print('read_TEC: {} of {} checks failed:'.format(len(failures), checks))

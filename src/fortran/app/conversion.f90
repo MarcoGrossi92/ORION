@@ -13,8 +13,9 @@ contains
   pure function extract_path(inpath) result(outpath)
     implicit none
     integer :: index_start
-    character(len=256), intent(in)    :: inpath
-    character(len=256)                :: outpath
+    ! Paths of any length
+    character(len=*), intent(in)      :: inpath
+    character(len=:), allocatable     :: outpath
 
     ! Find the last occurrence of '/' in the string
     index_start = len_trim(inpath)
@@ -93,7 +94,7 @@ contains
     E_IO = vtk_read_structured_multiblock(orion=orion,vtmpath=trim(file),vtspath='')
     if (E_IO/=0) then
       write(*,'(A)')' ERROR read VTK files'
-      stop
+      stop 1
     endif
 
   end subroutine read_vtm
@@ -106,15 +107,16 @@ contains
     character(len=*), intent(in)    :: file
     character(len=*), intent(inout) :: varname_scalar
     integer :: E_IO
-    character(32)  :: name
-    character(256) :: path
+    ! Of any length: the output path without its extension, and its directory
+    character(len=:), allocatable :: name
+    character(len=:), allocatable :: path
 
     name = file(1:len_trim(file)-4)
     path = extract_path(file)
     E_IO = vtk_write_structured_multiblock(orion=orion,vtspath=trim(path),vtmpath=trim(name),varnames=varname_scalar)
     if (E_IO/=0) then
       write(*,'(A)')' ERROR write VTK files'
-      stop
+      stop 1
     endif
 
   end subroutine write_vtm
@@ -137,7 +139,7 @@ contains
 
     if (E_IO/=0) then
       write(*,'(A)')' ERROR read Tecplot file'
-      stop
+      stop 1
     endif
 
   end subroutine read_dat
@@ -152,8 +154,10 @@ contains
     E_IO = tec_read_structured_multiblock(orion=orion,filename=trim(file))
     if (E_IO/=0) then
       write(*,'(A)')' ERROR read Tecplot file'
-      stop
+      stop 1
     endif
+    ! The reader tells where the variables are in orion%tec%node; the VTK writer takes it from orion%vtk%node
+    orion%vtk%node = orion%tec%node
 
   end subroutine read_tec
 
@@ -167,7 +171,7 @@ contains
     E_IO = tec_write_structured_multiblock(orion=orion,varnames=varname_scalar,filename=trim(file))
     if (E_IO/=0) then
       write(*,'(A)')' ERROR write Tecplot file'
-      stop
+      stop 1
     endif
 
   end subroutine write_tec
@@ -182,7 +186,7 @@ contains
     E_IO = tec_write_points_multivars(orion=orion,varnames=varname_scalar,filename=trim(file))
     if (E_IO/=0) then
       write(*,'(A)')' ERROR write Tecplot file'
-      stop
+      stop 1
     endif
 
   end subroutine write_dat
@@ -197,7 +201,7 @@ contains
     E_IO = p3d_read_multiblock(orion=orion,filename=trim(file))
     if (E_IO/=0) then
       write(*,'(A)')' ERROR write PLOT3D file'
-      stop
+      stop 1
     endif
 
   end subroutine read_p3d
@@ -212,7 +216,7 @@ contains
     E_IO = p3d_write_multiblock(orion=orion,filename=trim(file))
     if (E_IO/=0) then
       write(*,'(A)')' ERROR write PLOT3D file'
-      stop
+      stop 1
     endif
 
   end subroutine write_p3d

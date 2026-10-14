@@ -8,10 +8,13 @@ ORION supports multiple scientific data formats commonly used in computational f
 |--------|------|--------------|------|-------|-------|
 | **Tecplot ASCII** | Text | `.dat`, `.tec` | ✅ | ✅ | Human-readable, slower I/O |
 | **Tecplot Binary** | Binary | `.plt`, `.szplt` | ✅¹ | ✅¹ | Compact, fast I/O |
-| **VTK** | Text/Binary | `.vtm`, `.vts`  | ✅ | ✅ | Open standard, widely supported |
+| **VTK** | Text/Binary | `.vtm`, `.vts`  | ✅² | ✅ | Open standard, widely supported |
 | **PLOT3D** | Text | `.p3d` | ✅ | ✅ | NASA legacy format |
 
 ¹ Requires building with `--use-tecio` flag
+
+² Multi-block structured grids in the layout ORION writes them; block files written by VTK or ParaView, which list their
+data arrays before the points, are refused (see [VTK Format](#vtk-format))
 
 ## Tecplot Format
 
@@ -59,6 +62,14 @@ VTK (Visualization Toolkit) is an open-source data format used by ParaView, VisI
 - **Legacy formats** - Text/Binary format (`.vtk`)
 - **XML formats** - Modern VTK formats (`.vtm`, `.vts`, `.vtu`)
 
+**Files that ORION reads:** `vtk_read_structured_multiblock` reads multi-block structured grids in the layout in which
+`vtk_write_structured_multiblock` writes them: a `.vtm` file whose `Block` element lists one `DataSet` per line, and `.vts`
+block files of one `StructuredGrid` piece whose `Points` array (named `Points`, `Float64`) comes before its `PointData` or
+`CellData` arrays (`Float64`, one component each), in ASCII, base64 binary (a 4-byte length, not compressed) or raw appended
+data. A block file that lists its data arrays before its `Points`, as VTK and ParaView write them, is refused with an error
+before any block is read: files written by VTK or ParaView are not read (see the
+[Fortran API](fortran-api.md#dimensions-of-what-a-reader-returns)).
+
 ### File Structure
 
 **Header:**
@@ -82,7 +93,7 @@ POINTS 125000 float
 |-----------|---------|------------------|
 | **Structured grid** | ✅ | `STRUCTURED_GRID` |
 | **Rectilinear grid** | ✅ | `RECTILINEAR_GRID` |
-| **Polydata** | ⚠️ | `POLYDATA` (read only) |
+| **Polydata** | ❌ | `POLYDATA` (not implemented) |
 
 ## PLOT3D Format
 

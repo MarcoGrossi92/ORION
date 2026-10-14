@@ -840,44 +840,251 @@ contains
   end function
 
 
-  subroutine read_variables_name(filename,varname,nodal)
+  subroutine read_variables_name(filename,varname,nodal,split)
   !---------------------------------------------------------------------------------------------------------------------------------
   !> look for and read variables name
+  !> The names inside <FieldData> (TIME, CYCLE, ...) are global data, not variables: they are skipped. The file is read up to
+  !> its AppendedData element, where the raw appended data begin: their bytes are not text.
+  !> The variables are at the nodes when the file holds them as point data, in a PointData element and no CellData element; a
+  !> mesh without variables, with neither element, has no variables at the nodes.
+  !> A name is the Name attribute of a DataArray start tag (array_name), not any text with the four characters Name, such as
+  !> the base64 code of the values of an array in the binary format.
+  !> A tag that does not end on its line (a start tag split over lines: start tags must be on one line) gives no names: split
+  !> is true, and a message on the standard error gives the file, the line and the tag.
   !---------------------------------------------------------------------------------------------------------------------------------
   character(*), intent(IN)                     :: filename   !> File name.
   character(256), allocatable, intent(OUT)     :: varname(:) !> String with the variables name
   logical, intent(inout)                       :: nodal      !> Switch for variables position
+  logical, intent(out), optional               :: split      !> A tag of the file does not end on its line
   integer(I4P)                                 :: E_IO       !> Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done
-  integer(I4P) :: unitfile, n
-  integer(I4P) :: start_pos, end_pos
-  character(256) :: line
+  integer(I4P) :: unitfile, n, nline
+  character(256) :: line, name, tag
+  logical :: complete
+  logical :: field                                           !> Inside the FieldData element
+  logical :: point, cell                                     !> The file holds a PointData, a CellData element
   !---------------------------------------------------------------------------------------------------------------------------------
-  nodal = .true.
+  nodal = .false.
+  if (present(split)) split = .false.
   open(newunit=unitfile,file=trim(filename),&
          access='SEQUENTIAL',action='READ',status='OLD',iostat=E_IO)
-  E_IO = 0; n = 0
+  ! A file that cannot be opened has no variable names (the reader then stops on it with an error)
+  if (E_IO /= 0) then
+    allocate(varname(0))
+    return
+  endif
+  E_IO = 0; n = 0; field = .false.; nline = 0
   do while(E_IO==0)
-    read(unitfile,'(A)',iostat=E_IO) line
-    if (index(line,'Name')>0) n = n + 1
+    call read_line_start(unitfile, line, complete, E_IO)
+    if (E_IO /= 0) exit
+    nline = nline + 1
+    if (index(line,'<AppendedData')>0) exit
+    ! A tag that does not end on its line: no names
+    if (unclosed_tag(line, tag)) then
+      call unclosed_tag_message(filename, nline, complete, tag)
+      if (present(split)) split = .true.
+      close(unitfile)
+      allocate(varname(0))
+      return
+    endif
+    if (index(line,'<FieldData')>0) field = .not. empty_element(line)
+    if (.not.field) then
+      if (array_name(line, name)) n = n + 1
+    endif
+    if (index(line,'</FieldData')>0) field = .false.
   enddo
   allocate(varname(1:n))
   rewind(unitfile)
-  E_IO = 0; n = 0
+  E_IO = 0; n = 0; field = .false.; point = .false.; cell = .false.
   do while(E_IO==0)
     read(unitfile,'(A)',iostat=E_IO) line
-    if (index(line,'CellData')>0) nodal = .false.
-    if (index(line,'Name')>0) then
-      n = n + 1
-      ! Find the position of the value after the keyword
-      start_pos = index(line, 'Name') + len_trim('Name') + 2
-      end_pos = index(line(start_pos:), '"') + start_pos - 2
-      ! Extract the value
-      varname(n) = line(start_pos:end_pos)
+    ! At the end of the file the line is undefined: leave before using it, as the first pass does
+    if (E_IO /= 0) exit
+    if (index(line,'<AppendedData')>0) exit
+    if (index(line,'<PointData')>0) point = .true.
+    if (index(line,'<CellData')>0) cell = .true.
+    if (index(line,'<FieldData')>0) field = .not. empty_element(line)
+    if (.not.field) then
+      if (array_name(line, name)) then
+        n = n + 1
+        varname(n) = name
+      endif
     endif
+    if (index(line,'</FieldData')>0) field = .false.
+  enddo
+  close(unitfile)
+  nodal = point .and. .not.cell
+  !---------------------------------------------------------------------------------------------------------------------------------
+  end subroutine
+
+  subroutine first_array_name(filename,name,found,field_data,split)
+  !---------------------------------------------------------------------------------------------------------------------------------
+  !> The first array name of a block file, as read_variables_name finds the names (the names inside <FieldData> skipped):
+  !> found is false when the file cannot be opened or names no array. The file is read on to its end, or to its AppendedData
+  !> element, for a tag that does not end on its line: split is true, with the message of read_variables_name.
+  !> field_data tells whether a FieldData element that is not empty comes before that name, where
+  !> vtk_write_structured_multiblock writes it.
+  !---------------------------------------------------------------------------------------------------------------------------------
+  character(*),   intent(IN)            :: filename   !> File name.
+  character(256), intent(OUT)           :: name       !> The first array name.
+  logical,        intent(OUT)           :: found      !> The file names an array.
+  logical,        intent(OUT), optional :: field_data !> A FieldData element comes before the first array name.
+  logical,        intent(OUT), optional :: split      !> A tag of the file does not end on its line.
+  integer(I4P) :: unitfile, E_IO, nline
+  character(256) :: line, tag
+  logical :: complete
+  logical :: field                         !> Inside the FieldData element
+  !---------------------------------------------------------------------------------------------------------------------------------
+  name = ''
+  found = .false.
+  if (present(field_data)) field_data = .false.
+  if (present(split)) split = .false.
+  open(newunit=unitfile,file=trim(filename),access='SEQUENTIAL',action='READ',status='OLD',iostat=E_IO)
+  if (E_IO /= 0) return
+  field = .false.; nline = 0
+  do
+    call read_line_start(unitfile, line, complete, E_IO)
+    if (E_IO /= 0) exit
+    nline = nline + 1
+    if (index(line,'<AppendedData')>0) exit
+    if (unclosed_tag(line, tag)) then
+      call unclosed_tag_message(filename, nline, complete, tag)
+      if (present(split)) split = .true.
+      exit
+    endif
+    ! After the first array name only the tags are looked at
+    if (found) cycle
+    if (index(line,'<FieldData')>0) then
+      field = .not. empty_element(line)
+      if (present(field_data)) field_data = field_data .or. field
+    endif
+    if (.not.field) then
+      if (array_name(line, name)) then
+        found = .true.
+        cycle
+      endif
+    endif
+    if (index(line,'</FieldData')>0) field = .false.
   enddo
   close(unitfile)
   !---------------------------------------------------------------------------------------------------------------------------------
-  end subroutine
+  end subroutine first_array_name
+
+  !> True when line holds the start tag of a DataArray element with a Name attribute, whose value it returns in name. The
+  !> attribute is the word Name after a blank, then an equal sign and the value in double or single quotes, with blanks
+  !> allowed around the equal sign (XML 1.0, productions [25] Eq and [10] AttValue).
+  logical function array_name(line, name)
+  character(*),   intent(IN)  :: line
+  character(256), intent(OUT) :: name
+  integer                     :: t, e, p, k, q
+  character(1)                :: quote
+  array_name = .false.
+  name = ''
+  t = index(line,'<DataArray')
+  if (t == 0) return
+  ! The start tag, up to its '>' or to the end of the line
+  e = index(line(t:),'>')
+  if (e == 0) then
+    e = len(line)
+  else
+    e = t + e - 1
+  endif
+  p = t
+  do
+    k = index(line(p:e),'Name')
+    if (k == 0) return
+    k = p + k - 1
+    p = k + 4
+    if (line(k-1:k-1) /= ' ' .and. line(k-1:k-1) /= achar(9)) cycle
+    q = p
+    do while (q <= e)
+      if (line(q:q) /= ' ' .and. line(q:q) /= achar(9)) exit
+      q = q + 1
+    enddo
+    if (q > e) return
+    if (line(q:q) /= '=') cycle
+    q = q + 1
+    do while (q <= e)
+      if (line(q:q) /= ' ' .and. line(q:q) /= achar(9)) exit
+      q = q + 1
+    enddo
+    if (q > e) return
+    quote = line(q:q)
+    if (quote /= '"' .and. quote /= "'") return
+    ! The value may hold '>' (XML 1.0, production [10]): its closing quote is looked for past the end of the tag found above
+    k = index(line(q+1:), quote)
+    if (k == 0) return
+    name = line(q+1:q+k-1)
+    array_name = .true.
+    return
+  enddo
+  end function array_name
+
+  !> The next line of a file as far as line holds it: complete is true when the line ends there; the rest of a longer line,
+  !> such as the values of a data array, is passed over without being kept. ios is that of the read: 0, or the end of the file.
+  subroutine read_line_start(u, line, complete, ios)
+  integer(I4P), intent(IN)  :: u
+  character(*), intent(OUT) :: line
+  logical,      intent(OUT) :: complete
+  integer(I4P), intent(OUT) :: ios
+  integer(I4P)              :: sz
+  line = ''
+  read(u,'(A)',advance='no',size=sz,iostat=ios) line
+  complete = is_iostat_eor(ios)
+  if (complete) then
+    ios = 0
+  elseif (ios == 0) then
+    read(u,'(A)',iostat=ios)
+  endif
+  end subroutine read_line_start
+
+  !> True when line holds a tag that does not end on it: a '<' with no '>' after it on the line. tag returns the tag as far as
+  !> the line holds it. XML allows a start tag over several lines (white space, line breaks included, may stand between its
+  !> attributes); the reader takes each tag on its line.
+  logical function unclosed_tag(line, tag)
+  character(*), intent(IN)  :: line
+  character(*), intent(OUT) :: tag
+  integer                   :: p, q
+  unclosed_tag = .false.
+  tag = ''
+  p = 1
+  do
+    q = index(line(p:), '<')
+    if (q == 0) return
+    p = p + q - 1
+    if (index(line(p:), '>') == 0) then
+      unclosed_tag = .true.
+      tag = line(p:)
+      return
+    endif
+    p = p + 1
+  enddo
+  end function unclosed_tag
+
+  !> The message of a tag that does not end on its line, on the standard error: the file, the line and the tag; complete is
+  !> false when the line is longer than the part of it that the reader reads.
+  subroutine unclosed_tag_message(filename, nline, complete, tag)
+  character(*), intent(IN) :: filename, tag
+  integer(I4P), intent(IN) :: nline
+  logical,      intent(IN) :: complete
+  if (complete) then
+    write(stderr,'(A)') 'VTK READ ERROR: '//trim(filename)//', line '//trim(str(no_sign=.true.,n=nline))// &
+                        ': a tag that does not end on its line (start tags must be on one line): '//trim(tag)
+  else
+    write(stderr,'(A)') 'VTK READ ERROR: '//trim(filename)//', line '//trim(str(no_sign=.true.,n=nline))// &
+                        ': a tag that does not end in the first '//trim(str(no_sign=.true.,n=len(tag)))// &
+                        ' characters of its line: '//trim(tag)
+  endif
+  end subroutine unclosed_tag_message
+
+  !> True when the FieldData start tag on line closes itself (<FieldData/>, <FieldData .../>): an empty element.
+  logical function empty_element(line)
+  character(*), intent(IN) :: line
+  integer(I4P)             :: k, e
+  k = index(line,'<FieldData')
+  e = index(line(k:),'>')
+  empty_element = .false.
+  if (e > 1) empty_element = line(k+e-2:k+e-2) == '/'
+  end function empty_element
 
   ! VTK functions
   function VTK_INI_XML(output_format,filename,mesh_topology,cf,nx1,nx2,ny1,ny2,nz1,nz2) result(E_IO)
@@ -5839,6 +6046,9 @@ contains
                         buffer=s_buffer,content=data)
           call get_char(buffer=s_buffer, attrib='format', val=fmt,  E_IO=E_IO)
           call get_char(buffer=s_buffer, attrib='type', val=type,  E_IO=E_IO)
+          ! No Points array: no format or type to check, and no points to read
+          if (.not.allocated(fmt)) fmt = ''
+          if (.not.allocated(type)) type = ''
           if (trim(adjustlt(Upper_Case(fmt)))/='ASCII' .or. &
               trim(adjustlt(Upper_Case(type)))/='FLOAT64') then
             E_IO = -1_I4P 
@@ -5864,6 +6074,9 @@ contains
                         buffer=s_buffer,content=data)
           call get_char(buffer=s_buffer, attrib='format', val=fmt,  E_IO=E_IO)
           call get_char(buffer=s_buffer, attrib='type', val=type,  E_IO=E_IO)
+          ! No Points array: no format or type to check, and no points to read
+          if (.not.allocated(fmt)) fmt = ''
+          if (.not.allocated(type)) type = ''
           if (trim(adjustlt(Upper_Case(fmt)))/='BINARY' .or. &
               trim(adjustlt(Upper_Case(type)))/='FLOAT64') then
             E_IO = -1_I4P 
@@ -5898,6 +6111,9 @@ contains
           call get_int(buffer=s_buffer,  attrib='offset', val=offs, E_IO=E_IO)
           call get_char(buffer=s_buffer, attrib='format', val=fmt,  E_IO=E_IO)
           call get_char(buffer=s_buffer, attrib='type', val=type,  E_IO=E_IO)
+          ! No Points array: no format or type to check, and no points to read
+          if (.not.allocated(fmt)) fmt = ''
+          if (.not.allocated(type)) type = ''
           if (trim(adjustlt(Upper_Case(fmt)))/='APPENDED' .or. &
               trim(adjustlt(Upper_Case(type)))/='FLOAT64') then
             E_IO = -1_I4P 
@@ -10718,29 +10934,54 @@ contains
   end function VTK_END_XML_READ
 
 
-  function vtk_write_structured_multiblock(vtspath,vtmpath,orion,varnames,time) result(E_IO)
+  function vtk_write_structured_multiblock(vtspath,vtmpath,orion,varnames,time,cycle,fldnames,fldvalues) result(E_IO)
   !---------------------------------------------------------------------------------------------------------------------------------
   !> Function to write multi-block structured data in a VTS folder
+  !> The optional time, cycle and named scalars (fldnames, fldvalues) are written as the field data TIME, CYCLE and
+  !> fldnames(i) of every .vts file. fldnames and fldvalues go together and have the same size, and no name is blank:
+  !> otherwise the function returns 1 and writes nothing.
   !---------------------------------------------------------------------------------------------------------------------------------
   use Lib_ORION_data
   use strings, only: parse, simplified_relative_path
   implicit none
-  type(orion_data), intent(inout)   :: orion
-  character(len=*), intent(inout)   :: varnames
-  character(len=*), intent(in)      :: vtspath, vtmpath
-  real(R8P), intent(in), optional   :: time
+  type(orion_data), intent(inout)        :: orion
+  character(len=*), intent(inout)        :: varnames
+  character(len=*), intent(in)           :: vtspath, vtmpath
+  real(R8P), intent(in), optional        :: time
+  integer(I4P), intent(in), optional     :: cycle    ! step number, written as the field data CYCLE
+  character(len=*), intent(in), optional :: fldnames(:)
+  real(R8P), intent(in), optional        :: fldvalues(:)
   real(R8P), allocatable            :: X(:), Y(:), Z(:)
-  integer(I4P)                      :: mf(99), b, s
-  integer(I4P)                      :: nb,nn,nnvar,Nvar,ndir,nz2
+  ! Index of the open block file: each block file is closed before the next one is opened
+  integer(I4P)                      :: mf, b, s, ifld
+  integer(I4P)                      :: nb,nn,nnvar,Nvar,ndir,ny2,nz2
+  integer(I4P)                      :: ci, cj, ck   ! cells of a surface block in each direction
   integer(I4P)                      :: E_IO 
   logical                           :: meshonly
+  logical                           :: surface      ! a block with one plane of nodes in a direction, written as a surface
   character(len=4)                  :: location
   character(len=len_trim(varnames)) :: varname(200)
-  character(len=len_trim(vtspath))  :: newvtspath
+  character(len=:), allocatable     :: newvtspath   ! prefix of the block files as the .vtm lists them, from its directory
+  character(len=:), allocatable     :: vtsfiles(:)  ! the block files as the .vtm lists them
   !---------------------------------------------------------------------------------------------------------------------------------
 
   !---------------------------------------------------------------------------------------------------------------------------------
   ! Preliminary operations
+  if (present(fldnames) .neqv. present(fldvalues)) then
+    E_IO = 1
+    return
+  endif
+  if (present(fldnames)) then
+    if (size(fldnames) /= size(fldvalues)) then
+      E_IO = 1
+      return
+    endif
+    ! A blank name would be read back as the first field data of the file, whatever its name
+    if (any(len_trim(fldnames) == 0)) then
+      E_IO = 1
+      return
+    endif
+  endif
   nb = size(orion%block)
   ndir = size(orion%block(1)%mesh,1)
   Nvar = 0
@@ -10749,29 +10990,80 @@ contains
     meshonly = .false.
     Nvar = size(orion%block(1)%vars,1)
   endif
+  ! A mesh has one, two or three coordinates
+  if (ndir < 1 .or. ndir > 3) then
+    E_IO = 1
+    return
+  endif
+  ! Variables at the nodes are written one value per node of the block file, from vars(s,0:Ni,0:Nj,0:Nk) as the readers return
+  ! them (node_bounds): variables with other bounds, such as those of the cells, vars(:,1:Ni,...), or the cells counted from 0,
+  ! vars(:,0:Ni-1,...), would be taken from outside their bounds or written to other nodes. They are refused before any file
+  ! is written
+  if (orion%vtk%node .and. .not.meshonly) then
+    do b = 1, nb
+      if (.not.node_bounds(orion, b, ndir)) then
+        E_IO = 1
+        return
+      endif
+    enddo
+  endif
   location = 'cell'
   if (orion%vtk%node) location = 'node'
   call parse(varnames,' ',varname(1:Nvar))
   ! Block writing
   do b = 1, nb
-    associate (nx2 => orion%block(b)%Ni, ny2 => orion%block(b)%Nj)
-    if (ndir==2) then
-      nz2 = 1
-    elseif (ndir==3) then
-      nz2 = orion%block(b)%Nk
-    endif
+    associate (nx2 => orion%block(b)%Ni)
+    ! A 3-D mesh is written as it is; a 2-D mesh (x, y) as two planes of nodes in k with z = 0, one layer of cells in k; a 1-D
+    ! mesh (x) as two lines of nodes in j and two planes in k with y = z = 0, one layer of cells in j and in k
+    select case(ndir)
+    case(1)
+      ny2 = 1; nz2 = 1
+    case(2)
+      ny2 = orion%block(b)%Nj; nz2 = 1
+    case default
+      ny2 = orion%block(b)%Nj; nz2 = orion%block(b)%Nk
+    end select
     nn=(nx2+1)*(ny2+1)*(nz2+1)
     nnvar=(nx2)*(ny2)*(nz2)
-    E_IO = VTK_INI_XML(cf=mf(b),output_format=orion%vtk%format, filename=trim(vtspath)//trim(orion%block(b)%name)//'.vts', &
+    ! Variables at the nodes have one value per node of the block file
+    if (orion%vtk%node) nnvar = nn
+    ! A surface block, one plane of nodes in a direction (N = 0 there) such as a face of a volume block, has one layer of cells
+    ! in that direction, as tec_write_structured_multiblock writes it, when its variables hold that layer: when the index ranges
+    ! of vars hold vars(s,1:ci,1:cj,1:ck), not only when its sizes are as large (node-shaped variables, vars(:,0:Ni,0:Nj,0:0),
+    ! do not hold k = 1)
+    surface = .false.
+    if (.not.meshonly .and. nnvar == 0) then
+      ci = max(nx2,1); cj = max(ny2,1); ck = max(nz2,1)
+      surface = lbound(orion%block(b)%vars,2) <= 1 .and. ubound(orion%block(b)%vars,2) >= ci .and. &
+                lbound(orion%block(b)%vars,3) <= 1 .and. ubound(orion%block(b)%vars,3) >= cj .and. &
+                lbound(orion%block(b)%vars,4) <= 1 .and. ubound(orion%block(b)%vars,4) >= ck
+      if (surface) nnvar = ci*cj*ck
+    endif
+    E_IO = VTK_INI_XML(cf=mf,output_format=orion%vtk%format, filename=trim(vtspath)//trim(orion%block(b)%name)//'.vts', &
                        mesh_topology='StructuredGrid', nx1=0, nx2=nx2, ny1=0, ny2=ny2, nz1=0, nz2=nz2)
-    if (present(time)) then
+    if (present(time) .or. present(cycle) .or. present(fldnames)) then
       E_IO = VTK_FLD_XML(fld_action='open')
-      E_IO = VTK_FLD_XML(fld=time,fname='TIME')
+      if (present(time)) E_IO = VTK_FLD_XML(fld=time,fname='TIME')
+      if (present(cycle)) E_IO = VTK_FLD_XML(fld=cycle,fname='CYCLE')
+      if (present(fldnames)) then
+        do ifld = 1, size(fldnames)
+          E_IO = VTK_FLD_XML(fld=fldvalues(ifld),fname=trim(fldnames(ifld)))
+        enddo
+      endif
       E_IO = VTK_FLD_XML(fld_action='close')
     endif
     ! Use real Z if ndir==3, else set Z=0.0
     allocate(X(nn)); allocate(Y(nn)); allocate(Z(nn))
-    if (ndir==2) then
+    if (ndir==1) then
+      X = reshape([ &
+          orion%block(b)%mesh(1,0:nx2,:,:), &
+          orion%block(b)%mesh(1,0:nx2,:,:), &
+          orion%block(b)%mesh(1,0:nx2,:,:), &
+          orion%block(b)%mesh(1,0:nx2,:,:) &
+      ], [nn])
+      Y = 0.0_R8P
+      Z = 0.0_R8P
+    elseif (ndir==2) then
       X = reshape([ &
           orion%block(b)%mesh(1,0:nx2,:,:), &
           orion%block(b)%mesh(1,0:nx2,:,:) &
@@ -10786,77 +11078,206 @@ contains
       Y = reshape(orion%block(b)%mesh(2,0:nx2,:,:),[nn])
       Z = reshape(orion%block(b)%mesh(3,0:nx2,:,:),[nn])
     endif
-    E_IO = VTK_GEO_XML(cf=mf(b),nx1=0, nx2=nx2, ny1=0, ny2=ny2, nz1=0, nz2=nz2, NN=nn, &
+    E_IO = VTK_GEO_XML(cf=mf,nx1=0, nx2=nx2, ny1=0, ny2=ny2, nz1=0, nz2=nz2, NN=nn, &
                        X=X,  Y=Y, Z=Z)
     deallocate(X); deallocate(Y); deallocate(Z)
     if (.not.meshonly) then
-      E_IO = VTK_DAT_XML(cf=mf(b),var_location = location, var_block_action = 'open')
+      E_IO = VTK_DAT_XML(cf=mf,var_location = location, var_block_action = 'open')
       do s = 1, Nvar
-        E_IO = VTK_VAR_XML(cf=mf(b),NC_NN = nnvar, varname = trim(varname(s)), &
-                           var = reshape(orion%block(b)%vars(s,1:nx2,:,:),[nnvar]))
+        if (surface) then
+          E_IO = VTK_VAR_XML(cf=mf,NC_NN = nnvar, varname = trim(varname(s)), &
+                             var = reshape(orion%block(b)%vars(s,1:ci,1:cj,1:ck),[nnvar]))
+        elseif (orion%vtk%node) then
+          ! One value per node, vars(s,0:Ni,0:Nj,0:Nk); the node plane of a 2-D block, vars(s,0:Ni,0:Nj,0:0) as the readers
+          ! return it, goes to both planes of nodes of its file, and the node line of a 1-D block, vars(s,0:Ni,0:0,0:0), to the
+          ! four lines of nodes of its file, as their coordinates: reshape repeats them from pad
+          E_IO = VTK_VAR_XML(cf=mf,NC_NN = nnvar, varname = trim(varname(s)), &
+                             var = reshape(orion%block(b)%vars(s,0:nx2,:,:),[nnvar],pad=orion%block(b)%vars(s,0:nx2,:,:)))
+        else
+          E_IO = VTK_VAR_XML(cf=mf,NC_NN = nnvar, varname = trim(varname(s)), &
+                             var = reshape(orion%block(b)%vars(s,1:nx2,:,:),[nnvar]))
+        endif
       enddo
-      E_IO = VTK_DAT_XML(cf=mf(b),var_location = location, var_block_action = 'close')
+      E_IO = VTK_DAT_XML(cf=mf,var_location = location, var_block_action = 'close')
     endif
-    E_IO = VTK_GEO_XML(cf=mf(b))
+    E_IO = VTK_GEO_XML(cf=mf)
     E_IO = VTK_END_XML()
     endassociate
   enddo
 
-  newvtspath = simplified_relative_path(vtmpath,vtspath)
+  newvtspath = trim(simplified_relative_path(vtmpath,vtspath))
+  ! The block files are listed in one call, so that their DataSet elements take the indices 0 to nb-1 (one call per block gave
+  ! every block the index 0, and a VTK reader then keeps none of them)
+  allocate(character(len=len(newvtspath)+len(orion%block(1)%name)+4) :: vtsfiles(1:nb))
+  do b = 1, nb
+    vtsfiles(b) = trim(newvtspath)//trim(orion%block(b)%name)//'.vts'
+  enddo
 
   E_IO = VTM_INI_XML(trim(vtmpath)//'.vtm')
   E_IO = VTM_BLK_XML(block_action='open')
-  do b = 1, nb
-    E_IO = VTM_WRF_XML(flist=[(trim(newvtspath)//trim(orion%block(b)%name)//'.vts')])
-  enddo
+  E_IO = VTM_WRF_XML(flist=vtsfiles)
   E_IO = VTM_BLK_XML(block_action='close')
   E_IO = VTM_END_XML()
   !---------------------------------------------------------------------------------------------------------------------------------
   end function vtk_write_structured_multiblock
 
-
-
-  function vtk_read_structured_multiblock(vtspath,vtmpath,orion,time) result(err)
+  logical function node_bounds(orion, b, ndir)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !> Function to read multi-block structured data from a VTS folder
+  !> True when the variables of the block b of orion, with a mesh of ndir coordinates, hold the values of its nodes as
+  !> vtk_write_structured_multiblock writes them, one per node of its block file: vars(:,0:Ni,0:Nj,0:Nk) for a mesh of three
+  !> coordinates; for a mesh of two, whose block file has two planes of nodes in k, vars(:,0:Ni,0:Nj,0:0), the node plane that
+  !> the readers return and the writer writes on both planes, or vars(:,0:Ni,0:Nj,0:1); for a mesh of one, whose block file has
+  !> two lines of nodes in j and two planes in k, vars(:,0:Ni,0:0,0:0), the node line, or vars(:,0:Ni,0:1,0:1).
   !---------------------------------------------------------------------------------------------------------------------------------
   use Lib_ORION_data
-  use strings, only: parse
+  type(orion_data), intent(in) :: orion
+  integer(I4P),     intent(in) :: b, ndir
+  integer                      :: uj, uk
+  !---------------------------------------------------------------------------------------------------------------------------------
+
+  node_bounds = .false.
+  associate(blk => orion%block(b))
+  if (lbound(blk%vars,2) /= 0 .or. lbound(blk%vars,3) /= 0 .or. lbound(blk%vars,4) /= 0) return
+  if (ubound(blk%vars,2) /= blk%Ni) return
+  uj = ubound(blk%vars,3); uk = ubound(blk%vars,4)
+  select case(ndir)
+  case(3)
+    node_bounds = uj == blk%Nj .and. uk == blk%Nk
+  case(2)
+    node_bounds = uj == blk%Nj .and. (uk == 0 .or. uk == 1)
+  case default
+    node_bounds = (uj == 0 .and. uk == 0) .or. (uj == 1 .and. uk == 1)
+  end select
+  end associate
+  end function node_bounds
+
+
+
+  function vtk_read_structured_multiblock(vtspath,vtmpath,orion,time,cycle,fldnames,fldvalues,fldfound) result(err)
+  !---------------------------------------------------------------------------------------------------------------------------------
+  !> Function to read multi-block structured data from a VTS folder
+  !> The optional time and cycle return the field data TIME and CYCLE of the files, 0 when they hold none; fldvalues(i)
+  !> returns the real field data named fldnames(i), 0 when the files hold none, and fldfound(i) whether they hold it.
+  !> fldnames and fldvalues go together and have the same size, as fldfound when present, and no name is blank: otherwise
+  !> the function returns 1 and reads nothing. The names are compared without regard to case.
+  !---------------------------------------------------------------------------------------------------------------------------------
+  use Lib_ORION_data
+  use strings, only: parse, read_whole_line
   implicit none
-  type(orion_data), intent(inout)   :: orion
-  character(len=*), intent(in)      :: vtspath, vtmpath
-  real(R8P), intent(out), optional  :: time
+  type(orion_data), intent(inout)        :: orion
+  character(len=*), intent(in)           :: vtspath, vtmpath
+  real(R8P), intent(out), optional       :: time
+  integer(I4P), intent(out), optional    :: cycle    ! step number, read from the field data CYCLE
+  character(len=*), intent(in), optional :: fldnames(:)
+  real(R8P), intent(out), optional       :: fldvalues(:)
+  logical, intent(out), optional         :: fldfound(:)
   integer(I4P)                      :: b, s, i, j, k
   integer(I4P)                      :: Nblocks,nn,nu,nc,n,ndir
-  integer(I4P)                      :: nx1, nx2, ny1, ny2, nz1, nz2, nz1_real, nz2_real
-  integer(I4P)                      :: err, start, start_pos, end_pos
+  integer(I4P)                      :: nx1, nx2, ny1, ny2, nz1, nz2, ny1_real, ny2_real, nz1_real, nz2_real
+  integer(I4P)                      :: err, start, start_pos, end_pos, pass
   character(256), allocatable       :: varnames(:)
-  character(128)                    :: line, dummy_name(16)
+  character(256)                    :: name1          ! the first array name of a block file
+  logical                           :: found1         ! the block file names an array
+  logical                           :: split          ! a tag of a block file does not end on its line
+  logical, allocatable              :: fields(:)      ! the block file holds a FieldData element
+  character(len=:), allocatable     :: line           ! a line of the .vtm file, whole
   real(R8P), allocatable            :: x(:),y(:),z(:) ! Input geo arrays
   real(R8P), allocatable            :: v(:)           ! Input var arrays
+  real(R8P)                         :: t              ! TIME field data of a block file
+  integer(I4P)                      :: c              ! CYCLE field data of a block file
+  real(R8P)                         :: v_fld          ! named field data of a block file
+  integer(I4P)                      :: ifld
   !---------------------------------------------------------------------------------------------------------------------------------
 
   !---------------------------------------------------------------------------------------------------------------------------------
   !% Preliminary operations
-  open(newunit=nu,file=trim(vtmpath)//'.vtm',action='read')
-  do
-    read(nu,'(A)') line
-    if (index(line,'<Block')==0) cycle
-    exit
+  if (present(fldnames) .neqv. present(fldvalues)) then
+    err = 1
+    return
+  endif
+  if (present(fldnames)) then
+    if (size(fldnames) /= size(fldvalues)) then
+      err = 1
+      return
+    endif
+    if (present(fldfound)) then
+      if (size(fldfound) /= size(fldnames)) then
+        err = 1
+        return
+      endif
+    endif
+    ! A blank name would find the first field data of a file, whatever its name
+    if (any(len_trim(fldnames) == 0)) then
+      err = 1
+      return
+    endif
+  elseif (present(fldfound)) then
+    err = 1
+    return
+  endif
+  ! The time, the cycle and the named field data are those of the files, 0 when they hold none
+  if (present(time)) time = 0.0_R8P
+  if (present(cycle)) cycle = 0_I4P
+  if (present(fldvalues)) fldvalues = 0.0_R8P
+  if (present(fldfound)) fldfound = .false.
+  ! Block names from the .vtm, as many as it lists: a first pass counts them, a second one stores them. A .vtm that cannot be
+  ! opened, that ends before the end of its block list or that lists no block file: stop with an error
+  open(newunit=nu,file=trim(vtmpath)//'.vtm',action='read',status='old',iostat=err)
+  if (err /= 0) return
+  do pass = 1, 2
+    rewind(nu)
+    do
+      call read_whole_line(nu, line, err)
+      if (err /= 0) exit
+      if (index(line,'<Block')==0) cycle
+      exit
+    enddo
+    Nblocks = 0
+    do while (err == 0)
+      call read_whole_line(nu, line, err)
+      if (err /= 0) exit
+      if (index(line,'</Block')>0) exit
+      Nblocks = Nblocks+1
+      if (pass==2) then
+        start_pos = index(line, 'file="') + len('file="')
+        end_pos = index(line, '.vts"')
+        ! A listed file longer than the name of a block, path included: stop with an error, not with the name cut short
+        if (end_pos-start_pos > len(orion%block(Nblocks)%name)) then
+          err = 1
+          exit
+        endif
+        orion%block(Nblocks)%name = line(start_pos:end_pos-1)
+      endif
+    enddo
+    if (err == 0 .and. Nblocks == 0) err = 1
+    if (err /= 0) exit
+    if (pass==1) then
+      ! The blocks of an earlier read into the same object, also of one that failed, give way to those of the file
+      if (allocated(orion%block)) deallocate(orion%block)
+      allocate(orion%block(1:Nblocks))
+    endif
   enddo
-  Nblocks = 0
-  do
-    read(nu,'(A)') line
-    start_pos = index(line, 'file="') + len('file="')
-    end_pos = index(line, '.vts"')
-    if (index(line,'</Block')>0) exit
-    Nblocks = Nblocks+1
-    dummy_name(Nblocks) = line(start_pos:end_pos-1)
-    cycle
+  close(nu)
+  if (err /= 0) return
+  call read_variables_name(trim(vtspath)//trim(orion%block(1)%name)//'.vts',varnames,orion%vtk%node,split)
+  ! A tag that does not end on its line, as a start tag split over lines (XML allows it; the reader takes each tag on its
+  ! line): the field is refused before any block is read, with the message of read_variables_name or first_array_name
+  if (split) then
+    err = 1
+    return
+  endif
+  ! The arrays of a block file are taken in the order in which vtk_write_structured_multiblock writes them, the Points first
+  ! and then the variables. A block file that lists its data arrays before its Points, as VTK writes them, is refused before
+  ! any block is read: every block file is read up to its first array name (a block file that cannot be opened has no names,
+  ! and stops below with its error), which tells also whether it holds field data
+  allocate(fields(1:Nblocks))
+  do b = 1, Nblocks
+    call first_array_name(trim(vtspath)//trim(orion%block(b)%name)//'.vts', name1, found1, fields(b), split)
+    if (split .or. (found1 .and. trim(name1) /= 'Points')) then
+      err = 1
+      return
+    endif
   enddo
-  allocate(orion%block(1:Nblocks))
-  orion%block(:)%name = dummy_name(1:Nblocks)
-  call read_variables_name(trim(vtspath)//trim(orion%block(1)%name)//'.vts',varnames,orion%vtk%node)
 
   ! Read VTS file
   do b = 1, Nblocks
@@ -10864,39 +11285,73 @@ contains
     err = VTK_INI_XML_READ(input_format=trim(orion%vtk%format),filename=trim(vtspath)//trim(orion%block(b)%name)//'.vts', &
                             mesh_topology='StructuredGrid',&
                             nx1=nx1,nx2=nx2,ny1=ny1,ny2=ny2,nz1=nz1,nz2=nz2)
-    if (present(time)) then
-      err = VTK_FLD_XML(fld_action='open')
-      err = VTK_FLD_XML(fld=time,fname='TIME')
-      err = VTK_FLD_XML(fld_action='close')
+    ! A block file that cannot be opened, or that is not a StructuredGrid file: stop with its error, and close the file if it
+    ! was opened before the error was found
+    if (err /= 0) then
+      call close_block
+      return
+    endif
+    ! The field data are looked for only in a block file that holds a FieldData element: VTK_FLD_XML_READ looks for the
+    ! element from the start of the file, record by record, and in a file without it reads the whole file, the raw appended
+    ! data included, at a cost that grows with the square of the length of their records
+    if (present(time) .and. fields(b)) then
+      if (VTK_FLD_XML_READ(fname='TIME',fld=t) == 0) time = t
+    endif
+    if (present(cycle) .and. fields(b)) then
+      if (VTK_FLD_XML_READ(fname='CYCLE',fld=c) == 0) cycle = c
+    endif
+    if (present(fldnames) .and. fields(b)) then
+      do ifld = 1, size(fldnames)
+        if (VTK_FLD_XML_READ(fname=trim(fldnames(ifld)),fld=v_fld) == 0) then
+          fldvalues(ifld) = v_fld
+          if (present(fldfound)) fldfound(ifld) = .true.
+        endif
+      enddo
     endif
     err = VTK_GEO_XML_READ(nx1=nx1,nx2=nx2,ny1=ny1,ny2=ny2,nz1=nz1,nz2=nz2,NN=nn,X=x,Y=y,Z=z)
-    if (orion%vtk%node) then
-      start = 0
-      orion%block(b)%Ni = nx2+1; orion%block(b)%Nj = ny2+1; orion%block(b)%Nk = nz2+1
-    else
-      start = 1
-      orion%block(b)%Ni = nx2; orion%block(b)%Nj = ny2; orion%block(b)%Nk = nz2
+    ! A block file whose points cannot be read: stop with its error, before using the coordinates, and close it
+    if (err /= 0) then
+      call close_block
+      return
     endif
+    ! Ni, Nj and Nk are the cells of the block, with its variables at the cells, vars(:,1:Ni,...), or at the nodes,
+    ! vars(:,0:Ni,...), as the Tecplot readers return them
+    start = 1
+    if (orion%vtk%node) start = 0
+    orion%block(b)%Ni = nx2; orion%block(b)%Nj = ny2; orion%block(b)%Nk = nz2
+    ! A 2-D mesh is written as two planes of nodes in k with z = 0 at every node. z adding up to 0 is no sign of it (a slab
+    ! around z = 0), nor is z = 0 at every node of a block with one plane of nodes in k (a face of a 3-D block on the plane z = 0)
+    ! A 1-D mesh is written as two lines of nodes in j and two planes in k, with y = z = 0 at every node
     ndir = 3
-    if (sum(z)==0.0_R8P) ndir = 2
-    if (ndir==2) then
+    if (nz2-nz1==1 .and. all(z==0.0_R8P)) ndir = 2
+    if (ndir==2 .and. ny2-ny1==1 .and. all(y==0.0_R8P)) ndir = 1
+    ny1_real = ny1; ny2_real = ny2
+    if (ndir==1) then
+      ny1_real = 0; ny2_real = 0
+    endif
+    if (ndir<=2) then
       nz1_real = 0; nz2_real = 0
     else
       nz1_real = nz1; nz2_real = nz2
     endif
-    allocate(orion%block(b)%mesh(1:ndir,nx1:nx2,ny1:ny2,nz1_real:nz2_real))
+    allocate(orion%block(b)%mesh(1:ndir,nx1:nx2,ny1_real:ny2_real,nz1_real:nz2_real))
     n = 0
-    do k = nz1_real, nz2_real; do j = ny1, ny2; do i = nx1, nx2
+    do k = nz1_real, nz2_real; do j = ny1_real, ny2_real; do i = nx1, nx2
           n = n + 1
           orion%block(b)%mesh(1,i,j,k) = x(n)
-          orion%block(b)%mesh(2,i,j,k) = y(n)
+          if (ndir>=2) orion%block(b)%mesh(2,i,j,k) = y(n)
           if (ndir==3) orion%block(b)%mesh(3,i,j,k) = z(n)
     enddo; enddo; enddo
-    ! Variables field
-    if (ndir==2) then
-      nz1_real = 1 - start; nz2_real = 1
+    ! Variables field: at the cells one layer of cells in k for a 2-D mesh, vars(:,:,:,1:1), in j and in k for a 1-D one,
+    ! vars(:,:,1:1,1:1); at the nodes the node plane of a 2-D mesh, vars(:,:,:,0:0), the node line of a 1-D one,
+    ! vars(:,:,0:0,0:0), as the Tecplot readers return them
+    if (ndir<=2) then
+      nz1_real = 0; nz2_real = start
     endif
-    allocate(orion%block(b)%vars(1:size(varnames)-1,nx1+start:nx2,ny1+start:ny2,nz1_real+start:nz2_real))
+    if (ndir==1) then
+      ny1_real = 0; ny2_real = start
+    endif
+    allocate(orion%block(b)%vars(1:size(varnames)-1,nx1+start:nx2,ny1_real+start:ny2_real,nz1_real+start:nz2_real))
     do s = 1, size(varnames)-1
       if (allocated(v)) deallocate(v)
       if (orion%vtk%node) then
@@ -10904,14 +11359,39 @@ contains
       else
         err = VTK_VAR_XML_READ(var_location='cell', varname=trim(varnames(s+1)), NC_NN=nn, NCOMP=nc, var=v)    
       endif
+      ! Values that cannot be read, such as those of a block file cut short: stop with the error, before using them, and close
+      ! the file
+      if (err /= 0) then
+        call close_block
+        return
+      endif
       n = 0
-      do k = nz1_real+start, nz2_real; do j = ny1+start, ny2; do i = nx1+start, nx2
+      do k = nz1_real+start, nz2_real; do j = ny1_real+start, ny2_real; do i = nx1+start, nx2
             n = n + 1
             orion%block(b)%vars(s,i,j,k) = v(n)
       enddo; enddo; enddo
     enddo
+    ! Each block file is closed once read: a field may have more blocks than the files a process can keep open
+    err = VTK_END_XML_READ()
+    if (err /= 0) return
   enddo
-  err = VTK_END_XML_READ()
+
+  contains
+
+    subroutine close_block
+    !-------------------------------------------------------------------------------------------------------------------------------
+    !> Close the file of the block being read after an error in it, if the library has it open. VTK_INI_XML_READ can stop before
+    !> opening the file (no such file, or a format it does not know), fail to open it or stop after opening it; the unit of the
+    !> file stays 0, the standard error, until VTK_INI_XML_READ picks a unit to open the file on. VTK_END_XML_READ is called only
+    !> on that unit, and only when it is open.
+    !-------------------------------------------------------------------------------------------------------------------------------
+    logical      :: fopen
+    integer(I4P) :: e
+    !-------------------------------------------------------------------------------------------------------------------------------
+    if (vtk(f)%u == 0_I4P) return
+    inquire(unit=vtk(f)%u, opened=fopen)
+    if (fopen) e = VTK_END_XML_READ()
+    end subroutine close_block
 
   end function vtk_read_structured_multiblock
 

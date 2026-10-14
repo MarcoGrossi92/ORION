@@ -61,14 +61,20 @@ contains
 !**********************************************************************
 
 function simplified_relative_path(path1,path2) result(relative_path)
+    ! The prefix that names the files path2//name from the directory of path1 (path1 up to its last '/', empty when it has
+    ! none), for a .vtm file path1.vtm that lists the block files path2//name: a reader takes the file of a DataSet relative to
+    ! the directory of the .vtm file, or as it is when it is absolute. The two paths are both relative to the same directory or
+    ! both absolute, or path2 is absolute: an absolute path2 that shares no directory with path1 is returned as it is.
     implicit none
     character(len=*), intent(in) :: path1, path2
-    character(len=256) :: relative_path
-    character(len=256) :: common
+    character(len=:), allocatable :: relative_path
+    character(len=:), allocatable :: common
     integer :: common_len, pos, last_slash
 
     ! Find the length of the common prefix
     common_len = 0
+    ! No common directory unless the common prefix holds one
+    last_slash = 0
     do pos = 1, min(len_trim(path1), len_trim(path2))
         if (path1(pos:pos) /= path2(pos:pos)) exit
         common_len = pos
@@ -91,6 +97,12 @@ function simplified_relative_path(path1,path2) result(relative_path)
         end if
     else
         common = ""  ! No common prefix
+    end if
+
+    ! An absolute path2 that shares no directory with path1 is its own answer
+    if (last_slash == 0 .and. index(path2, '/') == 1) then
+        relative_path = path2
+        return
     end if
 
     ! Calculate the relative path
@@ -527,6 +539,37 @@ end do
 return
 
 end subroutine readline
+
+!**********************************************************************
+
+subroutine read_whole_line(unit,line,ios)
+
+! Reads the next line from unit, whole, whatever its length: a piece at a time, by nonadvancing input
+! (Fortran 2003), up to the end of the record. ios is 0, or the code of the end of file or of the error of
+! the read; nothing of a piece read before an end of file or an error is kept.
+
+use, intrinsic :: iso_fortran_env, only : iostat_eor
+implicit none
+integer, intent(in) :: unit
+character(len=:), allocatable, intent(out) :: line
+integer, intent(out) :: ios
+character(len=512) :: buffer
+integer :: sz
+
+line = ''
+do
+  read(unit, '(A)', advance='no', size=sz, iostat=ios) buffer
+  if (ios == iostat_eor) then
+    line = line // buffer(:sz)
+    ios = 0
+    return
+  elseif (ios /= 0) then
+    return
+  endif
+  line = line // buffer
+end do
+
+end subroutine read_whole_line
 
 !**********************************************************************
 

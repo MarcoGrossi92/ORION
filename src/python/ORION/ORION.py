@@ -82,18 +82,33 @@ def read_variables(file_path):
 
 
 def read_dimensions(file_path):
-    
+    """I, J and K of each zone, read from their keywords on the line of the zone that holds I=.
+
+    Other numbers on that line, such as those of a zone title (T = "Block 1", T = B1-of-2), are not
+    dimensions, and text in quotes is left out. Blanks around = are allowed (I = 4). A zone line without
+    J= or K= gives fewer than three values, as before. On a ZONE record, an I, J or K whose value is not
+    a whole number, such as the I=*** that a Fortran writer leaves when the number does not fit its
+    field, raises a ValueError that names the file, the zone and the keyword: the size of that zone is
+    not in the file.
+    """
     dim = []
 
     with open(file_path, 'r') as file:
         lines = file.readlines()
 
     for line in lines:
-        if 'I=' in line:
-            pattern = r'\b\d+\b'
-            numbers = re.findall(pattern, line)
-            numbers = [int(num) for num in numbers]
-            dim.append(numbers[0:3])
+        unquoted = re.sub(r'"[^"]*"', '""', line)
+        if re.match(r'\s*ZONE\b', unquoted, re.IGNORECASE):
+            for key in ('I', 'J', 'K'):
+                value = re.search(r'\b' + key + r'\s*=\s*([^\s,]*)', unquoted)
+                if value and not re.fullmatch(r'\d+', value.group(1)):
+                    title = re.search(r'\bT\s*=\s*("[^"]*"|[^,]*)', line)
+                    raise ValueError('{}: zone {}{}: {} = {!r} is not a whole number'.format(
+                        file_path, len(dim) + 1, ' (T = {})'.format(title.group(1).strip()) if title else '',
+                        key, value.group(1)))
+        found = [re.search(r'\b' + key + r'\s*=\s*(\d+)', unquoted) for key in ('I', 'J', 'K')]
+        if found[0]:
+            dim.append([int(match.group(1)) for match in found if match])
 
     return dim
 

@@ -22,6 +22,47 @@ Changes on `main` since `v1.6.0`.
   binary Tecplot files (`.plt`, `.szplt`) are not covered -- the binary writer
   stores StrandID 0 for every zone and the `.szplt` reader does not store the
   zone time -- and need a separate change.
+- Optional arguments of `vtk_write_structured_multiblock` and
+  `vtk_read_structured_multiblock`: `cycle` and the named real scalars
+  `fldnames` and `fldvalues` (with `fldfound` for the reader), written as the
+  field data `CYCLE` and `fldnames(i)` of every `.vts` file next to `TIME`, and
+  returned by the reader, 0 (and `fldfound` false) when the files hold none.
+  Names and values of different sizes, and blank names, are refused (return
+  value 1); the reader compares the names without regard to case.
+- `read_whole_line` in the module `strings` (`stringmod.f90`): reads the next
+  line of a formatted file whole, whatever its length.
+
+### Changed
+
+- The name of a block, `orion%block(b)%name`, holds 4096 characters, the
+  longest path that Linux accepts, instead of 128: the VTK reader stores in it
+  the block file listed in the `.vtm` file, path included. Programs that use
+  ORION are compiled again; each block takes 3968 bytes more.
+- `vtk_read_structured_multiblock` returns variables at the nodes (point data)
+  in `vars(:,0:Ni,0:Nj,0:Nk)` with `Ni`, `Nj` and `Nk` the cells, as the
+  Tecplot readers return them, and the node plane of a two-dimensional block
+  at k = 0; it returned the numbers of nodes as `Ni`, `Nj` and `Nk`, and the
+  node plane at k = 1. A mesh without variables, also one written before this
+  change, is read with `Ni`, `Nj` and `Nk` the cells, one less than before in
+  each direction, and with `orion%vtk%node` unset (it was set).
+  `vtk_write_structured_multiblock` writes variables at the nodes with one
+  value per node (it wrote as many as cells) and refuses variables at the
+  nodes with other bounds than its nodes, `vars(:,0:Ni,0:Nj,0:Nk)` (return
+  value 1).
+- `vtk_read_structured_multiblock` reads a block file of one plane of nodes in
+  k with `z = 0` at every node, such as the face of a three-dimensional block
+  on the plane z = 0, with three coordinates; it read it with two, and gave its
+  cell variables a layer of cells filled from past the end of the values read.
+  A two-dimensional field that another program writes as one node plane is
+  therefore read with three coordinates, its point data at k = 0 and no cell
+  value (return value 0). A block is two-dimensional when it has two planes of
+  nodes in k and `z = 0` at every node, as `vtk_write_structured_multiblock`
+  writes it.
+- `vtk_write_structured_multiblock` lists each block file relative to the
+  directory of the `.vtm` file, as VTK readers take it (`vtspath = ''` and
+  `vtmpath = 'out/field'` list `../name.vts`); the entries depended on what the
+  memory held when `vtspath` and `vtmpath` share no prefix. Such a field is
+  read back with the directory of the `.vtm` file as `vtspath`.
 
 ### Fixed
 
@@ -44,6 +85,78 @@ Changes on `main` since `v1.6.0`.
   keyword `ZONE` as a whole word. A continuation line that began with a name
   such as `zone_velocity` was taken for a zone record, and the names from it on
   were lost.
+- `vtk_read_structured_multiblock` reads back the files that
+  `vtk_write_structured_multiblock` writes with a time, and its `time` argument
+  returns the `TIME` of the files, 0 when they hold none: the reader took the
+  field data for variables (a segmentation fault) and never set `time`. It
+  looks for field data only in the block files that hold a `FieldData` element.
+- `vtk_read_structured_multiblock` reads as three-dimensional a block whose z
+  coordinates add up to 0, such as a slab around z = 0; it read it as
+  two-dimensional, its z lost.
+- The VTK multi-block writer and reader take a field of any number of blocks:
+  they went past fixed arrays of 99 and 16 entries (memory overwritten or a
+  segmentation fault).
+- The Python reader `read_TEC` takes the dimensions of a zone from its `I=`,
+  `J=` and `K=` keywords, outside text in quotes: a number in a zone title
+  became a dimension, and a zone written as `I = 4` was not read. A dimension
+  that is not a whole number (`I=***`) stops the read with an error.
+- `b64_decode` stops when the array it decodes into is full: a longer code was
+  decoded past the end of the array.
+- `vtk_write_structured_multiblock` writes the cell values of a surface block
+  (one plane of nodes in a direction, such as a face of a volume block) as one
+  layer of cells there, as `tec_write_structured_multiblock` does, when the
+  index ranges of its variables hold that layer; it wrote no cell value.
+  `vtk_read_structured_multiblock` does not read these values back.
+- `vtk_read_structured_multiblock` returns an error, instead of a crash or a
+  runtime error, when the `.vtm` file or a block file cannot be opened or read,
+  and closes each block file once read: a field of more blocks than the files a
+  process can keep open was not read.
+- `vtk_write_structured_multiblock` gives the `DataSet` elements of the `.vtm`
+  file the indices 0 to nb-1: with every index 0, the reader of VTK 9.7.1 gave
+  no block of a field of two or more blocks.
+- `vtk_write_structured_multiblock` writes a mesh of one coordinate as two
+  lines of nodes in j and two planes in k, which
+  `vtk_read_structured_multiblock` reads back as such; it left the size of such
+  a block undefined. A mesh of another number of coordinates than 1, 2 or 3 is
+  refused (return value 1).
+- `tec_write_structured_multiblock` writes surface blocks and lines of nodes,
+  their cell variables with one layer of cells where a direction has one plane
+  of nodes and their nodal variables with one value per node: values were
+  copied past the end of buffers and of the variables.
+- `tec_write_structured_multiblock` takes the variables where they are in each
+  direction: the node plane of a two-dimensional field read from a VTK or a
+  Tecplot file, `vars(:,:,:,0:0)`, was taken at k = 1, past the end of the
+  variables. Variables that it read within their bounds are written as before.
+- The VTK multi-block reader and writer take `.vtm` lines and block file paths
+  of any length: lines were cut at 128 characters and paths at 256. A listed
+  file longer than the name of a block gives the return value 1.
+- `vtk_read_structured_multiblock` reads into an `orion_data` that already
+  holds blocks; it stopped the program.
+- The Tecplot writers and readers take block names and file paths of any
+  length: zone headers were cut at 500 characters, lines read in 1000, the
+  path of a `.szplt` file handed to TecIO in 256, and block names read from a
+  `.szplt` file ended with a null character.
+- The converter writes the `.vtm` file at the path given with `--out-file`,
+  whatever its length; the file went to the first 32 characters of the path.
+- `vtk_read_structured_multiblock` refuses, before reading any block, a field
+  whose block files list their data arrays before their `Points` array, as VTK
+  and ParaView write them (return value 1). On such files it returned -1 after
+  reading the mesh of the first block, its arrays read under names shifted by
+  one (an out-of-bounds error in a build with bound checks).
+- The variable names of a VTK block file are read up to its appended data, and
+  the location of its variables comes from its `PointData` and `CellData`
+  elements: four bytes `Name` in raw appended data were taken for one more
+  variable, and a variable whose name holds `CellData` set the cells.
+- The names of the data arrays of a VTK block file are the `Name` attributes
+  of their `DataArray` start tags: the base64 code of the values of an array
+  (binary format) that holds the text `Name` was taken for one more variable,
+  of zeros, with the return value 0. A tag split over lines, which the reader
+  does not read, is refused (return value 1), with a message that gives the
+  file, the line and the tag.
+- The converter writes the variables of a Tecplot file at the nodes as point
+  data of the VTK files; it wrote them as cell data.
+- The converter ends with the exit status 1 when it cannot read its input or
+  write its output; it ended with the exit status 0, as a success.
 
 ## [1.7.0] - 2026-09-29
 
