@@ -90,7 +90,8 @@ contains
   !> name, as vtk_write_structured_multiblock writes them as field data. They go together and have the same size, and each
   !> name must be one that an auxiliary data item can hold (aux_names_valid): otherwise the function returns 1 and writes
   !> nothing
-  !> \return err Error code (0 if successful; 1 for a binary file name that holds neither .plt nor .szplt)
+  !> \return err Error code (0 if successful; 1 for a binary file name that holds neither .plt nor .szplt; for a binary
+  !> file, the nonzero status of the first TecIO call that fails, which ends the write and closes the file)
   function tec_write_structured_multiblock(orion,varnames,filename,Nvars,cycle,fldnames,fldvalues) result(err)
     implicit none
     type(orion_data), intent(in)              :: orion
@@ -187,18 +188,23 @@ contains
         err = 1
         return
       endif
+      ! Each TecIO call is checked: the first that fails ends the write (tec_failed)
       err = tecini142(tecendrec,trim(tecvarname)//tecendrec,trim(filename)//tecendrec,'.'//tecendrec,fileFormat,FileType,Debug,VIsDouble)
+      if (tec_failed(err, 'tecini142', close_file=.false.)) return
       ! The data set auxiliary data Time keeps the absolute value of the time, as before
       err = tecauxstr142("Time"//tecendrec,trim(str(n=abs(time_)))//tecendrec)
+      if (tec_failed(err, 'tecauxstr142')) return
       ! The step number and the named scalars, each a data set auxiliary data item, the scalars with 17 significant digits
       if (present(cycle)) then
         write(auxvalue,'(I0)') cycle
         err = tecauxstr142("CYCLE"//tecendrec,trim(auxvalue)//tecendrec)
+        if (tec_failed(err, 'tecauxstr142')) return
       endif
       if (present(fldnames)) then
         do ifld = 1, size(fldnames)
           write(auxvalue,FR_P) fldvalues(ifld)
           err = tecauxstr142(trim(adjustl(fldnames(ifld)))//tecendrec,trim(adjustl(auxvalue))//tecendrec)
+          if (tec_failed(err, 'tecauxstr142')) return
         enddo
       endif
 #   else
@@ -211,12 +217,15 @@ contains
     ! writing data blocks
     do b=1,Nblocks
       err = tec_blk_data(b = b)
+      ! The TecIO call of the block that failed has ended the write of a binary file and closed it
+      if (err /= 0 .and. orion%tec%format == 'binary') return
     enddo
     ! finalizing tecplot file
     select case(orion%tec%format)
     case('binary')
 # if defined(TECIO)
       err = tecend142()
+      if (tec_failed(err, 'tecend142', close_file=.false.)) return
 # endif
     case('ascii')
       ! The step number and the named scalars, each a data set auxiliary data record, after the zones: the records of a file
@@ -381,14 +390,21 @@ contains
                         tecvarloc(1:NvarTot),                         &
                         tecnull(1:NvarTot),                           &
                         0)
+        if (tec_failed(err, 'teczne142')) return
         err=tec_dat(N=nnode,dat=orion%block(b)%mesh(1,ni1:ni2,nj1:nj2,nk1:nk2))
-        if (ndir>=2) &
+        if (tec_failed(err, 'tecdatd142')) return
+        if (ndir>=2) then
           err=tec_dat(N=nnode,dat=orion%block(b)%mesh(2,ni1:ni2,nj1:nj2,nk1:nk2))
-        if (ndir==3) &
+          if (tec_failed(err, 'tecdatd142')) return
+        endif
+        if (ndir==3) then
           err=tec_dat(N=nnode,dat=orion%block(b)%mesh(3,ni1:ni2,nj1:nj2,nk1:nk2))
+          if (tec_failed(err, 'tecdatd142')) return
+        endif
         if (.not.meshonly) then
           do s=1,Nvar
             err=tec_dat(N=ncell,dat=orion%block(b)%vars(s,vi1+start:vi2,vj1+start:vj2,vk1+start:vk2))
+            if (tec_failed(err, 'tecdatd142')) return
           enddo
         endif
 #     endif
@@ -477,6 +493,28 @@ contains
       err = tecdatd142(N,buff)
       deallocate(buff)
     endfunction tec_dat
+
+    ! A TecIO call returns a nonzero status when it fails, as for a file that cannot be opened, an auxiliary data name that
+    ! TecIO does not take or values that do not fit the zone: the write ends there, as the Data Format Guide advises for the
+    ! TecIO writing API (2023 R1, section 6-1.3, p. 175: "writing cannot proceed further and should be aborted"). The status
+    ! is the return value (the caller sets it), a message names the call and the file, and the file is closed (one TECEND142
+    ! for each TECINI142) unless the call that failed is the one that opens or closes it; what TecIO leaves on disk may be
+    ! an incomplete file.
+    logical function tec_failed(status, what, close_file)
+      implicit none
+      integer,          intent(in)           :: status     ! Status of the call: 0 when it did not fail.
+      character(len=*), intent(in)           :: what       ! Name of the call.
+      logical,          intent(in), optional :: close_file ! Close the file after a failure (default .true.).
+      integer :: closed
+      tec_failed = (status /= 0)
+      if (.not.tec_failed) return
+      write(stderr,'(A,I0,A)') 'TECPLOT WRITE ERROR: '//what//' failed (status ', status, ').'
+      write(stderr,'(A)') 'File: '//trim(filename)
+      if (present(close_file)) then
+        if (.not.close_file) return
+      endif
+      closed = tecend142()
+    endfunction tec_failed
 #   endif
 
   endfunction tec_write_structured_multiblock

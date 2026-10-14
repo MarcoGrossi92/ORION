@@ -250,6 +250,11 @@ Changes on `main` since `v1.6.0`.
 - `tec_write_structured_multiblock` asked for a binary file whose name holds
   neither `.plt` nor `.szplt` returns 1, with its message, and writes no file:
   the value it returned was undefined.
+- The binary writer returns, with a message, the nonzero status of the first
+  TecIO call that fails, ends the write there and closes the file: it returned
+  the status of the call that closes the file, so a write in which TecIO
+  refused a call, such as a named scalar whose name TecIO does not take, came
+  back with the return value 0.
 
 ## [1.7.0] - 2026-09-29
 

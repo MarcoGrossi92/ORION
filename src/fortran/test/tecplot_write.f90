@@ -33,6 +33,7 @@ program tecplot_write_multiblock
   call surface_blocks
   call precision_szplt
   call binary_name
+  call binary_status
 #endif
   call variable_bounds
   call ascii_title_round_trip
@@ -846,6 +847,45 @@ program tecplot_write_multiblock
   inquire(file='tecfile.bin', exist=exists)
   call check(.not.exists, 'tecfile.bin: no file written')
   end subroutine binary_name
+
+  subroutine binary_status
+  !---------------------------------------------------------------------------------------------------------------------------------
+  !< A binary write that TecIO refuses is reported: a two-dimensional field of one block of 2 x 1 cells with one variable at the
+  !< cells and two named scalars, ok_name and mass-flow, is written to a .szplt and a .plt file. The writer takes both names
+  !< (aux_names_valid), but TecIO refuses mass-flow (TECAUXSTR142: a name begins with a letter or _ and goes on with letters,
+  !< digits, _ and ., in the TecIO of this repository, lib/TecIO/teciosrc/TecioSZL.cpp and TecioPLT.cpp), so the writer must
+  !< return a nonzero value. The same field with ok_name only is written with 0.
+  !< Defect: the writer kept the status of each TecIO call in its result and returned the last one, that of TECEND142, which
+  !< closes the file: a call that failed was forgotten, and the file, without the named scalar that TecIO refused, came back
+  !< with the return value 0.
+  !< Basis: Tecplot 360 EX 2023 R1 Data Format Guide, TECAUXSTR142 and TECDAT142 (p. 30), TECEND142 (p. 32), TECINI142 (p. 45),
+  !< TECZNE142 (p. 60): "Return Value: 0 if successful, -1 if unsuccessful."
+  !---------------------------------------------------------------------------------------------------------------------------------
+  type(orion_data)            :: w
+  integer                     :: i, j, err, f
+  character(len=*), parameter :: files(2) = ['binary_status.szplt', 'binary_status.plt  ']
+  !---------------------------------------------------------------------------------------------------------------------------------
+
+  allocate(w%block(1))
+  w%block(1)%name = 'B1'
+  w%block(1)%Ni = 2; w%block(1)%Nj = 1; w%block(1)%Nk = 0
+  allocate(w%block(1)%mesh(1:2,0:2,0:1,0:0), w%block(1)%vars(1:1,1:2,1:1,1:1))
+  do j = 0, 1; do i = 0, 2
+    w%block(1)%mesh(:,i,j,0) = [real(i, R8P), real(j, R8P)]
+  enddo; enddo
+  w%block(1)%vars(1,:,1,1) = [1._R8P, 2._R8P]
+  w%tec%node = .false.
+  w%tec%format = 'binary'
+  do f = 1, 2
+    err = tec_write_structured_multiblock(orion=w, varnames='a', filename=trim(files(f)), fldnames=['ok_name'], &
+                                          fldvalues=[1.5_R8P])
+    call check(err == 0, trim(files(f))//': the named scalar ok_name written with 0')
+    err = tec_write_structured_multiblock(orion=w, varnames='a', filename=trim(files(f)), fldnames=['ok_name  ', 'mass-flow'], &
+                                          fldvalues=[1.5_R8P, 2.5_R8P])
+    write(*,'(A,I0)') trim(files(f))//' with mass-flow: return value ', err
+    call check(err /= 0, trim(files(f))//': the named scalar mass-flow, which TecIO refuses, gives a nonzero return value')
+  enddo
+  end subroutine binary_status
 #endif
 
   pure function hard_real(n) result(x)
