@@ -255,6 +255,15 @@ Changes on `main` since `v1.6.0`.
   the status of the call that closes the file, so a write in which TecIO
   refused a call, such as a named scalar whose name TecIO does not take, came
   back with the return value 0.
+- `tec_write_structured_multiblock` refuses, with a message and the return
+  value 1, a `varnames` whose names are not as many as the variables written,
+  before writing anything. TecIO takes the number of names as the number of
+  values of each zone: with one name too few it wrote the values of a `.plt`
+  file past the end of its buffers (a field of two blocks stopped the program
+  on a corrupted heap) and refused those of a `.szplt` file; an ASCII file got
+  a `VARIABLES` line that did not match its values. The names may be separated
+  by blanks, tabs or commas in every format: a comma made TecIO split the
+  whole list at its commas, coordinate names included.
 
 ## [1.7.0] - 2026-09-29
 

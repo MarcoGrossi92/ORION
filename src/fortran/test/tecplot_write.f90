@@ -38,6 +38,8 @@ program tecplot_write_multiblock
   call variable_bounds
   call ascii_title_round_trip
   call digits_ascii
+  call names_count
+  call mesh_only_counts
   write(*,'(A,I0,A,I0,A)') 'tecplot_write: ', checks, ' checks, ', failures, ' failed'
   if (failures > 0) stop 1
 
@@ -887,6 +889,153 @@ program tecplot_write_multiblock
   enddo
   end subroutine binary_status
 #endif
+
+  subroutine names_count
+  !---------------------------------------------------------------------------------------------------------------------------------
+  !< The names of varnames are as many as the variables written: a two-dimensional field of one block of 2 x 1 cells with two
+  !< variables at the cells, written with one name (a) or three (a b c), gives the return value 1 and no file, in an ASCII file
+  !< and, with TecIO, in a .plt and a .szplt file; so does the field of two such blocks written to a .plt file with one name
+  !< (a). With TecIO the names a,b, separated by a comma, give a .szplt file read back with the variables x, y, a and b.
+  !< Defect: the writer did not count the names. TecIO takes the number of names, with the coordinates, as the number of values
+  !< of each zone: with one name too few it was handed more values than that, which in a .plt file it wrote past the end of
+  !< its buffers (the field of two blocks stopped the program on a corrupted heap) and in a .szplt file it refused; an ASCII
+  !< file got a VARIABLES line of fewer names than its values. TecIO splits a list with a comma at its commas, so the list
+  !< x y a,b was two names.
+  !< Basis: TecIO of this repository, lib/TecIO/teciosrc/TecioPLT.cpp (TECINI142: the number of variables is the number of
+  !< names, split at the line ends, or else the commas, or else the blanks of the list); Tecplot 360 EX 2023 R1 Data Format
+  !< Guide, TECDAT142 (p. 30): TECDAT142 writes the values of the variables of the zone, in the order of the variables.
+  !---------------------------------------------------------------------------------------------------------------------------------
+  type(orion_data)              :: w
+  integer                       :: i, j, err, f, n
+  character(len=*), parameter   :: lists(2) = ['a    ', 'a b c']
+  character(len=:), allocatable :: name
+#ifdef TECIO
+  type(orion_data)              :: r, w2
+  character(len=*), parameter   :: exts(3) = ['.tec  ', '.plt  ', '.szplt']
+#else
+  character(len=*), parameter   :: exts(1) = ['.tec  ']
+#endif
+  !---------------------------------------------------------------------------------------------------------------------------------
+
+  allocate(w%block(1))
+  w%block(1)%name = 'B1'
+  w%block(1)%Ni = 2; w%block(1)%Nj = 1; w%block(1)%Nk = 0
+  allocate(w%block(1)%mesh(1:2,0:2,0:1,0:0), w%block(1)%vars(1:2,1:2,1:1,1:1))
+  do j = 0, 1; do i = 0, 2
+    w%block(1)%mesh(:,i,j,0) = [real(i, R8P), real(j, R8P)]
+  enddo; enddo
+  w%block(1)%vars(1,:,1,1) = [1._R8P, 2._R8P]
+  w%block(1)%vars(2,:,1,1) = [3._R8P, 4._R8P]
+  w%tec%node = .false.
+  do f = 1, size(exts)
+    w%tec%format = merge('ascii ', 'binary', f == 1)
+    do n = 1, 2
+      name = 'names_'//trim(itoa(n))//trim(exts(f))
+      call remove_file(name)
+      err = tec_write_structured_multiblock(orion=w, varnames=trim(lists(n)), filename=name)
+      write(*,'(A,I0)') name//' ('//trim(lists(n))//' for 2 variables): return value ', err
+      call check(err == 1, name//': '//trim(lists(n))//' for 2 variables refused with the return value 1')
+      call check(.not.exists_file(name), name//': no file written')
+    enddo
+  enddo
+#ifdef TECIO
+  allocate(w2%block(2))
+  w2%block(1) = w%block(1)
+  w2%block(2) = w%block(1)
+  w2%block(2)%name = 'B2'
+  w2%tec = w%tec
+  w2%tec%format = 'binary'
+  call remove_file('names_two_blocks.plt')
+  err = tec_write_structured_multiblock(orion=w2, varnames='a', filename='names_two_blocks.plt')
+  write(*,'(A,I0)') 'names_two_blocks.plt (a for 2 variables, two blocks): return value ', err
+  call check(err == 1, 'names_two_blocks.plt: a for 2 variables of two blocks refused with the return value 1')
+  call check(.not.exists_file('names_two_blocks.plt'), 'names_two_blocks.plt: no file written')
+  w%tec%format = 'binary'
+  err = tec_write_structured_multiblock(orion=w, varnames='a,b', filename='names_comma.szplt')
+  call check(err == 0, 'names_comma.szplt: a,b for 2 variables written with 0')
+  r%tec%format = 'binary'
+  err = tec_read_structured_multiblock(orion=r, filename='names_comma.szplt')
+  call check(err == 0, 'names_comma.szplt: read without error')
+  if (err /= 0) return
+  call check(size(r%varnames) == 4, 'names_comma.szplt: four variables')
+  if (size(r%varnames) /= 4) return
+  call check(r%varnames(1) == 'x' .and. r%varnames(2) == 'y' .and. r%varnames(3) == 'a' .and. r%varnames(4) == 'b', &
+             'names_comma.szplt: the variables x, y, a and b')
+#endif
+  end subroutine names_count
+
+  subroutine mesh_only_counts
+  !---------------------------------------------------------------------------------------------------------------------------------
+  !< A block 1 without vars, a write of the mesh only, writes no variable: a two-dimensional field of one block of 2 x 1 cells
+  !< without vars, written with varnames of two names (a b), gives the return value 1 and no file, in an ASCII file and, with
+  !< TecIO, in a .szplt file.
+  !< Defect: the writer did not count the names: a write of the mesh only with names wrote the mesh, with the return value 0,
+  !< and left the names out.
+  !< Basis: docs/user-guide/fortran-api.md, Names given to the writer: varnames holds as many names as the variables written,
+  !< none when block 1 has no vars, otherwise the return value 1 and no file.
+  !---------------------------------------------------------------------------------------------------------------------------------
+  type(orion_data)              :: w
+  integer                       :: i, j, err, f
+  character(len=:), allocatable :: name
+#ifdef TECIO
+  character(len=*), parameter   :: exts(2) = ['.tec  ', '.szplt']
+#else
+  character(len=*), parameter   :: exts(1) = ['.tec  ']
+#endif
+  !---------------------------------------------------------------------------------------------------------------------------------
+
+  allocate(w%block(1))
+  w%block(1)%name = 'B1'
+  w%block(1)%Ni = 2; w%block(1)%Nj = 1; w%block(1)%Nk = 0
+  allocate(w%block(1)%mesh(1:2,0:2,0:1,0:0))
+  do j = 0, 1; do i = 0, 2
+    w%block(1)%mesh(:,i,j,0) = [real(i, R8P), real(j, R8P)]
+  enddo; enddo
+  w%tec%node = .false.
+  do f = 1, size(exts)
+    w%tec%format = merge('ascii ', 'binary', f == 1)
+    name = 'mesh_only_names'//trim(exts(f))
+    call remove_file(name)
+    err = tec_write_structured_multiblock(orion=w, varnames='a b', filename=name)
+    write(*,'(A,I0)') name//' (no vars, varnames a b): return value ', err
+    call check(err == 1 .and. .not.exists_file(name), name//': two names without vars refused with the return value 1, '// &
+               'no file written')
+  enddo
+  end subroutine mesh_only_counts
+
+  function itoa(n) result(s)
+  !---------------------------------------------------------------------------------------------------------------------------------
+  !< The digits of n.
+  !---------------------------------------------------------------------------------------------------------------------------------
+  integer, intent(in) :: n
+  character(len=16)   :: s
+  !---------------------------------------------------------------------------------------------------------------------------------
+
+  write(s,'(I0)') n
+  end function itoa
+
+  subroutine remove_file(name)
+  !---------------------------------------------------------------------------------------------------------------------------------
+  !< Remove the file name if it is there, so that a check that no file is written measures the write that follows.
+  !---------------------------------------------------------------------------------------------------------------------------------
+  character(len=*), intent(in) :: name
+  integer                      :: u
+  !---------------------------------------------------------------------------------------------------------------------------------
+
+  if (.not.exists_file(name)) return
+  open(newunit=u, file=name, status='old')
+  close(u, status='delete')
+  end subroutine remove_file
+
+  logical function exists_file(name)
+  !---------------------------------------------------------------------------------------------------------------------------------
+  !< Is the file name there?
+  !---------------------------------------------------------------------------------------------------------------------------------
+  character(len=*), intent(in) :: name
+  !---------------------------------------------------------------------------------------------------------------------------------
+
+  inquire(file=name, exist=exists_file)
+  end function exists_file
 
   pure function hard_real(n) result(x)
   !---------------------------------------------------------------------------------------------------------------------------------

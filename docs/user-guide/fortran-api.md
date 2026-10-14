@@ -351,6 +351,11 @@ end program read_vtk_structured
   variable names (the `VARIABLES` line of an ASCII file, the list handed to TecIO for `.plt` and `.szplt`) in
   a buffer of 32768 characters, and the ASCII reader reads up to 32768 characters of header: the `VARIABLES`
   line, the lines before it and its continuation lines, joined. A longer list is cut without a message.
+- **Names given to the writer.** `varnames` of `tec_write_structured_multiblock` holds the names of the variables
+  written, separated by blanks, tabs or commas (double quotes count as blanks, so a name holds none of them), as many as
+  the variables written (`Nvars`, or `size(vars,1)`; none when block 1 has no `vars`, a write of the mesh only); the
+  coordinate names come first in the file. A list of another number of names gives the return value 1, with a message,
+  and no file is written: TecIO takes the number of names as the number of values of each zone.
 - **Forms of the names.** The ASCII reader takes the names from the `VARIABLES` line and its continuation lines,
   up to the first `ZONE` record: the keyword `ZONE` as a whole word, so a name that merely begins with it (such
   as `zone_velocity`) is a name. Each name may be in double quotes, in single quotes or bare, and the forms may

@@ -82,7 +82,9 @@ contains
   !> \details Exports ORION block data in Tecplot structured format (ASCII or binary).
   !> Supports both node-centered and cell-centered data with optional boundary conditions.
   !> \param[in] orion ORION data structure containing blocks to write
-  !> \param[in] varnames Variable names string (optional)
+  !> \param[in] varnames Variable names string (optional): the names of the variables written, separated by blanks, tabs or
+  !> commas (double quotes count as blanks, so a name holds none of them), as many as the variables written (Nvars, or
+  !> size(vars,1); none when block 1 has no vars): otherwise the function returns 1 and writes nothing
   !> \param[in] filename Output file name (must end with .dat, .tec, .plt, or .szplt)
   !> \param[in] Nvars Number of variables to write (optional, default: all)
   !> \param[in] cycle Optional step number, written as the data set auxiliary data CYCLE
@@ -159,6 +161,18 @@ contains
     elseif (.not.allocated(orion%block(1)%vars)) then
       meshonly = .true.
       Nvar = 0
+    endif
+    ! The names given are as many as the variables written: TecIO takes the number of names (with the coordinates) as that of
+    ! the values of each zone, and in a .plt file it writes the values beyond them past the end of its buffers. A write of the
+    ! mesh only writes no variable (Nvar is 0): names given to it were left out
+    if (present(varnames)) then
+      if (names_in(varnames) /= Nvar) then
+        write(stderr,'(A,I0,A,I0,A)') 'TECPLOT WRITE ERROR: number of names in varnames: ', names_in(varnames), &
+          '; number of variables written: ', Nvar, '. Nothing is written.'
+        write(stderr,'(A)') 'File: '//trim(filename)
+        err = 1
+        return
+      endif
     endif
     Nblocks = size(orion%block)
     ndir = size(orion%block(1)%mesh, 1)
@@ -450,20 +464,35 @@ contains
       endif
     endsubroutine var_range
 
-    !> `"a""b"` -> ` a  b `: the binary header's separator convention.
+    !> `"a""b"` -> ` a  b `, `a,b` -> `a b`: double quotes, commas, tabs and line ends become blanks, so that the list holds
+    !> its names separated by blanks, as TecIO takes them: TecIO splits a list at its line ends, or else at its commas, or else
+    !> at its blanks (lib/TecIO/teciosrc/TecioPLT.cpp and TecioData.cpp), and the coordinate names come first in the list.
     pure function unquote(sin) result(sout)
       implicit none
       character(len=*), intent(in) :: sin
       character(len=len(sin))      :: sout
       integer :: i
       do i = 1, len(sin)
-        if (sin(i:i) == '"') then
+        if (scan(sin(i:i), '",'//achar(9)//achar(10)//achar(13)) > 0) then
           sout(i:i) = ' '
         else
           sout(i:i) = sin(i:i)
         endif
       enddo
     endfunction unquote
+
+    !> The number of names of a list, its words once unquote has made its separators blanks.
+    pure integer function names_in(list)
+      implicit none
+      character(len=*), intent(in) :: list
+      character(len=len(list))     :: l
+      integer :: i
+      l = unquote(list)
+      names_in = 0
+      do i = 1, len(l)
+        if (l(i:i) /= ' ' .and. (i == 1 .or. l(max(i-1,1):max(i-1,1)) == ' ')) names_in = names_in + 1
+      enddo
+    endfunction names_in
 
 #   if defined(TECIO)
     ! Function interface for using "tecdat" function.
