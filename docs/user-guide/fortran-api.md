@@ -284,8 +284,24 @@ end program read_vtk_structured
   `CellData` arrays (`Float64`, `NumberOfComponents="1"`), in the format of `orion%vtk%format`: `ascii`, `binary` (base64
   with a 4-byte length, not compressed) or `raw` (raw appended data). Start tags must be on one line: a block file with a
   tag split over lines is refused (return value 1) before any block is read, with a message on the standard error that
-  gives the file, the line and the tag. A block file that lists its data arrays before its `Points`, as VTK and ParaView
-  write them, is refused (return value 1) before any block is read.
+  gives the file, the line and the tag; a tag ends at its first `>` outside the values in quotes of its attributes, which
+  may hold `>`. A block file that lists its data arrays before its `Points`, as VTK and ParaView write them, is refused
+  (return value 1) before any block is read. The attributes are read as XML writes them, in double or in single quotes and
+  with white space around the equal sign. A block file without an attribute that the reader needs (the `Name`, `format`,
+  `type` or raw `offset` of the points or of a variable, `Extent`, `WholeExtent`, the `byte_order` of a raw file) is
+  refused (return value -1), as is a raw one whose `byte_order` is neither `LittleEndian` nor `BigEndian` (the whole
+  value, whatever the case of its letters); one in which such an attribute, or `NumberOfComponents`, has an empty value is
+  refused too, with the return value -1 for the `Name` of an array and for the `format`, `type` and raw `offset` of the
+  points, and 1 for the others. Field data whose `Name`, `format`, `type`, `NumberOfTuples` or raw `offset` is missing or
+  empty are not read from that block file: the time, the cycle and the named scalars are those of the other block files, 0
+  when none of them holds them. An array without `NumberOfComponents` has one component, as the reader of VTK 9.7.1 reads
+  it (its writer leaves it out for one component); a variable of more than one component is refused (return value -1).
+  Character references in the values of attributes (`&amp;`, `&lt;`, `&gt;`, `&quot;`, `&apos;` and the numeric ones) are
+  not expanded: a value is read as it is written. The reader does not recognize XML comments, CDATA sections or processing
+  instructions, and it matches the names of tags as prefixes (`<Piece` matches any tag whose name begins with `Piece`):
+  none of the 38 files written by VTK 9.7.1 and of the 704 files written by the test suite of ORION that were checked
+  holds a comment, a CDATA section, a processing instruction or a tag whose name extends a name that the reader looks for;
+  files written by ParaView or by meshio were not checked.
 - **Solution time.** `solutiontime` is 0 in a new `orion_data`. The Tecplot ASCII reader stores the
   `SOLUTIONTIME` of the file, or `-huge(1._R8P)`, the most negative real, when its zone headers give none: a time
   that no solution has, so that a program can tell a file without a time (with signed times, the -10 that the

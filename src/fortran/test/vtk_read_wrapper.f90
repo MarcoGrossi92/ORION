@@ -64,6 +64,14 @@
   call name_with_celldata
   call name_with_gt
   call cut_after_start_tag
+  call name_in_single_quotes
+  call attributes_in_single_quotes
+  call scalars_without_components
+  call vector_variables_refused
+  call attribute_blanks
+  call names_holding_attributes
+  call tags_holding_gt
+  call byte_order_values
 
   write(*,'(A,I0,A,I0,A)') 'vtk_read_wrapper: ', checks, ' checks, ', failures, ' failed'
   if (failures > 0) stop 1
@@ -1660,6 +1668,653 @@
   close(u)
   done = .true.
   end subroutine cut_after_tag
+
+  subroutine name_in_single_quotes
+  !---------------------------------------------------------------------------------------------------------------------------------
+  !< A variable whose Name is in single quotes is read: a field of one block of 2 x 3 x 2 cells with the variables u and p at the
+  !< cells, written in the ascii format, gets Name="u" made Name='u' in its block file, and is read back as written.
+  !< Defect: get_char read a value in double quotes only, and search compared the Name of each DataArray start tag with the name
+  !< looked for in an .and. with the status of get_char: when get_char found none, the Name was not set and was referenced
+  !< anyway, and the read stopped the program with a segmentation fault in a release build.
+  !< Basis: XML 1.0 (Fifth Edition), 2.3, production [10]: an attribute value is in double or in single quotes; the reader of
+  !< VTK 9.7.1, measured, reads a Name in single quotes as one in double quotes. Fortran 2018 (ISO/IEC 1539-1:2018, final draft
+  !< J3/18-007r1): 9.7.3.2, paragraph 6 (p. 137), an allocatable actual argument of an INTENT(OUT) allocatable dummy argument
+  !< is deallocated when the procedure is invoked; 5.4.10, paragraph 2 (p. 42), an unallocated allocatable variable shall not
+  !< be referenced; 10.1.7, paragraph 1 (p. 154), a processor need not evaluate every operand of an expression, so it may
+  !< evaluate them all.
+  !---------------------------------------------------------------------------------------------------------------------------------
+  type(orion_data)   :: w, r
+  character(len=8)   :: varnames
+  integer(I4P)       :: werr, err
+  integer            :: i, j, k
+  logical            :: done
+  !---------------------------------------------------------------------------------------------------------------------------------
+
+  allocate(w%block(1))
+  w%block(1)%name = 'sqname_B1'
+  w%block(1)%Ni = 2; w%block(1)%Nj = 3; w%block(1)%Nk = 2
+  allocate(w%block(1)%mesh(3,0:2,0:3,0:2), w%block(1)%vars(2,1:2,1:3,1:2))
+  do k = 0, 2; do j = 0, 3; do i = 0, 2
+    w%block(1)%mesh(:,i,j,k) = [real(i, R8P), real(j, R8P), real(k, R8P)]
+  enddo; enddo; enddo
+  do k = 1, 2; do j = 1, 3; do i = 1, 2
+    w%block(1)%vars(1,i,j,k) = real(i + 10*j + 100*k, R8P)
+    w%block(1)%vars(2,i,j,k) = -real(i + j + k, R8P)
+  enddo; enddo; enddo
+  w%vtk%format = 'ascii'
+  varnames = 'u p'
+  werr = vtk_write_structured_multiblock(orion=w, vtspath='', vtmpath='sqname', varnames=varnames)
+  call single_quoted_name('sqname_B1.vts', 'u', done)
+  call check(werr == 0 .and. done, 'sqname: written, Name="u" made Name=''u'' in its block file')
+  r%vtk%format = 'ascii'
+  err = vtk_read_structured_multiblock(orion=r, vtmpath='sqname', vtspath='')
+  write(*,'(A,I0)') 'sqname: return value ', err
+  call check(err == 0, 'sqname: read (return value 0)')
+  call check_field(r, w)
+  end subroutine name_in_single_quotes
+
+  subroutine single_quoted_name(fname, array, done)
+  !---------------------------------------------------------------------------------------------------------------------------------
+  !< Write the file fname again with Name="array" made Name='array', the value in single quotes: done tells that it was found.
+  !---------------------------------------------------------------------------------------------------------------------------------
+  character(len=*), intent(in)  :: fname, array
+  logical,          intent(out) :: done
+  character(len=:), allocatable :: text
+  integer                       :: u, sz, p
+  !---------------------------------------------------------------------------------------------------------------------------------
+
+  done = .false.
+  open(newunit=u, file=fname, access='stream', form='unformatted', status='old', action='read')
+  inquire(unit=u, size=sz)
+  allocate(character(len=sz) :: text)
+  read(u) text
+  close(u)
+  p = index(text, 'Name="'//array//'"')
+  if (p == 0) return
+  text(p:p+len(array)+6) = 'Name='''//array//''''
+  open(newunit=u, file=fname, access='stream', form='unformatted', status='replace', action='write')
+  write(u) text
+  close(u)
+  done = .true.
+  end subroutine single_quoted_name
+
+  subroutine attributes_in_single_quotes
+  !---------------------------------------------------------------------------------------------------------------------------------
+  !< Every attribute that the reader reads is read also with its value in single quotes: a field of one block of 2 x 3 x 2 cells
+  !< with the variables u and p at the cells and the time 0.5 gets one attribute in single quotes at a time, in its block file
+  !< byte_order (raw format), WholeExtent, Extent, the format, the type and the offset (raw format) of the Points, of u and of the
+  !< field data TIME, NumberOfComponents of u, NumberOfTuples of TIME, the Name of the Points and of TIME, and in its .vtm file
+  !< the file of its DataSet; each field is read back as written, with the time 0.5.
+  !< Defect: get_char and get_int read values in double quotes only, and their values were used also when they had read none:
+  !< unallocated strings were referenced and integers without a value were used. A release build stopped with a segmentation
+  !< fault (byte_order, the format of u, the format and the type of TIME), the Debug build at an index out of bounds
+  !< (NumberOfComponents of u), and offsets without a value read the points or the values of u from another place of the file;
+  !< with the guard of these values such files were refused.
+  !< Basis: XML 1.0 (Fifth Edition), 2.3, production [10]: an attribute value is in double or in single quotes; the reader of
+  !< VTK 9.7.1, measured, reads attributes in single quotes as in double quotes. Fortran 2018 (ISO/IEC 1539-1:2018, final draft
+  !< J3/18-007r1): 8.5.10, paragraph 3 (p. 102), an INTENT(OUT) dummy argument becomes undefined when the procedure is invoked;
+  !< 9.7.3.2, paragraph 6 (p. 137), an allocatable actual argument of an INTENT(OUT) allocatable dummy argument is deallocated
+  !< then; 5.4.10, paragraph 2 (p. 42), an unallocated allocatable variable shall not be referenced.
+  !---------------------------------------------------------------------------------------------------------------------------------
+  integer, parameter :: ncase = 17
+  character(len=18), parameter :: attr(ncase) = [character(len=18) :: 'byte_order', 'WholeExtent', 'Extent', 'format', &
+       'type', 'offset', 'format', 'type', 'NumberOfComponents', 'offset', 'NumberOfTuples', 'type', 'format', 'offset', 'Name', &
+       'Name', 'file']
+  character(len=15), parameter :: anchor(ncase) = [character(len=15) :: '<VTKFile', '<StructuredGrid', '<Piece', &
+       'Name="Points"', 'Name="Points"', 'Name="Points"', 'Name="u"', 'Name="u"', 'Name="u"', 'Name="u"', 'Name="TIME"', &
+       'Name="TIME"', 'Name="TIME"', 'Name="TIME"', 'Name="TIME"', 'Name="Points"', '<DataSet']
+  character(len=6), parameter :: fmts(ncase) = [character(len=6) :: 'raw', 'ascii', 'ascii', 'ascii', 'ascii', 'raw', &
+       'ascii', 'ascii', 'ascii', 'raw', 'ascii', 'ascii', 'ascii', 'raw', 'ascii', 'ascii', 'ascii']
+  type(orion_data)   :: w, r
+  character(len=8)   :: varnames
+  character(len=16)  :: field
+  character(len=40)  :: what
+  integer(I4P)       :: werr, err
+  real(R8P)          :: t
+  integer            :: c, i, j, k
+  logical            :: done
+  !---------------------------------------------------------------------------------------------------------------------------------
+
+  do c = 1, ncase
+    field = 'sqattr'//trim(str(no_sign=.true., n=c))
+    what = trim(attr(c))//' in '//trim(anchor(c))//', '//trim(fmts(c))
+    if (allocated(w%block)) deallocate(w%block)
+    allocate(w%block(1))
+    w%block(1)%name = trim(field)//'_B1'
+    w%block(1)%Ni = 2; w%block(1)%Nj = 3; w%block(1)%Nk = 2
+    allocate(w%block(1)%mesh(3,0:2,0:3,0:2), w%block(1)%vars(2,1:2,1:3,1:2))
+    do k = 0, 2; do j = 0, 3; do i = 0, 2
+      w%block(1)%mesh(:,i,j,k) = [real(i, R8P), real(j, R8P), real(k, R8P)]
+    enddo; enddo; enddo
+    do k = 1, 2; do j = 1, 3; do i = 1, 2
+      w%block(1)%vars(1,i,j,k) = real(i + 10*j + 100*k, R8P)
+      w%block(1)%vars(2,i,j,k) = -real(i + j + k, R8P)
+    enddo; enddo; enddo
+    w%vtk%format = trim(fmts(c))
+    varnames = 'u p'
+    werr = vtk_write_structured_multiblock(orion=w, vtspath='', vtmpath=trim(field), varnames=varnames, time=0.5_R8P)
+    if (trim(attr(c)) == 'file') then
+      call quoted_attribute(trim(field)//'.vtm', trim(anchor(c)), trim(attr(c)), done)
+    else
+      call quoted_attribute(trim(field)//'_B1.vts', trim(anchor(c)), trim(attr(c)), done)
+    endif
+    call check(werr == 0 .and. done, trim(field)//': written, '//trim(what)//' in single quotes')
+    if (allocated(r%block)) deallocate(r%block)
+    r%vtk%format = trim(fmts(c))
+    t = -7._R8P
+    err = vtk_read_structured_multiblock(orion=r, vtmpath=trim(field), vtspath='', time=t)
+    write(*,'(A,I0,A,ES12.4)') trim(field)//' ('//trim(what)//'): return value ', err, ', time ', t
+    call check(err == 0 .and. t == 0.5_R8P, trim(field)//': read as written, with the time 0.5')
+    call check_field(r, w)
+  enddo
+  end subroutine attributes_in_single_quotes
+
+  subroutine quoted_attribute(fname, anchor, attr, done)
+  !---------------------------------------------------------------------------------------------------------------------------------
+  !< Write the file fname again with the value of the attribute attr in single quotes in the start tag that holds the text
+  !< anchor: done tells that it was found.
+  !---------------------------------------------------------------------------------------------------------------------------------
+  character(len=*), intent(in)  :: fname, anchor, attr
+  logical,          intent(out) :: done
+  character(len=:), allocatable :: text
+  integer                       :: u, sz, p, s, e, q, a, b
+  !---------------------------------------------------------------------------------------------------------------------------------
+
+  done = .false.
+  open(newunit=u, file=fname, access='stream', form='unformatted', status='old', action='read')
+  inquire(unit=u, size=sz)
+  allocate(character(len=sz) :: text)
+  read(u) text
+  close(u)
+  p = index(text, anchor)
+  if (p == 0) return
+  s = index(text(1:p), '<', back=.true.)
+  e = p - 1 + index(text(p:), '>')
+  if (s == 0 .or. e < p) return
+  q = index(text(s:e), ' '//attr//'="')
+  if (q == 0) return
+  a = s + q + len(attr) + 1
+  b = a + index(text(a+1:e), '"')
+  if (b == a) return
+  text(a:a) = "'"
+  text(b:b) = "'"
+  open(newunit=u, file=fname, access='stream', form='unformatted', status='replace', action='write')
+  write(u) text
+  close(u)
+  done = .true.
+  end subroutine quoted_attribute
+
+  subroutine scalars_without_components
+  !---------------------------------------------------------------------------------------------------------------------------------
+  !< An array without NumberOfComponents has one component: fields of one block of 2 x 3 x 2 cells with the variables u and p at
+  !< the cells, written in the ascii, binary and raw formats, get NumberOfComponents="1" taken out of the start tags of u and p in
+  !< their block files, as the writer of VTK 9.7.1 writes an array of one component, and are read back as written.
+  !< Defect: the reader used the number of components also when the start tag did not give it: the count had no value (the
+  !< values were read wrong with the return value 0, or the Debug build stopped at an index out of bounds), and with the guard
+  !< of the attributes the file was refused.
+  !< Basis: the reader of VTK 9.7.1 (vtkXMLStructuredGridReader), measured: it reads an array without NumberOfComponents as one
+  !< component, with its values, in the ascii and raw formats; its writer leaves NumberOfComponents out for an array of one
+  !< component.
+  !---------------------------------------------------------------------------------------------------------------------------------
+  character(len=*), parameter :: fmts(3) = ['ascii ', 'binary', 'raw   ']
+  type(orion_data)   :: w, r
+  character(len=8)   :: varnames
+  character(len=16)  :: field
+  integer(I4P)       :: werr, err
+  integer            :: f, i, j, k, n
+  !---------------------------------------------------------------------------------------------------------------------------------
+
+  do f = 1, 3
+    field = 'nocomp_'//trim(fmts(f))
+    if (allocated(w%block)) deallocate(w%block)
+    allocate(w%block(1))
+    w%block(1)%name = trim(field)//'_B1'
+    w%block(1)%Ni = 2; w%block(1)%Nj = 3; w%block(1)%Nk = 2
+    allocate(w%block(1)%mesh(3,0:2,0:3,0:2), w%block(1)%vars(2,1:2,1:3,1:2))
+    do k = 0, 2; do j = 0, 3; do i = 0, 2
+      w%block(1)%mesh(:,i,j,k) = [real(i, R8P), real(j, R8P), real(k, R8P)]
+    enddo; enddo; enddo
+    do k = 1, 2; do j = 1, 3; do i = 1, 2
+      w%block(1)%vars(1,i,j,k) = real(i + 10*j + 100*k, R8P)
+      w%block(1)%vars(2,i,j,k) = -real(i + j + k, R8P)
+    enddo; enddo; enddo
+    w%vtk%format = trim(fmts(f))
+    varnames = 'u p'
+    werr = vtk_write_structured_multiblock(orion=w, vtspath='', vtmpath=trim(field), varnames=varnames)
+    call remove_text(trim(field)//'_B1.vts', ' NumberOfComponents="1"', n)
+    call check(werr == 0 .and. n == 2, trim(field)//': written, NumberOfComponents taken out of u and p')
+    if (allocated(r%block)) deallocate(r%block)
+    r%vtk%format = trim(fmts(f))
+    err = vtk_read_structured_multiblock(orion=r, vtmpath=trim(field), vtspath='')
+    write(*,'(A,I0)') trim(field)//': return value ', err
+    call check(err == 0, trim(field)//': read without error')
+    call check_field(r, w)
+  enddo
+  end subroutine scalars_without_components
+
+  subroutine remove_text(fname, text, n)
+  !---------------------------------------------------------------------------------------------------------------------------------
+  !< Write the file fname again without every occurrence of text: n tells how many were taken out.
+  !---------------------------------------------------------------------------------------------------------------------------------
+  character(len=*), intent(in)  :: fname, text
+  integer,          intent(out) :: n
+  character(len=:), allocatable :: s, t
+  integer                       :: u, sz, p
+  !---------------------------------------------------------------------------------------------------------------------------------
+
+  n = 0
+  open(newunit=u, file=fname, access='stream', form='unformatted', status='old', action='read')
+  inquire(unit=u, size=sz)
+  allocate(character(len=sz) :: s)
+  read(u) s
+  close(u)
+  t = ''
+  do
+    p = index(s, text)
+    if (p == 0) exit
+    t = t//s(1:p-1)
+    s = s(p+len(text):)
+    n = n + 1
+  enddo
+  t = t//s
+  open(newunit=u, file=fname, access='stream', form='unformatted', status='replace', action='write')
+  write(u) t
+  close(u)
+  end subroutine remove_text
+
+  subroutine vector_variables_refused
+  !---------------------------------------------------------------------------------------------------------------------------------
+  !< A variable of more than one component is refused: block files of one cell, in the layout of ORION, with the variable a of
+  !< three components at the cells, its NumberOfComponents in double and in single quotes, and with white space around its
+  !< equal sign, and the variable b of one; each read returns -1, the error of a block file that cannot be read.
+  !< Defect: the reader put the first values of such an array in the field, one per cell, with the return value 0 (and took
+  !< NumberOfComponents in single quotes, or with white space around its equal sign, for a missing one, so 1).
+  !< Basis: the field of ORION holds one value per variable and cell (vars(:,i,j,k)); the reader of VTK 9.7.1, measured, reads
+  !< such an array as one of three components, with NumberOfComponents in double or in single quotes.
+  !---------------------------------------------------------------------------------------------------------------------------------
+  character(len=1), parameter :: quotes(3) = ['"', "'", '"']
+  type(orion_data)   :: r
+  character(len=16)  :: field
+  integer(I4P)       :: err
+  integer            :: c
+  !---------------------------------------------------------------------------------------------------------------------------------
+
+  do c = 1, 3
+    field = 'vector'//trim(str(no_sign=.true., n=c))
+    call vector_cell_data_file(trim(field), quotes(c), c == 3)
+    if (allocated(r%block)) deallocate(r%block)
+    r%vtk%format = 'ascii'
+    err = vtk_read_structured_multiblock(orion=r, vtmpath=trim(field), vtspath='')
+    write(*,'(A,I0)') trim(field)//': return value ', err
+    call check(err == -1, trim(field)//': a variable of three components refused (return value -1)')
+  enddo
+  end subroutine vector_variables_refused
+
+  subroutine vector_cell_data_file(stem, quote, blanks)
+  !---------------------------------------------------------------------------------------------------------------------------------
+  !< Write stem.vtm and its block file stem_P1.vts, one cell and its 8 nodes, with the variable a of three components at the
+  !< cell, its NumberOfComponents in the quotes quote (with white space around its equal sign when blanks is true), and the
+  !< variable b of one.
+  !---------------------------------------------------------------------------------------------------------------------------------
+  character(len=*), intent(in) :: stem
+  character(len=1), intent(in) :: quote
+  logical,          intent(in) :: blanks
+  character(len=:), allocatable :: eq
+  integer                      :: u
+  !---------------------------------------------------------------------------------------------------------------------------------
+
+  eq = '='
+  if (blanks) eq = ' = '
+  open(newunit=u, file=stem//'_P1.vts', status='replace', action='write')
+  write(u,'(A)') '<?xml version="1.0"?>'
+  write(u,'(A)') '<VTKFile type="StructuredGrid" version="0.1" byte_order="LittleEndian">'
+  write(u,'(A)') '  <StructuredGrid WholeExtent="+0 +1 +0 +1 +0 +1">'
+  write(u,'(A)') '    <Piece Extent="+0 +1 +0 +1 +0 +1">'
+  write(u,'(A)') '      <Points>'
+  write(u,'(A)') '        <DataArray type="Float64" NumberOfComponents="3" Name="Points" format="ascii">'
+  write(u,'(A)') '          0 0 1 1 0 1 0 1 1 1 1 1 0 0 2 1 0 2 0 1 2 1 1 2'
+  write(u,'(A)') '        </DataArray>'
+  write(u,'(A)') '      </Points>'
+  write(u,'(A)') '      <CellData>'
+  write(u,'(A)') '        <DataArray type="Float64" Name="a" NumberOfComponents'//eq//quote//'3'//quote//' format="ascii">'
+  write(u,'(A)') '          1 2 3'
+  write(u,'(A)') '        </DataArray>'
+  write(u,'(A)') '        <DataArray type="Float64" Name="b" NumberOfComponents="1" format="ascii">'
+  write(u,'(A)') '          4'
+  write(u,'(A)') '        </DataArray>'
+  write(u,'(A)') '      </CellData>'
+  write(u,'(A)') '    </Piece>'
+  write(u,'(A)') '  </StructuredGrid>'
+  write(u,'(A)') '</VTKFile>'
+  close(u)
+  open(newunit=u, file=stem//'.vtm', status='replace', action='write')
+  write(u,'(A)') '<?xml version="1.0"?>'
+  write(u,'(A)') '<VTKFile type="vtkMultiBlockDataSet" version="1.0" byte_order="LittleEndian">'
+  write(u,'(A)') '  <vtkMultiBlockDataSet>'
+  write(u,'(A)') '    <Block index="0">'
+  write(u,'(A)') '      <DataSet index="0" file="'//stem//'_P1.vts"/>'
+  write(u,'(A)') '    </Block>'
+  write(u,'(A)') '  </vtkMultiBlockDataSet>'
+  write(u,'(A)') '</VTKFile>'
+  close(u)
+  end subroutine vector_cell_data_file
+
+  subroutine attribute_blanks
+  !---------------------------------------------------------------------------------------------------------------------------------
+  !< An attribute with white space around its equal sign is read: a field of one block of 2 x 3 x 2 cells with the variables u
+  !< and p at the cells, written in the ascii format, gets Name="u" made Name = 'u', and NumberOfComponents="1" made
+  !< NumberOfComponents = '1' for u and p, in its block file, and is read back as written.
+  !< Defect: get_char and get_int took the value right after the equal sign only: such an attribute was taken as missing.
+  !< Basis: XML 1.0 (Fifth Edition), 2.8, production [25]: Eq ::= S? '=' S?; 2.3, production [10]: the value in double or in
+  !< single quotes.
+  !---------------------------------------------------------------------------------------------------------------------------------
+  type(orion_data)   :: w, r
+  character(len=8)   :: varnames
+  integer(I4P)       :: werr, err
+  integer            :: i, j, k, n1, n2
+  !---------------------------------------------------------------------------------------------------------------------------------
+
+  allocate(w%block(1))
+  w%block(1)%name = 'blanks_B1'
+  w%block(1)%Ni = 2; w%block(1)%Nj = 3; w%block(1)%Nk = 2
+  allocate(w%block(1)%mesh(3,0:2,0:3,0:2), w%block(1)%vars(2,1:2,1:3,1:2))
+  do k = 0, 2; do j = 0, 3; do i = 0, 2
+    w%block(1)%mesh(:,i,j,k) = [real(i, R8P), real(j, R8P), real(k, R8P)]
+  enddo; enddo; enddo
+  do k = 1, 2; do j = 1, 3; do i = 1, 2
+    w%block(1)%vars(1,i,j,k) = real(i + 10*j + 100*k, R8P)
+    w%block(1)%vars(2,i,j,k) = -real(i + j + k, R8P)
+  enddo; enddo; enddo
+  w%vtk%format = 'ascii'
+  varnames = 'u p'
+  werr = vtk_write_structured_multiblock(orion=w, vtspath='', vtmpath='blanks', varnames=varnames)
+  call replace_text('blanks_B1.vts', 'Name="u"', "Name = 'u'", n1)
+  call replace_text('blanks_B1.vts', 'NumberOfComponents="1"', "NumberOfComponents = '1'", n2)
+  call check(werr == 0 .and. n1 == 1 .and. n2 == 2, 'blanks: written, with white space around the equal signs of u and p')
+  r%vtk%format = 'ascii'
+  err = vtk_read_structured_multiblock(orion=r, vtmpath='blanks', vtspath='')
+  write(*,'(A,I0)') 'blanks: return value ', err
+  call check(err == 0, 'blanks: read (return value 0)')
+  call check_field(r, w)
+  end subroutine attribute_blanks
+
+  subroutine replace_text(fname, old, new, n)
+  !---------------------------------------------------------------------------------------------------------------------------------
+  !< Write the file fname again with every occurrence of old made new: n tells how many.
+  !---------------------------------------------------------------------------------------------------------------------------------
+  character(len=*), intent(in)  :: fname, old, new
+  integer,          intent(out) :: n
+  character(len=:), allocatable :: s, t
+  integer                       :: u, sz, p
+  !---------------------------------------------------------------------------------------------------------------------------------
+
+  n = 0
+  open(newunit=u, file=fname, access='stream', form='unformatted', status='old', action='read')
+  inquire(unit=u, size=sz)
+  allocate(character(len=sz) :: s)
+  read(u) s
+  close(u)
+  t = ''
+  do
+    p = index(s, old)
+    if (p == 0) exit
+    t = t//s(1:p-1)//new
+    s = s(p+len(old):)
+    n = n + 1
+  enddo
+  t = t//s
+  open(newunit=u, file=fname, access='stream', form='unformatted', status='replace', action='write')
+  write(u) t
+  close(u)
+  end subroutine replace_text
+
+  subroutine names_holding_attributes
+  !---------------------------------------------------------------------------------------------------------------------------------
+  !< The text of a value in quotes is not taken for attributes, and every array has a Name that can be read: a block file of one
+  !< cell with the variable a of three components, its Name 'a NumberOfComponents="1"' before its NumberOfComponents="3", is refused
+  !< (return value -1); a field of one block of 2 x 3 x 2 cells with the variables u and p at the cells, written in the raw format,
+  !< its Name of u made 'x format="ascii"' before its format="appended", is read back as written, as is the same field in the ascii
+  !< format with an attribute whose value 'x Name="p"' stands before the Name="u" of u; the same field with Name="" for u (binary
+  !< format), without the Name of u or without that of the Points (ascii format), and a field of two such blocks without the Name of
+  !< u or without that of the Points in its second block file, are refused (return value -1).
+  !< Defect, measured before this change: a release build stopped with a segmentation fault on the block file of a, on the field
+  !< with format="ascii" in the Name of u, on Name="" for u in the binary format and on the fields without the Name of u; the Debug
+  !< build refused the block file of a and the field with format="ascii" in the Name of u (return value -1), read the field with
+  !< Name="" for u with the return value 0 and values other than those written in the binary format (-1 in the ascii format, 0 and
+  !< the values written in the raw format), and the field of one block without the Name of u without u (return value 0). In both
+  !< builds the field with Name="p" in the value of another attribute was read with values other than those written (return value
+  !< 0), and the fields without the Name of the Points were refused with the return value 1, as files that list an array before
+  !< their Points.
+  !< Basis: XML 1.0 (Fifth Edition), 3.1, productions [40] and [41]: a start tag is its name and its attributes, each after a white
+  !< space, a name, an equal sign and a value in quotes (2.3, production [10]): the text of a value is not an attribute. The reader
+  !< finds the arrays of every block file by the names of the arrays of the first one: an array without a Name that can be read
+  !< cannot be found.
+  !---------------------------------------------------------------------------------------------------------------------------------
+  type(orion_data)   :: w, r, w2
+  character(len=8)   :: varnames
+  integer(I4P)       :: werr, err
+  integer            :: i, j, k, n
+  !---------------------------------------------------------------------------------------------------------------------------------
+
+  call vector_cell_data_file('holdcomp', '"', .false.)
+  call replace_text('holdcomp_P1.vts', 'Name="a"', "Name='a NumberOfComponents="//'"1"'//"'", n)
+  call check(n == 1, 'holdcomp: written, the Name of a holding NumberOfComponents="1"')
+  r%vtk%format = 'ascii'
+  err = vtk_read_structured_multiblock(orion=r, vtmpath='holdcomp', vtspath='')
+  write(*,'(A,I0)') 'holdcomp: return value ', err
+  call check(err == -1, 'holdcomp: the variable of three components refused (return value -1)')
+
+  allocate(w%block(1))
+  w%block(1)%name = 'holdfmt_B1'
+  w%block(1)%Ni = 2; w%block(1)%Nj = 3; w%block(1)%Nk = 2
+  allocate(w%block(1)%mesh(3,0:2,0:3,0:2), w%block(1)%vars(2,1:2,1:3,1:2))
+  do k = 0, 2; do j = 0, 3; do i = 0, 2
+    w%block(1)%mesh(:,i,j,k) = [real(i, R8P), real(j, R8P), real(k, R8P)]
+  enddo; enddo; enddo
+  do k = 1, 2; do j = 1, 3; do i = 1, 2
+    w%block(1)%vars(1,i,j,k) = real(i + 10*j + 100*k, R8P)
+    w%block(1)%vars(2,i,j,k) = -real(i + j + k, R8P)
+  enddo; enddo; enddo
+  w%vtk%format = 'raw'
+  varnames = 'u p'
+  werr = vtk_write_structured_multiblock(orion=w, vtspath='', vtmpath='holdfmt', varnames=varnames)
+  call replace_text('holdfmt_B1.vts', 'Name="u"', "Name='x format="//'"ascii"'//"'", n)
+  call check(werr == 0 .and. n == 1, 'holdfmt: written, the Name of u holding format="ascii"')
+  if (allocated(r%block)) deallocate(r%block)
+  r%vtk%format = 'raw'
+  err = vtk_read_structured_multiblock(orion=r, vtmpath='holdfmt', vtspath='')
+  write(*,'(A,I0)') 'holdfmt: return value ', err
+  call check(err == 0, 'holdfmt: read (return value 0)')
+  call check_field(r, w)
+
+  ! Another attribute whose value holds Name="p", before the Name of u
+  w%vtk%format = 'ascii'
+  w%block(1)%name = 'holdname_B1'
+  werr = vtk_write_structured_multiblock(orion=w, vtspath='', vtmpath='holdname', varnames=varnames)
+  call replace_text('holdname_B1.vts', 'Name="u"', "info='x Name="//'"p"'//"' Name="//'"u"', n)
+  call check(werr == 0 .and. n == 1, 'holdname: written, an attribute holding Name="p" before the Name of u')
+  if (allocated(r%block)) deallocate(r%block)
+  r%vtk%format = 'ascii'
+  err = vtk_read_structured_multiblock(orion=r, vtmpath='holdname', vtspath='')
+  write(*,'(A,I0)') 'holdname: return value ', err
+  call check(err == 0, 'holdname: read (return value 0)')
+  call check_field(r, w)
+
+  ! A Name of u that is there and cannot be read, in the binary format
+  w%vtk%format = 'binary'
+  w%block(1)%name = 'emptyname_B1'
+  werr = vtk_write_structured_multiblock(orion=w, vtspath='', vtmpath='emptyname', varnames=varnames)
+  call replace_text('emptyname_B1.vts', 'Name="u"', 'Name=""', n)
+  call check(werr == 0 .and. n == 1, 'emptyname: written, Name="" for u')
+  if (allocated(r%block)) deallocate(r%block)
+  r%vtk%format = 'binary'
+  err = vtk_read_structured_multiblock(orion=r, vtmpath='emptyname', vtspath='')
+  write(*,'(A,I0)') 'emptyname: return value ', err
+  call check(err == -1, 'emptyname: refused (return value -1)')
+
+  ! Without the Name of u; without that of the Points
+  w%vtk%format = 'ascii'
+  w%block(1)%name = 'noname_B1'
+  werr = vtk_write_structured_multiblock(orion=w, vtspath='', vtmpath='noname', varnames=varnames)
+  call replace_text('noname_B1.vts', ' Name="u"', '', n)
+  call check(werr == 0 .and. n == 1, 'noname: written, u without its Name')
+  if (allocated(r%block)) deallocate(r%block)
+  r%vtk%format = 'ascii'
+  err = vtk_read_structured_multiblock(orion=r, vtmpath='noname', vtspath='')
+  write(*,'(A,I0)') 'noname: return value ', err
+  call check(err == -1, 'noname: refused (return value -1)')
+  w%block(1)%name = 'nopointsname_B1'
+  werr = vtk_write_structured_multiblock(orion=w, vtspath='', vtmpath='nopointsname', varnames=varnames)
+  call replace_text('nopointsname_B1.vts', ' Name="Points"', '', n)
+  call check(werr == 0 .and. n == 1, 'nopointsname: written, the Points without their Name')
+  if (allocated(r%block)) deallocate(r%block)
+  r%vtk%format = 'ascii'
+  err = vtk_read_structured_multiblock(orion=r, vtmpath='nopointsname', vtspath='')
+  write(*,'(A,I0)') 'nopointsname: return value ', err
+  call check(err == -1, 'nopointsname: refused (return value -1)')
+
+  ! The same in the second block file of a field of two blocks
+  allocate(w2%block(2))
+  w2%block(1) = w%block(1)
+  w2%block(2) = w%block(1)
+  w2%vtk%format = 'ascii'
+  w2%block(1)%name = 'noname2_B1'
+  w2%block(2)%name = 'noname2_B2'
+  werr = vtk_write_structured_multiblock(orion=w2, vtspath='', vtmpath='noname2', varnames=varnames)
+  call replace_text('noname2_B2.vts', ' Name="u"', '', n)
+  call check(werr == 0 .and. n == 1, 'noname2: written, u without its Name in the second block file')
+  if (allocated(r%block)) deallocate(r%block)
+  r%vtk%format = 'ascii'
+  err = vtk_read_structured_multiblock(orion=r, vtmpath='noname2', vtspath='')
+  write(*,'(A,I0)') 'noname2: return value ', err
+  call check(err == -1, 'noname2: refused (return value -1)')
+  w2%block(1)%name = 'nopointsname2_B1'
+  w2%block(2)%name = 'nopointsname2_B2'
+  werr = vtk_write_structured_multiblock(orion=w2, vtspath='', vtmpath='nopointsname2', varnames=varnames)
+  call replace_text('nopointsname2_B2.vts', ' Name="Points"', '', n)
+  call check(werr == 0 .and. n == 1, 'nopointsname2: written, the Points without their Name in the second block file')
+  if (allocated(r%block)) deallocate(r%block)
+  r%vtk%format = 'ascii'
+  err = vtk_read_structured_multiblock(orion=r, vtmpath='nopointsname2', vtspath='')
+  write(*,'(A,I0)') 'nopointsname2: return value ', err
+  call check(err == -1, 'nopointsname2: refused (return value -1)')
+  end subroutine names_holding_attributes
+
+  subroutine tags_holding_gt
+  !---------------------------------------------------------------------------------------------------------------------------------
+  !< The end of a tag is its first '>' outside the values in quotes of its attributes: a block file of one cell with the variable a
+  !< of three components, its start tag over two lines, a value that holds '>' on the first (info="x>y" after its Name, or the
+  !< Name "a>c") and NumberOfComponents="3" on the second, is refused as a tag split over lines (return value 1); fields of one
+  !< block of 2 x 3 x 2 cells with the variables u and p at the cells, in the ascii, binary and raw formats, with
+  !< <FieldData a="x>y"/> before their Piece, are read back as written.
+  !< Defect, measured before this change (the release and the Debug build alike): unclosed_tag and empty_element took the first
+  !< '>' after the '<' of a tag for its end, also inside a value: the split start tag was not seen as split, and the read was
+  !< refused with the return value -1, without the message of a split tag; the empty FieldData element was taken to stay open,
+  !< and the field was read without its variables, with the return value 0.
+  !< Basis: XML 1.0 (Fifth Edition), 2.3, production [10]: an attribute value may hold '>'; 3.1, productions [40] and [44]: a
+  !< start tag and an empty-element tag end with the '>' (or '/>') that follows their name and attributes.
+  !---------------------------------------------------------------------------------------------------------------------------------
+  character(len=*), parameter :: fmts(3) = ['ascii ', 'binary', 'raw   ']
+  character(len=*), parameter :: stems(2) = ['gtsplit1', 'gtsplit2']
+  character(len=36), parameter :: firsts(2) = [character(len=36) :: 'Name="a" info="x>y" format="ascii"', &
+                                               'Name="a>c" format="ascii"']
+  type(orion_data)   :: w, r
+  character(len=8)   :: varnames
+  integer(I4P)       :: werr, err
+  integer            :: c, f, i, j, k, n
+  !---------------------------------------------------------------------------------------------------------------------------------
+
+  do c = 1, 2
+    call vector_cell_data_file(trim(stems(c)), '"', .false.)
+    call replace_text(trim(stems(c))//'_P1.vts', 'Name="a" NumberOfComponents="3" format="ascii">', &
+                      trim(firsts(c))//achar(10)//'          NumberOfComponents="3">', n)
+    call check(n == 1, trim(stems(c))//': written, the start tag of a over two lines, with > in a value of the first')
+    if (allocated(r%block)) deallocate(r%block)
+    r%vtk%format = 'ascii'
+    err = vtk_read_structured_multiblock(orion=r, vtmpath=trim(stems(c)), vtspath='')
+    write(*,'(A,I0)') trim(stems(c))//': return value ', err
+    call check(err == 1, trim(stems(c))//': refused as a tag split over lines (return value 1)')
+  enddo
+
+  do f = 1, 3
+    if (allocated(w%block)) deallocate(w%block)
+    allocate(w%block(1))
+    w%block(1)%name = 'gtfield_'//trim(fmts(f))//'_B1'
+    w%block(1)%Ni = 2; w%block(1)%Nj = 3; w%block(1)%Nk = 2
+    allocate(w%block(1)%mesh(3,0:2,0:3,0:2), w%block(1)%vars(2,1:2,1:3,1:2))
+    do k = 0, 2; do j = 0, 3; do i = 0, 2
+      w%block(1)%mesh(:,i,j,k) = [real(i, R8P), real(j, R8P), real(k, R8P)]
+    enddo; enddo; enddo
+    do k = 1, 2; do j = 1, 3; do i = 1, 2
+      w%block(1)%vars(1,i,j,k) = real(i + 10*j + 100*k, R8P)
+      w%block(1)%vars(2,i,j,k) = -real(i + j + k, R8P)
+    enddo; enddo; enddo
+    w%vtk%format = trim(fmts(f))
+    varnames = 'u p'
+    werr = vtk_write_structured_multiblock(orion=w, vtspath='', vtmpath='gtfield_'//trim(fmts(f)), varnames=varnames)
+    call replace_text('gtfield_'//trim(fmts(f))//'_B1.vts', '<Piece ', '<FieldData a="x>y"/>'//achar(10)//'<Piece ', n)
+    call check(werr == 0 .and. n == 1, 'gtfield_'//trim(fmts(f))//': written, <FieldData a="x>y"/> before the Piece')
+    if (allocated(r%block)) deallocate(r%block)
+    r%vtk%format = trim(fmts(f))
+    err = vtk_read_structured_multiblock(orion=r, vtmpath='gtfield_'//trim(fmts(f)), vtspath='')
+    write(*,'(A,I0)') 'gtfield_'//trim(fmts(f))//': return value ', err
+    call check(err == 0, 'gtfield_'//trim(fmts(f))//': read (return value 0)')
+    call check_field(r, w)
+  enddo
+  end subroutine tags_holding_gt
+
+  subroutine byte_order_values
+  !---------------------------------------------------------------------------------------------------------------------------------
+  !< The byte order of a raw block file is its whole value: a field of one block of 2 x 3 x 2 cells with the variables u and p at
+  !< the cells, written in the raw format on a little-endian machine (byte_order="LittleEndian"), with byte_order made
+  !< "NotLittleEndian", "LittleEndianX" or "xBigEndianLittleEndian" is refused (return value -1); with "littleendian" it is read
+  !< back as written (the case of the letters is not looked at).
+  !< Defect, measured before this change (the release and the Debug build alike): the value was matched as a substring, and the
+  !< three values were read as little endian, with the return value 0.
+  !< Basis: the order of the raw values is known only for the two values that the writers of ORION write (Lib_VTK.f90,
+  !< VTK_INI_XML) and that the writer of VTK 9.7.1 writes (measured): LittleEndian and BigEndian.
+  !---------------------------------------------------------------------------------------------------------------------------------
+  character(len=22), parameter :: values(4) = [character(len=22) :: 'NotLittleEndian', 'LittleEndianX', &
+                                               'xBigEndianLittleEndian', 'littleendian']
+  integer(I4P),      parameter :: expected(4) = [-1_I4P, -1_I4P, -1_I4P, 0_I4P]
+  type(orion_data)   :: w, r
+  character(len=8)   :: varnames
+  character(len=16)  :: field
+  integer(I4P)       :: werr, err
+  integer            :: c, i, j, k, n
+  !---------------------------------------------------------------------------------------------------------------------------------
+
+  do c = 1, 4
+    field = 'byteorder'//trim(str(no_sign=.true., n=c))
+    if (allocated(w%block)) deallocate(w%block)
+    allocate(w%block(1))
+    w%block(1)%name = trim(field)//'_B1'
+    w%block(1)%Ni = 2; w%block(1)%Nj = 3; w%block(1)%Nk = 2
+    allocate(w%block(1)%mesh(3,0:2,0:3,0:2), w%block(1)%vars(2,1:2,1:3,1:2))
+    do k = 0, 2; do j = 0, 3; do i = 0, 2
+      w%block(1)%mesh(:,i,j,k) = [real(i, R8P), real(j, R8P), real(k, R8P)]
+    enddo; enddo; enddo
+    do k = 1, 2; do j = 1, 3; do i = 1, 2
+      w%block(1)%vars(1,i,j,k) = real(i + 10*j + 100*k, R8P)
+      w%block(1)%vars(2,i,j,k) = -real(i + j + k, R8P)
+    enddo; enddo; enddo
+    w%vtk%format = 'raw'
+    varnames = 'u p'
+    werr = vtk_write_structured_multiblock(orion=w, vtspath='', vtmpath=trim(field), varnames=varnames)
+    call replace_text(trim(field)//'_B1.vts', 'byte_order="LittleEndian"', 'byte_order="'//trim(values(c))//'"', n)
+    call check(werr == 0 .and. n == 1, trim(field)//': written, byte_order="'//trim(values(c))//'"')
+    if (allocated(r%block)) deallocate(r%block)
+    r%vtk%format = 'raw'
+    err = vtk_read_structured_multiblock(orion=r, vtmpath=trim(field), vtspath='')
+    write(*,'(A,I0)') trim(field)//': return value ', err
+    if (expected(c) == 0) then
+      call check(err == 0, trim(field)//': read (return value 0)')
+      call check_field(r, w)
+    else
+      call check(err == -1, trim(field)//': refused (return value -1)')
+    endif
+  enddo
+  end subroutine byte_order_values
 
   subroutine name_in_appended_data
   !---------------------------------------------------------------------------------------------------------------------------------

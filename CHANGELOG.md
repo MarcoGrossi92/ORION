@@ -305,6 +305,35 @@ Changes on `main` since `v1.6.0`.
 - The `.szplt` reader gives its message, with the call and the file, also when
   TecIO cannot open the file (`tecFileReaderOpen`), as for the other calls: it
   returned the status with the messages of TecIO only.
+- `vtk_read_structured_multiblock` reads the attributes of a block file and of
+  the `.vtm` file as XML writes them, in double or in single quotes and with
+  white space around the equal sign, and uses none that it has not read. It read
+  them in double quotes and right after the equal sign only, and used them also
+  when it had read none: an attribute in single quotes stopped a release build
+  with a segmentation fault (a `Name`, a `format`, a `type`, the `byte_order`),
+  or had values read from another place of the file (an `offset`). A block file
+  without an attribute that the reader needs (the `Name`, `format`, `type` or
+  raw `offset` of the points or of a variable, `Extent`, `WholeExtent`, the
+  `byte_order` of a raw file) is refused with the return value -1, as is a raw
+  one whose `byte_order` is neither `LittleEndian` nor `BigEndian` (the whole
+  value, whatever the case of its letters; a value that held one of the two,
+  such as `NotLittleEndian`, was read as that byte order); one in which such an
+  attribute, or `NumberOfComponents`, has an empty value is refused too, with -1
+  for the `Name` of an array and for the `format`, `type` and raw `offset` of
+  the points, and 1 for the others. Field data whose `Name`, `format`, `type`,
+  `NumberOfTuples` or raw `offset` is missing or empty are not read from that
+  block file: the time, the cycle and the named scalars are those of the other
+  block files, 0 when none of them holds them. A block file without
+  `WholeExtent`, read before, is refused as the reader of VTK 9.7.1 refuses it.
+  An array without `NumberOfComponents` has one component, as the reader of VTK
+  9.7.1 reads it; a variable whose `NumberOfComponents` is not 1 is refused, as
+  the field holds one value per variable (its first values were read, with the
+  return value 0). A tag ends at its first `>` outside the values in quotes of
+  its attributes, which may hold `>`: a start tag split over lines with such a
+  value on its first line is refused as a split tag (return value 1, with its
+  message; it was refused with -1, without the message), and an empty
+  `FieldData` element with such a value is read as empty (the field was read
+  without its variables, with the return value 0).
 
 ## [1.7.0] - 2026-09-29
 
