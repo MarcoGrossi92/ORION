@@ -1081,16 +1081,19 @@ program tecplot_write_multiblock
   !---------------------------------------------------------------------------------------------------------------------------------
   !< Nvars is a number of the variables that vars holds, from 0 to size(vars,1): a two-dimensional field of one block of 2 x 1
   !< cells with two variables at the cells, written with Nvars = 3 (varnames a b c) or Nvars = -1, gives the return value 1
-  !< and no file, in an ASCII file and, with TecIO, in a .szplt file.
+  !< and no file, in an ASCII file and, with TecIO, in a .szplt file. So does a field of two such blocks whose second block
+  !< holds one variable only (vars(1:1,...)), written without Nvars (varnames a b).
   !< Defect: the writer took Nvars as it came. Nvars = 3 read a third variable past the end of vars: the ASCII file got the
   !< values that followed the array in memory, with the return value 0, and a build with bounds checking or AddressSanitizer
   !< stopped there (index 3 of dimension 1 of vars above its upper bound 2; a heap-buffer-overflow read in tec_dat).
   !< Nvars = -1 wrote past the end of the locations of the variables of a .szplt file (index 2 of tecvarloc, of 1 element), and
-  !< gave an ASCII file the location [3-1]=CELLCENTERED, with the return value 0.
+  !< gave an ASCII file the location [3-1]=CELLCENTERED, with the return value 0. The writer checked the variables of block 1
+  !< only: the second block, of one variable, was read past the end of its vars for the second variable, in the ASCII and in
+  !< the .szplt file, with the return value 0.
   !< Basis: Fortran 2018 (ISO/IEC 1539-1:2018, final draft J3/18-007r1), 9.5.3.1 (p. 128): a subscript within the bounds of its
   !< dimension.
   !---------------------------------------------------------------------------------------------------------------------------------
-  type(orion_data)              :: w
+  type(orion_data)              :: w, w2
   integer                       :: i, j, err, f, n
   integer, parameter            :: counts(2) = [3, -1]
   character(len=:), allocatable :: name
@@ -1125,6 +1128,24 @@ program tecplot_write_multiblock
       call check(err == 1, name//': Nvars = '//trim(itoa(counts(n)))//' for 2 variables refused with the return value 1')
       call check(.not.exists_file(name), name//': no file written')
     enddo
+  enddo
+  ! Two blocks, the second with one variable only
+  allocate(w2%block(2))
+  w2%block(1) = w%block(1)
+  w2%block(2) = w%block(1)
+  w2%block(2)%name = 'B2'
+  deallocate(w2%block(2)%vars)
+  allocate(w2%block(2)%vars(1:1,1:2,1:1,1:1))
+  w2%block(2)%vars(1,:,1,1) = [5._R8P, 6._R8P]
+  w2%tec = w%tec
+  do f = 1, size(exts)
+    w2%tec%format = merge('ascii ', 'binary', f == 1)
+    name = 'nvars_short_block'//trim(exts(f))
+    call remove_file(name)
+    err = tec_write_structured_multiblock(orion=w2, varnames='a b', filename=name)
+    write(*,'(A,I0)') name//' (block 2 with 1 of the 2 variables): return value ', err
+    call check(err == 1 .and. .not.exists_file(name), name//': a block with fewer variables than block 1 refused with the '// &
+               'return value 1, no file written')
   enddo
   end subroutine nvars_range
 

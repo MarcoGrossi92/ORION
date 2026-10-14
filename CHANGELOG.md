@@ -281,6 +281,11 @@ Changes on `main` since `v1.6.0`.
   larger `Nvars` read past the end of `vars` (the file got the values that
   followed it in memory), a negative one wrote past the end of an array of the
   writer in a binary file.
+- `tec_write_structured_multiblock` refuses, with a message that names the
+  block and the return value 1, a block whose `vars` holds fewer variables
+  than those written (those of block 1, or `Nvars`), before writing anything:
+  such a block was read past the end of its `vars`, and the file got the
+  values that followed it in memory.
 
 ## [1.7.0] - 2026-09-29
 

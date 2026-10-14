@@ -88,7 +88,8 @@ contains
   !> \param[in] filename Output file name (must end with .dat, .tec, .plt, or .szplt)
   !> \param[in] Nvars Number of variables to write (optional, default: all), the first Nvars of vars: from 0 to size(vars,1),
   !> 0 when block 1 has no vars (a write of the mesh only),
-  !> otherwise the function returns 1 and writes nothing
+  !> otherwise the function returns 1 and writes nothing; every block holds them (size(vars,1) of each block at least the
+  !> number written), otherwise the function returns 1 and writes nothing
   !> \param[in] cycle Optional step number, written as the data set auxiliary data CYCLE
   !> \param[in] fldnames,fldvalues Optional names and values of real scalars, each written as data set auxiliary data with its
   !> name, as vtk_write_structured_multiblock writes them as field data. They go together and have the same size, and each
@@ -131,6 +132,7 @@ contains
     integer::                 ndir                !< Internal number of dimensions.
     integer::                 Nblocks             !< Number of blocks.
     integer::                 b                   !< Counter.
+    integer::                 nvb                 !< Number of the variables of a block.
     integer::                 NvarTot
     integer::                 gc
     real(R8P)::               time_
@@ -178,6 +180,21 @@ contains
         err = 1
         return
       endif
+    endif
+    ! Every block holds the variables written: the writer takes vars(1:Nvar,...) of each block, so a block with fewer variables
+    ! (or none) than block 1, or than Nvars, was read past the end of its vars
+    if (.not.meshonly) then
+      do b = 2, size(orion%block)
+        nvb = 0
+        if (allocated(orion%block(b)%vars)) nvb = size(orion%block(b)%vars,1)
+        if (nvb < Nvar) then
+          write(stderr,'(A,I0,A,I0,A,I0,A)') 'TECPLOT WRITE ERROR: block ', b, ': number of variables in vars: ', nvb, &
+            '; number of variables written: ', Nvar, '. Nothing is written.'
+          write(stderr,'(A)') 'File: '//trim(filename)
+          err = 1
+          return
+        endif
+      enddo
     endif
     ! The names given are as many as the variables written: TecIO takes the number of names (with the coordinates) as that of
     ! the values of each zone, and in a .plt file it writes the values beyond them past the end of its buffers. A write of the
