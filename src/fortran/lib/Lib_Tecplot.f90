@@ -269,6 +269,7 @@ contains
       integer:: err                     ! Error trapping flag: 0 no errors, >0 error occurs.
       integer:: ni1,ni2,nj1,nj2,nk1,nk2 ! Bounds of dimensions of node-centered data.
       integer:: ci1,ci2,cj1,cj2,ck1,ck2 ! Bounds of dimensions of cell-centered data.
+      integer:: vi1,vi2,vj1,vj2,vk1,vk2 ! Bounds of the variables as they are written (vars(s,vi1+start:vi2,...)).
       integer:: nnode,ncell             ! Number of nodes and cells.
       integer:: i,j,k,s                 ! Counters.
       integer:: Nx, Ny, Nz
@@ -284,6 +285,27 @@ contains
       ! Cell data: a direction with one plane of nodes (a surface block, such as a face of a volume block) has one layer of
       ! cells, as the variables are written below and as an ordered zone stores its cell-centered values
       ncell = max(ci2-ci1+1,1)*max(cj2-cj1+1,1)*max(ck2-ck1+1,1)
+      ! The bounds of the variables, the same in the binary and the ASCII file: the nodes, or the cells from start = 1
+      if (.not.meshonly) then
+        start = 1
+        if (orion%tec%node) start = 0
+        vi1 = ni1; vi2 = ni2; vj1 = nj1; vj2 = nj2; vk1 = nk1; vk2 = nk2
+        ! Cell data: one layer of cells where a direction has one plane of nodes. Data at the nodes keep that plane
+        if (.not.orion%tec%node) then
+          if (vi2==0) vi2 = 1
+          if (vj2==0) vj2 = 1
+          if (vk2==0) vk2 = 1
+        endif
+        ! Force values if 2D
+        if (ndir==2) then
+          vk1 = 1-start; vk2 = 1
+        endif
+        ! Variables whose index range in a direction has the length of the values there but other bounds are taken where
+        ! they are, such as the node plane vars(:,:,:,0:0) of a two-dimensional block as the Tecplot readers return it
+        call var_range(b, 2, start, vi1, vi2)
+        call var_range(b, 3, start, vj1, vj2)
+        call var_range(b, 4, start, vk1, vk2)
+      endif
       ! writing the block data
       select case(orion%tec%format)
       case('binary')
@@ -315,25 +337,8 @@ contains
         if (ndir==3) &
           err=tec_dat(N=nnode,dat=orion%block(b)%mesh(3,ni1:ni2,nj1:nj2,nk1:nk2))
         if (.not.meshonly) then
-          start = 1
-          if (orion%tec%node) start = 0
-          ! Cell data: one layer of cells where a direction has one plane of nodes. Data at the nodes keep that plane
-          if (.not.orion%tec%node) then
-            if (ni2==0) ni2 = 1
-            if (nj2==0) nj2 = 1
-            if (nk2==0) nk2 = 1
-          endif
-          ! Force values if 2D
-          if (ndir==2) then
-            nk1 = 1-start; nk2 = 1
-          endif
-          ! Variables whose index range in a direction has the length of the values there but other bounds are taken where
-          ! they are, such as the node plane vars(:,:,:,0:0) of a two-dimensional block as the Tecplot readers return it
-          call var_range(b, 2, start, ni1, ni2)
-          call var_range(b, 3, start, nj1, nj2)
-          call var_range(b, 4, start, nk1, nk2)
           do s=1,Nvar
-            err=tec_dat(N=ncell,dat=orion%block(b)%vars(s,ni1+start:ni2,nj1+start:nj2,nk1+start:nk2))
+            err=tec_dat(N=ncell,dat=orion%block(b)%vars(s,vi1+start:vi2,vj1+start:vj2,vk1+start:vk2))
           enddo
         endif
 #     endif
@@ -354,25 +359,8 @@ contains
         if (ndir>2) &
           write(tecunit,FR_P,iostat=err)(((orion%block(b)%mesh(3,i,j,k),i=ni1,ni2),j=nj1,nj2),k=nk1,nk2)
         if (.not.meshonly) then
-          start = 1
-          if (orion%tec%node) start = 0
-          ! Cell data: one layer of cells where a direction has one plane of nodes. Data at the nodes keep that plane
-          if (.not.orion%tec%node) then
-            if (ni2==0) ni2 = 1
-            if (nj2==0) nj2 = 1
-            if (nk2==0) nk2 = 1
-          endif
-          ! Force values if 2D
-          if (ndir==2) then
-            nk1 = 1-start; nk2 = 1
-          endif
-          ! Variables whose index range in a direction has the length of the values there but other bounds are taken where
-          ! they are, such as the node plane vars(:,:,:,0:0) of a two-dimensional block as the Tecplot readers return it
-          call var_range(b, 2, start, ni1, ni2)
-          call var_range(b, 3, start, nj1, nj2)
-          call var_range(b, 4, start, nk1, nk2)
           do s=1,Nvar
-            write(tecunit,FR_P,iostat=err)(((orion%block(b)%vars(s,i,j,k),i=ni1+start,ni2),j=nj1+start,nj2),k=nk1+start,nk2)
+            write(tecunit,FR_P,iostat=err)(((orion%block(b)%vars(s,i,j,k),i=vi1+start,vi2),j=vj1+start,vj2),k=vk1+start,vk2)
           enddo
         endif
       end select
@@ -572,9 +560,16 @@ contains
   !> Supports both BLOCK and POINT data packing; physical line breaks are irrelevant to the
   !> numerical data stream. Nodal and cell-centered variables are supported for BLOCK data.
   !> POINT data is supported when all variables are nodal.
-  !> A file whose first zone has one node plane (K = 1) is read with two coordinates (x, y),
-  !> unless its header declares a third one: the first three variables are named x, y, z
-  !> and z is nodal in every zone (a slice of a 3-D field), read with three coordinates.
+  !> Every zone is read with the number of coordinates of the file: three when a zone has
+  !> more than one node plane in K, or when the header declares a third coordinate, the first
+  !> three variables named x, y, z and z nodal in every zone (single node planes or lines of
+  !> a 3-D field, such as a slice); otherwise two when a zone has more than one node line in
+  !> J, or when the first two variables are named x and y and y is nodal in every zone (lines
+  !> of a 2-D field); otherwise one (a file of lines).
+  !> The coordinates are at the nodes and the solution variables all at the nodes or all at the
+  !> cells (orion%tec%node): a file with a coordinate at the cells, or with solution variables
+  !> at the nodes and at the cells, in a zone or between zones, is refused (return value 1, with
+  !> a message).
   function tec_read_ascii(orion,filename) result(err)
     use, intrinsic :: iso_fortran_env, only : iostat_end
     implicit none
@@ -591,12 +586,14 @@ contains
     integer   :: Imax, Jmax, Kmax
     integer   :: start
     logical, allocatable :: zone_point(:), zone_node_arr(:)
-    logical, allocatable :: zone_z_cell(:)   ! variable 3 listed as CELLCENTERED in the zone header
-    logical   :: plane_xyz                   ! single node planes that carry x, y and z
+    logical, allocatable :: zone_cc(:,:)     ! variable v listed as CELLCENTERED in the header of zone b
+    logical   :: plane_xyz                   ! the header declares x, y and z as coordinates (a slice)
+    logical   :: line_xy                     ! the header declares x and y as coordinates (lines of a 2-D field)
     integer, allocatable :: Ni(:), Nj(:), Nk(:)
     ! A line and a zone header of any length (read with read_whole_line): the title of a zone is as long as its block name
     character(len=:), allocatable :: line
     character(len=:), allocatable :: header
+    character(len=:), allocatable :: uheader ! the zone header in upper case
     character(32768) :: hline               ! header lines only (VARIABLES and what precedes it)
     character(32768) :: variables_header
     character(32768) :: vline
@@ -694,11 +691,11 @@ contains
     endif
 
     allocate(Ni(Nblocks),Nj(Nblocks),Nk(Nblocks),zone_point(Nblocks),zone_node_arr(Nblocks))
-    allocate(zone_z_cell(Nblocks))
+    allocate(zone_cc(size(orion%varnames),Nblocks))
     Ni = 0; Nj = 0; Nk = 1
     zone_point = .false.
     zone_node_arr = .true.
-    zone_z_cell = .false.
+    zone_cc = .false.
 
     rewind(tecunit)
     b = 0
@@ -730,7 +727,10 @@ contains
       enddo
 
       call parse_zone_header(header,Ni(b),Nj(b),Nk(b),zone_point(b),zone_node_arr(b),solutiontime,strandid)
-      zone_z_cell(b) = var_cellcentered(upper_case(header),3)
+      uheader = upper_case(header)
+      do s = 1, size(orion%varnames)
+        zone_cc(s,b) = var_cellcentered(uheader,s)
+      enddo
       if (Ni(b)<=0 .or. Nj(b)<=0 .or. Nk(b)<=0) then
         write(stderr,'(/,A)') 'TECPLOT ASCII READ ERROR: invalid zone dimensions.'
         write(stderr,'(A,I0)') 'Zone : ', b
@@ -756,11 +756,74 @@ contains
     orion%solutiontime = solutiontime
     orion%strandid = strandid
 
-    ! All existing ORION structured storage assumes the same centering for all
-    ! non-coordinate variables. Keep that model, but derive it from the zone headers.
-    ! The current ORION structured representation has one common centering for
-    ! all solution variables, so reject files mixing centering between zones.
+    ! The number of coordinates is that of the file, the same for every zone (the variables are those
+    ! of the file): three when a zone has more than one node plane in K, or when the header declares a
+    ! third coordinate: the first three variables are named x, y and z (any case) and z is NODAL in
+    ! every zone (not listed as CELLCENTERED in VARLOCATION), so that a file of single node planes or
+    ! lines is part of a 3-D field (a slice): z is read as the third coordinate, not as the first
+    ! solution variable, so every variable keeps its own band. Otherwise two when a zone has more than
+    ! one node line in J (a pure 2-D file, x and y); otherwise one (a file of lines, I-ordered zones).
+    ! A zone with one node plane or line in a direction holds one layer of cells there.
+    plane_xyz = .false.
+    if (size(orion%varnames)>=3) then
+      plane_xyz = is_coordinate_name(orion%varnames(1),'X') .and. &
+                  is_coordinate_name(orion%varnames(2),'Y') .and. &
+                  is_coordinate_name(orion%varnames(3),'Z') .and. .not.any(zone_cc(3,:))
+    endif
+    ! The same rule for two coordinates: the first two variables named x and y (any case), y NODAL in every zone, are the
+    ! coordinates also of a file of single node lines, the lines of a 2-D field
+    line_xy = .false.
+    if (size(orion%varnames)>=2) then
+      line_xy = is_coordinate_name(orion%varnames(1),'X') .and. &
+                is_coordinate_name(orion%varnames(2),'Y') .and. .not.any(zone_cc(2,:))
+    endif
+    if (any(Nk>1) .or. plane_xyz) then
+      ndir = 3
+    elseif (any(Nj>1) .or. line_xy) then
+      ndir = 2
+    else
+      ndir = 1
+      ! A file of lines only does not tell a 1-D field from lines of a 2-D or 3-D one
+      if (size(orion%varnames)>=2) then
+        if (is_coordinate_name(orion%varnames(2),'Y')) write(stderr,'(A)') &
+          'TECPLOT ASCII READ WARNING: every zone is a line of nodes (J = K = 1); the file is read with one coordinate '// &
+          'and its variable '//trim(orion%varnames(2))//' as a solution variable (x and y are the coordinates of a file of '// &
+          'lines when they are its first two variables and y is NODAL).'
+      endif
+    endif
+
+    if (size(orion%varnames)<ndir) then
+      err = 1
+      close(tecunit)
+      return
+    endif
+    nvar = size(orion%varnames) - ndir
+    if (nvar==0) meshonly = .true.
+
+    ! ORION holds the coordinates at the nodes and one location for all solution variables of a file (orion%tec%node): at the
+    ! nodes when the zone headers list no variable as CELLCENTERED, at the cells otherwise. A file with a coordinate at the
+    ! cells, or with solution variables at the nodes and at the cells, in a zone or between zones, cannot be held and is
+    ! refused with a message: a zone of both was read as if every solution variable were at the cells, its values shifted.
+    do b = 1, Nblocks
+      if (any(zone_cc(1:ndir,b))) then
+        write(stderr,'(/,A)') 'TECPLOT ASCII READ ERROR: a coordinate at the cells; ORION reads the coordinates at the nodes.'
+        write(stderr,'(A,I0)') 'Zone : ', b
+        err = 1
+        close(tecunit)
+        return
+      endif
+      if (any(zone_cc(ndir+1:,b)) .and. .not.all(zone_cc(ndir+1:,b))) then
+        write(stderr,'(/,A)') 'TECPLOT ASCII READ ERROR: solution variables at the nodes and at the cells in one zone; '// &
+          'ORION reads files whose solution variables are all at the nodes or all at the cells.'
+        write(stderr,'(A,I0)') 'Zone : ', b
+        err = 1
+        close(tecunit)
+        return
+      endif
+    enddo
     if (any(zone_node_arr .neqv. zone_node_arr(1))) then
+      write(stderr,'(/,A)') 'TECPLOT ASCII READ ERROR: solution variables at the nodes in some zones and at the cells in '// &
+        'others; ORION reads files whose solution variables are all at the nodes or all at the cells.'
       err = 1
       close(tecunit)
       return
@@ -773,46 +836,12 @@ contains
       start = 1
     endif
 
-    ndir = 3
-    if (Nk(1)==1) ndir = 2
-    if (Nj(1)==1 .and. Nk(1)==1) ndir = 1
-
-    ! One node plane (K = 1) is a pure 2-D file (x, y) unless the header declares a
-    ! third coordinate: the first three variables are named x, y and z (any case) and
-    ! z is NODAL in every zone (not listed as CELLCENTERED in VARLOCATION). Such a
-    ! file is a plane of a 3-D field (a slice): z is read as the third coordinate,
-    ! not as the first solution variable, so every variable keeps its own band.
-    ! As for 2-D files, all zones must then be single planes.
-    plane_xyz = .false.
-    if (ndir==2 .and. size(orion%varnames)>=3) then
-      plane_xyz = is_coordinate_name(orion%varnames(1),'X') .and. &
-                  is_coordinate_name(orion%varnames(2),'Y') .and. &
-                  is_coordinate_name(orion%varnames(3),'Z') .and. .not.any(zone_z_cell)
-      if (plane_xyz) ndir = 3
-    endif
-
-    do b = 1, Nblocks
-      if ((Nk(b)==1 .and. ndir==3 .and. .not.plane_xyz) .or. &
-          (Nk(b)>1 .and. (ndir<3 .or. plane_xyz)) .or. &
-          (Nj(b)==1 .and. ndir>1)) then
-        err = 1
-        close(tecunit)
-        return
-      endif
-    enddo
-
-    if (size(orion%varnames)<ndir) then
-      err = 1
-      close(tecunit)
-      return
-    endif
-    nvar = size(orion%varnames) - ndir
-    if (nvar==0) meshonly = .true.
-
     ! POINT packing with mixed nodal/cell-centered variables has no single common
     ! point count for all variables. The current ORION representation assumes a
     ! common storage location, so require nodal data for POINT zones.
     if (any(zone_point) .and. .not.orion%tec%node) then
+      write(stderr,'(/,A)') 'TECPLOT ASCII READ ERROR: variables at the cells in POINT data packing; cell-centered '// &
+        'variables are written in BLOCK packing.'
       err = 1
       close(tecunit)
       return
@@ -875,6 +904,8 @@ contains
       Imax = Ni(b)
       Jmax = Nj(b)
       Kmax = Nk(b)
+      ! The block takes the title of its zone as its name, as in tec_read_szplt
+      orion%block(b)%name = zone_title(header)
 
       allocate(orion%block(b)%mesh(1:ndir,0:Imax-1,0:Jmax-1,0:Kmax-1))
       if (.not.meshonly) then
@@ -926,8 +957,8 @@ contains
           d = ndir + 1
           do s = 1, nvar
             do k = start, max(start,Kmax-1)
-              do j = start, Jmax-1
-                do i = start, Imax-1
+              do j = start, max(start,Jmax-1)
+                do i = start, max(start,Imax-1)
                   call next_value(tecunit,value,err)
                   if (err/=0) exit
                   orion%block(b)%vars(s,i,j,k) = value
@@ -1015,6 +1046,9 @@ contains
 
       call get_integer_keyword(work,'I',I_)
       call get_integer_keyword(work,'J',J_)
+      ! J omitted: one node line, an I-ordered zone (I only, as in the examples of Tecplot); a J that is not a whole number
+      ! stays 0, and the zone is refused
+      if (keyword_value_pos(work,'J')==0) J_ = 1
       call get_integer_keyword(work,'K',K_,found)
       if (.not.found) K_ = 1   ! K omitted: one node plane (Tecplot's default K = 1)
 
@@ -1038,41 +1072,6 @@ contains
       call get_integer_keyword(work,'STRANDID',strand_,found)
       if (.not.found) strand_ = -1
     endsubroutine parse_zone_header
-
-    ! Position of the value of `key` (name without '=') in a header line, or 0 if
-    ! absent. The key must be a whole word outside quoted strings, followed by
-    ! '='; whitespace is allowed on both sides of '=', e.g.
-    !   K=2
-    !   K=  2
-    !   K = 2
-    ! so 'K' does not match inside 'BLOCK=' nor in a title such as T="K=99".
-    integer function keyword_value_pos(text,key) result(pos)
-      character(len=*), intent(in) :: text,key
-      integer :: p, q, lt, lk
-      logical :: in_quotes
-
-      pos = 0
-      lt = len_trim(text)
-      lk = len_trim(key)
-      in_quotes = .false.
-
-      do p = 1, lt-lk+1
-        if (text(p:p)=='"') then
-          in_quotes = .not.in_quotes
-          cycle
-        endif
-        if (in_quotes .or. text(p:p+lk-1)/=key(1:lk)) cycle
-        if (p>1) then
-          if (is_word_char(text(p-1:p-1))) cycle
-        endif
-        q = skip_blanks(text,p+lk,lt)
-        if (q>lt) return
-        if (text(q:q)/='=') cycle
-        q = skip_blanks(text,q+1,lt)
-        if (q<=lt) pos = q
-        return
-      enddo
-    endfunction keyword_value_pos
 
     ! Value of `key` up to the next separator (comma, blank, tab or ')').
     subroutine get_word_keyword(text,key,out,found)
@@ -1134,22 +1133,6 @@ contains
       endif
       out = text(q:r)
     endfunction varlocation_value
-
-    pure integer function skip_blanks(text,start,last) result(q)
-      character(len=*), intent(in) :: text
-      integer, intent(in) :: start, last
-      q = start
-      do while (q<=last)
-        if (text(q:q)/=' ' .and. text(q:q)/=char(9)) exit
-        q = q + 1
-      enddo
-    endfunction skip_blanks
-
-    pure logical function is_word_char(c)
-      character(1), intent(in) :: c
-      is_word_char = (c>='A' .and. c<='Z') .or. (c>='a' .and. c<='z') .or. &
-                     (c>='0' .and. c<='9') .or. c=='_'
-    endfunction is_word_char
 
     subroutine next_value(unit,x,istat)
       use, intrinsic :: iso_fortran_env, only : iostat_end
@@ -1322,18 +1305,6 @@ contains
       enddo
     endsubroutine next_value
 
-    function upper_case(text) result(out)
-      character(len=*), intent(in) :: text
-      character(len=len(text)) :: out
-      integer :: q, code
-      out = text
-      do q = 1, len(text)
-        code = iachar(out(q:q))
-        if (code>=iachar('a') .and. code<=iachar('z')) &
-          out(q:q) = achar(code-iachar('a')+iachar('A'))
-      enddo
-    endfunction upper_case
-
     ! Is text (a variable name) the coordinate name c ('X', 'Y' or 'Z'), in any case?
     logical function is_coordinate_name(text,c)
       character(len=*), intent(in) :: text, c
@@ -1410,6 +1381,99 @@ contains
 
   end function tec_read_ascii
 
+  ! Keywords and titles of a zone header: tec_read_ascii and tec_read_points_multivars
+
+  ! Position of the value of `key` (name without '=') in a header line, or 0 if
+  ! absent. The key must be a whole word outside quoted strings, followed by
+  ! '='; whitespace is allowed on both sides of '=', e.g.
+  !   K=2
+  !   K=  2
+  !   K = 2
+  ! so 'K' does not match inside 'BLOCK=' nor in a title such as T="K=99".
+  integer function keyword_value_pos(text,key) result(pos)
+    character(len=*), intent(in) :: text,key
+    integer :: p, q, lt, lk
+    logical :: in_quotes
+
+    pos = 0
+    lt = len_trim(text)
+    lk = len_trim(key)
+    in_quotes = .false.
+
+    do p = 1, lt-lk+1
+      if (text(p:p)=='"') then
+        in_quotes = .not.in_quotes
+        cycle
+      endif
+      if (in_quotes .or. text(p:p+lk-1)/=key(1:lk)) cycle
+      if (p>1) then
+        if (is_word_char(text(p-1:p-1))) cycle
+      endif
+      q = skip_blanks(text,p+lk,lt)
+      if (q>lt) return
+      if (text(q:q)/='=') cycle
+      q = skip_blanks(text,q+1,lt)
+      if (q<=lt) pos = q
+      return
+    enddo
+  endfunction keyword_value_pos
+
+  pure integer function skip_blanks(text,start,last) result(q)
+    character(len=*), intent(in) :: text
+    integer, intent(in) :: start, last
+    q = start
+    do while (q<=last)
+      if (text(q:q)/=' ' .and. text(q:q)/=char(9)) exit
+      q = q + 1
+    enddo
+  endfunction skip_blanks
+
+  pure logical function is_word_char(c)
+    character(1), intent(in) :: c
+    is_word_char = (c>='A' .and. c<='Z') .or. (c>='a' .and. c<='z') .or. &
+                   (c>='0' .and. c<='9') .or. c=='_'
+  endfunction is_word_char
+
+  function upper_case(text) result(out)
+    character(len=*), intent(in) :: text
+    character(len=len(text)) :: out
+    integer :: q, code
+    out = text
+    do q = 1, len(text)
+      code = iachar(out(q:q))
+      if (code>=iachar('a') .and. code<=iachar('z')) &
+        out(q:q) = achar(code-iachar('a')+iachar('A'))
+    enddo
+  endfunction upper_case
+
+  ! The title of a zone, the value of T in its header (the keyword in any case, found as the others): the text between double
+  ! quotes, which the next quote closes, as it closes a variable name; or, without quotes, a word up to the next blank, comma,
+  ! tab or ')' (Tecplot puts a string with blanks in quotes). Blank when the header has no T.
+  function zone_title(text) result(title)
+    character(len=*), intent(in)  :: text
+    character(len=:), allocatable :: title
+    integer :: q, r
+
+    title = ''
+    q = keyword_value_pos(upper_case(text),'T')
+    if (q<=0) return
+    if (text(q:q)=='"') then
+      r = index(text(q+1:),'"')
+      if (r==0) then
+        title = trim(text(q+1:))
+      else
+        title = text(q+1:q+r-1)
+      endif
+    else
+      r = scan(text(q:),', )'//char(9))
+      if (r==0) then
+        title = trim(text(q:))
+      else
+        title = text(q:q+r-2)
+      endif
+    endif
+  endfunction zone_title
+
 
   !> \brief Read ORION point data from Tecplot file.
   !> \details Reads Tecplot point format files into ORION data structure.
@@ -1462,6 +1526,8 @@ contains
       enddo
       if (ios==iostat_end) exit
       b = b+1
+      ! The block takes the title of its zone as its name (on the line of I=), as in tec_read_ascii
+      orion%block(b)%name = zone_title(line)
       ! parse copies each piece whole (split writes it character by character), so the pieces get the length of the line:
       ! the first one holds the block name
       if (allocated(args)) deallocate(args, subargs)
@@ -1739,10 +1805,17 @@ contains
   !> \brief Read ORION structured multiblock data from Tecplot binary file (SZplt format).
   !> \details Uses TecIO library to read compressed Tecplot binary format (.szplt).
   !> Only compiled if TECIO is defined.
-  !> A zone with one node plane (K = 1) is read with two coordinates (x, y), unless the
-  !> file declares a third one, with the rule of the ASCII reader: the first three variables
-  !> are named x, y, z and z is nodal in every zone (a slice of a 3-D field), read with
-  !> three coordinates.
+  !> Every zone is read with the number of coordinates of the file: three when a zone has
+  !> more than one node plane in K, or when the file declares a third coordinate with the rule
+  !> of the ASCII reader, the first three variables named x, y, z and z nodal in every zone
+  !> (single node planes or lines of a 3-D field, such as a slice); otherwise two when a zone
+  !> has more than one node line in J, or when the first two variables are named x and y and y is
+  !> nodal in every zone (lines of a 2-D field); otherwise one (a file of lines).
+  !> The coordinates are at the nodes, and the solution variables of a zone all at the nodes or all at the cells: a zone with a
+  !> coordinate at the cells, or with solution variables at the nodes and at the cells, is refused (return value 1, with a
+  !> message). Each block takes the location of its zone (vars from 0 at the nodes, from 1 at the cells), so the zones of a file
+  !> may differ. orion%tec%node is set when the solution variables of every zone are at the nodes, cleared when those of every
+  !> zone are at the cells, and left as it is when the zones differ or the file has no solution variables.
   !> \param[inout] orion ORION data structure to fill with data
   !> \param[in] filename Input file name (.szplt)
   !> \param[in] zone_mask Optional per-zone selector, indexed by zone number.
@@ -1786,7 +1859,12 @@ contains
     integer(c_int32_t) :: strandID
     integer(c_int32_t), allocatable :: int32Values(:)
     integer(c_int64_t) :: numValues
+    integer(c_int64_t) :: layer, first     ! values read by one call (all, a layer of cells in K or a row in I) and the first
     integer(c_int64_t) :: iMax, jMax, kMax, ndir
+    integer(c_int64_t) :: ndir_file         ! number of coordinates of the file, the same for every zone
+    integer :: nnodal, ncellc, ncoordc      ! solution variables at the nodes and at the cells, coordinates at the cells, of a zone
+    integer :: nzonen, nzonec               ! zones with their solution variables at the nodes, at the cells
+    integer(c_int32_t) :: ispassive         ! a variable without values in a zone
     integer(c_int32_t), allocatable :: varTypes(:)
     integer(c_int32_t), allocatable :: passiveVarList(:)
     integer(c_int32_t), allocatable :: valueLocation(:)
@@ -1796,9 +1874,10 @@ contains
     real(c_double), allocatable :: doubleValues(:)
     type(c_ptr) :: inputFileHandle = C_NULL_PTR
     type(c_ptr) :: stringCPtr = C_NULL_PTR
-    logical :: onlyNode
+    logical :: onlyNode, hasValues     ! the block at the nodes; a solution variable of the zone holds values
     logical :: headers_only, want_data, is_coord
-    logical :: plane_xyz                    ! single node planes that carry x, y and z
+    logical :: plane_xyz                    ! the file declares x, y and z as coordinates (a slice)
+    logical :: line_xy                      ! the file declares x and y as coordinates (lines of a 2-D field)
     integer(c_int32_t) :: zloc              ! value location of variable 3 in a zone (1 = nodal)
 
     headers_only = .false.
@@ -1857,11 +1936,10 @@ contains
     i = tecFileGetType(inputFileHandle, fileType)
     i = tecDataSetGetNumZones(inputFileHandle, numZones)
 
-    ! One node plane (K = 1) is a pure 2-D zone (x, y) unless the file declares a third
-    ! coordinate, with the rule of the ASCII reader: the first three variables are named
-    ! x, y and z (any case) and z is nodal in every zone. Such a zone is a plane of a 3-D
-    ! field (a slice): z is read as the third coordinate, not as the first solution
-    ! variable, so every variable keeps its own band.
+    ! The file declares a third coordinate, with the rule of the ASCII reader, when the first
+    ! three variables are named x, y and z (any case) and z is nodal in every zone: its zones
+    ! of single node planes or lines are part of a 3-D field (a slice), and z is read as the
+    ! third coordinate, not as the first solution variable, so every variable keeps its own band.
     plane_xyz = .false.
     if (numVars >= 3) then
       plane_xyz = is_coordinate_name(orion%varnames(1),'X') .and. &
@@ -1873,6 +1951,83 @@ contains
         if (zloc /= 1) plane_xyz = .false.
       enddo
     endif
+
+    ! The number of coordinates is that of the file (its variables are the same in every zone):
+    ! three when a zone has more than one node plane in K, or when the file declares x, y and z as
+    ! above (a file of single node planes or lines that is part of a 3-D field); otherwise two when
+    ! a zone has more than one node line in J; otherwise one (a file of lines). Every zone is read
+    ! with it: no zone takes it from the zone before it.
+    ndir_file = 1
+    do inputZone = 1, numZones
+      i = tecZoneGetIJK(inputFileHandle, inputZone, iMax, jMax, kMax)
+      if (kMax > 1) ndir_file = 3
+      if (jMax > 1 .and. ndir_file < 2) ndir_file = 2
+    enddo
+    if (plane_xyz) ndir_file = 3
+    ! The same rule for two coordinates: the first two variables named x and y (any case), y nodal in every zone, are the
+    ! coordinates also of a file of single node lines, the lines of a 2-D field
+    line_xy = .false.
+    if (numVars >= 2) then
+      line_xy = is_coordinate_name(orion%varnames(1),'X') .and. is_coordinate_name(orion%varnames(2),'Y')
+      do inputZone = 1, numZones
+        if (.not. line_xy) exit
+        i = tecZoneVarGetValueLocation(inputFileHandle, inputZone, 2_c_int32_t, zloc)
+        if (zloc /= 1) line_xy = .false.
+      enddo
+    endif
+    if (line_xy .and. ndir_file < 2) ndir_file = 2
+
+    ! A file with fewer variables than the coordinates of its zones, such as a zone with more than one node line in J and the
+    ! variable x only, cannot be held: it is refused, as the ASCII reader refuses it
+    if (numVars < ndir_file) then
+      write(stderr,'(A,I0,A,I0,A)') 'TECPLOT SZPLT READ ERROR: ', numVars, ' variables for ', ndir_file, ' coordinates.'
+      write(stderr,'(A)') 'File: '//trim(filename)
+      i = tecFileReaderClose(inputFileHandle)
+      i = 1
+      return
+    endif
+
+    ! ORION holds the coordinates at the nodes, and one location for all solution variables of a block: a zone with a coordinate
+    ! at the cells, or with solution variables at the nodes and at the cells, is refused with a message (passive variables,
+    ! which hold no values, do not count). Each block takes the location of its zone, so the zones of a file may differ;
+    ! orion%tec%node is set when every zone has its solution variables at the nodes, cleared when every zone has them at the
+    ! cells, and left as it is when the zones differ or the file has no solution variables.
+    nzonen = 0; nzonec = 0
+    do inputZone = 1, numZones
+      nnodal = 0; ncellc = 0; ncoordc = 0
+      do var = 1, numVars
+        i = tecZoneVarIsPassive(inputFileHandle, inputZone, var, ispassive)
+        if (ispassive /= 0) cycle
+        i = tecZoneVarGetValueLocation(inputFileHandle, inputZone, var, zloc)
+        if (var <= ndir_file) then
+          if (zloc /= 1) ncoordc = ncoordc + 1
+        elseif (zloc == 1) then
+          nnodal = nnodal + 1
+        else
+          ncellc = ncellc + 1
+        endif
+      enddo
+      if (ncoordc > 0) then
+        write(stderr,'(A,I0,A)') 'TECPLOT SZPLT READ ERROR: a coordinate at the cells in zone ', inputZone, &
+          '; ORION reads the coordinates at the nodes.'
+        write(stderr,'(A)') 'File: '//trim(filename)
+        i = tecFileReaderClose(inputFileHandle)
+        i = 1
+        return
+      endif
+      if (nnodal > 0 .and. ncellc > 0) then
+        write(stderr,'(A,I0,A)') 'TECPLOT SZPLT READ ERROR: solution variables at the nodes and at the cells in zone ', &
+          inputZone, '; ORION reads zones whose solution variables are all at the nodes or all at the cells.'
+        write(stderr,'(A)') 'File: '//trim(filename)
+        i = tecFileReaderClose(inputFileHandle)
+        i = 1
+        return
+      endif
+      if (nnodal > 0) nzonen = nzonen + 1
+      if (ncellc > 0) nzonec = nzonec + 1
+    enddo
+    if (nzonen > 0 .and. nzonec == 0) orion%tec%node = .true.
+    if (nzonec > 0 .and. nzonen == 0) orion%tec%node = .false.
 
     ! A caller doing the two-pass dims-then-data read arrives here a second
     ! time with %block already allocated from the header pass.
@@ -1905,14 +2060,7 @@ contains
         orion%block(inputZone)%Nj = jMax-1
         orion%block(inputZone)%Nk = kMax-1
 
-        if (jMax>1 .and. kMax>1) then
-          ndir = 3
-        elseif (jMax>1 .and. kMax==1) then
-          ndir = 2
-          if (plane_xyz) ndir = 3
-        elseif (jMax==1 .and. kMax==1) then
-          ndir = 1
-        endif
+        ndir = ndir_file
 
         allocate(valueLocation(numVars))
         do var = 1, numVars
@@ -1920,10 +2068,18 @@ contains
                 var, valueLocation(var))
         enddo
 
-        onlyNode = .false.
+        ! The location of the block is that of the solution variables of its zone: a passive variable, which holds no values,
+        ! does not count, as in the check of the locations above. A zone whose solution variables are all passive (a zone of
+        ! coordinates only) takes the location of the file, orion%tec%node, at which tec_write_structured_multiblock writes
+        ! every block
+        onlyNode = .false.; hasValues = .false.
         do var = ndir+1, numVars
+          i = tecZoneVarIsPassive(inputFileHandle, inputZone, var, ispassive)
+          if (ispassive /= 0) cycle
+          hasValues = .true.
           if (valueLocation(var)==1) onlyNode = .true.
         enddo
+        if (numVars > ndir .and. .not.hasValues) onlyNode = orion%tec%node
 
         if (onlyNode) then
           vstart = 0
@@ -1980,16 +2136,35 @@ contains
             is_coord = (valueLocation(var)==1 .and. var<=ndir)
             if (.not. want_data .and. .not. is_coord) cycle
 
+            ! A passive variable holds no values in its zone: it reads as zero, the value Tecplot gives it
+            if (passiveVarList(var) /= 0 .and. var > ndir) orion%block(inputZone)%vars(var-ndir,:,:,:) = 0.0_R8P
+
             if (passiveVarList(var) == 0 .and. &
                   shareVarFromZone(var) == 0) then
                 i = tecZoneVarGetNumValues(inputFileHandle, &
                           inputZone, var, numValues)
+                ! The TecIO reader of this repository (lib/TecIO, TecVersionId 2018.3.0.94816) does not give right, in one call,
+                ! the values at the cells of some zones with one node plane or line in a direction (such as the faces i, j and k
+                ! of a volume block); it gives them right one layer of cells in K at a time when KMax > 1, and one row of cells
+                ! in I at a time when KMax = 1, where a layer in K is the whole zone. So a variable at the cells of a zone with
+                ! IMax, JMax or KMax = 1 is read so; the variables at the nodes, and those of zones with more than one node
+                ! plane in each direction, are read with one call.
+                layer = max(numValues, 1_c_int64_t)
+                if (valueLocation(var) /= 1 .and. (iMax == 1 .or. jMax == 1 .or. kMax == 1)) then
+                  if (kMax > 1) then
+                    layer = max(iMax-1, 1_c_int64_t)*max(jMax-1, 1_c_int64_t)
+                  else
+                    layer = max(iMax-1, 1_c_int64_t)
+                  endif
+                endif
                 select case (varTypes(var))
                 case (1) ! float
                     allocate(floatValues(numValues))
-                    i = tecZoneVarGetFloatValues(inputFileHandle, &
-                        inputZone, var, 1_c_int64_t, numValues, &
-                        floatValues)
+                    do first = 1, numValues, layer
+                      i = tecZoneVarGetFloatValues(inputFileHandle, &
+                          inputZone, var, first, min(layer, numValues-first+1), &
+                          floatValues(first:))
+                    enddo
                     if (valueLocation(var)==1 .and. var<=ndir) then
                       cnt = 1
                       do k = 0, kMax-1; do j = 0, jMax-1; do i = 0, iMax-1
@@ -2006,9 +2181,11 @@ contains
                     deallocate(floatValues)
                 case (2) ! double
                     allocate(doubleValues(numValues))
-                    i = tecZoneVarGetDoubleValues(inputFileHandle, &
-                        inputZone, var, 1_c_int64_t, numValues, &
-                        doubleValues)
+                    do first = 1, numValues, layer
+                      i = tecZoneVarGetDoubleValues(inputFileHandle, &
+                          inputZone, var, first, min(layer, numValues-first+1), &
+                          doubleValues(first:))
+                    enddo
                     if (is_coord) then
                       cnt = 1
                       do k = 0, kMax-1; do j = 0, jMax-1; do i = 0, iMax-1
@@ -2025,9 +2202,11 @@ contains
                     deallocate(doubleValues)
                 case (3) ! int32_t
                     allocate(int32Values(numValues))
-                    i = tecZoneVarGetInt32Values(inputFileHandle, &
-                        inputZone, var, 1_c_int64_t, numValues, &
-                        int32Values)
+                    do first = 1, numValues, layer
+                      i = tecZoneVarGetInt32Values(inputFileHandle, &
+                          inputZone, var, first, min(layer, numValues-first+1), &
+                          int32Values(first:))
+                    enddo
                     if (is_coord) then
                       cnt = 1
                       do k = 0, kMax-1; do j = 0, jMax-1; do i = 0, iMax-1
@@ -2044,9 +2223,11 @@ contains
                     deallocate(int32Values)
                 case (4) ! int16_t
                     allocate(int16Values(numValues))
-                    i = tecZoneVarGetInt16Values(inputFileHandle, &
-                        inputZone, var, 1_c_int64_t, numValues, &
-                        int16Values)
+                    do first = 1, numValues, layer
+                      i = tecZoneVarGetInt16Values(inputFileHandle, &
+                          inputZone, var, first, min(layer, numValues-first+1), &
+                          int16Values(first:))
+                    enddo
                     if (is_coord) then
                       cnt = 1
                       do k = 0, kMax-1; do j = 0, jMax-1; do i = 0, iMax-1
@@ -2063,9 +2244,11 @@ contains
                     deallocate(int16Values)
                 case (5) ! uint8_t
                     allocate(int8Values(numValues))
-                    i = tecZoneVarGetUInt8Values(inputFileHandle, &
-                        inputZone, var, 1_c_int64_t, numValues, &
-                        int8Values)
+                    do first = 1, numValues, layer
+                      i = tecZoneVarGetUInt8Values(inputFileHandle, &
+                          inputZone, var, first, min(layer, numValues-first+1), &
+                          int8Values(first:))
+                    enddo
                     if (is_coord) then
                       cnt = 1
                       do k = 0, max(1,kMax-1); do j = 0, jMax-1; do i = 0, iMax-1

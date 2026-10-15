@@ -63,6 +63,19 @@ Changes on `main` since `v1.6.0`.
   `vtmpath = 'out/field'` list `../name.vts`); the entries depended on what the
   memory held when `vtspath` and `vtmpath` share no prefix. Such a field is
   read back with the directory of the `.vtm` file as `vtspath`.
+- The Tecplot readers refuse, with a message and the return value 1, a zone
+  with a coordinate at the cells or with solution variables at the nodes and
+  at the cells, which ORION cannot hold: the ASCII reader read such a zone
+  with its values shifted, the `.szplt` reader past the end of a buffer. The
+  ASCII reader still refuses a file whose zones differ in location, now with a
+  message; the `.szplt` reader reads it, each block at the location of its zone.
+- The Tecplot readers take the coordinates of a file of lines of nodes by
+  name, as those of a file of slices: `x` and `y` (`y` nodal in every zone)
+  are two coordinates, the lines of a two-dimensional field as
+  `tec_write_structured_multiblock` writes them, and `x`, `y` and `z` (`z`
+  nodal) three; they were read with one. A one-dimensional field at the nodes
+  whose first variable is named `y` (and `z`) is so read with two (three)
+  coordinates: rename them or write the field at the cells.
 
 ### Fixed
 
@@ -157,6 +170,38 @@ Changes on `main` since `v1.6.0`.
   data of the VTK files; it wrote them as cell data.
 - The converter ends with the exit status 1 when it cannot read its input or
   write its output; it ended with the exit status 0, as a success.
+- The `.szplt` reader reads the values at the cells of a zone with one node
+  plane or line one layer of cells in K at a time (one row in I when `KMax` =
+  1): the TecIO reader of the repository gives some of them wrong, without an
+  error, in one call (`KMax` = 1 with `IMax` = 2 and `JMax` >= 3; `IMax` = 1
+  with `JMax` = 2 and `KMax` >= 3; `JMax` = 1 with `KMax` >= 3).
+- The `.szplt` reader gives every zone the number of coordinates of the file:
+  each zone took the number of its own shape, and the face j of a volume block
+  that of the zone before it, or an undefined one when it was the first zone.
+- The `.szplt` reader sets `orion%tec%node` from the locations of the zones
+  (it never set it); it leaves the flag as it is for a file without solution
+  variables, for which the ASCII reader sets it, and for a file whose zones
+  differ in location.
+- The `.szplt` reader returns a passive variable as zero, the value Tecplot
+  gives it, and takes the location of a block from its other variables, or,
+  when they are all passive (a zone of coordinates only), the location of the
+  file, `orion%tec%node`: the passive variable held what the memory held, one
+  declared at the nodes made the values at the cells read past the end of
+  their buffer, and a zone of coordinates only got the bounds of the cells in a
+  field at the nodes, which the writer then read below their lower bound.
+- The `.szplt` reader refuses (return value 1, with a message) a file with
+  fewer variables than the coordinates of its zones, as the ASCII reader
+  refuses it (without a message); it returned 0 with a coordinate never set.
+- The Tecplot ASCII reader reads the cell values of a zone with one node plane
+  or line in I or J (it read none, without an error), gives every zone the
+  number of coordinates of the file, and reads zones whose shape differs from
+  that of the first one (refused with error 1 and no message).
+- The Tecplot ASCII reader reads a zone header without `J` as one node line,
+  an I-ordered zone, as in the examples of the Tecplot Data Format Guide; it
+  refused it as a zone of invalid dimensions.
+- The Tecplot ASCII readers, `tec_read_structured_multiblock` and
+  `tec_read_points_multivars`, give each block the title of its zone as its
+  name, as `tec_read_szplt` does; the names were undefined.
 
 ## [1.7.0] - 2026-09-29
 

@@ -4,6 +4,7 @@
 !< return every name and every value, also in the header-only pass and when only the second zone
 !< is read (zone_mask), as a parallel caller does. TecIO build.
 !< Zone titles longer than 128 characters and paths of 256 characters or more (long_names).
+!< The same block names from this reader and the ASCII one (block_names).
 !< Stops with a non-zero code when a check fails.
 program tecplot_read_szplt_long_header
   use Lib_Tecplot
@@ -15,6 +16,7 @@ program tecplot_read_szplt_long_header
   nfail = 0
   call variables_200()
   call long_names()
+  call block_names()
   if (nfail > 0) then
     write(*,'(A,I0,A)') 'tecplot_read_szplt_long_header: ', nfail, ' check(s) FAILED'
     error stop 1
@@ -285,4 +287,69 @@ contains
     if (err /= 0) return
     call check(same_field(w, r), what//': read back with its dimensions, coordinates and values')
   end subroutine szplt_long_path
+
+  ! The same block names from the two readers. Two blocks, the second with a name of 100 characters,
+  ! are written to a .szplt file and to an ASCII file: both readers give the names written.
+  ! Defect: the Tecplot ASCII readers never set the names of the blocks, while tec_read_szplt gives
+  ! each block the title of its zone.
+  ! Basis: Fortran 2018, 19.6.6 (p. 514): a component without default initialization becomes
+  ! undefined when the object is allocated; Tecplot 360 EX 2023 R1 Data Format Guide, section 4-3.2
+  ! (p. 123): T is the zone title.
+  subroutine block_names()
+    call same_as_szplt
+  end subroutine block_names
+
+  ! A name of n characters, lower-case letters and digits: no blank, comma, quote or equal sign.
+  pure function long_name_titles(n) result(name)
+    integer, intent(in)          :: n
+    character(len=n)             :: name
+    character(len=36), parameter :: c = 'abcdefghijklmnopqrstuvwxyz0123456789'
+    integer                      :: i
+    do i = 1, n
+      name(i:i) = c(mod(i - 1, 36) + 1:mod(i - 1, 36) + 1)
+    enddo
+  end function long_name_titles
+
+  ! One block of 2 x 1 x 1 cells for each name, with one variable at the cells.
+  subroutine fill_titles(w, names)
+    type(orion_data), intent(out) :: w
+    character(len=*), intent(in)  :: names(:)
+    integer                       :: b, i, j, k
+    allocate(w%block(size(names)))
+    do b = 1, size(names)
+      w%block(b)%name = names(b)
+      w%block(b)%Ni = 2; w%block(b)%Nj = 1; w%block(b)%Nk = 1
+      allocate(w%block(b)%mesh(1:3,0:2,0:1,0:1), w%block(b)%vars(1:1,1:2,1:1,1:1))
+      do k = 0, 1; do j = 0, 1; do i = 0, 2
+        w%block(b)%mesh(:,i,j,k) = [real(i + 3*b, R8P), real(j, R8P), real(k, R8P)]
+      enddo; enddo; enddo
+      w%block(b)%vars(1,:,1,1) = [real(10*b + 1, R8P), real(10*b + 2, R8P)]
+    enddo
+    w%tec%node = .false.
+  end subroutine fill_titles
+
+  ! The two blocks, the second with a name of 100 characters, written to a .szplt file and to an ASCII file: both readers give
+  ! the same names, the names written.
+  subroutine same_as_szplt
+    type(orion_data) :: w, a, s
+    integer          :: err, b
+    logical          :: same
+    call fill_titles(w, [character(len=100) :: 'blk_A', long_name_titles(100)])
+    w%tec%format = 'ascii'
+    err = tec_write_structured_multiblock(orion=w, varnames='u', filename='tec_block_names_2.tec')
+    w%tec%format = 'binary'
+    err = max(err, tec_write_structured_multiblock(orion=w, varnames='u', filename='tec_block_names_2.szplt'))
+    call check(err == 0, '.szplt and ASCII files: written without error')
+    err = tec_read_structured_multiblock(orion=a, filename='tec_block_names_2.tec')
+    err = max(err, tec_read_structured_multiblock(orion=s, filename='tec_block_names_2.szplt'))
+    call check(err == 0, '.szplt and ASCII files: read back without error')
+    if (err /= 0) return
+    same = size(a%block) == 2 .and. size(s%block) == 2
+    if (same) then
+      do b = 1, 2
+        same = same .and. a%block(b)%name == s%block(b)%name .and. a%block(b)%name == w%block(b)%name
+      enddo
+    endif
+    call check(same, '.szplt and ASCII files: the same names from both readers, the names written')
+  end subroutine same_as_szplt
 end program tecplot_read_szplt_long_header
