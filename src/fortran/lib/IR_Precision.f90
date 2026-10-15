@@ -56,12 +56,13 @@ integer, parameter:: I_P  = I4P                   !> Default integer precision.
 ! Format parameters useful for writing in a well-ascii-format numeric variables.
 ! Real output formats:
 character(10), parameter:: FR16P = '(E42.33E4)' !> Output format for kind=R16P variable.
-character(10), parameter:: FR8P  = '(E23.15E3)' !> Output format for kind=R8P variable.
+character(10), parameter:: FR8P  = '(E25.17E3)' !> Output format for kind=R8P variable: 17 significant digits, the fewest that
+                                                !> give back every 64-bit real when the text is read (10**16 > 2**53).
 character(9),  parameter:: FR4P  = '(E13.6E2)'  !> Output format for kind=R4P variable.
 character(10), parameter:: FR_P  = FR8P         !> Output format for kind=R_P variable.
 ! Real number of digits of output formats:
 integer, parameter:: DR16P = 42   !> Number of digits of output format FR16P.
-integer, parameter:: DR8P  = 23   !> Number of digits of output format FR8P.
+integer, parameter:: DR8P  = 25   !> Number of digits of output format FR8P.
 integer, parameter:: DR4P  = 13   !> Number of digits of output format FR4P.
 integer, parameter:: DR_P  = DR8P !> Number of digits of output format FR_P.
 ! Integer output formats:

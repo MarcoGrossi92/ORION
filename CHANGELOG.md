@@ -12,16 +12,8 @@ Changes on `main` since `v1.6.0`.
 ### Added
 
 - `orion_data%strandid` (integer, default -1): the Tecplot ASCII reader stores
-  the `STRANDID` of the last zone header, -1 when the header has none.
-  `tec_write_structured_multiblock` marks a steady solution (a negative
-  `solutiontime`) by writing `SOLUTIONTIME=|t|` and `STRANDID = 0` in each zone
-  header; `solutiontime` is read back as `|t|`, as before, and `strandid == 0`
-  now tells the reader that the file holds a steady solution. Nothing else
-  changes: the writer, the files and every value read are as before, and code
-  that does not use the new component behaves as before. Known limitation:
-  binary Tecplot files (`.plt`, `.szplt`) are not covered -- the binary writer
-  stores StrandID 0 for every zone and the `.szplt` reader does not store the
-  zone time -- and need a separate change.
+  the `STRANDID` of the last zone header, -1 when the header has none. Code
+  that does not use the new component behaves as before.
 - Optional arguments of `vtk_write_structured_multiblock` and
   `vtk_read_structured_multiblock`: `cycle` and the named real scalars
   `fldnames` and `fldvalues` (with `fldfound` for the reader), written as the
@@ -29,6 +21,12 @@ Changes on `main` since `v1.6.0`.
   returned by the reader, 0 (and `fldfound` false) when the files hold none.
   Names and values of different sizes, and blank names, are refused (return
   value 1); the reader compares the names without regard to case.
+- The same optional arguments for `tec_write_structured_multiblock` and
+  `tec_read_structured_multiblock`, kept as the data set auxiliary data of the
+  Tecplot file: `CYCLE` and one item per name, the reals with 17 significant
+  digits (`DATASETAUXDATA` records after the zones in an ASCII file). Names
+  and values of different sizes, and blank names, are refused (return value
+  1); the writer refuses also the names that an item cannot hold.
 - `read_whole_line` in the module `strings` (`stringmod.f90`): reads the next
   line of a formatted file whole, whatever its length.
 
@@ -76,6 +74,28 @@ Changes on `main` since `v1.6.0`.
   nodal) three; they were read with one. A one-dimensional field at the nodes
   whose first variable is named `y` (and `z`) is so read with two (three)
   coordinates: rename them or write the field at the cells.
+- `tec_write_structured_multiblock` writes the solution time with its sign:
+  a negative `solutiontime` marks a steady solution, whose zones are static
+  (no `STRANDID` in an ASCII zone header, StrandID 0 in a binary file), and the
+  zones of a time-accurate one belong to the strand of their block
+  (`STRANDID = b`, StrandID `b`). It wrote `|t|` with `STRANDID = 0`, a strand
+  for Tecplot and not a valid ASCII StrandID, and binary files did not mark a
+  steady solution. A program tells it from the sign of `solutiontime`; a file
+  written before reads back as before. The data set auxiliary data `Time` of a
+  binary file keeps `|t|`.
+- The Tecplot ASCII reader gives `solutiontime = -huge(1._R8P)` for a file
+  without `SOLUTIONTIME`, instead of -10, the time of a steady solution at
+  iteration 10.
+- The Tecplot ASCII files and the ascii format of the VTK files hold every
+  64-bit real with 17 significant digits (`FR8P` of `IR_Precision`,
+  `E25.17E3` instead of `E23.15E3`), the fewest that give it back bit for bit
+  when the file is read: every text file changes, each real taking two
+  characters more, and `str` of a 64-bit real gives 17 digits.
+- The Tecplot reader takes the format from the extension of the file name
+  only: a name that holds `.dat` or `.tec` elsewhere, such as `grid.data`,
+  `mesh.tecplot` or `field.tec.bak`, which it read as an ASCII file, is
+  refused with the return value 1 and a message; rename such files with the
+  extension `.dat` or `.tec`. The ASCII writer writes a file under any name.
 
 ### Fixed
 
@@ -202,6 +222,118 @@ Changes on `main` since `v1.6.0`.
 - The Tecplot ASCII readers, `tec_read_structured_multiblock` and
   `tec_read_points_multivars`, give each block the title of its zone as its
   name, as `tec_read_szplt` does; the names were undefined.
+- Without TecIO, the Tecplot writer and reader stop a program that asks them
+  for a binary file with error termination (`ERROR STOP`, a nonzero exit
+  status): `STOP` gave the exit status 0, so the run passed for a success (the
+  converter, asked for a `.szplt` file, wrote nothing).
+- The `.szplt` reader stores the solution time and the StrandID of the last
+  zone in `solutiontime` and `strandid` (-1 for a static zone), also with
+  `dims_only`; it dropped them, so a solution read from a `.szplt` file came
+  without its time.
+- `vtk_read_structured_multiblock` reads a `FieldData` element written on
+  one line, as XML allows: the time, the cycle and the named scalars of such
+  a file were read as 0, and a line longer than 256 characters hid the names
+  of the variables after it. The text of a data array on the line of its
+  start tag is read in the case of the file: a base64 code there was read in
+  upper case.
+- `copyORION` copies every member of the source: the time (`solutiontime`),
+  the strand (`strandid`) and every format option; it copied four of the
+  options only, so the copy held the defaults of the others (`tec%node`,
+  `tec%bc`, `tec%extension`, `vtk%node`), a time of 0 and the strand -1.
+- The Tecplot ASCII reader, `tec_read_points_multivars` and
+  `p3d_read_multiblock` read into an `orion_data` that already holds blocks:
+  the blocks of the file take their place, as in the `.szplt` and VTK
+  readers; they stopped the program (an allocated variable allocated again).
+- `tec_read_structured_multiblock` refuses, with a message and the return
+  value 1, a file name whose extension is none of those it reads (`.dat`,
+  `.tec`, `.szplt`), such as that of a `.plt` file, which the writer writes:
+  the value it returned was undefined.
+- The `.szplt` reader returns, with a message, the nonzero status of the
+  first TecIO call that fails, and ends the read there: it returned the status
+  of the call that closes the file, so a file that TecIO opens and then cannot
+  read, such as a damaged one, came back with the return value 0.
+- `tec_write_structured_multiblock` asked for a binary file whose name has
+  neither the extension `.plt` nor `.szplt` returns 1, with its message, and
+  writes no file: the value it returned was undefined.
+- The binary writer returns, with a message, the nonzero status of the first
+  TecIO call that fails, ends the write there and closes the file: it returned
+  the status of the call that closes the file, so a write in which TecIO
+  refused a call, such as a named scalar whose name TecIO does not take, came
+  back with the return value 0.
+- `tec_write_structured_multiblock` refuses, with a message and the return
+  value 1, a `varnames` whose names are not as many as the variables written,
+  before writing anything. TecIO takes the number of names as the number of
+  values of each zone: with one name too few it wrote the values of a `.plt`
+  file past the end of its buffers (a field of two blocks stopped the program
+  on a corrupted heap) and refused those of a `.szplt` file; an ASCII file got
+  a `VARIABLES` line that did not match its values. The names may be separated
+  by blanks, tabs or commas in every format: a comma made TecIO split the
+  whole list at its commas, coordinate names included.
+- The `.szplt` reader refuses, with a message and the return value 1, a file
+  with a zone that is not ordered, a finite-element zone, and closes it, before
+  any zone is read: a `FEPOLYGON` or `FEPOLYHEDRON` zone stopped the program
+  with a `STOP` statement, so with the exit status 0, as a success, the file
+  left open; any other finite-element zone was read as an ordered zone, its
+  nodes, elements and corners taken for I, J and K, with the return value 0.
+- The Tecplot reader and the binary writer take the format from the extension
+  of the file name, the text after the last dot of its last component: they
+  took it from any part of the name, so `cases.data/f.szplt` and
+  `a.dat.szplt` went to the ASCII reader, and the writer wrote a `.plt` file
+  under the name `a.plt.szplt`.
+- `tec_write_structured_multiblock` refuses, with a message and the return
+  value 1, an `Nvars` out of the variables that `vars` holds (0 to
+  `size(vars,1)`, 0 when block 1 has no `vars`), before writing anything: a
+  larger `Nvars` read past the end of `vars` (the file got the values that
+  followed it in memory), a negative one wrote past the end of an array of the
+  writer in a binary file.
+- `tec_write_structured_multiblock` refuses, with a message that names the
+  block and the return value 1, a block whose `vars` holds fewer variables
+  than those written (those of block 1, or `Nvars`), before writing anything:
+  such a block was read past the end of its `vars`, and the file got the
+  values that followed it in memory.
+- `tec_write_structured_multiblock` refuses, with a message that names the
+  block and the return value 1, a block whose `mesh` holds another number of
+  coordinates than block 1, before writing anything: the writer took the
+  number of coordinates from block 1, so a block with fewer was read past the
+  end of its `mesh`, and the file got the values that followed it in memory;
+  a block with more lost the others.
+- `tec_write_structured_multiblock` with `Nvars = 0` gives the zone header of
+  an ASCII file the coordinates alone in `VARLOCATION`: the variables at the
+  cells got the range `[3-2]` (from the first variable after the coordinates
+  to the last one written, which came before it), a form that the ranges of
+  the Data Format Guide do not have.
+- The `.szplt` reader gives its message, with the call and the file, also when
+  TecIO cannot open the file (`tecFileReaderOpen`), as for the other calls: it
+  returned the status with the messages of TecIO only.
+- `vtk_read_structured_multiblock` reads the attributes of a block file and of
+  the `.vtm` file as XML writes them, in double or in single quotes and with
+  white space around the equal sign, and uses none that it has not read. It read
+  them in double quotes and right after the equal sign only, and used them also
+  when it had read none: an attribute in single quotes stopped a release build
+  with a segmentation fault (a `Name`, a `format`, a `type`, the `byte_order`),
+  or had values read from another place of the file (an `offset`). A block file
+  without an attribute that the reader needs (the `Name`, `format`, `type` or
+  raw `offset` of the points or of a variable, `Extent`, `WholeExtent`, the
+  `byte_order` of a raw file) is refused with the return value -1, as is a raw
+  one whose `byte_order` is neither `LittleEndian` nor `BigEndian` (the whole
+  value, whatever the case of its letters; a value that held one of the two,
+  such as `NotLittleEndian`, was read as that byte order); one in which such an
+  attribute, or `NumberOfComponents`, has an empty value is refused too, with -1
+  for the `Name` of an array and for the `format`, `type` and raw `offset` of
+  the points, and 1 for the others. Field data whose `Name`, `format`, `type`,
+  `NumberOfTuples` or raw `offset` is missing or empty are not read from that
+  block file: the time, the cycle and the named scalars are those of the other
+  block files, 0 when none of them holds them. A block file without
+  `WholeExtent`, read before, is refused as the reader of VTK 9.7.1 refuses it.
+  An array without `NumberOfComponents` has one component, as the reader of VTK
+  9.7.1 reads it; a variable whose `NumberOfComponents` is not 1 is refused, as
+  the field holds one value per variable (its first values were read, with the
+  return value 0). A tag ends at its first `>` outside the values in quotes of
+  its attributes, which may hold `>`: a start tag split over lines with such a
+  value on its first line is refused as a split tag (return value 1, with its
+  message; it was refused with -1, without the message), and an empty
+  `FieldData` element with such a value is read as empty (the field was read
+  without its variables, with the return value 0).
 
 ## [1.7.0] - 2026-09-29
 

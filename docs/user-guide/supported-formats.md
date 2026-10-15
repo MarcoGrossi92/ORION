@@ -7,7 +7,7 @@ ORION supports multiple scientific data formats commonly used in computational f
 | Format | Type | Extension(s) | Read | Write | Notes |
 |--------|------|--------------|------|-------|-------|
 | **Tecplot ASCII** | Text | `.dat`, `.tec` | ✅ | ✅ | Human-readable, slower I/O |
-| **Tecplot Binary** | Binary | `.plt`, `.szplt` | ✅¹ | ✅¹ | Compact, fast I/O |
+| **Tecplot Binary** | Binary | `.plt`, `.szplt` | ✅¹ ³ | ✅¹ | Compact, fast I/O |
 | **VTK** | Text/Binary | `.vtm`, `.vts`  | ✅² | ✅ | Open standard, widely supported |
 | **PLOT3D** | Text | `.p3d` | ✅ | ✅ | NASA legacy format |
 
@@ -15,6 +15,8 @@ ORION supports multiple scientific data formats commonly used in computational f
 
 ² Multi-block structured grids in the layout ORION writes them; block files written by VTK or ParaView, which list their
 data arrays before the points, are refused (see [VTK Format](#vtk-format))
+
+³ `.szplt` files only: `tec_read_structured_multiblock` does not read a `.plt` file (it returns 1, with a message)
 
 ## Tecplot Format
 

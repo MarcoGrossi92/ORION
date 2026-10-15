@@ -46,8 +46,8 @@ module Lib_ORION_data
     type(Type_tec_Format) :: tec                   ! Tecplot format options
     type(Type_vtk_Format) :: vtk                   ! VTK format options
     type(Type_p3d_Format) :: p3d                   ! P3D format options
-    integer :: strandid = -1                       ! STRANDID of the last zone read from a Tecplot ASCII file (0 = static
-                                                   ! zone, the steady marker of tec_write_structured_multiblock); -1 when absent
+    integer :: strandid = -1                       ! StrandID of the last zone read from a Tecplot file, -1 for a static zone
+                                                   ! (an ASCII zone header without STRANDID, StrandID 0 for TecIO)
   endtype orion_data
 
 contains
@@ -58,11 +58,13 @@ contains
     type(orion_data), intent(out) :: b  ! Destination data
     integer :: i
 
-    ! Copy non-allocatable members
-    b%tec%format = a%tec%format
-    b%tec%double = a%tec%double
-    b%vtk%format = a%vtk%format
-    b%p3d%format = a%p3d%format
+    ! Copy the scalar members: the time, the strand and every format option (b, intent(out), holds the defaults of its type
+    ! on entry)
+    b%solutiontime = a%solutiontime
+    b%strandid     = a%strandid
+    b%tec          = a%tec
+    b%vtk          = a%vtk
+    b%p3d          = a%p3d
 
     ! Handle allocation of block array
     if (allocated(b%block)) then

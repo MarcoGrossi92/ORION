@@ -39,19 +39,24 @@ from ORION import read_TEC
 x, y, z, var, varnames = read_TEC('simulation.tec')
 
 print(f"Variables: {varnames}")
-print(f"Grid shape: {x.shape}")
-print(f"Number of variables: {len(var)}")
+print(f"Number of blocks: {len(x)}")
+print(f"Nodes of the first block: {x[0].shape}")
+print(f"Variables of the first block: {len(var[0])}")
 ```
 
 ### Return Values
 
-`read_TEC` returns a tuple of five elements:
+`read_TEC` reads files of three coordinates, `x`, `y` and `z`, at the nodes, with the other variables at the cells, in
+`BLOCK` packing: the files that the Fortran writer writes for three-dimensional blocks with its default location of the
+variables (`orion%tec%node` false), and those of `write_TEC`. It returns a tuple of five elements; the first four have
+one entry per zone (block):
 
-1. **x**: NumPy array of x-coordinates `(nblocks, imax, jmax, kmax)`
-2. **y**: NumPy array of y-coordinates `(nblocks, imax, jmax, kmax)`
-3. **z**: NumPy array of z-coordinates `(nblocks, imax, jmax, kmax)`
-4. **var**: List of NumPy arrays, one per variable `[(nblocks, imax, jmax, kmax), ...]`
-5. **varnames**: List of variable names `['velocity_x', 'velocity_y', ...]`
+1. **x**: list of NumPy arrays, the x-coordinates of the nodes of each zone, of shape `(imax, jmax, kmax)`
+2. **y**: list of NumPy arrays, the y-coordinates, of the same shapes
+3. **z**: list of NumPy arrays, the z-coordinates, of the same shapes
+4. **var**: list, for each zone, of NumPy arrays, one per variable after `x`, `y` and `z`: the values at the cells, of
+   shape `(max(imax-1,1), max(jmax-1,1), max(kmax-1,1))`
+5. **varnames**: list of the names of the `VARIABLES` list, `x`, `y` and `z` included (`['x', 'y', 'z', 'u', ...]`)
 
 !!! note "Variable names"
     `read_TEC` takes the names from the `VARIABLES` list, which may span several lines and ends at the first
@@ -71,18 +76,20 @@ print(f"Number of variables: {len(var)}")
 For single-block files:
 
 ```python
+from ORION import read_TEC
+
 x, y, z, var, varnames = read_TEC('single_block.tec')
 
-# Access data (squeeze out block dimension)
-x_coords = x[0, :, :, :]  # Shape: (imax, jmax, kmax)
-y_coords = y[0, :, :, :]
-z_coords = z[0, :, :, :]
+# Access the data of the first (and only) block
+x_coords = x[0]  # Shape: (imax, jmax, kmax), the nodes
+y_coords = y[0]
+z_coords = z[0]
 
-# Access first variable
-first_var = var[0][0, :, :, :]  # Shape: (imax, jmax, kmax)
+# Access the first variable after x, y and z
+first_var = var[0][0]  # Shape: (imax-1, jmax-1, kmax-1), the cells
 
 print(f"Grid dimensions: {x_coords.shape}")
-print(f"Variable name: {varnames[0]}")
+print(f"Variable name: {varnames[3]}")
 ```
 
 ### Multi-Block Data
@@ -90,9 +97,11 @@ print(f"Variable name: {varnames[0]}")
 For multi-block structured grids:
 
 ```python
+from ORION import read_TEC
+
 x, y, z, var, varnames = read_TEC('multiblock.tec')
 
-nblocks = x.shape[0]
+nblocks = len(x)
 print(f"Number of blocks: {nblocks}")
 
 # Iterate over blocks
@@ -102,10 +111,10 @@ for iblock in range(nblocks):
     print(f"  X range: [{x[iblock].min():.3f}, {x[iblock].max():.3f}]")
     print(f"  Y range: [{y[iblock].min():.3f}, {y[iblock].max():.3f}]")
     print(f"  Z range: [{z[iblock].min():.3f}, {z[iblock].max():.3f}]")
-    
-    # Access variables for this block
-    for ivar, name in enumerate(varnames):
-        data = var[ivar][iblock]
+
+    # Access the variables of this block (their names follow x, y and z)
+    for ivar, name in enumerate(varnames[3:]):
+        data = var[iblock][ivar]
         print(f"  {name}: [{data.min():.3e}, {data.max():.3e}]")
 ```
 
@@ -113,22 +122,25 @@ for iblock in range(nblocks):
 
 ### Basic Usage
 
-Use `write_TEC` to create Tecplot ASCII files:
+Use `write_TEC` to create Tecplot ASCII files, with the data in the form that `read_TEC` returns:
 
 ```python
 from ORION import write_TEC
 import numpy as np
 
-# Prepare data
-x = np.array([...])  # Shape: (nblocks, imax, jmax, kmax)
-y = np.array([...])
-z = np.array([...])
-var = [array1, array2, ...]  # List of arrays
-varnames = ['pressure', 'temperature', 'density']
+# Prepare data: one entry per block
+x = [x1]          # the x-coordinates of the nodes of each block, of shape (imax, jmax, kmax)
+y = [y1]
+z = [z1]
+var = [[p1, t1]]  # for each block, its variables at the cells, of shape (imax-1, jmax-1, kmax-1)
+varnames = ['x', 'y', 'z', 'pressure', 'temperature']  # every name of the file, the coordinates first
 
 # Write file
 write_TEC('output.tec', x, y, z, var, varnames)
 ```
+
+`write_TEC` names the zones `Block1`, `Block2`, ...; without `varnames` it names the variables `x`, `y`, `z`, `v1`,
+`v2`, ...
 
 ### Creating Data from Scratch
 
@@ -138,29 +150,21 @@ Example: Generate a simple 3D grid with computed variables:
 import numpy as np
 from ORION import write_TEC
 
-# Create a 10x10x10 grid
+# A grid of 10 x 10 x 10 nodes (9 x 9 x 9 cells)
 nx, ny, nz = 10, 10, 10
+xg, yg, zg = np.meshgrid(np.linspace(0, 1, nx), np.linspace(0, 1, ny), np.linspace(0, 1, nz), indexing='ij')
 
-# Single block (add dimension for nblocks=1)
-x = np.linspace(0, 1, nx)[np.newaxis, :, np.newaxis, np.newaxis]
-y = np.linspace(0, 1, ny)[np.newaxis, np.newaxis, :, np.newaxis]
-z = np.linspace(0, 1, nz)[np.newaxis, np.newaxis, np.newaxis, :]
+# The cell centres (for this uniform grid, the mean of two opposite corners of each cell)
+xc = 0.5 * (xg[:-1, :-1, :-1] + xg[1:, 1:, 1:])
+yc = 0.5 * (yg[:-1, :-1, :-1] + yg[1:, 1:, 1:])
+zc = 0.5 * (zg[:-1, :-1, :-1] + zg[1:, 1:, 1:])
 
-# Broadcast to full grid
-x = np.broadcast_to(x, (1, nx, ny, nz))
-y = np.broadcast_to(y, (1, nx, ny, nz))
-z = np.broadcast_to(z, (1, nx, ny, nz))
+# Compute variables at the cells
+pressure = np.sin(np.pi * xc) * np.cos(np.pi * yc)
+temperature = xc**2 + yc**2 + zc**2
 
-# Compute variables
-pressure = np.sin(np.pi * x) * np.cos(np.pi * y)
-temperature = x**2 + y**2 + z**2
-
-# Prepare variable list
-var = [pressure, temperature]
-varnames = ['pressure', 'temperature']
-
-# Write file
-write_TEC('generated.tec', x, y, z, var, varnames)
+# Write one block
+write_TEC('generated.tec', [xg], [yg], [zg], [[pressure, temperature]], ['x', 'y', 'z', 'pressure', 'temperature'])
 print("File written successfully!")
 ```
 
@@ -177,20 +181,23 @@ import matplotlib.pyplot as plt
 # Read data
 x, y, z, var, varnames = read_TEC('flow_field.tec')
 
-# Extract mid-plane slice (k = nz//2)
+# The first variable after x, y and z (assumed to be the pressure) on the middle layer of cells
 iblock = 0
-k_mid = x.shape[3] // 2
+pressure = var[iblock][0]
+k_mid = pressure.shape[2] // 2
+pressure_slice = pressure[:, :, k_mid]
 
-x_slice = x[iblock, :, :, k_mid]
-y_slice = y[iblock, :, :, k_mid]
-pressure_slice = var[0][iblock, :, :, k_mid]  # Assuming pressure is first variable
+# The centres of the cells in i and j, from the node plane k_mid (the mean of the four corners)
+xn, yn = x[iblock][:, :, k_mid], y[iblock][:, :, k_mid]
+x_slice = 0.25 * (xn[:-1, :-1] + xn[1:, :-1] + xn[:-1, 1:] + xn[1:, 1:])
+y_slice = 0.25 * (yn[:-1, :-1] + yn[1:, :-1] + yn[:-1, 1:] + yn[1:, 1:])
 
 # Plot
 plt.contourf(x_slice, y_slice, pressure_slice, levels=20)
 plt.colorbar(label='Pressure')
 plt.xlabel('X')
 plt.ylabel('Y')
-plt.title(f'{varnames[0]} at mid-plane')
+plt.title(f'{varnames[3]} at mid-plane')
 plt.savefig('pressure_slice.png')
 ```
 
@@ -205,10 +212,10 @@ import numpy as np
 # Read velocity components
 x, y, z, var, varnames = read_TEC('velocity_field.tec')
 
-# Assuming varnames = ['u', 'v', 'w', 'pressure']
-u = var[0]  # velocity_x
-v = var[1]  # velocity_y
-w = var[2]  # velocity_z
+# Assuming varnames = ['x', 'y', 'z', 'u', 'v', 'w', 'pressure']: the variables of the first block
+u = var[0][0]  # velocity_x
+v = var[0][1]  # velocity_y
+w = var[0][2]  # velocity_z
 
 # Compute magnitude
 vmag = np.sqrt(u**2 + v**2 + w**2)
@@ -231,22 +238,22 @@ import numpy as np
 
 x, y, z, var, varnames = read_TEC('multiblock.tec')
 
-nblocks = x.shape[0]
+nblocks = len(x)
 
 for iblock in range(nblocks):
     print(f"\n=== Block {iblock + 1} ===")
-    
+
     # Compute volume (approximate)
     dx = np.diff(x[iblock], axis=0).mean()
     dy = np.diff(y[iblock], axis=1).mean()
     dz = np.diff(z[iblock], axis=2).mean()
-    volume = dx * dy * dz * np.prod(x[iblock].shape)
-    
+    volume = dx * dy * dz * np.prod([n - 1 for n in x[iblock].shape])
+
     print(f"Approximate volume: {volume:.3e}")
-    
+
     # Variable statistics
-    for ivar, name in enumerate(varnames):
-        data = var[ivar][iblock]
+    for ivar, name in enumerate(varnames[3:]):
+        data = var[iblock][ivar]
         print(f"{name}:")
         print(f"  Range: [{data.min():.3e}, {data.max():.3e}]")
         print(f"  Mean: {data.mean():.3e}")
@@ -261,25 +268,16 @@ Convert to DataFrame for tabular analysis:
 ```python
 from ORION import read_TEC
 import pandas as pd
-import numpy as np
 
 # Read data
 x, y, z, var, varnames = read_TEC('data.tec')
 
-# Flatten arrays for single block
+# The values at the cells of the first block, one column per variable
 iblock = 0
-data_dict = {
-    'x': x[iblock].flatten(),
-    'y': y[iblock].flatten(),
-    'z': z[iblock].flatten()
-}
-
-# Add variables
-for ivar, name in enumerate(varnames):
-    data_dict[name] = var[ivar][iblock].flatten()
+data_dict = {name: var[iblock][ivar].flatten() for ivar, name in enumerate(varnames[3:])}
 
 # Create DataFrame
-df = pd.tecaFrame(data_dict)
+df = pd.DataFrame(data_dict)
 
 # Analysis
 print(df.describe())
@@ -299,17 +297,19 @@ import numpy as np
 x, y, z, var, varnames = read_TEC('coarse_grid.tec')
 
 iblock = 0
-# Create interpolator for first variable
-interp = RegularGridInterpolator(
-    (x[iblock, :, 0, 0], y[iblock, 0, :, 0], z[iblock, 0, 0, :]),
-    var[0][iblock],
-    method='linear'
-)
+xn, yn, zn = x[iblock], y[iblock], z[iblock]
+# The centres of the cells along each axis of a rectilinear grid
+xc = 0.5 * (xn[:-1, 0, 0] + xn[1:, 0, 0])
+yc = 0.5 * (yn[0, :-1, 0] + yn[0, 1:, 0])
+zc = 0.5 * (zn[0, 0, :-1] + zn[0, 0, 1:])
 
-# Interpolate to finer grid
-x_fine = np.linspace(x[iblock].min(), x[iblock].max(), 50)
-y_fine = np.linspace(y[iblock].min(), y[iblock].max(), 50)
-z_fine = np.linspace(z[iblock].min(), z[iblock].max(), 50)
+# Create interpolator for the first variable, at the cells
+interp = RegularGridInterpolator((xc, yc, zc), var[iblock][0], method='linear')
+
+# Interpolate to a finer grid, within the cell centres
+x_fine = np.linspace(xc.min(), xc.max(), 50)
+y_fine = np.linspace(yc.min(), yc.max(), 50)
+z_fine = np.linspace(zc.min(), zc.max(), 50)
 
 xg, yg, zg = np.meshgrid(x_fine, y_fine, z_fine, indexing='ij')
 points = np.array([xg.flatten(), yg.flatten(), zg.flatten()]).T
@@ -329,11 +329,12 @@ from mpl_toolkits.mplot3d import Axes3D
 # Read data
 x, y, z, var, varnames = read_TEC('surface.tec')
 
-# Extract surface (k=0 plane)
+# The first layer of cells (k = 0): the centres of its cells in i and j, from the node plane k = 0
 iblock = 0
-X = x[iblock, :, :, 0]
-Y = y[iblock, :, :, 0]
-Z = var[0][iblock, :, :, 0]  # Use first variable as height
+xn, yn = x[iblock][:, :, 0], y[iblock][:, :, 0]
+X = 0.25 * (xn[:-1, :-1] + xn[1:, :-1] + xn[:-1, 1:] + xn[1:, 1:])
+Y = 0.25 * (yn[:-1, :-1] + yn[1:, :-1] + yn[:-1, 1:] + yn[1:, 1:])
+Z = var[iblock][0][:, :, 0]  # Use first variable as height
 
 # 3D surface plot
 fig = plt.figure(figsize=(10, 8))
@@ -341,7 +342,7 @@ ax = fig.add_subplot(111, projection='3d')
 surf = ax.plot_surface(X, Y, Z, cmap='viridis')
 ax.set_xlabel('X')
 ax.set_ylabel('Y')
-ax.set_zlabel(varnames[0])
+ax.set_zlabel(varnames[3])
 plt.colorbar(surf)
 plt.savefig('surface_3d.png')
 ```

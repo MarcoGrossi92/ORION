@@ -33,7 +33,8 @@ type :: obj_block
   character(len=4096) :: name       ! Block name, as long as a path (PATH_MAX of Linux)
   integer :: Ni, Nj, Nk             ! Cells in each direction (I, J, K)
   real(R8P), allocatable :: mesh(:,:,:,:)  ! Coordinates, mesh(1:ndir,0:Ni,0:Nj,0:Nk)
-  real(R8P), allocatable :: vars(:,:,:,:)  ! Variables, vars(1:nvar,1:Ni,1:Nj,1:Nk) at the cells, vars(1:nvar,0:Ni,...) at the nodes
+  real(R8P), allocatable :: vars(:,:,:,:)  ! Variables, vars(1:nvar,1:max(Ni,1),1:max(Nj,1),1:max(Nk,1)) at the cells,
+                                           ! vars(1:nvar,0:Ni,0:Nj,0:Nk) at the nodes
 end type
 ```
 
@@ -143,14 +144,31 @@ end program read_tecplot_ascii
 
 Binary Format (with TecIO)
 
-For `.plt` or `.szplt` files, use the same function—ORION auto-detects the format:
+For `.szplt` files, use the same function: ORION takes the format from the extension, the text after the last dot of
+the last component of the name (`cases.data/f.szplt` and `a.dat.szplt` are `.szplt` files). A name whose extension is
+another one, such as `grid.data` (extension `data`), `mesh.tecplot` or `field.tec.bak`, is refused with the return value
+1, even when it holds `.dat` or `.tec` elsewhere; rename such a file with the extension `.dat` or `.tec`. The ASCII writer
+writes a file under any name, so a file it writes under such a name is not read back.
 
 ```fortran
-E_IO = tec_read_structured_multiblock(filename='solution.plt', orion=IOfield)
+E_IO = tec_read_structured_multiblock(filename='solution.szplt', orion=IOfield)
 ```
 
+A `.plt` file, which `tec_write_structured_multiblock` writes, is not read: the function returns 1, with a message,
+for a file name whose extension is none of `.dat`, `.tec` and `.szplt`. A `.szplt` file that TecIO cannot open, such as
+one that is not there, or opens and then cannot read, such as a damaged one, gives the nonzero status of the TecIO call that
+fails, with a message that names the call and the file: the read ends there, and the blocks hold only what was read before
+it. ORION reads ordered zones: a `.szplt` file with a
+finite-element zone (`FELINESEG` to `FEPOLYHEDRON`, Data Format Guide, TECZNE142) is refused with the return value 1 and a
+message that names the zone and its type, before any zone is read.
+
 !!! note "TecIO Requirement"
-    Binary format support requires building with `--use-tecio` flag.
+    Binary format support requires building with `--use-tecio` flag. Without TecIO, a call that reads or writes a binary
+    file stops the program with error termination (`ERROR STOP`): the message `You can not read in binary format without
+    compiling against TecIO` (or `write`) and a nonzero exit status.
+
+A read into an `orion_data` that already holds blocks, from an earlier read, replaces them: the ASCII, the `.szplt` and
+the points readers (`tec_read_points_multivars`) alike.
 
 ### VTK Files
 
@@ -266,16 +284,35 @@ end program read_vtk_structured
   `CellData` arrays (`Float64`, `NumberOfComponents="1"`), in the format of `orion%vtk%format`: `ascii`, `binary` (base64
   with a 4-byte length, not compressed) or `raw` (raw appended data). Start tags must be on one line: a block file with a
   tag split over lines is refused (return value 1) before any block is read, with a message on the standard error that
-  gives the file, the line and the tag. A block file that lists its data arrays before its `Points`, as VTK and ParaView
-  write them, is refused (return value 1) before any block is read.
+  gives the file, the line and the tag; a tag ends at its first `>` outside the values in quotes of its attributes, which
+  may hold `>`. A block file that lists its data arrays before its `Points`, as VTK and ParaView write them, is refused
+  (return value 1) before any block is read. The attributes are read as XML writes them, in double or in single quotes and
+  with white space around the equal sign. A block file without an attribute that the reader needs (the `Name`, `format`,
+  `type` or raw `offset` of the points or of a variable, `Extent`, `WholeExtent`, the `byte_order` of a raw file) is
+  refused (return value -1), as is a raw one whose `byte_order` is neither `LittleEndian` nor `BigEndian` (the whole
+  value, whatever the case of its letters); one in which such an attribute, or `NumberOfComponents`, has an empty value is
+  refused too, with the return value -1 for the `Name` of an array and for the `format`, `type` and raw `offset` of the
+  points, and 1 for the others. Field data whose `Name`, `format`, `type`, `NumberOfTuples` or raw `offset` is missing or
+  empty are not read from that block file: the time, the cycle and the named scalars are those of the other block files, 0
+  when none of them holds them. An array without `NumberOfComponents` has one component, as the reader of VTK 9.7.1 reads
+  it (its writer leaves it out for one component); a variable of more than one component is refused (return value -1).
+  Character references in the values of attributes (`&amp;`, `&lt;`, `&gt;`, `&quot;`, `&apos;` and the numeric ones) are
+  not expanded: a value is read as it is written. The reader does not recognize XML comments, CDATA sections or processing
+  instructions, and it matches the names of tags as prefixes (`<Piece` matches any tag whose name begins with `Piece`):
+  none of the 38 files written by VTK 9.7.1 and of the 704 files written by the test suite of ORION that were checked
+  holds a comment, a CDATA section, a processing instruction or a tag whose name extends a name that the reader looks for;
+  files written by ParaView or by meshio were not checked.
 - **Solution time.** `solutiontime` is 0 in a new `orion_data`. The Tecplot ASCII reader stores the
-  `SOLUTIONTIME` of the file, or -10 when its zone headers give none. The `.szplt` reader does not store the
-  zone time of the file and leaves `solutiontime` as it was (0 for a new object); so does the PLOT3D reader,
-  since a PLOT3D grid has no time. The VTK multi-block reader `vtk_read_structured_multiblock` does not set
+  `SOLUTIONTIME` of the file, or `-huge(1._R8P)`, the most negative real, when its zone headers give none: a time
+  that no solution has, so that a program can tell a file without a time (with signed times, the -10 that the
+  reader gave before is the time of a steady solution at iteration 10). The `.szplt` reader stores the solution
+  time of the last zone (every zone of a binary file has one), also in a read with `dims_only`. The PLOT3D reader
+  leaves `solutiontime` as it was (0 for a new object), since a PLOT3D grid has no time. The VTK multi-block reader
+  `vtk_read_structured_multiblock` does not set
   `solutiontime` either: its optional `time` argument returns the `TIME` field data that
-  `vtk_write_structured_multiblock` writes when it is given `time` (the binary and raw formats keep every bit,
-  sign included; the ascii format keeps 15 significant digits), or 0 when the `.vts` files hold none. Field data
-  are not variables: the reader skips them when it lists the variable names.
+  `vtk_write_structured_multiblock` writes when it is given `time` (every format keeps every bit, sign included;
+  see Digits of the text formats), or 0 when the `.vts` files hold none. Field data are not variables: the reader
+  skips them when it lists the variable names.
 - **Cycle and named scalars.** Besides `time`, `vtk_write_structured_multiblock` takes the optional `cycle`
   (integer, written as the field data `CYCLE`, a step number) and the named real scalars
   `fldnames(:)` and `fldvalues(:)` (each written as field data with its name), and writes them in every `.vts`
@@ -283,20 +320,55 @@ end program read_vtk_structured
   which names the files hold: an absent `CYCLE` or name reads as 0 (and `.false.`). It looks for them, and for
   `TIME`, in the `FieldData` element of every block file that has one before its first data array, where
   `vtk_write_structured_multiblock` writes it (a `FieldData` element after the arrays is not read): when the
-  files differ, the values are those of the last block file that holds them. The binary and raw formats
-  keep every bit; the ascii format keeps 15 significant digits of a real. `fldnames` and `fldvalues` (and
+  files differ, the values are those of the last block file that holds them. Every format keeps every bit of a
+  real. The reader takes the `FieldData` element with its arrays on lines of their own, as ORION writes it, or on
+  one line, as XML allows (XML 1.0 (Fifth Edition), W3C Recommendation 26 November 2008, section 3.1, production
+  [43]: the content of an element holds its elements with no line break needed between them).
+  `fldnames` and `fldvalues` (and
   `fldfound`) go together and have the same size, and no name is blank; otherwise both functions return 1 and write
   or read nothing. The reader compares the names without regard to case (`'a'` finds `A`).
-  A program calls the writer without these arguments to get the files it got before.
-- **Steady solutions and `strandid`.** `tec_write_structured_multiblock` treats a negative `solutiontime` as the
-  mark of a steady solution (for instance minus the iteration count of the run): it writes the absolute value
-  as `SOLUTIONTIME` and, in an ASCII file, adds `STRANDID = 0` (a static zone) to every zone header. The ASCII
-  reader returns `SOLUTIONTIME` as written, so `solutiontime` is `|t|` for such a file, and stores the `STRANDID`
-  of the last zone header in `strandid`: 0 for a steady file written by ORION, -1 when the header has none.
-  A program that must know whether a file holds a steady solution tests `strandid == 0`. `strandid` is -1 in a
-  new `orion_data` and only this reader sets it: the `.szplt`, VTK and PLOT3D readers and
-  `tec_read_points_multivars` leave it as it was, and `copyORION` does not copy it (nor `solutiontime`). Binary
-  files do not mark steady solutions: the binary writer stores StrandID 0 for every zone.
+  A program calls the writer without these arguments to get the files it got before. `tec_write_structured_multiblock`
+  and `tec_read_structured_multiblock` take the same optional arguments, with the same rules, and keep them as the
+  data set auxiliary data of the Tecplot file (Tecplot 360 EX 2023 R1 Data Format Guide, section 4-3.6, p. 135,
+  and `TECAUXSTR142`, pp. 29-30): the item `CYCLE` and one item per name, the reals with 17 significant digits; in
+  an ASCII file each item is a record `DATASETAUXDATA name = "value"` after the zones. A name must be one that the
+  auxiliary data can hold: not blank, without blanks, equal signs or double quotes, given once, and other than `CYCLE`
+  and `Time`, the items of the writer (in any case); otherwise the writer returns 1 and writes nothing. The readers
+  match the names in any case, as the VTK reader does. The ASCII reader takes the records between the zones and after
+  them: a record between the `VARIABLES` header and the first zone is read as variable names, and the file is refused
+  (return value 1). The `.szplt` reader takes the data set auxiliary data of the file, also with `dims_only`.
+- **Digits of the text formats.** The Tecplot ASCII files and the ascii format of the VTK files hold every 64-bit
+  real (coordinates, variables, `SOLUTIONTIME`, field data) with 17 significant digits (Fortran format `E25.17E3`),
+  the fewest that give back every 64-bit real, bit for bit, when the file is read. A 64-bit real has a 53-bit
+  significand: the reals of a range [2^e, 2^(e+1)) are 2^(e-52) apart, more than x/2^53 for every x of the range,
+  while the decimal numbers of n significant digits of a range [10^d, 10^(d+1)) are 10^(d-n+1) apart, at most
+  x/10^(n-1). When 10^(n-1) > 2^53, that is n >= 17 (2^53 is about 9.0e15), the decimal numbers are closer
+  together than the reals everywhere, so the decimal number of n digits nearest to a real is closer to it than to
+  any other real and reads back as that real. Sixteen digits are not enough: in [1, 2) the reals are 2^-52 (about
+  2.2e-16) apart and the decimal numbers of 16 digits 10^-15 apart, so 1, 1 + 2^-52 and 1 + 2^-51 are all written
+  `1.000000000000000` and read back as 1. With 15 digits, as the writers used, `0.1 + 0.2` was written
+  `0.300000000000000E+000` and read back as `0.3`; with 17 it is `0.30000000000000004E+000`. Both conversions must
+  round to the nearest value, while the input/output rounding mode of a file opened without `ROUND=`, and of an
+  internal file, is processor dependent (Fortran 2018, ISO/IEC 1539-1:2018, final draft J3/18-007r1, 12.5.6.16,
+  paragraph 1, p. 223, and 12.5.2, paragraph 2, p. 217): the tests `tecplot_write` and `vtk_read_wrapper` check that
+  the values read back are those written, bit for bit. The binary formats (Tecplot `.plt` and `.szplt` with 64-bit
+  values, VTK `binary` and `raw`) hold the bits themselves.
+- **Steady solutions and strands.** `tec_write_structured_multiblock` writes `solutiontime` with its sign, as the
+  `SOLUTIONTIME` of every zone header of an ASCII file and as the solution time of every zone of a binary file. A
+  negative `solutiontime` marks a steady solution (for instance minus the iteration count of the run): its zones are
+  static, with no `STRANDID` in an ASCII file and StrandID 0, a static zone for TecIO, in a binary file. The zones of a
+  time-accurate solution (`solutiontime >= 0`) belong to the strand of their block, `STRANDID = b` in the header of
+  zone `b` and StrandID `b` in a binary file, so that Tecplot follows each block over the files of a run (Tecplot 360 EX
+  2023 R1 Data Format Guide: a `STRANDID` of 1 or more in the ASCII zone record, p. 124, "by convention ... successive
+  integer values"; TECZNE142, p. 61, "0 = static zone, not associated with a strand"). The ASCII reader returns
+  `SOLUTIONTIME` as written, sign included, and stores the `STRANDID` of the last zone header in `strandid`, -1 when
+  the header has none (a static zone); the `.szplt` reader stores the StrandID of the last zone the same way, -1 for a
+  static zone (StrandID 0 for TecIO). A program tells a steady solution from the sign of `solutiontime`. ORION 1.5.5
+  to 1.7.0 wrote `|t|` and, for a steady solution, `STRANDID = 0` in every ASCII zone header (a strand for Tecplot,
+  not a static zone): such a file reads back with a positive `solutiontime` and `strandid` 0. `strandid` is -1 in a
+  new `orion_data` and only these two readers set it: the VTK and PLOT3D readers and `tec_read_points_multivars`
+  leave it as it was; `copyORION` copies it, with `solutiontime` and every format option. The data set auxiliary data
+  `Time` of a binary file holds `|t|`.
 
 ### Length of the Tecplot header and lines
 
@@ -304,6 +376,16 @@ end program read_vtk_structured
   variable names (the `VARIABLES` line of an ASCII file, the list handed to TecIO for `.plt` and `.szplt`) in
   a buffer of 32768 characters, and the ASCII reader reads up to 32768 characters of header: the `VARIABLES`
   line, the lines before it and its continuation lines, joined. A longer list is cut without a message.
+- **Names given to the writer.** `varnames` of `tec_write_structured_multiblock` holds the names of the variables
+  written, separated by blanks, tabs or commas (double quotes count as blanks, so a name holds none of them), as many as
+  the variables written (`Nvars`, or `size(vars,1)`; none when block 1 has no `vars`, a write of the mesh only); the
+  coordinate names come first in the file. A list of another number of names gives the return value 1, with a message,
+  and no file is written: TecIO takes the number of names as the number of values of each zone. `Nvars`, when given, is
+  from 0 to `size(vars,1)`, 0 when block 1 has no `vars` (the first `Nvars` variables are
+  written); another value gives the return value 1, with a message, and no file is written. Every block holds the variables
+  written: a block whose `vars` holds fewer of them than block 1 (or than `Nvars`) gives the return value 1, with a message
+  that names the block, and no file is written. Every block holds the coordinates of block 1: a block whose `mesh` holds
+  another number of coordinates gives the return value 1, with a message that names the block, and no file is written.
 - **Forms of the names.** The ASCII reader takes the names from the `VARIABLES` line and its continuation lines,
   up to the first `ZONE` record: the keyword `ZONE` as a whole word, so a name that merely begins with it (such
   as `zone_velocity`) is a name. Each name may be in double quotes, in single quotes or bare, and the forms may
@@ -311,11 +393,11 @@ end program read_vtk_structured
   A quote closes the name, so `"a""b"` is the two names `a` and `b`. A quote that is never closed is an error,
   and so is a list with no name. The Python reader `read_TEC` reads the names in the same way, except that it
   returns an empty list for a list with no name.
-- **Number of names.** The ASCII reader keeps at most 512 names, coordinates included. A header with more
-  names is refused: the reader returns `err /= 0` and prints `no variables found in VARIABLES header`. The
-  `.szplt` reader takes the names one by one from the file and has no such limit. Every name is kept to 32
-  characters (`varnames` is `character(len=32)`); the ASCII reader warns when it shortens one, the `.szplt`
-  reader shortens it without a message.
+- **Number of names.** The ASCII reader keeps at most 512 names, coordinates included. A header with more names is
+  refused: the reader returns 1 and prints `no variables found in VARIABLES header`, a message that does not name the
+  limit; a list of 512 names followed by a comma is refused in the same way. The `.szplt` reader takes the names one
+  by one from the file and has no such limit. Every name is kept to 32 characters (`varnames` is `character(len=32)`);
+  the ASCII reader warns when it shortens one, the `.szplt` reader shortens it without a message.
 - **Zone headers and data lines.** The ASCII readers read each line whatever its length and join the lines of a zone
   header whatever their length, so a zone header holds a block name of any length (`T =`, the title of the zone, is
   the name of the block in the files that ORION writes). Each data line of a structured zone must fit in 1000
@@ -353,6 +435,9 @@ program read_plot3d
   endif
 end program read_plot3d
 ```
+
+A read into an `orion_data` that already holds blocks, from an earlier read, replaces them, as the Tecplot and VTK
+readers do.
 
 ## Writing Data
 
@@ -403,6 +488,14 @@ E_IO = tec_write_structured_multiblock( &
          orion=IOfield, &
          filename='output.szplt')
 ```
+
+Without TecIO the binary writer stops the program with error termination and a nonzero exit status, as the reader does (see
+the TecIO note under Reading Data). A binary file is a `.plt` or a `.szplt` file, as the extension of its name says: a name
+with another extension, or none, gives the return value 1, with a message, and no file is written. Each TecIO call of the
+binary writer is checked: the first that fails, such as one for a file that cannot be opened or for a named scalar whose
+name TecIO does not take (a letter or `_` first, then letters, digits, `_` and `.`), ends the write, and its nonzero status
+is the return value, with a message that names the call and the file; the file is closed, and what TecIO leaves on disk may
+be incomplete.
 
 ### Format Options
 
@@ -540,7 +633,7 @@ program multiblock_example
     
     ! Access solution variables (if present)
     if (allocated(IOfield%block(iblock)%vars)) then
-      print *, '  Number of variables:', size(IOfield%block(iblock)%vars, 4)
+      print *, '  Number of variables:', size(IOfield%block(iblock)%vars, 1)
     endif
   enddo
 end program multiblock_example
@@ -560,30 +653,27 @@ Ni = IOfield%block(iblock)%Ni
 Nj = IOfield%block(iblock)%Nj
 Nk = IOfield%block(iblock)%Nk
 
-! Allocate and extract coordinates
-allocate(x(Ni, Nj, Nk))
-allocate(y(Ni, Nj, Nk))
-allocate(z(Ni, Nj, Nk))
-
+! Extract the coordinates of the nodes: arrays of (Ni+1) x (Nj+1) x (Nk+1) values, allocated by the assignment,
+! with lower bounds 1 (the node (0,0,0) of the block is x(1,1,1)); z only when the block has three coordinates
 x = IOfield%block(iblock)%mesh(1,:,:,:)
 y = IOfield%block(iblock)%mesh(2,:,:,:)
-z = IOfield%block(iblock)%mesh(3,:,:,:)
+if (size(IOfield%block(iblock)%mesh, 1) == 3) z = IOfield%block(iblock)%mesh(3,:,:,:)
 ```
 
 ### Accessing Solution Variables
 
 ```fortran
-! Variables are stored as vars(i, j, k, var_index)
+! Variables are stored as vars(var_index, i, j, k), at the cells or at the nodes (see The obj_block Type)
 real(R8P), allocatable :: variables(:,:,:,:)
+real(R8P), allocatable :: pressure(:,:,:)
 integer :: nvars
 
-! Extract all variables for a block
+! Extract all variables for a block, with the bounds of vars
 variables = IOfield%block(iblock)%vars
-nvars = size(variables, 4)
+nvars = size(variables, 1)
 
-! Extract specific variable (e.g., pressure at index 4)
-real(R8P), allocatable :: pressure(:,:,:)
-allocate(pressure(Ni, Nj, Nk))
+! Extract a specific variable (e.g., pressure at index 4): an array of the values of the block, allocated by the
+! assignment, with lower bounds 1
 pressure = IOfield%block(iblock)%vars(4,:,:,:)
 ```
 

@@ -6,6 +6,7 @@
 !< such as zone_velocity is a name), and the keyword is read in any case.
 !< A quote that is never closed is refused.
 !< The title of each zone as the name of its block, in ASCII and POINT files (block_names).
+!< A second read into the same orion_data, with each ASCII reader (read_again).
 !< Stops with a non-zero code when a check fails.
 program tecplot_read_variable_names
   use Lib_Tecplot
@@ -33,6 +34,7 @@ program tecplot_read_variable_names
                 [character(len=16) :: 'x', 'y', 'z', 'zone_velocity', 'Zone2', 'pressure'])
   call names_unclosed('a quote never closed', ' VARIABLES = x y z "a b')
   call block_names()
+  call read_again()
   if (nfail > 0) then
     write(*,'(A,I0,A)') 'tecplot_read_variable_names: ', nfail, ' check(s) FAILED'
     error stop 1
@@ -257,4 +259,49 @@ contains
     call check(r%block(1)%name == 'Line one with blanks', 'file of points written by hand: the title in quotes as the name')
     call check(r%block(2)%name == '', 'file of points written by hand: a blank name for the zone without a title')
   end subroutine points_by_hand
+
+  ! A file read into an orion_data that already holds the blocks of another one, with tec_read_structured_multiblock (an ASCII
+  ! file of two zones, then one of one zone) and with tec_read_points_multivars (two zones of points, then one): each second
+  ! read returns 0 and gives the blocks of its file.
+  ! Defect: the two ASCII readers allocated the blocks of the file over those already allocated, and the program stopped with
+  ! "Attempting to allocate already allocated variable"; the .szplt and VTK readers deallocate them first.
+  ! Basis: Fortran 2018 (ISO/IEC 1539-1:2018, final draft J3/18-007r1), 9.7.1.3, paragraph 1 (p. 135): an allocated
+  ! variable "may be referenced, defined, or deallocated; allocating it causes an error condition in the ALLOCATE statement".
+  subroutine read_again()
+    type(orion_data)            :: d, p
+    character(len=1), parameter :: lf = achar(10)
+    integer                     :: u, err
+    open(newunit=u, file='tec_read_again_two.tec', access='stream', form='unformatted', status='replace', action='write')
+    write(u) ' VARIABLES = "x" "y" "a"'//lf// &
+             ' ZONE T="A1", I=2, J=2, DATAPACKING=BLOCK'//lf//' 0 1 0 1'//lf//' 0 0 1 1'//lf//' 1 2 3 4'//lf// &
+             ' ZONE T="A2", I=2, J=2, DATAPACKING=BLOCK'//lf//' 1 2 1 2'//lf//' 0 0 1 1'//lf//' 5 6 7 8'//lf
+    close(u)
+    open(newunit=u, file='tec_read_again_one.tec', access='stream', form='unformatted', status='replace', action='write')
+    write(u) ' VARIABLES = "x" "y" "a"'//lf// &
+             ' ZONE T="B1", I=3, J=2, DATAPACKING=BLOCK'//lf//' 0 1 2 0 1 2'//lf//' 0 0 0 1 1 1'//lf//' 1 2 3 4 5 6'//lf
+    close(u)
+    d%tec%format = 'ascii'
+    err = tec_read_structured_multiblock(orion=d, filename='tec_read_again_two.tec')
+    call check(err == 0 .and. allocated(d%block), 'read again: the file of two zones read')
+    if (allocated(d%block)) call check(size(d%block) == 2, 'read again: two blocks')
+    err = tec_read_structured_multiblock(orion=d, filename='tec_read_again_one.tec')
+    call check(err == 0, 'read again: the file of one zone read into the same object, without error')
+    if (err == 0 .and. allocated(d%block)) &
+      call check(size(d%block) == 1 .and. d%block(1)%Ni == 2 .and. d%block(1)%Nj == 1 .and. d%block(1)%name == 'B1', &
+                 'read again: the block of the second file')
+    open(newunit=u, file='tec_read_again_two.dat', access='stream', form='unformatted', status='replace', action='write')
+    write(u) ' VARIABLES = "x" "u"'//lf//' ZONE T="P1", I=2, F=POINT'//lf//' 0.0 1.0'//lf//' 0.5 2.0'//lf// &
+             ' ZONE T="P2", I=2, F=POINT'//lf//' 1.0 3.0'//lf//' 1.5 4.0'//lf
+    close(u)
+    open(newunit=u, file='tec_read_again_one.dat', access='stream', form='unformatted', status='replace', action='write')
+    write(u) ' VARIABLES = "x" "u"'//lf//' ZONE T="Q1", I=3, F=POINT'//lf//' 0.0 1.0'//lf//' 0.5 2.0'//lf//' 1.0 3.0'//lf
+    close(u)
+    err = tec_read_points_multivars(orion=p, nvar=1, filename='tec_read_again_two.dat')
+    call check(err == 0 .and. allocated(p%block), 'read again: the file of two zones of points read')
+    if (allocated(p%block)) call check(size(p%block) == 2, 'read again: two zones of points')
+    err = tec_read_points_multivars(orion=p, nvar=1, filename='tec_read_again_one.dat')
+    call check(err == 0, 'read again: the file of one zone of points read into the same object, without error')
+    if (err == 0 .and. allocated(p%block)) call check(size(p%block) == 1 .and. p%block(1)%name == 'Q1', &
+                                                       'read again: the zone of the second file of points')
+  end subroutine read_again
 end program tecplot_read_variable_names

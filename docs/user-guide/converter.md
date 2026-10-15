@@ -221,8 +221,12 @@ Error: Insufficient memory
 ### TecIO Not Available
 
 ```
-Error: Binary Tecplot format not supported
+You can not write in binary format without compiling against TecIO
 ```
+
+A converter built without TecIO stops with error termination: this message (`read` in place of `write` for a binary input
+file), after `ERROR STOP` and followed by a backtrace with gfortran, and a nonzero exit status, without writing the output
+file.
 
 **Solution:** Rebuild with TecIO:
 ```bash

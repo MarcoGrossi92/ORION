@@ -82,16 +82,30 @@ contains
   !> \details Exports ORION block data in Tecplot structured format (ASCII or binary).
   !> Supports both node-centered and cell-centered data with optional boundary conditions.
   !> \param[in] orion ORION data structure containing blocks to write
-  !> \param[in] varnames Variable names string (optional)
+  !> \param[in] varnames Variable names string (optional): the names of the variables written, separated by blanks, tabs or
+  !> commas (double quotes count as blanks, so a name holds none of them), as many as the variables written (Nvars, or
+  !> size(vars,1); none when block 1 has no vars): otherwise the function returns 1 and writes nothing
   !> \param[in] filename Output file name (must end with .dat, .tec, .plt, or .szplt)
-  !> \param[in] Nvars Number of variables to write (optional, default: all)
-  !> \return err Error code (0 if successful)
-  function tec_write_structured_multiblock(orion,varnames,filename,Nvars) result(err)
+  !> \param[in] Nvars Number of variables to write (optional, default: all), the first Nvars of vars: from 0 to size(vars,1),
+  !> 0 when block 1 has no vars (a write of the mesh only),
+  !> otherwise the function returns 1 and writes nothing; every block holds them (size(vars,1) of each block at least the
+  !> number written), otherwise the function returns 1 and writes nothing
+  !> \param[in] cycle Optional step number, written as the data set auxiliary data CYCLE
+  !> \param[in] fldnames,fldvalues Optional names and values of real scalars, each written as data set auxiliary data with its
+  !> name, as vtk_write_structured_multiblock writes them as field data. They go together and have the same size, and each
+  !> name must be one that an auxiliary data item can hold (aux_names_valid): otherwise the function returns 1 and writes
+  !> nothing
+  !> \return err Error code (0 if successful; 1 for a binary file name whose extension is neither .plt nor .szplt; for a
+  !> binary file, the nonzero status of the first TecIO call that fails, which ends the write and closes the file)
+  function tec_write_structured_multiblock(orion,varnames,filename,Nvars,cycle,fldnames,fldvalues) result(err)
     implicit none
     type(orion_data), intent(in)              :: orion
     character(len=*), intent(in), optional    :: varnames
     character(len=*), intent(in)              :: filename !< File name of the output file.
     integer, intent(in), optional             :: Nvars    !< Input number of variables saved.
+    integer(I4P), intent(in), optional        :: cycle    !< Step number, written as the data set auxiliary data CYCLE.
+    character(len=*), intent(in), optional    :: fldnames(:)  !< Names of real scalars, written as data set auxiliary data.
+    real(R8P), intent(in), optional           :: fldvalues(:) !< Values of the scalars of fldnames.
     logical :: meshonly, time_accurate
     integer :: err
 # if defined(TECIO)
@@ -114,13 +128,31 @@ contains
     integer::                 FileType   = 0
     integer::                 fileFormat ! 0 == PLT, 1 == SZPLT
     integer::                 Nvar                !< Internal number of variables saved.
+    integer::                 nv1                 !< Number of the variables of block 1 (0 when it has no vars).
     integer::                 ndir                !< Internal number of dimensions.
     integer::                 Nblocks             !< Number of blocks.
     integer::                 b                   !< Counter.
+    integer::                 nvb                 !< Number of the variables of a block.
+    integer::                 ncb                 !< Number of the coordinates of a block.
     integer::                 NvarTot
     integer::                 gc
     real(R8P)::               time_
-  
+    integer::                 ifld                !< Counter of the named scalars.
+    character(DR_P)::         auxvalue            !< Value of a data set auxiliary data item.
+
+    ! The named scalars go with their values, and their names must be ones that the auxiliary data can hold: otherwise
+    ! nothing is written
+    if (present(fldnames) .neqv. present(fldvalues)) then
+      err = 1
+      return
+    endif
+    if (present(fldnames)) then
+      if (size(fldnames) /= size(fldvalues) .or. .not.aux_names_valid(fldnames)) then
+        err = 1
+        return
+      endif
+    endif
+
     ! Preliminary operations
     FileType   = 0
     Debug      = 0
@@ -136,6 +168,60 @@ contains
       meshonly = .true.
       Nvar = 0
     endif
+    ! Nvars is a number of the variables that vars holds: the writer takes the first Nvars of them, and a larger Nvars read
+    ! past the end of vars, a negative one wrote past the end of the locations of the variables of a binary file (tecvarloc).
+    ! A block 1 without vars holds none, so Nvars is 0 there: another value was taken for a write of the mesh only
+    if (present(Nvars)) then
+      nv1 = 0
+      if (allocated(orion%block(1)%vars)) nv1 = size(orion%block(1)%vars,1)
+      if (Nvars < 0 .or. Nvars > nv1) then
+        write(stderr,'(A,I0,A,I0,A)') 'TECPLOT WRITE ERROR: Nvars = ', Nvars, ', not a number of the variables of vars (0 to ', &
+          nv1, '). Nothing is written.'
+        write(stderr,'(A)') 'File: '//trim(filename)
+        err = 1
+        return
+      endif
+    endif
+    ! Every block holds the variables written: the writer takes vars(1:Nvar,...) of each block, so a block with fewer variables
+    ! (or none) than block 1, or than Nvars, was read past the end of its vars
+    if (.not.meshonly) then
+      do b = 2, size(orion%block)
+        nvb = 0
+        if (allocated(orion%block(b)%vars)) nvb = size(orion%block(b)%vars,1)
+        if (nvb < Nvar) then
+          write(stderr,'(A,I0,A,I0,A,I0,A)') 'TECPLOT WRITE ERROR: block ', b, ': number of variables in vars: ', nvb, &
+            '; number of variables written: ', Nvar, '. Nothing is written.'
+          write(stderr,'(A)') 'File: '//trim(filename)
+          err = 1
+          return
+        endif
+      enddo
+    endif
+    ! Every block holds the coordinates of block 1: the writer takes their number from block 1 and writes mesh(1:ndir,...) of
+    ! each block, so a block with fewer coordinates was read past the end of its mesh, and one with more lost the others
+    do b = 2, size(orion%block)
+      ncb = 0
+      if (allocated(orion%block(b)%mesh)) ncb = size(orion%block(b)%mesh,1)
+      if (ncb /= size(orion%block(1)%mesh,1)) then
+        write(stderr,'(A,I0,A,I0,A,I0,A)') 'TECPLOT WRITE ERROR: block ', b, ': number of coordinates in mesh: ', ncb, &
+          '; number of coordinates written: ', size(orion%block(1)%mesh,1), '. Nothing is written.'
+        write(stderr,'(A)') 'File: '//trim(filename)
+        err = 1
+        return
+      endif
+    enddo
+    ! The names given are as many as the variables written: TecIO takes the number of names (with the coordinates) as that of
+    ! the values of each zone, and in a .plt file it writes the values beyond them past the end of its buffers. A write of the
+    ! mesh only writes no variable (Nvar is 0): names given to it were left out
+    if (present(varnames)) then
+      if (names_in(varnames) /= Nvar) then
+        write(stderr,'(A,I0,A,I0,A)') 'TECPLOT WRITE ERROR: number of names in varnames: ', names_in(varnames), &
+          '; number of variables written: ', Nvar, '. Nothing is written.'
+        write(stderr,'(A)') 'File: '//trim(filename)
+        err = 1
+        return
+      endif
+    endif
     Nblocks = size(orion%block)
     ndir = size(orion%block(1)%mesh, 1)
     gc = 1
@@ -144,30 +230,49 @@ contains
     allocate(tecnull(1:ndir+Nvar))
     ! initializing tecplot variables
     call tec_init()
-    ! time
-    time_accurate = .true.
+    ! time: written with its sign. A negative solutiontime marks a steady solution (minus the iteration count of the run, for
+    ! instance), whose zones are static; the zones of a time-accurate solution (solutiontime >= 0) belong to the strand of
+    ! their block
     time_ = orion%solutiontime
-    if (time_<0) then
-      time_ = abs(time_)
-      time_accurate = .false.
-    endif
+    time_accurate = (time_ >= 0._R8P)
     ! initializing tecplot file
     select case(orion%tec%format)
     case('binary')
 #   if defined(TECIO)
-      if (index(filename,'.plt')>0) then
+      ! The format is that of the extension of the name (file_extension)
+      select case(file_extension(filename))
+      case('plt')
         fileFormat = 0
-      elseif (index(filename,'.szplt')>0) then
+      case('szplt')
         fileFormat = 1
-      else
+      case default
+        ! A name whose extension is neither .plt nor .szplt is refused, with the return value 1, before a file is opened
         write(stderr,'(A)')'File name to be written = "'//trim(filename)//'"'
         write(stderr,'(A)')'Tecplot binary file must end with ".plt" or ".szplt"'
+        err = 1
         return
-      endif
+      end select
+      ! Each TecIO call is checked: the first that fails ends the write (tec_failed)
       err = tecini142(tecendrec,trim(tecvarname)//tecendrec,trim(filename)//tecendrec,'.'//tecendrec,fileFormat,FileType,Debug,VIsDouble)
-      err = tecauxstr142("Time"//tecendrec,trim(str(n=time_))//tecendrec)
+      if (tec_failed(err, 'tecini142', close_file=.false.)) return
+      ! The data set auxiliary data Time keeps the absolute value of the time, as before
+      err = tecauxstr142("Time"//tecendrec,trim(str(n=abs(time_)))//tecendrec)
+      if (tec_failed(err, 'tecauxstr142')) return
+      ! The step number and the named scalars, each a data set auxiliary data item, the scalars with 17 significant digits
+      if (present(cycle)) then
+        write(auxvalue,'(I0)') cycle
+        err = tecauxstr142("CYCLE"//tecendrec,trim(auxvalue)//tecendrec)
+        if (tec_failed(err, 'tecauxstr142')) return
+      endif
+      if (present(fldnames)) then
+        do ifld = 1, size(fldnames)
+          write(auxvalue,FR_P) fldvalues(ifld)
+          err = tecauxstr142(trim(adjustl(fldnames(ifld)))//tecendrec,trim(adjustl(auxvalue))//tecendrec)
+          if (tec_failed(err, 'tecauxstr142')) return
+        enddo
+      endif
 #   else
-      stop "You can not write in binary format without compiling against TecIO"
+      error stop "You can not write in binary format without compiling against TecIO"
 #   endif
     case('ascii')
       open(newunit=tecunit,file=trim(filename))
@@ -176,14 +281,29 @@ contains
     ! writing data blocks
     do b=1,Nblocks
       err = tec_blk_data(b = b)
+      ! The TecIO call of the block that failed has ended the write of a binary file and closed it
+      if (err /= 0 .and. orion%tec%format == 'binary') return
     enddo
     ! finalizing tecplot file
     select case(orion%tec%format)
     case('binary')
 # if defined(TECIO)
       err = tecend142()
+      if (tec_failed(err, 'tecend142', close_file=.false.)) return
 # endif
     case('ascii')
+      ! The step number and the named scalars, each a data set auxiliary data record, after the zones: the records of a file
+      ! come in any order
+      if (present(cycle)) then
+        write(auxvalue,'(I0)') cycle
+        write(tecunit,'(A)',iostat=err)'DATASETAUXDATA CYCLE = "'//trim(auxvalue)//'"'
+      endif
+      if (present(fldnames)) then
+        do ifld = 1, size(fldnames)
+          write(auxvalue,FR_P) fldvalues(ifld)
+          write(tecunit,'(A)',iostat=err)'DATASETAUXDATA '//trim(adjustl(fldnames(ifld)))//' = "'//trim(adjustl(auxvalue))//'"'
+        enddo
+      endif
       close(tecunit)
     end select
     ! deallocating dynamic arrays
@@ -224,7 +344,8 @@ contains
         ! null array
         tecnull = 0
 #     else
-        stop "You can not write in binary format without compiling against TecIO"
+        ! Error termination: a program that asks for a binary file without TecIO ends with a nonzero exit status
+        error stop "You can not write in binary format without compiling against TecIO"
 #     endif
       case('ascii')
         ! header variables names
@@ -246,8 +367,9 @@ contains
         else
           write(tecvarform,'(A)')'('//trim(str(no_sign=.true.,n=3))//'('//FR_P//',1X))'
         endif
-        ! variables location
-        if (.not.meshonly) then
+        ! variables location: the coordinates alone when no variable is written (Nvars = 0), whose range of cell-centered
+        ! variables would be the reversed [ndir+1-ndir], a form that the ranges of the Data Format Guide do not have
+        if (.not.meshonly .and. Nvar > 0) then
           if (orion%tec%node) then
             tecvarlocstr = ', VARLOCATION=([1-'//trim(str(.true.,NvarTot))//']=NODAL)'
           else
@@ -274,6 +396,7 @@ contains
       integer:: i,j,k,s                 ! Counters.
       integer:: Nx, Ny, Nz
       integer:: start
+      character(DR_P):: timestr          ! The solution time as written in an ASCII zone header.
 
       Nx = size(orion%block(b)%mesh,2)-1; Ny = size(orion%block(b)%mesh,3)-1; Nz = size(orion%block(b)%mesh,4)-1
       ! initialize the zone dimensions
@@ -310,6 +433,7 @@ contains
       select case(orion%tec%format)
       case('binary')
 #     if defined(TECIO)
+        ! StrandID: the number of the block for a time-accurate solution, 0 (a static zone) for a steady one
         err = teczne142(trim(orion%block(b)%name)//tecendrec,         &
                         0,                                            &
                         ni2-ni1+1,                                    &
@@ -319,7 +443,7 @@ contains
                         0,                                            &
                         0,                                            &
                         time_,                                        &
-                        0,                                            &
+                        merge(b, 0, time_accurate),                   &
                         0,                                            &
                         1,                                            & !1=>block,0=>point
                         0,                                            &
@@ -331,14 +455,21 @@ contains
                         tecvarloc(1:NvarTot),                         &
                         tecnull(1:NvarTot),                           &
                         0)
+        if (tec_failed(err, 'teczne142')) return
         err=tec_dat(N=nnode,dat=orion%block(b)%mesh(1,ni1:ni2,nj1:nj2,nk1:nk2))
-        if (ndir>=2) &
+        if (tec_failed(err, 'tecdatd142')) return
+        if (ndir>=2) then
           err=tec_dat(N=nnode,dat=orion%block(b)%mesh(2,ni1:ni2,nj1:nj2,nk1:nk2))
-        if (ndir==3) &
+          if (tec_failed(err, 'tecdatd142')) return
+        endif
+        if (ndir==3) then
           err=tec_dat(N=nnode,dat=orion%block(b)%mesh(3,ni1:ni2,nj1:nj2,nk1:nk2))
+          if (tec_failed(err, 'tecdatd142')) return
+        endif
         if (.not.meshonly) then
           do s=1,Nvar
             err=tec_dat(N=ncell,dat=orion%block(b)%vars(s,vi1+start:vi2,vj1+start:vj2,vk1+start:vk2))
+            if (tec_failed(err, 'tecdatd142')) return
           enddo
         endif
 #     endif
@@ -350,8 +481,11 @@ contains
                         ', K='//trim(str(no_sign=.true.,n=nk2-nk1+1))//       &
                         ', DATAPACKING=BLOCK'//adjustl(trim(tecvarlocstr))
         
-        teczoneheader = trim(teczoneheader)//', SOLUTIONTIME='//trim(str(no_sign=.true.,n=time_))
-        if (.not. time_accurate) teczoneheader = trim(teczoneheader)//', STRANDID = 0'
+        ! The solution time with its sign, and the strand of the block for a time-accurate solution (STRANDID >= 1); the zones
+        ! of a steady solution have none: they are static
+        write(timestr,FR_P) time_
+        teczoneheader = trim(teczoneheader)//', SOLUTIONTIME='//trim(adjustl(timestr))
+        if (time_accurate) teczoneheader = trim(teczoneheader)//', STRANDID='//trim(str(.true.,b))
         write(tecunit,'(A)',iostat=err)trim(teczoneheader)
         write(tecunit,FR_P,iostat=err)(((orion%block(b)%mesh(1,i,j,k),i=ni1,ni2),j=nj1,nj2),k=nk1,nk2)
         if (ndir>1) &
@@ -381,20 +515,35 @@ contains
       endif
     endsubroutine var_range
 
-    !> `"a""b"` -> ` a  b `: the binary header's separator convention.
+    !> `"a""b"` -> ` a  b `, `a,b` -> `a b`: double quotes, commas, tabs and line ends become blanks, so that the list holds
+    !> its names separated by blanks, as TecIO takes them: TecIO splits a list at its line ends, or else at its commas, or else
+    !> at its blanks (lib/TecIO/teciosrc/TecioPLT.cpp and TecioData.cpp), and the coordinate names come first in the list.
     pure function unquote(sin) result(sout)
       implicit none
       character(len=*), intent(in) :: sin
       character(len=len(sin))      :: sout
       integer :: i
       do i = 1, len(sin)
-        if (sin(i:i) == '"') then
+        if (scan(sin(i:i), '",'//achar(9)//achar(10)//achar(13)) > 0) then
           sout(i:i) = ' '
         else
           sout(i:i) = sin(i:i)
         endif
       enddo
     endfunction unquote
+
+    !> The number of names of a list, its words once unquote has made its separators blanks.
+    pure integer function names_in(list)
+      implicit none
+      character(len=*), intent(in) :: list
+      character(len=len(list))     :: l
+      integer :: i
+      l = unquote(list)
+      names_in = 0
+      do i = 1, len(l)
+        if (l(i:i) /= ' ' .and. (i == 1 .or. l(max(i-1,1):max(i-1,1)) == ' ')) names_in = names_in + 1
+      enddo
+    endfunction names_in
 
 #   if defined(TECIO)
     ! Function interface for using "tecdat" function.
@@ -424,6 +573,28 @@ contains
       err = tecdatd142(N,buff)
       deallocate(buff)
     endfunction tec_dat
+
+    ! A TecIO call returns a nonzero status when it fails, as for a file that cannot be opened, an auxiliary data name that
+    ! TecIO does not take or values that do not fit the zone: the write ends there, as the Data Format Guide advises for the
+    ! TecIO writing API (2023 R1, section 6-1.3, p. 175: "writing cannot proceed further and should be aborted"). The status
+    ! is the return value (the caller sets it), a message names the call and the file, and the file is closed (one TECEND142
+    ! for each TECINI142) unless the call that failed is the one that opens or closes it; what TecIO leaves on disk may be
+    ! an incomplete file.
+    logical function tec_failed(status, what, close_file)
+      implicit none
+      integer,          intent(in)           :: status     ! Status of the call: 0 when it did not fail.
+      character(len=*), intent(in)           :: what       ! Name of the call.
+      logical,          intent(in), optional :: close_file ! Close the file after a failure (default .true.).
+      integer :: closed
+      tec_failed = (status /= 0)
+      if (.not.tec_failed) return
+      write(stderr,'(A,I0,A)') 'TECPLOT WRITE ERROR: '//what//' failed (status ', status, ').'
+      write(stderr,'(A)') 'File: '//trim(filename)
+      if (present(close_file)) then
+        if (.not.close_file) return
+      endif
+      closed = tecend142()
+    endfunction tec_failed
 #   endif
 
   endfunction tec_write_structured_multiblock
@@ -518,33 +689,81 @@ contains
   !> \details Reads Tecplot structured format files (ASCII or binary) into ORION data structure.
   !> Automatically detects file format based on extension.
   !> \param[inout] orion ORION data structure to fill with data
-  !> \param[in] filename Input file name (.dat, .tec, or .szplt)
+  !> \param[in] filename Input file name (.dat, .tec, or .szplt); another name, such as that of a .plt file, is refused (1)
   !> \param[in] zone_mask Optional per-zone selector: variable data is read only
   !>            for zones whose entry is .true.  Coordinates are always read.
   !> \param[in] dims_only Optional; if .true. read only the zone headers.
+  !> \param[out] cycle Optional; the data set auxiliary data CYCLE, 0 when the file holds none
+  !> \param[in] fldnames Optional; names of real scalars, read from the data set auxiliary data of the same names (any case)
+  !> \param[out] fldvalues Optional; their values, 0 when the file holds none
+  !> \param[out] fldfound Optional; whether the file holds them. fldnames and fldvalues, and fldfound, go together and have the
+  !>            same size, and no name is blank, as in vtk_read_structured_multiblock: otherwise the function returns 1 and
+  !>            reads nothing.
   !> \return err Error code (0 if successful)
   !> \note Only the .szplt path honours zone_mask and dims_only -- the ASCII
   !>       format has no per-zone index, so a caller cannot learn a zone's
   !>       dimensions without reading it.  The ASCII reader therefore ignores
   !>       both arguments and performs a full read, which is correct but not
   !>       lean; callers that care must check the extension first.
-  function tec_read_structured_multiblock(orion,filename,zone_mask,dims_only) result(err)
+  function tec_read_structured_multiblock(orion,filename,zone_mask,dims_only,cycle,fldnames,fldvalues,fldfound) result(err)
     implicit none
     type(orion_data), intent(inout)                        :: orion
     character(len=*), intent(in)                           :: filename
     logical,          intent(in), optional                 :: zone_mask(:)
     logical,          intent(in), optional                 :: dims_only
+    integer(I4P),     intent(out), optional                :: cycle
+    character(len=*), intent(in), optional                 :: fldnames(:)
+    real(R8P),        intent(out), optional                :: fldvalues(:)
+    logical,          intent(out), optional                :: fldfound(:)
     integer :: err
 
-    if (index(filename,'.dat')>0 .or. index(filename,'.tec')>0) then
-      err = tec_read_ascii(orion,filename)
-    elseif (index(filename,'.szplt')>0) then
-#     if defined(TECIO)
-      err = tec_read_szplt(orion,filename,zone_mask,dims_only)
-#     else
-      stop "You can not read in binary format without compiling against TecIO"
-#     endif
+    ! The named scalars go with their values (and fldfound), of the same size: otherwise nothing is read
+    if ((present(fldnames) .neqv. present(fldvalues)) .or. (present(fldfound) .and. .not.present(fldnames))) then
+      err = 1
+      return
     endif
+    if (present(fldnames)) then
+      if (size(fldvalues) /= size(fldnames)) then
+        err = 1
+        return
+      endif
+      if (present(fldfound)) then
+        if (size(fldfound) /= size(fldnames)) then
+          err = 1
+          return
+        endif
+      endif
+      ! No name is blank, as in vtk_read_structured_multiblock: no item of the auxiliary data has a blank name (TECAUXSTR142
+      ! refuses one, and the ASCII reader takes a record only with a name before its equal sign), so a blank name could never
+      ! be found
+      if (any(len_trim(fldnames) == 0)) then
+        err = 1
+        return
+      endif
+    endif
+    ! Absent from the file: 0 and not found
+    if (present(cycle)) cycle = 0
+    if (present(fldvalues)) fldvalues = 0._R8P
+    if (present(fldfound)) fldfound = .false.
+
+    ! The format is that of the extension of the name (file_extension)
+    select case(file_extension(filename))
+    case('dat', 'tec')
+      err = tec_read_ascii(orion,filename,cycle,fldnames,fldvalues,fldfound)
+    case('szplt')
+#     if defined(TECIO)
+      err = tec_read_szplt(orion,filename,zone_mask,dims_only,cycle,fldnames,fldvalues,fldfound)
+#     else
+      ! Error termination: a program that asks for a binary file without TecIO ends with a nonzero exit status
+      error stop "You can not read in binary format without compiling against TecIO"
+#     endif
+    case default
+      ! A name whose extension is none of those read, such as that of a .plt file (which the writer writes), is refused: the
+      ! function result is defined on every path
+      write(stderr,'(A)') 'TECPLOT READ ERROR: '//trim(filename)//': the extension of the name is none of .dat, .tec and'// &
+        ' .szplt (.plt files are not read).'
+      err = 1
+    end select
 
   end function tec_read_structured_multiblock
 
@@ -570,11 +789,17 @@ contains
   !> cells (orion%tec%node): a file with a coordinate at the cells, or with solution variables
   !> at the nodes and at the cells, in a zone or between zones, is refused (return value 1, with
   !> a message).
-  function tec_read_ascii(orion,filename) result(err)
+  !> The data set auxiliary data records (DATASETAUXDATA name = "value") between and after the zones give cyc (CYCLE) and the
+  !> named scalars asked for (aux_item), which are left as they are when the file does not hold them.
+  function tec_read_ascii(orion,filename,cyc,fldnames,fldvalues,fldfound) result(err)
     use, intrinsic :: iso_fortran_env, only : iostat_end
     implicit none
     type(orion_data), intent(inout) :: orion
     character(len=*), intent(in)    :: filename
+    integer(I4P),     intent(inout), optional :: cyc          ! data set auxiliary data CYCLE
+    character(len=*), intent(in),    optional :: fldnames(:)  ! names of real scalars of the data set auxiliary data
+    real(R8P),        intent(inout), optional :: fldvalues(:) ! their values
+    logical,          intent(inout), optional :: fldfound(:)  ! whether the file holds them
 
     real(R8P) :: solutiontime, value
     logical   :: meshonly, zone_node
@@ -610,7 +835,9 @@ contains
 
     meshonly = .false.
     orion%tec%node = .true.
-    solutiontime = -10._R8P
+    ! A file whose zone headers give no SOLUTIONTIME reads with the most negative real, a time that no solution has: -10, as
+    ! before, is the time of a steady solution at iteration 10
+    solutiontime = -huge(1._R8P)
     strandid = -1
     err = 0
 
@@ -704,6 +931,8 @@ contains
       call read_whole_line(tecunit,line,ios)
       if (ios/=0) exit
       physical_line_number = physical_line_number + 1
+      ! A data set auxiliary data record, between the zones or after them
+      if (present(cyc) .or. present(fldnames)) call aux_record(line, cyc, fldnames, fldvalues, fldfound)
       if (.not.is_zone_header(line)) cycle
 
       b = b + 1
@@ -848,6 +1077,8 @@ contains
     endif
 
     ! Allocate ORION blocks once the zone geometry is known.
+    ! The blocks of an earlier read into the same object give way to those of the file, as in the .szplt and VTK readers
+    if (allocated(orion%block)) deallocate(orion%block)
     allocate(orion%block(1:Nblocks))
     do b = 1, Nblocks
       orion%block(b)%Ni = Ni(b)-1
@@ -1068,7 +1299,8 @@ contains
         if (ios_==0) time_ = t_
       endif
 
-      ! STRANDID = 0 marks a static zone: tec_write_structured_multiblock writes it for a steady solution
+      ! STRANDID as written, -1 when absent: a static zone, as tec_write_structured_multiblock writes those of a steady solution
+      ! (before it wrote the sign of the time it marked them with STRANDID = 0)
       call get_integer_keyword(work,'STRANDID',strand_,found)
       if (.not.found) strand_ = -1
     endsubroutine parse_zone_header
@@ -1474,6 +1706,96 @@ contains
     endif
   endfunction zone_title
 
+  ! The extension of a file name, by which the Tecplot reader and the binary writer take the format: the text after the last dot
+  ! of the last component of the name (after its last /), '' when that component holds no dot. A dot elsewhere, as in the
+  ! directory of cases.data/f.szplt or in a.dat.szplt, does not count.
+  pure function file_extension(filename) result(ext)
+    character(len=*), intent(in)  :: filename
+    character(len=:), allocatable :: ext
+    integer :: n, slash, dot
+    n = len_trim(filename)
+    slash = index(filename(1:n), '/', back=.true.)
+    dot = index(filename(1:n), '.', back=.true.)
+    if (dot > slash) then
+      ext = filename(dot+1:n)
+    else
+      ext = ''
+    endif
+  endfunction file_extension
+
+  ! Data set auxiliary data: the step number (CYCLE) and the named real scalars that tec_write_structured_multiblock writes and
+  ! tec_read_structured_multiblock reads, as the field data of the VTK files (Tecplot 360 EX 2023 R1 Data Format Guide,
+  ! section 4-3.6, p. 135: "DATASETAUXDATA name = "value"", "name is a unique character string with no spaces";
+  ! TECAUXSTR142, pp. 29-30)
+
+  ! Can the names be those of data set auxiliary data items? Each one not blank, without blanks, equal signs or double quotes,
+  ! which the record cannot hold, given once and other than CYCLE and Time, the items of the writer (in any case).
+  logical function aux_names_valid(names) result(valid)
+    character(len=*), intent(in) :: names(:)
+    integer :: i, j
+    valid = .false.
+    do i = 1, size(names)
+      if (len_trim(names(i)) == 0) return
+      if (scan(trim(adjustl(names(i))), ' ="'//char(9)) > 0) return
+      if (upper_case(trim(adjustl(names(i)))) == 'CYCLE' .or. upper_case(trim(adjustl(names(i)))) == 'TIME') return
+      do j = 1, i-1
+        if (upper_case(trim(adjustl(names(i)))) == upper_case(trim(adjustl(names(j))))) return
+      enddo
+    enddo
+    valid = .true.
+  endfunction aux_names_valid
+
+  ! A line of an ASCII file that is a data set auxiliary data record, DATASETAUXDATA name = "value", gives its item to aux_item;
+  ! any other line is left alone.
+  subroutine aux_record(line, cyc, fldnames, fldvalues, fldfound)
+    character(len=*), intent(in)              :: line
+    integer(I4P),     intent(inout), optional :: cyc
+    character(len=*), intent(in),    optional :: fldnames(:)
+    real(R8P),        intent(inout), optional :: fldvalues(:)
+    logical,          intent(inout), optional :: fldfound(:)
+    character(len=:), allocatable :: rest
+    integer :: e, q1, q2
+    rest = adjustl(line)
+    if (len_trim(rest) < 15) return
+    if (upper_case(rest(1:14)) /= 'DATASETAUXDATA' .or. is_word_char(rest(15:15))) return
+    rest = adjustl(rest(15:))
+    e = index(rest, '=')
+    if (e < 2) return
+    q1 = index(rest(e+1:), '"')
+    if (q1 == 0) return
+    q1 = e + q1
+    q2 = index(rest(q1+1:), '"')
+    if (q2 == 0) return
+    q2 = q1 + q2
+    call aux_item(trim(rest(1:e-1)), rest(q1+1:q2-1), cyc, fldnames, fldvalues, fldfound)
+  end subroutine aux_record
+
+  ! An item of the data set auxiliary data, its name and its value as text: CYCLE (any case) gives cyc, a name of fldnames (any
+  ! case) the value of that scalar, with fldfound set; an item whose value does not read as a number of its kind is left out,
+  ! as an item not asked for.
+  subroutine aux_item(name, value, cyc, fldnames, fldvalues, fldfound)
+    character(len=*), intent(in)              :: name, value
+    integer(I4P),     intent(inout), optional :: cyc
+    character(len=*), intent(in),    optional :: fldnames(:)
+    real(R8P),        intent(inout), optional :: fldvalues(:)
+    logical,          intent(inout), optional :: fldfound(:)
+    integer      :: i, ios
+    integer(I4P) :: c
+    real(R8P)    :: v
+    if (present(cyc) .and. upper_case(trim(adjustl(name))) == 'CYCLE') then
+      read(value,*,iostat=ios) c
+      if (ios == 0) cyc = c
+    endif
+    if (.not.present(fldnames)) return
+    do i = 1, size(fldnames)
+      if (upper_case(trim(adjustl(name))) /= upper_case(trim(adjustl(fldnames(i))))) cycle
+      read(value,*,iostat=ios) v
+      if (ios /= 0) cycle
+      fldvalues(i) = v
+      if (present(fldfound)) fldfound(i) = .true.
+    enddo
+  end subroutine aux_item
+
 
   !> \brief Read ORION point data from Tecplot file.
   !> \details Reads Tecplot point format files into ORION data structure.
@@ -1515,6 +1837,8 @@ contains
         Nzones = Nzones+1
       endif
     enddo
+    ! The blocks of an earlier read into the same object give way to those of the file, as in the .szplt and VTK readers
+    if (allocated(orion%block)) deallocate(orion%block)
     allocate(orion%block(1:Nzones))
     rewind(tecunit)
 
@@ -1816,6 +2140,8 @@ contains
   !> message). Each block takes the location of its zone (vars from 0 at the nodes, from 1 at the cells), so the zones of a file
   !> may differ. orion%tec%node is set when the solution variables of every zone are at the nodes, cleared when those of every
   !> zone are at the cells, and left as it is when the zones differ or the file has no solution variables.
+  !> The solution time and the StrandID of the last zone go to orion%solutiontime and orion%strandid (-1 for a static zone,
+  !> StrandID 0 for TecIO), as the ASCII reader stores those of the last zone header; also with dims_only.
   !> \param[inout] orion ORION data structure to fill with data
   !> \param[in] filename Input file name (.szplt)
   !> \param[in] zone_mask Optional per-zone selector, indexed by zone number.
@@ -1834,15 +2160,22 @@ contains
   !>          %vars is kept allocated with zero cells rather than deallocated
   !>          so that size(...,1) queries for the variable count keep working
   !>          on every zone; an empty allocatable costs nothing.
-  !> \return i Error code (0 if successful)
-  function tec_read_szplt(orion,filename,zone_mask,dims_only) result(i)
+  !> \details The data set auxiliary data of the file give cyc (CYCLE) and the named scalars asked for (aux_item), which are
+  !>          left as they are when the file does not hold them; also with dims_only.
+  !> \return err 0 if successful; the status of the TecIO call that failed (the read ends there); 1 for a file refused
+  function tec_read_szplt(orion,filename,zone_mask,dims_only,cyc,fldnames,fldvalues,fldfound) result(err)
     use iso_c_binding
     implicit none
     type(orion_data), intent(inout)                        :: orion
     character(len=*), intent(in)                           :: filename
     logical,          intent(in), optional                 :: zone_mask(:)
     logical,          intent(in), optional                 :: dims_only
+    integer(I4P),     intent(inout), optional              :: cyc          ! data set auxiliary data CYCLE
+    character(len=*), intent(in),    optional              :: fldnames(:)  ! names of real scalars of the auxiliary data
+    real(R8P),        intent(inout), optional              :: fldvalues(:) ! their values
+    logical,          intent(inout), optional              :: fldfound(:)  ! whether the file holds them
 
+    integer :: err                          ! 0, or the status of the TecIO call that failed (or 1)
     integer i, j, k, cnt
     character(len=:), allocatable :: inputFileName           ! the path, of any length, and C_NULL_CHAR for TecIO
     character(len=:), allocatable :: dataSetTitle, zoneTitle  ! of the length that TecIO gives
@@ -1856,6 +2189,9 @@ contains
     integer(c_int32_t) :: vstart
     integer(c_int32_t) :: inputZone, numZones
     integer(c_int32_t) :: zoneType
+    ! The finite-element zone types of TECZNE142, 1 to 7 (Tecplot 360 EX 2023 R1 Data Format Guide, p. 61; 0 is ORDERED)
+    character(len=15), parameter :: fe_type(7) = [character(len=15) :: 'FELINESEG', 'FETRIANGLE', 'FEQUADRILATERAL', &
+                                                  'FETETRAHEDRON', 'FEBRICK', 'FEPOLYGON', 'FEPOLYHEDRON']
     integer(c_int32_t) :: strandID
     integer(c_int32_t), allocatable :: int32Values(:)
     integer(c_int64_t) :: numValues
@@ -1879,23 +2215,44 @@ contains
     logical :: plane_xyz                    ! the file declares x, y and z as coordinates (a slice)
     logical :: line_xy                      ! the file declares x and y as coordinates (lines of a 2-D field)
     integer(c_int32_t) :: zloc              ! value location of variable 3 in a zone (1 = nodal)
+    integer(c_int32_t) :: numItems, item    ! data set auxiliary data items
+    type(c_ptr) :: auxNamePtr, auxValuePtr  ! name and value of an item, as TecIO hands them over
+    character(len=:), allocatable :: auxName, auxValue
+    ! tecDataSetAuxDataGetItem refuses an item unless its name and value pointers point to NULL when it is called
+    ! (lib/TecIO/teciosrc/tecio.cpp), so they are input too; the interface of tecio.f90 declares them intent(out), and a
+    ! compiler may then drop the NULL stored before the call (gfortran 13 does in a release build). This interface to the
+    ! same function declares them intent(inout).
+    interface
+      integer(c_int32_t) function aux_data_get_item(fileHandle, whichItem, name, value) bind(c, name="tecDataSetAuxDataGetItem")
+        use iso_c_binding, only: c_ptr, c_int32_t
+        implicit none
+        type(c_ptr), value, intent(in)        :: fileHandle
+        integer(c_int32_t), value, intent(in) :: whichItem
+        type(c_ptr), intent(inout)            :: name
+        type(c_ptr), intent(inout)            :: value
+      end function aux_data_get_item
+    end interface
 
     headers_only = .false.
     if (present(dims_only)) headers_only = dims_only
 
     inputFileName = trim(filename) // C_NULL_CHAR
 
-    ! Open the input file for reading
-    i = tecFileReaderOpen(inputFileName, inputFileHandle)
-
-    if (i/=0) return
+    ! Open the input file for reading: a file that TecIO cannot open, such as one that is not there or not a .szplt file,
+    ! gives the status of the call with the message of the reader, as the calls that follow (no file to close)
+    err = tecFileReaderOpen(inputFileName, inputFileHandle)
+    if (err/=0) then
+      write(stderr,'(A,I0,A)') 'TECPLOT SZPLT READ ERROR: tecFileReaderOpen failed (status ', err, ').'
+      write(stderr,'(A)') 'File: '//trim(filename)
+      return
+    endif
 
     ! Read info about the data set
-    i = tecDataSetGetTitle(inputFileHandle, stringCPtr)
+    if (failed(tecDataSetGetTitle(inputFileHandle, stringCPtr), 'tecDataSetGetTitle')) return
     call copyCharArrayToString(stringCPtr, &
         tecStringLength(stringCPtr), dataSetTitle)
     call tecStringFree(stringCPtr)
-    i = tecDataSetGetNumVars(inputFileHandle, numVars)
+    if (failed(tecDataSetGetNumVars(inputFileHandle, numVars), 'tecDataSetGetNumVars')) return
 
     ! Export the variable names to the caller, coordinates included, with the
     ! same convention as the ASCII reader (size(orion%varnames) = ndir + nvar),
@@ -1905,7 +2262,7 @@ contains
     orion%varnames = ' '
     strLen = 0
     do var = 1, numVars
-        i = tecVarGetName(inputFileHandle, var, stringCPtr)
+        if (failed(tecVarGetName(inputFileHandle, var, stringCPtr), 'tecVarGetName')) return
         nameLen = tecStringLength(stringCPtr)
         call c_f_pointer(stringCPtr, stringPtr, [nameLen])
         ! a name written from a quoted list keeps its quotes in the file: drop one
@@ -1933,8 +2290,44 @@ contains
     enddo
     if (strLen + 1 <= len(varNames)) varNames(strLen + 1 : strlen + 1) = C_NULL_CHAR
 
-    i = tecFileGetType(inputFileHandle, fileType)
-    i = tecDataSetGetNumZones(inputFileHandle, numZones)
+    if (failed(tecFileGetType(inputFileHandle, fileType), 'tecFileGetType')) return
+    if (failed(tecDataSetGetNumZones(inputFileHandle, numZones), 'tecDataSetGetNumZones')) return
+
+    ! ORION reads ordered zones only: a finite-element zone has its nodes, elements and faces where an ordered zone has the
+    ! nodes in I, J and K (TECZNE142, p. 61; tecZoneGetIJK, p. 166), so a file with one is refused, with a message, before
+    ! any zone is read
+    do inputZone = 1, numZones
+      if (failed(tecZoneGetType(inputFileHandle, inputZone, zoneType), 'tecZoneGetType')) return
+      if (zoneType == 0) cycle
+      if (zoneType >= 1 .and. zoneType <= 7) then
+        write(stderr,'(A,I0,A)') 'TECPLOT SZPLT READ ERROR: zone ', inputZone, ' is a '//trim(fe_type(zoneType))// &
+          ' zone; ORION reads ordered zones only.'
+      else
+        write(stderr,'(A,I0,A,I0,A)') 'TECPLOT SZPLT READ ERROR: zone ', inputZone, ' is of zone type ', zoneType, &
+          '; ORION reads ordered zones only.'
+      endif
+      write(stderr,'(A)') 'File: '//trim(filename)
+      i = tecFileReaderClose(inputFileHandle)
+      err = 1
+      return
+    enddo
+
+    ! The data set auxiliary data: CYCLE and the named scalars asked for. TecIO hands over the name and the value of an item
+    ! as strings it allocates, through pointers that must point to NULL when it is called (it refuses the item otherwise), and
+    ! that tecStringFree frees
+    if (present(cyc) .or. present(fldnames)) then
+      if (tecDataSetAuxDataGetNumItems(inputFileHandle, numItems) /= 0) numItems = 0
+      do item = 1, numItems
+        auxNamePtr = C_NULL_PTR
+        auxValuePtr = C_NULL_PTR
+        if (aux_data_get_item(inputFileHandle, item, auxNamePtr, auxValuePtr) /= 0) cycle
+        call copyCharArrayToString(auxNamePtr, tecStringLength(auxNamePtr), auxName)
+        call copyCharArrayToString(auxValuePtr, tecStringLength(auxValuePtr), auxValue)
+        call tecStringFree(auxNamePtr)
+        call tecStringFree(auxValuePtr)
+        call aux_item(auxName, auxValue, cyc, fldnames, fldvalues, fldfound)
+      enddo
+    endif
 
     ! The file declares a third coordinate, with the rule of the ASCII reader, when the first
     ! three variables are named x, y and z (any case) and z is nodal in every zone: its zones
@@ -1947,7 +2340,7 @@ contains
                   is_coordinate_name(orion%varnames(3),'Z')
       do inputZone = 1, numZones
         if (.not. plane_xyz) exit
-        i = tecZoneVarGetValueLocation(inputFileHandle, inputZone, 3_c_int32_t, zloc)
+        if (failed(tecZoneVarGetValueLocation(inputFileHandle, inputZone, 3_c_int32_t, zloc), 'tecZoneVarGetValueLocation')) return
         if (zloc /= 1) plane_xyz = .false.
       enddo
     endif
@@ -1959,7 +2352,7 @@ contains
     ! with it: no zone takes it from the zone before it.
     ndir_file = 1
     do inputZone = 1, numZones
-      i = tecZoneGetIJK(inputFileHandle, inputZone, iMax, jMax, kMax)
+      if (failed(tecZoneGetIJK(inputFileHandle, inputZone, iMax, jMax, kMax), 'tecZoneGetIJK')) return
       if (kMax > 1) ndir_file = 3
       if (jMax > 1 .and. ndir_file < 2) ndir_file = 2
     enddo
@@ -1971,7 +2364,7 @@ contains
       line_xy = is_coordinate_name(orion%varnames(1),'X') .and. is_coordinate_name(orion%varnames(2),'Y')
       do inputZone = 1, numZones
         if (.not. line_xy) exit
-        i = tecZoneVarGetValueLocation(inputFileHandle, inputZone, 2_c_int32_t, zloc)
+        if (failed(tecZoneVarGetValueLocation(inputFileHandle, inputZone, 2_c_int32_t, zloc), 'tecZoneVarGetValueLocation')) return
         if (zloc /= 1) line_xy = .false.
       enddo
     endif
@@ -1983,7 +2376,7 @@ contains
       write(stderr,'(A,I0,A,I0,A)') 'TECPLOT SZPLT READ ERROR: ', numVars, ' variables for ', ndir_file, ' coordinates.'
       write(stderr,'(A)') 'File: '//trim(filename)
       i = tecFileReaderClose(inputFileHandle)
-      i = 1
+      err = 1
       return
     endif
 
@@ -1996,9 +2389,9 @@ contains
     do inputZone = 1, numZones
       nnodal = 0; ncellc = 0; ncoordc = 0
       do var = 1, numVars
-        i = tecZoneVarIsPassive(inputFileHandle, inputZone, var, ispassive)
+        if (failed(tecZoneVarIsPassive(inputFileHandle, inputZone, var, ispassive), 'tecZoneVarIsPassive')) return
         if (ispassive /= 0) cycle
-        i = tecZoneVarGetValueLocation(inputFileHandle, inputZone, var, zloc)
+        if (failed(tecZoneVarGetValueLocation(inputFileHandle, inputZone, var, zloc), 'tecZoneVarGetValueLocation')) return
         if (var <= ndir_file) then
           if (zloc /= 1) ncoordc = ncoordc + 1
         elseif (zloc == 1) then
@@ -2012,7 +2405,7 @@ contains
           '; ORION reads the coordinates at the nodes.'
         write(stderr,'(A)') 'File: '//trim(filename)
         i = tecFileReaderClose(inputFileHandle)
-        i = 1
+        err = 1
         return
       endif
       if (nnodal > 0 .and. ncellc > 0) then
@@ -2020,7 +2413,7 @@ contains
           inputZone, '; ORION reads zones whose solution variables are all at the nodes or all at the cells.'
         write(stderr,'(A)') 'File: '//trim(filename)
         i = tecFileReaderClose(inputFileHandle)
-        i = 1
+        err = 1
         return
       endif
       if (nnodal > 0) nzonen = nzonen + 1
@@ -2041,20 +2434,21 @@ contains
           if (inputZone <= size(zone_mask)) want_data = zone_mask(inputZone)
         endif
 
-        i = tecZoneGetType(inputFileHandle, inputZone, zoneType)
-        if (zoneType == 6 .or. zoneType == 7) &
-            stop "Unsupported inputZone type."
-          
         ! Retrieve info about the inputZone
-        i = tecZoneGetTitle(inputFileHandle, inputZone, stringCPtr)
+        if (failed(tecZoneGetTitle(inputFileHandle, inputZone, stringCPtr), 'tecZoneGetTitle')) return
         call copyCharArrayToString(stringCPtr, &
             tecStringLength(stringCPtr), zoneTitle)
         call tecStringFree(stringCPtr)
 
         orion%block(inputZone)%name = zoneTitle
         
-        i = tecZoneGetIJK(inputFileHandle, inputZone, &
-            iMax, jMax, kMax)
+        if (failed(tecZoneGetIJK(inputFileHandle, inputZone, &
+            iMax, jMax, kMax), 'tecZoneGetIJK')) return
+
+        ! The solution time and the StrandID of the zone, also in a pass with dims_only: the last zone gives those of the file
+        if (failed(tecZoneGetSolutionTime(inputFileHandle, inputZone, &
+            solutionTime), 'tecZoneGetSolutionTime')) return
+        if (failed(tecZoneGetStrandID(inputFileHandle, inputZone, strandID), 'tecZoneGetStrandID')) return
 
         orion%block(inputZone)%Ni = iMax-1
         orion%block(inputZone)%Nj = jMax-1
@@ -2064,8 +2458,8 @@ contains
 
         allocate(valueLocation(numVars))
         do var = 1, numVars
-            i = tecZoneVarGetValueLocation(inputFileHandle, inputZone, &
-                var, valueLocation(var))
+            if (failed(tecZoneVarGetValueLocation(inputFileHandle, inputZone, &
+                var, valueLocation(var)), 'tecZoneVarGetValueLocation')) return
         enddo
 
         ! The location of the block is that of the solution variables of its zone: a passive variable, which holds no values,
@@ -2074,7 +2468,7 @@ contains
         ! every block
         onlyNode = .false.; hasValues = .false.
         do var = ndir+1, numVars
-          i = tecZoneVarIsPassive(inputFileHandle, inputZone, var, ispassive)
+          if (failed(tecZoneVarIsPassive(inputFileHandle, inputZone, var, ispassive), 'tecZoneVarIsPassive')) return
           if (ispassive /= 0) cycle
           hasValues = .true.
           if (valueLocation(var)==1) onlyNode = .true.
@@ -2107,12 +2501,12 @@ contains
         allocate(passiveVarList(numVars))
         allocate(shareVarFromZone(numVars))
         do var = 1, numVars
-            i = tecZoneVarGetType(inputFileHandle, inputZone, &
-                var, varTypes(var))
-            i = tecZoneVarIsPassive(inputFileHandle, inputZone, &
-                var, passiveVarList(var))
-            i = tecZoneVarGetSharedZone(inputFileHandle, inputZone, &
-                var, shareVarFromZone(var))
+            if (failed(tecZoneVarGetType(inputFileHandle, inputZone, &
+                var, varTypes(var)), 'tecZoneVarGetType')) return
+            if (failed(tecZoneVarIsPassive(inputFileHandle, inputZone, &
+                var, passiveVarList(var)), 'tecZoneVarIsPassive')) return
+            if (failed(tecZoneVarGetSharedZone(inputFileHandle, inputZone, &
+                var, shareVarFromZone(var)), 'tecZoneVarGetSharedZone')) return
         enddo
 
         ! i = tecZoneConnectivityGetSharedZone(inputFileHandle, &
@@ -2123,9 +2517,6 @@ contains
         ! i = tecZoneFaceNbrGetNumConnections(inputfileHandle, &
         !     inputZone, numFaceConnections)
 
-        i = tecZoneGetSolutionTime(inputFileHandle, inputZone, &
-            solutionTime)
-        i = tecZoneGetStrandID(inputFileHandle, inputZone, strandID)
         ! if (solutionTime /= 0.0 .or. strandID /= 0) &
         !     i = tecZoneSetUnsteadyOptions(outputFileHandle, &
         !         outputZone, solutionTime, strandID)
@@ -2141,8 +2532,8 @@ contains
 
             if (passiveVarList(var) == 0 .and. &
                   shareVarFromZone(var) == 0) then
-                i = tecZoneVarGetNumValues(inputFileHandle, &
-                          inputZone, var, numValues)
+                if (failed(tecZoneVarGetNumValues(inputFileHandle, &
+                          inputZone, var, numValues), 'tecZoneVarGetNumValues')) return
                 ! The TecIO reader of this repository (lib/TecIO, TecVersionId 2018.3.0.94816) does not give right, in one call,
                 ! the values at the cells of some zones with one node plane or line in a direction (such as the faces i, j and k
                 ! of a volume block); it gives them right one layer of cells in K at a time when KMax > 1, and one row of cells
@@ -2161,9 +2552,9 @@ contains
                 case (1) ! float
                     allocate(floatValues(numValues))
                     do first = 1, numValues, layer
-                      i = tecZoneVarGetFloatValues(inputFileHandle, &
+                      if (failed(tecZoneVarGetFloatValues(inputFileHandle, &
                           inputZone, var, first, min(layer, numValues-first+1), &
-                          floatValues(first:))
+                          floatValues(first:)), 'tecZoneVarGetFloatValues')) return
                     enddo
                     if (valueLocation(var)==1 .and. var<=ndir) then
                       cnt = 1
@@ -2182,9 +2573,9 @@ contains
                 case (2) ! double
                     allocate(doubleValues(numValues))
                     do first = 1, numValues, layer
-                      i = tecZoneVarGetDoubleValues(inputFileHandle, &
+                      if (failed(tecZoneVarGetDoubleValues(inputFileHandle, &
                           inputZone, var, first, min(layer, numValues-first+1), &
-                          doubleValues(first:))
+                          doubleValues(first:)), 'tecZoneVarGetDoubleValues')) return
                     enddo
                     if (is_coord) then
                       cnt = 1
@@ -2203,9 +2594,9 @@ contains
                 case (3) ! int32_t
                     allocate(int32Values(numValues))
                     do first = 1, numValues, layer
-                      i = tecZoneVarGetInt32Values(inputFileHandle, &
+                      if (failed(tecZoneVarGetInt32Values(inputFileHandle, &
                           inputZone, var, first, min(layer, numValues-first+1), &
-                          int32Values(first:))
+                          int32Values(first:)), 'tecZoneVarGetInt32Values')) return
                     enddo
                     if (is_coord) then
                       cnt = 1
@@ -2224,9 +2615,9 @@ contains
                 case (4) ! int16_t
                     allocate(int16Values(numValues))
                     do first = 1, numValues, layer
-                      i = tecZoneVarGetInt16Values(inputFileHandle, &
+                      if (failed(tecZoneVarGetInt16Values(inputFileHandle, &
                           inputZone, var, first, min(layer, numValues-first+1), &
-                          int16Values(first:))
+                          int16Values(first:)), 'tecZoneVarGetInt16Values')) return
                     enddo
                     if (is_coord) then
                       cnt = 1
@@ -2245,9 +2636,9 @@ contains
                 case (5) ! uint8_t
                     allocate(int8Values(numValues))
                     do first = 1, numValues, layer
-                      i = tecZoneVarGetUInt8Values(inputFileHandle, &
+                      if (failed(tecZoneVarGetUInt8Values(inputFileHandle, &
                           inputZone, var, first, min(layer, numValues-first+1), &
-                          int8Values(first:))
+                          int8Values(first:)), 'tecZoneVarGetUInt8Values')) return
                     enddo
                     if (is_coord) then
                       cnt = 1
@@ -2274,10 +2665,37 @@ contains
                   
     enddo ! inputZone loop
 
+    ! The solution time and the StrandID of the last zone, as the ASCII reader returns those of the last zone header: every zone
+    ! of a binary file has a solution time, and a static zone, StrandID 0 for TecIO, gets -1, as a zone header without STRANDID.
+    ! A file without zones has no time: the most negative real, as for an ASCII file without SOLUTIONTIME
+    if (numZones > 0) then
+      orion%solutiontime = solutionTime
+      orion%strandid = strandID
+      if (strandID == 0) orion%strandid = -1
+    else
+      orion%solutiontime = -huge(1._R8P)
+      orion%strandid = -1
+    endif
+
     ! Close old and new files
-    i = tecFileReaderClose(inputFileHandle)
+    err = tecFileReaderClose(inputFileHandle)
 
   contains
+
+    ! A TecIO call returns a nonzero status when it fails, for instance on a damaged or truncated file: the read ends there,
+    ! since what the call returns, the counts that size the arrays among them, is not that of the file. The status is the
+    ! return value, a message names the call and the file, and the file is closed.
+    logical function failed(status, what)
+      integer, intent(in)          :: status
+      character(len=*), intent(in) :: what
+      integer :: closed
+      failed = (status /= 0)
+      if (.not. failed) return
+      err = status
+      write(stderr,'(A,I0,A)') 'TECPLOT SZPLT READ ERROR: '//what//' failed (status ', status, ').'
+      write(stderr,'(A)') 'File: '//trim(filename)
+      closed = tecFileReaderClose(inputFileHandle)
+    endfunction failed
 
     ! Is text (a variable name) the coordinate name c ('X', 'Y' or 'Z'), in any case?
     ! The same test as in tec_read_ascii.

@@ -613,35 +613,107 @@ contains
   !---------------------------------------------------------------------------------------------------------------------------------
   end function
 
+  subroutine attribute_value(buffer, key, pos, po2, st)
+  !---------------------------------------------------------------------------------------------------------------------------------
+  !> attribute_value: where the value of the attribute key is in the start tag buffer, as XML writes an attribute (XML 1.0,
+  !> productions [40] and [41]: the attributes of a start tag, each after a white space; [25]: white space may stand around the
+  !> equal sign; [10]: the value in double or in single quotes; [3]: a white space is a blank, a tab, a carriage return or a
+  !> line feed). buffer is read from its start: a value in quotes is passed over to its closing quote, as tag_end does, so that
+  !> what it holds is not taken for an attribute. st is 0 when the value is buffer(pos:po2), -1 when buffer holds no such
+  !> attribute, 1 when the attribute is there and its value cannot be read (no quote, no closing quote, empty).
+  !---------------------------------------------------------------------------------------------------------------------------------
+  character(len=*), intent(IN)  :: buffer !> Start tag
+  character(len=*), intent(IN)  :: key    !> Name of the attribute, as buffer writes it
+  integer,          intent(OUT) :: pos    !> First character of the value
+  integer,          intent(OUT) :: po2    !> Last character of the value
+  integer,          intent(OUT) :: st     !> 0 read, -1 not there, 1 there and not readable
+  integer                       :: i, j, n
+  character(1)                  :: q, v
+  !---------------------------------------------------------------------------------------------------------------------------------
+
+  !---------------------------------------------------------------------------------------------------------------------------------
+  st = -1; pos = 0; po2 = 0
+  n = len_trim(buffer)
+  q = ' '
+  i = 0
+  do while (i < n)
+    i = i + 1
+    ! A value in quotes is passed over to its closing quote
+    if (q /= ' ') then
+      if (buffer(i:i) == q) q = ' '
+      cycle
+    endif
+    if (buffer(i:i) == '"' .or. buffer(i:i) == "'") then
+      q = buffer(i:i)
+      cycle
+    endif
+    ! Outside the values, the name of an attribute follows a white space: otherwise it is the end of a longer name
+    if (i > 1) then
+      if (.not.blank(buffer(i-1:i-1))) cycle
+    endif
+    if (i + len(key) - 1 > n) return
+    if (buffer(i:i+len(key)-1) /= key) cycle
+    j = i + len(key)
+    do while (j <= n)
+      if (.not.blank(buffer(j:j))) exit
+      j = j + 1
+    enddo
+    if (j > n) return
+    if (buffer(j:j) /= '=') cycle
+    ! The attribute is there: from here on a value that cannot be read gives 1
+    st = 1
+    j = j + 1
+    do while (j <= n)
+      if (.not.blank(buffer(j:j))) exit
+      j = j + 1
+    enddo
+    if (j > n) return
+    v = buffer(j:j)
+    if (v /= '"' .and. v /= "'") return
+    pos = j + 1
+    i = index(buffer(pos:n), v)
+    ! No closing quote (0), or an empty value (1)
+    if (i <= 1) return
+    po2 = pos + i - 2
+    st = 0
+    return
+  enddo
+  !---------------------------------------------------------------------------------------------------------------------------------
+  contains
+    pure logical function blank(c)
+    character(1), intent(IN) :: c
+    blank = c == ' ' .or. c == achar(9) .or. c == achar(10) .or. c == achar(13)
+    end function blank
+  end subroutine attribute_value
+
   subroutine get_int(buffer, attrib, val, E_IO, case)
   !---------------------------------------------------------------------------------------------------------------------------------
   !> get_int: get in buffer, the value of attribute 'attrib'
+  !> The attribute as XML writes it (attribute_value): the value in double or in single quotes, white space around the equal
+  !> sign. E_IO is 0 when the value is read, -1 when buffer holds no such attribute, 1 when the attribute is there and its value
+  !> cannot be read (no closing quote, empty, not an integer). val is set only when E_IO = 0: use it only then.
   !---------------------------------------------------------------------------------------------------------------------------------
   character(len=*),           intent(IN)  :: buffer  !> String where to search the attrib
   character(len=*),           intent(IN)  :: attrib  !> XML attribute id
   integer(I4P),               intent(OUT) :: val     !> Returned integer value
-  integer(I4P),     optional, intent(OUT) :: E_IO    
+  integer(I4P),     optional, intent(OUT) :: E_IO
   character(len=*), optional, intent(IN)  :: case
-  integer :: pos, po2, ios
+  character(len=:), allocatable           :: key     !> attrib as it is looked for
+  integer :: pos, po2, ios, st
   !---------------------------------------------------------------------------------------------------------------------------------
 
   !---------------------------------------------------------------------------------------------------------------------------------
   if(present(E_IO)) E_IO = -1_I4P
+  key = trim(adjustlt(Upper_Case(attrib)))
   if(present(case)) then
-    if(trim(case)=='lower') then
-      pos = index(buffer, trim(adjustlt(attrib))//'="')+len_trim(adjustlt(attrib))+2
-    else
-      pos = index(buffer, trim(adjustlt(Upper_Case(attrib)))//'="')+len_trim(adjustlt(attrib))+2
-    endif
-  else
-    pos = index(buffer, trim(adjustlt(Upper_Case(attrib)))//'="')+len_trim(adjustlt(attrib))+2
+    if(trim(case)=='lower') key = trim(adjustlt(attrib))
   endif
-
-  if (pos <= len_trim(adjustlt(attrib))+2) return
-  po2 = index(buffer(pos:len_trim(buffer)), '"')+pos-2
-  if (po2 < pos) return
+  call attribute_value(buffer, key, pos, po2, st)
+  if (st == -1) return
+  if(present(E_IO)) E_IO = 1_I4P
+  if (st /= 0) return
   read(buffer(pos:po2),fmt=*,iostat=ios) val
-  if(present(E_IO)) E_IO = ios
+  if (ios == 0 .and. present(E_IO)) E_IO = 0_I4P
   !---------------------------------------------------------------------------------------------------------------------------------
   end subroutine
 
@@ -649,33 +721,32 @@ contains
   subroutine get_char(buffer, attrib, val, E_IO, case)
   !---------------------------------------------------------------------------------------------------------------------------------
   !> get_char: get in buffer, the value of attribute 'attrib'
+  !> The attribute as XML writes it (attribute_value): the value in double or in single quotes, white space around the equal
+  !> sign. E_IO is 0 when the value is read, -1 when buffer holds no such attribute, 1 when the attribute is there and its value
+  !> cannot be read (no closing quote, empty). val is allocated and set only when E_IO = 0: use it only then.
   !---------------------------------------------------------------------------------------------------------------------------------
   character(len=*),              intent(IN)  :: buffer !> String where to search the attrib
   character(len=*),              intent(IN)  :: attrib !> XML attribute id
   character(len=:), allocatable, intent(OUT) :: val    !> Returned string value
   integer(I4P)    , optional,    intent(OUT) :: E_IO
   character(len=*), optional,    intent(IN)  :: case
-  integer :: pos, po2, ios
+  character(len=:), allocatable              :: key    !> attrib as it is looked for
+  integer :: pos, po2, ios, st
   !---------------------------------------------------------------------------------------------------------------------------------
 
   !---------------------------------------------------------------------------------------------------------------------------------
   if(present(E_IO)) E_IO = -1_I4P
+  key = trim(adjustlt(Upper_Case(attrib)))
   if(present(case)) then
-    if(trim(case) == 'lower') then
-      pos = index(buffer, trim(adjustlt(attrib))//'="')+len_trim(adjustlt(attrib))+2
-    else
-      pos = index(buffer, trim(adjustlt(Upper_Case(attrib)))//'="')+len_trim(adjustlt(attrib))+2
-    endif
-  else
-    pos = index(buffer, trim(adjustlt(Upper_Case(attrib)))//'="')+len_trim(adjustlt(attrib))+2
+    if(trim(case) == 'lower') key = trim(adjustlt(attrib))
   endif
-
-  if (pos <= len_trim(adjustlt(attrib))+2) return
-  po2 = index(buffer(pos:len_trim(buffer)), '"')+pos-2
-  if (po2 < pos) return
+  call attribute_value(buffer, key, pos, po2, st)
+  if (st == -1) return
+  if(present(E_IO)) E_IO = 1_I4P
+  if (st /= 0) return
   allocate(character(po2-pos+1) :: val)
   read(buffer(pos:po2),fmt='(a)',iostat=ios) val
-  if(present(E_IO)) E_IO = ios
+  if (ios == 0 .and. present(E_IO)) E_IO = 0_I4P
   !---------------------------------------------------------------------------------------------------------------------------------
   end subroutine
 
@@ -774,6 +845,12 @@ contains
   !---------------------------------------------------------------------------------------------------------------------------------
   !> search: search in VTK file from position 'pos' inside the mark 'inside', until find the mark 'to_find', eventually, having 
   !> attribute 'with_attribute' matching the value 'of_value'
+  !> The marks are found wherever they stand in the records of the file: a record may hold several start and end tags, as a
+  !> FieldData element written on one line (XML puts no line break between elements). buffer returns the start tag found, in
+  !> upper case, and content the text of the element up to its end tag, in the case of the file, from the record of the start
+  !> tag to that of the end tag (the records between are joined as they are). An empty element 'inside' (<FieldData/>) holds
+  !> no 'to_find'. A start tag is on one record. A start tag without with_attribute, or whose value of it cannot be read
+  !> (get_char), does not match.
   !---------------------------------------------------------------------------------------------------------------------------------
   integer(I4P),     optional,    intent(IN)    :: from           !> Offset. Start point
   character(len=*),              intent(IN)    :: inside         !> XML element where to search 'to_find'
@@ -786,8 +863,14 @@ contains
   integer(I4P)                                 :: rf             !> Real file index
   integer(I4P)                                 :: E_IO           !> Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done
   character(len=:), allocatable                :: strng
+  character(len=:), allocatable                :: line           !> A record of the file, as read
+  character(len=:), allocatable                :: uline          !> The same record in upper case
+  character(len=:), allocatable                :: mark_in        !> '<inside', in upper case
+  character(len=:), allocatable                :: mark_find      !> '<to_find', in upper case
   integer(I4P)                                 :: pos
-  integer(I4P)                                 :: p1,p2,p3
+  integer(I4P)                                 :: c              !> Position of uline from which the search goes on
+  integer(I4P)                                 :: p, q, r, e
+  logical                                      :: match          !> The start tag gives with_attribute the value of_value
   !---------------------------------------------------------------------------------------------------------------------------------
 
   !---------------------------------------------------------------------------------------------------------------------------------
@@ -797,45 +880,72 @@ contains
   endif
   pos = 1; if (present(from)) pos = from
   if(present(content)) content = ''
-  E_IO = read_record(buffer, from=pos, cf=rf); if(E_IO /= 0) return
+  mark_in   = '<'//trim(adjustlt(Upper_Case(inside)))
+  mark_find = '<'//trim(adjustlt(Upper_Case(to_find)))
+  E_IO = read_record(line, from=pos, cf=rf); if(E_IO /= 0) return
   do !search the beginnig of the mark 'inside' from position 'pos'
-    buffer = trim(adjustlt(Upper_Case(buffer)))
-    if (index(buffer, '<'//trim(adjustlt(Upper_Case(inside)))) > 0) exit !Mark 'inside' founded once
-    E_IO = read_record(buffer); if(E_IO /= 0) exit
+    uline = Upper_Case(line)
+    c = index(uline, mark_in)
+    if (c > 0) exit !Mark 'inside' founded once
+    E_IO = read_record(line, cf=rf); if(E_IO /= 0) return
   enddo
-  if(E_IO == 0) then
-    do !search 'repeat' times the mark 'to_find'
-      E_IO = read_record(buffer, cf=rf); if(E_IO /= 0) exit
-      buffer = trim(adjustlt(Upper_Case(buffer)))
-      if (index(buffer, '</'//trim(adjustlt(Upper_Case(inside)))) > 0) then
-        E_IO = -1_I4P; return ! Not found
-      endif
-      if (index(buffer, '<'//trim(adjustlt(Upper_Case(to_find)))) > 0) then
-        if (len_trim(of_value) == 0) exit !there is no attribute value to seach
-        call get_char(buffer, with_attribute, strng, E_IO=E_IO)
-        if (E_IO==0 .and. trim(adjustlt(Upper_Case(strng))) == trim(adjustlt(Upper_Case(of_value)))) then  !Attribute match the value
-          if (present(content) .and. index(buffer, '/>') == 0) then
-            p1 = index(buffer, '<'//trim(adjustlt(Upper_Case(to_find)))) 
-            p2 = index(buffer, '>') 
-            p3 = index(buffer, '</'//trim(adjustlt(Upper_Case(to_find)))) 
-            ! Data in the same record
-            if(p1/=0 .and. p2/=0 .and. p3/=0 .and. p2<p3) then
-              content = buffer(p2+1:p3-1)
-            elseif(p1==0 .and. p3/=0) then
-              E_IO = -1_I4P
-            else
-              do
-                E_IO = read_record(strng, cf=rf); if(E_IO /= 0) exit
-                if (index(trim(adjustlt(Upper_Case(strng))), '</'//trim(adjustlt(Upper_Case(to_find)))) > 0) exit
-                content = content//strng
-              enddo
+  ! An empty element 'inside' holds nothing
+  r = tag_end(uline(c:))
+  if (r > 1) then
+    if (uline(c+r-2:c+r-2) == '/') then
+      E_IO = -1_I4P; return
+    endif
+  endif
+  c = c + len(mark_in)
+  do !search the mark 'to_find' with the attribute value, after the mark 'inside', in its record and in the next ones
+    p = index(uline(c:), mark_find)
+    q = index(uline(c:), '</'//mark_in(2:))
+    if (q > 0 .and. (p == 0 .or. q < p)) then
+      E_IO = -1_I4P; return ! Not found: the end of 'inside' comes first
+    endif
+    if (p == 0) then ! no more marks in this record
+      E_IO = read_record(line, cf=rf); if(E_IO /= 0) return
+      uline = Upper_Case(line)
+      c = 1
+      cycle
+    endif
+    ! The start tag, from '<' to its '>' on this record, the first one outside the quotes of its attribute values
+    p = c + p - 1
+    r = tag_end(uline(p:))
+    if (r == 0) then
+      E_IO = -1_I4P; return
+    endif
+    r = p + r - 1
+    c = r + 1
+    buffer = uline(p:r)
+    if (len_trim(of_value) == 0) exit !there is no attribute value to seach
+    call get_char(buffer, with_attribute, strng, E_IO=E_IO)
+    ! strng has a value only when get_char finds the attribute (E_IO = 0), and is compared only then: an .and. may
+    ! evaluate both of its operands
+    match = .false.
+    if (E_IO == 0) match = trim(adjustlt(Upper_Case(strng))) == trim(adjustlt(Upper_Case(of_value)))
+    if (match) then  !Attribute match the value
+      if (present(content) .and. uline(r-1:r) /= '/>') then
+        ! The text of the element up to its end tag, in the case of the file
+        e = index(uline(c:), '</'//mark_find(2:))
+        if (e > 0) then
+          content = line(c:c+e-2)
+        else
+          content = line(c:)
+          do
+            E_IO = read_record(strng, cf=rf); if(E_IO /= 0) exit
+            e = index(Upper_Case(strng), '</'//mark_find(2:))
+            if (e > 0) then
+              content = content//strng(1:e-1)
+              exit
             endif
-          endif
-          exit
+            content = content//strng
+          enddo
         endif
       endif
-    enddo
-  endif
+      exit
+    endif
+  enddo
   !---------------------------------------------------------------------------------------------------------------------------------
   end function
 
@@ -848,9 +958,11 @@ contains
   !> The variables are at the nodes when the file holds them as point data, in a PointData element and no CellData element; a
   !> mesh without variables, with neither element, has no variables at the nodes.
   !> A name is the Name attribute of a DataArray start tag (array_name), not any text with the four characters Name, such as
-  !> the base64 code of the values of an array in the binary format.
+  !> the base64 code of the values of an array in the binary format. Every DataArray start tag outside FieldData gives a name,
+  !> empty when the tag has no Name or its value cannot be read.
   !> A tag that does not end on its line (a start tag split over lines: start tags must be on one line) gives no names: split
   !> is true, and a message on the standard error gives the file, the line and the tag.
+  !> A FieldData element on one line is read whole, whatever its length (read_line_start), so that its end is seen.
   !---------------------------------------------------------------------------------------------------------------------------------
   character(*), intent(IN)                     :: filename   !> File name.
   character(256), allocatable, intent(OUT)     :: varname(:) !> String with the variables name
@@ -858,7 +970,8 @@ contains
   logical, intent(out), optional               :: split      !> A tag of the file does not end on its line
   integer(I4P)                                 :: E_IO       !> Input/Output inquiring flag: $0$ if IO is done, $> 0$ if IO is not done
   integer(I4P) :: unitfile, n, nline
-  character(256) :: line, name, tag
+  character(256) :: name, tag
+  character(len=:), allocatable :: line
   logical :: complete
   logical :: field                                           !> Inside the FieldData element
   logical :: point, cell                                     !> The file holds a PointData, a CellData element
@@ -896,8 +1009,8 @@ contains
   rewind(unitfile)
   E_IO = 0; n = 0; field = .false.; point = .false.; cell = .false.
   do while(E_IO==0)
-    read(unitfile,'(A)',iostat=E_IO) line
-    ! At the end of the file the line is undefined: leave before using it, as the first pass does
+    call read_line_start(unitfile, line, complete, E_IO)
+    ! At the end of the file leave before using the line, as the first pass does
     if (E_IO /= 0) exit
     if (index(line,'<AppendedData')>0) exit
     if (index(line,'<PointData')>0) point = .true.
@@ -918,11 +1031,13 @@ contains
 
   subroutine first_array_name(filename,name,found,field_data,split)
   !---------------------------------------------------------------------------------------------------------------------------------
-  !> The first array name of a block file, as read_variables_name finds the names (the names inside <FieldData> skipped):
-  !> found is false when the file cannot be opened or names no array. The file is read on to its end, or to its AppendedData
-  !> element, for a tag that does not end on its line: split is true, with the message of read_variables_name.
+  !> The first array name of a block file, as read_variables_name finds the names (the names inside <FieldData> skipped; empty
+  !> for an array whose Name is not there or cannot be read): found is false when the file cannot be opened or holds no array.
+  !> The file is read on to its end, or to its AppendedData element, for a tag that does not end on its line: split is true,
+  !> with the message of read_variables_name.
   !> field_data tells whether a FieldData element that is not empty comes before that name, where
   !> vtk_write_structured_multiblock writes it.
+  !> A FieldData element on one line is read whole, whatever its length (read_line_start), so that its end is seen.
   !---------------------------------------------------------------------------------------------------------------------------------
   character(*),   intent(IN)            :: filename   !> File name.
   character(256), intent(OUT)           :: name       !> The first array name.
@@ -930,7 +1045,8 @@ contains
   logical,        intent(OUT), optional :: field_data !> A FieldData element comes before the first array name.
   logical,        intent(OUT), optional :: split      !> A tag of the file does not end on its line.
   integer(I4P) :: unitfile, E_IO, nline
-  character(256) :: line, tag
+  character(256) :: tag
+  character(len=:), allocatable :: line
   logical :: complete
   logical :: field                         !> Inside the FieldData element
   !---------------------------------------------------------------------------------------------------------------------------------
@@ -969,81 +1085,96 @@ contains
   !---------------------------------------------------------------------------------------------------------------------------------
   end subroutine first_array_name
 
-  !> True when line holds the start tag of a DataArray element with a Name attribute, whose value it returns in name. The
-  !> attribute is the word Name after a blank, then an equal sign and the value in double or single quotes, with blanks
-  !> allowed around the equal sign (XML 1.0, productions [25] Eq and [10] AttValue).
+  !> True when line holds the start tag of a DataArray element: name returns the value of its attribute Name as
+  !> attribute_value reads it (the word Name after a blank and outside the values of the other attributes, then an equal
+  !> sign, with blanks allowed around it, and the value in double or in single quotes: XML 1.0, productions [25] Eq and
+  !> [10] AttValue), and is empty when the tag has no Name or its value cannot be read (empty, or without its closing quote).
   logical function array_name(line, name)
   character(*),   intent(IN)  :: line
   character(256), intent(OUT) :: name
-  integer                     :: t, e, p, k, q
-  character(1)                :: quote
+  integer                     :: t, e, p1, p2, st
   array_name = .false.
   name = ''
   t = index(line,'<DataArray')
   if (t == 0) return
-  ! The start tag, up to its '>' or to the end of the line
-  e = index(line(t:),'>')
+  array_name = .true.
+  ! The start tag, up to its first '>' outside the values in quotes (a value may hold '>': XML 1.0, production [10]), or to the
+  ! end of the line
+  e = tag_end(line(t:))
   if (e == 0) then
     e = len(line)
   else
     e = t + e - 1
   endif
-  p = t
-  do
-    k = index(line(p:e),'Name')
-    if (k == 0) return
-    k = p + k - 1
-    p = k + 4
-    if (line(k-1:k-1) /= ' ' .and. line(k-1:k-1) /= achar(9)) cycle
-    q = p
-    do while (q <= e)
-      if (line(q:q) /= ' ' .and. line(q:q) /= achar(9)) exit
-      q = q + 1
-    enddo
-    if (q > e) return
-    if (line(q:q) /= '=') cycle
-    q = q + 1
-    do while (q <= e)
-      if (line(q:q) /= ' ' .and. line(q:q) /= achar(9)) exit
-      q = q + 1
-    enddo
-    if (q > e) return
-    quote = line(q:q)
-    if (quote /= '"' .and. quote /= "'") return
-    ! The value may hold '>' (XML 1.0, production [10]): its closing quote is looked for past the end of the tag found above
-    k = index(line(q+1:), quote)
-    if (k == 0) return
-    name = line(q+1:q+k-1)
-    array_name = .true.
-    return
-  enddo
+  call attribute_value(line(t:e), 'Name', p1, p2, st)
+  if (st == 0) name = line(t+p1-1:t+p2-1)
   end function array_name
 
-  !> The next line of a file as far as line holds it: complete is true when the line ends there; the rest of a longer line,
-  !> such as the values of a data array, is passed over without being kept. ios is that of the read: 0, or the end of the file.
+  !> The next line of a file as far as the reader needs it: its first 256 characters, or the whole line when they open a
+  !> FieldData element and do not close it (a FieldData element on one line, which may be longer); the rest of any other line,
+  !> such as the values of a data array, is passed over without being kept. complete is true when the line read ends there.
+  !> ios is that of the read: 0, or the end of the file.
   subroutine read_line_start(u, line, complete, ios)
-  integer(I4P), intent(IN)  :: u
-  character(*), intent(OUT) :: line
-  logical,      intent(OUT) :: complete
-  integer(I4P), intent(OUT) :: ios
-  integer(I4P)              :: sz
-  line = ''
-  read(u,'(A)',advance='no',size=sz,iostat=ios) line
-  complete = is_iostat_eor(ios)
-  if (complete) then
+  integer(I4P),                  intent(IN)  :: u
+  character(len=:), allocatable, intent(OUT) :: line
+  logical,                       intent(OUT) :: complete
+  integer(I4P),                  intent(OUT) :: ios
+  character(256)                             :: chunk
+  integer(I4P)                               :: sz
+  complete = .false.
+  read(u,'(A)',advance='no',size=sz,iostat=ios) chunk
+  line = chunk(1:sz)
+  if (is_iostat_eor(ios)) then
     ios = 0
-  elseif (ios == 0) then
-    read(u,'(A)',iostat=ios)
+    complete = .true.
+    return
   endif
+  if (ios /= 0) return
+  if (index(line,'<FieldData')>0) then
+    if (index(line,'</FieldData')==0 .and. .not.empty_element(line)) then
+      do
+        read(u,'(A)',advance='no',size=sz,iostat=ios) chunk
+        line = line//chunk(1:sz)
+        if (is_iostat_eor(ios)) then
+          ios = 0
+          complete = .true.
+          return
+        endif
+        if (ios /= 0) return
+      enddo
+    endif
+  endif
+  read(u,'(A)',iostat=ios)
   end subroutine read_line_start
 
-  !> True when line holds a tag that does not end on it: a '<' with no '>' after it on the line. tag returns the tag as far as
-  !> the line holds it. XML allows a start tag over several lines (white space, line breaks included, may stand between its
-  !> attributes); the reader takes each tag on its line.
+  !> The position in s of the '>' that ends the start tag that s begins with: the first '>' outside the quotes of its attribute
+  !> values, which may hold '>' (XML 1.0, production [10] AttValue); 0 when s holds none.
+  pure integer function tag_end(s)
+  character(*), intent(IN) :: s
+  integer                  :: i
+  character(1)             :: q
+  tag_end = 0
+  q = ' '
+  do i = 1, len(s)
+    if (q /= ' ') then
+      if (s(i:i) == q) q = ' '
+    elseif (s(i:i) == '"' .or. s(i:i) == "'") then
+      q = s(i:i)
+    elseif (s(i:i) == '>') then
+      tag_end = i
+      return
+    endif
+  enddo
+  end function tag_end
+
+  !> True when line holds a tag that does not end on it: a '<' with no '>' after it on the line outside the values in quotes of
+  !> its attributes, which may hold '>' (tag_end; XML 1.0, production [10]). tag returns the tag as far as the line holds it.
+  !> XML allows a start tag over several lines (white space, line breaks included, may stand between its attributes); the
+  !> reader takes each tag on its line.
   logical function unclosed_tag(line, tag)
   character(*), intent(IN)  :: line
   character(*), intent(OUT) :: tag
-  integer                   :: p, q
+  integer                   :: p, q, e
   unclosed_tag = .false.
   tag = ''
   p = 1
@@ -1051,12 +1182,14 @@ contains
     q = index(line(p:), '<')
     if (q == 0) return
     p = p + q - 1
-    if (index(line(p:), '>') == 0) then
+    e = tag_end(line(p:))
+    if (e == 0) then
       unclosed_tag = .true.
       tag = line(p:)
       return
     endif
-    p = p + 1
+    ! The next tag is looked for after the end of this one
+    p = p + e
   enddo
   end function unclosed_tag
 
@@ -1076,12 +1209,13 @@ contains
   endif
   end subroutine unclosed_tag_message
 
-  !> True when the FieldData start tag on line closes itself (<FieldData/>, <FieldData .../>): an empty element.
+  !> True when the FieldData start tag on line closes itself (<FieldData/>, <FieldData .../>): an empty element. The tag ends at
+  !> its first '>' outside the values in quotes of its attributes, which may hold '>' (tag_end; XML 1.0, production [10]).
   logical function empty_element(line)
   character(*), intent(IN) :: line
   integer(I4P)             :: k, e
   k = index(line,'<FieldData')
-  e = index(line(k:),'>')
+  e = tag_end(line(k:))
   empty_element = .false.
   if (e > 1) empty_element = line(k+e-2:k+e-2) == '/'
   end function empty_element
@@ -5752,11 +5886,16 @@ contains
             E_IO = move(inside='VTKFile', to_find=trim(vtk(rf)%topology), cf=rf,buffer=s_buffer)
             call get_char(buffer=s_buffer, attrib='WholeExtent', val=aux, E_IO=E_IO)
             if(E_IO == 0) then
-              read(aux,*) rn
-              if(present(nx1)) nx1 = rn(1); if(present(nx2)) nx2 = rn(2)
-              if(present(ny1)) ny1 = rn(3); if(present(ny2)) ny2 = rn(4)
-              if(present(nz1)) nz1 = rn(5); if(present(nz2)) nz2 = rn(6)
+              read(aux,*,iostat=E_IO) rn
+              if (E_IO == 0) then
+                if(present(nx1)) nx1 = rn(1); if(present(nx2)) nx2 = rn(2)
+                if(present(ny1)) ny1 = rn(3); if(present(ny2)) ny2 = rn(4)
+                if(present(nz1)) nz1 = rn(5); if(present(nz2)) nz2 = rn(6)
+              endif
             endif
+            ! A WholeExtent that is not there, or cannot be read as six integers, leaves the extents unknown: the read
+            ! is refused
+            if (E_IO /= 0) return
         end select
 
         ! count the pieces
@@ -5786,11 +5925,16 @@ contains
             E_IO = move(inside='VTKFile', to_find=trim(vtk(rf)%topology), cf=rf,buffer=s_buffer)
             call get_char(buffer=s_buffer, attrib='WholeExtent', val=aux, E_IO=E_IO)
             if(E_IO == 0) then
-              read(aux,*) rn
-              if(present(nx1)) nx1 = rn(1); if(present(nx2)) nx2 = rn(2)
-              if(present(ny1)) ny1 = rn(3); if(present(ny2)) ny2 = rn(4)
-              if(present(nz1)) nz1 = rn(5); if(present(nz2)) nz2 = rn(6)
+              read(aux,*,iostat=E_IO) rn
+              if (E_IO == 0) then
+                if(present(nx1)) nx1 = rn(1); if(present(nx2)) nx2 = rn(2)
+                if(present(ny1)) ny1 = rn(3); if(present(ny2)) ny2 = rn(4)
+                if(present(nz1)) nz1 = rn(5); if(present(nz2)) nz2 = rn(6)
+              endif
             endif
+            ! A WholeExtent that is not there, or cannot be read as six integers, leaves the extents unknown: the read
+            ! is refused
+            if (E_IO /= 0) return
         end select
 
         ! count the pieces
@@ -5816,20 +5960,25 @@ contains
 
         E_IO = move(inside='VTKFile', cf=rf, buffer=s_buffer)
         call get_char(buffer=s_buffer, attrib='byte_order', val=aux, E_IO=E_IO)
+        ! A byte order that is not there, or cannot be read, leaves the order of the raw data unknown: the read is refused
+        if (E_IO /= 0) return
 
-        ! Check the file endianness
-        if (index(trim(aux), 'LITTLEENDIAN') > 0) then
+        ! Check the file endianness: the whole value is LittleEndian or BigEndian (move gives the tag in upper case, so the
+        ! case of its letters is not looked at); a value that only holds one of the two, as NotLittleEndian, is another one
+        if (trim(aux) == 'LITTLEENDIAN') then
           close(unit=vtk(rf)%u, iostat=E_IO)
           open(unit=Get_Unit(vtk(rf)%u),file=trim(filename),status='old', &
                form='UNFORMATTED',access='STREAM',action='READ', &
                convert='LITTLE_ENDIAN', iostat=E_IO, position='REWIND')
-        elseif (index(trim(aux), 'BIGENDIAN') > 0) then
+        elseif (trim(aux) == 'BIGENDIAN') then
           close(unit=vtk(rf)%u, iostat=E_IO)
           open(unit=Get_Unit(vtk(rf)%u),file=trim(filename),status='old', &
                form='UNFORMATTED',access='STREAM',action='READ', &
                convert='BIG_ENDIAN', iostat=E_IO, position='REWIND')
         else
-          rewind(unit=vtk(rf)%u, iostat=E_IO)
+          ! Another byte order leaves the order of the raw data unknown too: the read is refused
+          E_IO = -1_I4P
+          return
         endif
 
         select case(trim(vtk(rf)%topology))
@@ -5838,11 +5987,16 @@ contains
             E_IO = move(inside='VTKFile', to_find=trim(vtk(rf)%topology), cf=rf,buffer=s_buffer)
             call get_char(buffer=s_buffer, attrib='WholeExtent', val=aux, E_IO=E_IO)
             if(E_IO == 0) then
-              read(aux,*) rn
-              if(present(nx1)) nx1 = rn(1); if(present(nx2)) nx2 = rn(2)
-              if(present(ny1)) ny1 = rn(3); if(present(ny2)) ny2 = rn(4)
-              if(present(nz1)) nz1 = rn(5); if(present(nz2)) nz2 = rn(6)
+              read(aux,*,iostat=E_IO) rn
+              if (E_IO == 0) then
+                if(present(nx1)) nx1 = rn(1); if(present(nx2)) nx2 = rn(2)
+                if(present(ny1)) ny1 = rn(3); if(present(ny2)) ny2 = rn(4)
+                if(present(nz1)) nz1 = rn(5); if(present(nz2)) nz2 = rn(6)
+              endif
             endif
+            ! A WholeExtent that is not there, or cannot be read as six integers, leaves the extents unknown: the read
+            ! is refused
+            if (E_IO /= 0) return
         end select
 
         ! count the pieces
@@ -5920,9 +6074,11 @@ contains
           NN = (nx2-nx1+1)*(ny2-ny1+1)*(nz2-nz1+1)
           E_IO = search(from=pos, inside='Points', to_find='DataArray', with_attribute='Name', of_value='Points', &
                         buffer=s_buffer,content=data)
-          call get_char(buffer=s_buffer, attrib='format', val=fmt,  E_IO=E_IO)
-          call get_char(buffer=s_buffer, attrib='type', val=type,  E_IO=E_IO)
-          if (trim(adjustlt(Upper_Case(fmt)))/='ASCII' .or. &
+          if (E_IO == 0) call get_char(buffer=s_buffer, attrib='format', val=fmt,  E_IO=E_IO)
+          if (E_IO == 0) call get_char(buffer=s_buffer, attrib='type', val=type,  E_IO=E_IO)
+          if (E_IO /= 0) then
+            E_IO = -1_I4P
+          elseif (trim(adjustlt(Upper_Case(fmt)))/='ASCII' .or. &
               trim(adjustlt(Upper_Case(type)))/='FLOAT32') then
             E_IO = -1_I4P 
           else
@@ -5945,9 +6101,11 @@ contains
           NN = (nx2-nx1+1)*(ny2-ny1+1)*(nz2-nz1+1)
           E_IO = search(from=pos, inside='Points', to_find='DataArray', with_attribute='Name', of_value='Points', &
                         buffer=s_buffer,content=data)
-          call get_char(buffer=s_buffer, attrib='format', val=fmt,  E_IO=E_IO)
-          call get_char(buffer=s_buffer, attrib='type', val=type,  E_IO=E_IO)
-          if (trim(adjustlt(Upper_Case(fmt)))/='BINARY' .or. &
+          if (E_IO == 0) call get_char(buffer=s_buffer, attrib='format', val=fmt,  E_IO=E_IO)
+          if (E_IO == 0) call get_char(buffer=s_buffer, attrib='type', val=type,  E_IO=E_IO)
+          if (E_IO /= 0) then
+            E_IO = -1_I4P
+          elseif (trim(adjustlt(Upper_Case(fmt)))/='BINARY' .or. &
               trim(adjustlt(Upper_Case(type)))/='FLOAT32') then
             E_IO = -1_I4P 
           else
@@ -5978,10 +6136,12 @@ contains
           NN = (nx2-nx1+1)*(ny2-ny1+1)*(nz2-nz1+1)
           E_IO = search(from=pos, inside='Points', to_find='DataArray', with_attribute='Name', of_value='Points', &
                         buffer=s_buffer)
-          call get_int(buffer=s_buffer,  attrib='offset', val=offs, E_IO=E_IO)
-          call get_char(buffer=s_buffer, attrib='format', val=fmt,  E_IO=E_IO)
-          call get_char(buffer=s_buffer, attrib='type', val=type,  E_IO=E_IO)
-          if (trim(adjustlt(Upper_Case(fmt)))/='APPENDED' .or. &
+          if (E_IO == 0) call get_int(buffer=s_buffer,  attrib='offset', val=offs, E_IO=E_IO)
+          if (E_IO == 0) call get_char(buffer=s_buffer, attrib='format', val=fmt,  E_IO=E_IO)
+          if (E_IO == 0) call get_char(buffer=s_buffer, attrib='type', val=type,  E_IO=E_IO)
+          if (E_IO /= 0) then
+            E_IO = -1_I4P
+          elseif (trim(adjustlt(Upper_Case(fmt)))/='APPENDED' .or. &
               trim(adjustlt(Upper_Case(type)))/='FLOAT32') then
             E_IO = -1_I4P 
           else
@@ -6044,12 +6204,14 @@ contains
           NN = (nx2-nx1+1)*(ny2-ny1+1)*(nz2-nz1+1)
           E_IO = search(from=pos, inside='Points', to_find='DataArray', with_attribute='Name', of_value='Points', &
                         buffer=s_buffer,content=data)
-          call get_char(buffer=s_buffer, attrib='format', val=fmt,  E_IO=E_IO)
-          call get_char(buffer=s_buffer, attrib='type', val=type,  E_IO=E_IO)
+          if (E_IO == 0) call get_char(buffer=s_buffer, attrib='format', val=fmt,  E_IO=E_IO)
+          if (E_IO == 0) call get_char(buffer=s_buffer, attrib='type', val=type,  E_IO=E_IO)
           ! No Points array: no format or type to check, and no points to read
           if (.not.allocated(fmt)) fmt = ''
           if (.not.allocated(type)) type = ''
-          if (trim(adjustlt(Upper_Case(fmt)))/='ASCII' .or. &
+          if (E_IO /= 0) then
+            E_IO = -1_I4P
+          elseif (trim(adjustlt(Upper_Case(fmt)))/='ASCII' .or. &
               trim(adjustlt(Upper_Case(type)))/='FLOAT64') then
             E_IO = -1_I4P 
           else
@@ -6072,12 +6234,14 @@ contains
           NN = (nx2-nx1+1)*(ny2-ny1+1)*(nz2-nz1+1)
           E_IO = search(from=pos, inside='Points', to_find='DataArray', with_attribute='Name', of_value='Points', &
                         buffer=s_buffer,content=data)
-          call get_char(buffer=s_buffer, attrib='format', val=fmt,  E_IO=E_IO)
-          call get_char(buffer=s_buffer, attrib='type', val=type,  E_IO=E_IO)
+          if (E_IO == 0) call get_char(buffer=s_buffer, attrib='format', val=fmt,  E_IO=E_IO)
+          if (E_IO == 0) call get_char(buffer=s_buffer, attrib='type', val=type,  E_IO=E_IO)
           ! No Points array: no format or type to check, and no points to read
           if (.not.allocated(fmt)) fmt = ''
           if (.not.allocated(type)) type = ''
-          if (trim(adjustlt(Upper_Case(fmt)))/='BINARY' .or. &
+          if (E_IO /= 0) then
+            E_IO = -1_I4P
+          elseif (trim(adjustlt(Upper_Case(fmt)))/='BINARY' .or. &
               trim(adjustlt(Upper_Case(type)))/='FLOAT64') then
             E_IO = -1_I4P 
           else
@@ -6108,13 +6272,15 @@ contains
           NN = (nx2-nx1+1)*(ny2-ny1+1)*(nz2-nz1+1)
           E_IO = search(from=pos, inside='Points', to_find='DataArray', with_attribute='Name', of_value='Points', &
                         buffer=s_buffer)
-          call get_int(buffer=s_buffer,  attrib='offset', val=offs, E_IO=E_IO)
-          call get_char(buffer=s_buffer, attrib='format', val=fmt,  E_IO=E_IO)
-          call get_char(buffer=s_buffer, attrib='type', val=type,  E_IO=E_IO)
+          if (E_IO == 0) call get_int(buffer=s_buffer,  attrib='offset', val=offs, E_IO=E_IO)
+          if (E_IO == 0) call get_char(buffer=s_buffer, attrib='format', val=fmt,  E_IO=E_IO)
+          if (E_IO == 0) call get_char(buffer=s_buffer, attrib='type', val=type,  E_IO=E_IO)
           ! No Points array: no format or type to check, and no points to read
           if (.not.allocated(fmt)) fmt = ''
           if (.not.allocated(type)) type = ''
-          if (trim(adjustlt(Upper_Case(fmt)))/='APPENDED' .or. &
+          if (E_IO /= 0) then
+            E_IO = -1_I4P
+          elseif (trim(adjustlt(Upper_Case(fmt)))/='APPENDED' .or. &
               trim(adjustlt(Upper_Case(type)))/='FLOAT64') then
             E_IO = -1_I4P 
           else
@@ -6175,9 +6341,11 @@ contains
           NN = (nx2-nx1+1)*(ny2-ny1+1)*(nz2-nz1+1)
           E_IO = search(from=pos, inside='Points', to_find='DataArray', with_attribute='Name', of_value='Points', &
                         buffer=s_buffer,content=data)
-          call get_char(buffer=s_buffer, attrib='format', val=fmt,  E_IO=E_IO)
-          call get_char(buffer=s_buffer, attrib='type', val=type,  E_IO=E_IO)
-          if (trim(adjustlt(Upper_Case(fmt)))/='ASCII' .or. &
+          if (E_IO == 0) call get_char(buffer=s_buffer, attrib='format', val=fmt,  E_IO=E_IO)
+          if (E_IO == 0) call get_char(buffer=s_buffer, attrib='type', val=type,  E_IO=E_IO)
+          if (E_IO /= 0) then
+            E_IO = -1_I4P
+          elseif (trim(adjustlt(Upper_Case(fmt)))/='ASCII' .or. &
               trim(adjustlt(Upper_Case(type)))/='FLOAT32') then
             E_IO = -1_I4P 
           else
@@ -6200,9 +6368,11 @@ contains
           NN = (nx2-nx1+1)*(ny2-ny1+1)*(nz2-nz1+1)
           E_IO = search(from=pos, inside='Points', to_find='DataArray', with_attribute='Name', of_value='Points', &
                         buffer=s_buffer,content=data)
-          call get_char(buffer=s_buffer, attrib='format', val=fmt,  E_IO=E_IO)
-          call get_char(buffer=s_buffer, attrib='type', val=type,  E_IO=E_IO)
-          if (trim(adjustlt(Upper_Case(fmt)))/='BINARY' .or. &
+          if (E_IO == 0) call get_char(buffer=s_buffer, attrib='format', val=fmt,  E_IO=E_IO)
+          if (E_IO == 0) call get_char(buffer=s_buffer, attrib='type', val=type,  E_IO=E_IO)
+          if (E_IO /= 0) then
+            E_IO = -1_I4P
+          elseif (trim(adjustlt(Upper_Case(fmt)))/='BINARY' .or. &
               trim(adjustlt(Upper_Case(type)))/='FLOAT32') then
             E_IO = -1_I4P 
           else
@@ -6233,10 +6403,12 @@ contains
           NN = (nx2-nx1+1)*(ny2-ny1+1)*(nz2-nz1+1)
           E_IO = search(from=pos, inside='Points', to_find='DataArray', with_attribute='Name', of_value='Points', &
                         buffer=s_buffer)
-          call get_int(buffer=s_buffer,  attrib='offset', val=offs, E_IO=E_IO)
-          call get_char(buffer=s_buffer, attrib='format', val=fmt,  E_IO=E_IO)
-          call get_char(buffer=s_buffer, attrib='type', val=type,  E_IO=E_IO)
-          if (trim(adjustlt(Upper_Case(fmt)))/='APPENDED' .or. &
+          if (E_IO == 0) call get_int(buffer=s_buffer,  attrib='offset', val=offs, E_IO=E_IO)
+          if (E_IO == 0) call get_char(buffer=s_buffer, attrib='format', val=fmt,  E_IO=E_IO)
+          if (E_IO == 0) call get_char(buffer=s_buffer, attrib='type', val=type,  E_IO=E_IO)
+          if (E_IO /= 0) then
+            E_IO = -1_I4P
+          elseif (trim(adjustlt(Upper_Case(fmt)))/='APPENDED' .or. &
               trim(adjustlt(Upper_Case(type)))/='FLOAT32') then
             E_IO = -1_I4P 
           else
@@ -6297,9 +6469,11 @@ contains
           NN = (nx2-nx1+1)*(ny2-ny1+1)*(nz2-nz1+1)
           E_IO = search(from=pos, inside='Points', to_find='DataArray', with_attribute='Name', of_value='Points', &
                         buffer=s_buffer,content=data)
-          call get_char(buffer=s_buffer, attrib='format', val=fmt,  E_IO=E_IO)
-          call get_char(buffer=s_buffer, attrib='type', val=type,  E_IO=E_IO)
-          if (trim(adjustlt(Upper_Case(fmt)))/='ASCII' .or. &
+          if (E_IO == 0) call get_char(buffer=s_buffer, attrib='format', val=fmt,  E_IO=E_IO)
+          if (E_IO == 0) call get_char(buffer=s_buffer, attrib='type', val=type,  E_IO=E_IO)
+          if (E_IO /= 0) then
+            E_IO = -1_I4P
+          elseif (trim(adjustlt(Upper_Case(fmt)))/='ASCII' .or. &
               trim(adjustlt(Upper_Case(type)))/='FLOAT64') then
             E_IO = -1_I4P 
           else
@@ -6322,9 +6496,11 @@ contains
           NN = (nx2-nx1+1)*(ny2-ny1+1)*(nz2-nz1+1)
           E_IO = search(from=pos, inside='Points', to_find='DataArray', with_attribute='Name', of_value='Points', &
                         buffer=s_buffer,content=data)
-          call get_char(buffer=s_buffer, attrib='format', val=fmt,  E_IO=E_IO)
-          call get_char(buffer=s_buffer, attrib='type', val=type,  E_IO=E_IO)
-          if (trim(adjustlt(Upper_Case(fmt)))/='BINARY' .or. &
+          if (E_IO == 0) call get_char(buffer=s_buffer, attrib='format', val=fmt,  E_IO=E_IO)
+          if (E_IO == 0) call get_char(buffer=s_buffer, attrib='type', val=type,  E_IO=E_IO)
+          if (E_IO /= 0) then
+            E_IO = -1_I4P
+          elseif (trim(adjustlt(Upper_Case(fmt)))/='BINARY' .or. &
               trim(adjustlt(Upper_Case(type)))/='FLOAT64') then
             E_IO = -1_I4P 
           else
@@ -6355,10 +6531,12 @@ contains
           NN = (nx2-nx1+1)*(ny2-ny1+1)*(nz2-nz1+1)
           E_IO = search(from=pos, inside='Points', to_find='DataArray', with_attribute='Name', of_value='Points', &
                         buffer=s_buffer)
-          call get_int(buffer=s_buffer,  attrib='offset', val=offs, E_IO=E_IO)
-          call get_char(buffer=s_buffer, attrib='format', val=fmt,  E_IO=E_IO)
-          call get_char(buffer=s_buffer, attrib='type', val=type,  E_IO=E_IO)
-          if (trim(adjustlt(Upper_Case(fmt)))/='APPENDED' .or. &
+          if (E_IO == 0) call get_int(buffer=s_buffer,  attrib='offset', val=offs, E_IO=E_IO)
+          if (E_IO == 0) call get_char(buffer=s_buffer, attrib='format', val=fmt,  E_IO=E_IO)
+          if (E_IO == 0) call get_char(buffer=s_buffer, attrib='type', val=type,  E_IO=E_IO)
+          if (E_IO /= 0) then
+            E_IO = -1_I4P
+          elseif (trim(adjustlt(Upper_Case(fmt)))/='APPENDED' .or. &
               trim(adjustlt(Upper_Case(type)))/='FLOAT64') then
             E_IO = -1_I4P 
           else
@@ -6421,9 +6599,11 @@ contains
           NN = (nx2-nx1+1)*(ny2-ny1+1)*(nz2-nz1+1)
           E_IO = search(from=pos, inside='Points', to_find='DataArray', with_attribute='Name', of_value='Points', &
                         buffer=s_buffer,content=data)
-          call get_char(buffer=s_buffer, attrib='format', val=fmt,  E_IO=E_IO)
-          call get_char(buffer=s_buffer, attrib='type', val=type,  E_IO=E_IO)
-          if (trim(adjustlt(Upper_Case(fmt)))/='ASCII' .or. &
+          if (E_IO == 0) call get_char(buffer=s_buffer, attrib='format', val=fmt,  E_IO=E_IO)
+          if (E_IO == 0) call get_char(buffer=s_buffer, attrib='type', val=type,  E_IO=E_IO)
+          if (E_IO /= 0) then
+            E_IO = -1_I4P
+          elseif (trim(adjustlt(Upper_Case(fmt)))/='ASCII' .or. &
               trim(adjustlt(Upper_Case(type)))/='FLOAT32') then
             E_IO = -1_I4P 
           else
@@ -6446,9 +6626,11 @@ contains
           NN = (nx2-nx1+1)*(ny2-ny1+1)*(nz2-nz1+1)
           E_IO = search(from=pos, inside='Points', to_find='DataArray', with_attribute='Name', of_value='Points', &
                         buffer=s_buffer,content=data)
-          call get_char(buffer=s_buffer, attrib='format', val=fmt,  E_IO=E_IO)
-          call get_char(buffer=s_buffer, attrib='type', val=type,  E_IO=E_IO)
-          if (trim(adjustlt(Upper_Case(fmt)))/='BINARY' .or. &
+          if (E_IO == 0) call get_char(buffer=s_buffer, attrib='format', val=fmt,  E_IO=E_IO)
+          if (E_IO == 0) call get_char(buffer=s_buffer, attrib='type', val=type,  E_IO=E_IO)
+          if (E_IO /= 0) then
+            E_IO = -1_I4P
+          elseif (trim(adjustlt(Upper_Case(fmt)))/='BINARY' .or. &
               trim(adjustlt(Upper_Case(type)))/='FLOAT32') then
             E_IO = -1_I4P 
           else
@@ -6481,10 +6663,12 @@ contains
           NN = (nx2-nx1+1)*(ny2-ny1+1)*(nz2-nz1+1)
           E_IO = search(from=pos, inside='Points', to_find='DataArray', with_attribute='Name', of_value='Points', &
                         buffer=s_buffer)
-          call get_int(buffer=s_buffer,  attrib='offset', val=offs, E_IO=E_IO)
-          call get_char(buffer=s_buffer, attrib='format', val=fmt,  E_IO=E_IO)
-          call get_char(buffer=s_buffer, attrib='type', val=type,  E_IO=E_IO)
-          if (trim(adjustlt(Upper_Case(fmt)))/='APPENDED' .or. &
+          if (E_IO == 0) call get_int(buffer=s_buffer,  attrib='offset', val=offs, E_IO=E_IO)
+          if (E_IO == 0) call get_char(buffer=s_buffer, attrib='format', val=fmt,  E_IO=E_IO)
+          if (E_IO == 0) call get_char(buffer=s_buffer, attrib='type', val=type,  E_IO=E_IO)
+          if (E_IO /= 0) then
+            E_IO = -1_I4P
+          elseif (trim(adjustlt(Upper_Case(fmt)))/='APPENDED' .or. &
               trim(adjustlt(Upper_Case(type)))/='FLOAT32') then
             E_IO = -1_I4P 
           else
@@ -6548,9 +6732,11 @@ contains
           NN = (nx2-nx1+1)*(ny2-ny1+1)*(nz2-nz1+1)
           E_IO = search(from=pos, inside='Points', to_find='DataArray', with_attribute='Name', of_value='Points', &
                         buffer=s_buffer,content=data)
-          call get_char(buffer=s_buffer, attrib='format', val=fmt,  E_IO=E_IO)
-          call get_char(buffer=s_buffer, attrib='type', val=type,  E_IO=E_IO)
-          if (trim(adjustlt(Upper_Case(fmt)))/='ASCII' .or. &
+          if (E_IO == 0) call get_char(buffer=s_buffer, attrib='format', val=fmt,  E_IO=E_IO)
+          if (E_IO == 0) call get_char(buffer=s_buffer, attrib='type', val=type,  E_IO=E_IO)
+          if (E_IO /= 0) then
+            E_IO = -1_I4P
+          elseif (trim(adjustlt(Upper_Case(fmt)))/='ASCII' .or. &
               trim(adjustlt(Upper_Case(type)))/='FLOAT64') then
             E_IO = -1_I4P 
           else
@@ -6573,9 +6759,11 @@ contains
           NN = (nx2-nx1+1)*(ny2-ny1+1)*(nz2-nz1+1)
           E_IO = search(from=pos, inside='Points', to_find='DataArray', with_attribute='Name', of_value='Points', &
                         buffer=s_buffer,content=data)
-          call get_char(buffer=s_buffer, attrib='format', val=fmt,  E_IO=E_IO)
-          call get_char(buffer=s_buffer, attrib='type', val=type,  E_IO=E_IO)
-          if (trim(adjustlt(Upper_Case(fmt)))/='BINARY' .or. &
+          if (E_IO == 0) call get_char(buffer=s_buffer, attrib='format', val=fmt,  E_IO=E_IO)
+          if (E_IO == 0) call get_char(buffer=s_buffer, attrib='type', val=type,  E_IO=E_IO)
+          if (E_IO /= 0) then
+            E_IO = -1_I4P
+          elseif (trim(adjustlt(Upper_Case(fmt)))/='BINARY' .or. &
               trim(adjustlt(Upper_Case(type)))/='FLOAT64') then
             E_IO = -1_I4P 
           else
@@ -6608,10 +6796,12 @@ contains
           NN = (nx2-nx1+1)*(ny2-ny1+1)*(nz2-nz1+1)
           E_IO = search(from=pos, inside='Points', to_find='DataArray', with_attribute='Name', of_value='Points', &
                         buffer=s_buffer)
-          call get_int(buffer=s_buffer,  attrib='offset', val=offs, E_IO=E_IO)
-          call get_char(buffer=s_buffer, attrib='format', val=fmt,  E_IO=E_IO)
-          call get_char(buffer=s_buffer, attrib='type', val=type,  E_IO=E_IO)
-          if (trim(adjustlt(Upper_Case(fmt)))/='APPENDED' .or. &
+          if (E_IO == 0) call get_int(buffer=s_buffer,  attrib='offset', val=offs, E_IO=E_IO)
+          if (E_IO == 0) call get_char(buffer=s_buffer, attrib='format', val=fmt,  E_IO=E_IO)
+          if (E_IO == 0) call get_char(buffer=s_buffer, attrib='type', val=type,  E_IO=E_IO)
+          if (E_IO /= 0) then
+            E_IO = -1_I4P
+          elseif (trim(adjustlt(Upper_Case(fmt)))/='APPENDED' .or. &
               trim(adjustlt(Upper_Case(type)))/='FLOAT64') then
             E_IO = -1_I4P 
           else
@@ -6672,9 +6862,11 @@ contains
           NN = (nx2-nx1+1)*(ny2-ny1+1)*(nz2-nz1+1)
           E_IO = search(from=pos, inside='Points', to_find='DataArray', with_attribute='Name', of_value='Points', &
                         buffer=s_buffer,content=data)
-          call get_char(buffer=s_buffer, attrib='format', val=fmt,  E_IO=E_IO)
-          call get_char(buffer=s_buffer, attrib='type', val=type,  E_IO=E_IO)
-          if (trim(adjustlt(Upper_Case(fmt)))/='ASCII' .or. &
+          if (E_IO == 0) call get_char(buffer=s_buffer, attrib='format', val=fmt,  E_IO=E_IO)
+          if (E_IO == 0) call get_char(buffer=s_buffer, attrib='type', val=type,  E_IO=E_IO)
+          if (E_IO /= 0) then
+            E_IO = -1_I4P
+          elseif (trim(adjustlt(Upper_Case(fmt)))/='ASCII' .or. &
               trim(adjustlt(Upper_Case(type)))/='FLOAT32') then
             E_IO = -1_I4P 
           else
@@ -6697,9 +6889,11 @@ contains
           NN = (nx2-nx1+1)*(ny2-ny1+1)*(nz2-nz1+1)
           E_IO = search(from=pos, inside='Points', to_find='DataArray', with_attribute='Name', of_value='Points', &
                         buffer=s_buffer,content=data)
-          call get_char(buffer=s_buffer, attrib='format', val=fmt,  E_IO=E_IO)
-          call get_char(buffer=s_buffer, attrib='type', val=type,  E_IO=E_IO)
-          if (trim(adjustlt(Upper_Case(fmt)))/='BINARY' .or. &
+          if (E_IO == 0) call get_char(buffer=s_buffer, attrib='format', val=fmt,  E_IO=E_IO)
+          if (E_IO == 0) call get_char(buffer=s_buffer, attrib='type', val=type,  E_IO=E_IO)
+          if (E_IO /= 0) then
+            E_IO = -1_I4P
+          elseif (trim(adjustlt(Upper_Case(fmt)))/='BINARY' .or. &
               trim(adjustlt(Upper_Case(type)))/='FLOAT32') then
             E_IO = -1_I4P 
           else
@@ -6729,10 +6923,12 @@ contains
         if(E_IO == 0) then      
           NN = (nx2-nx1+1)*(ny2-ny1+1)*(nz2-nz1+1)
           E_IO = search(from=pos, inside='Points', to_find='DataArray', with_attribute='Name', of_value='Points', buffer=s_buffer)
-          call get_int(buffer=s_buffer,  attrib='offset', val=offs, E_IO=E_IO)
-          call get_char(buffer=s_buffer, attrib='format', val=fmt,  E_IO=E_IO)
-          call get_char(buffer=s_buffer, attrib='type', val=type,  E_IO=E_IO)
-          if (trim(adjustlt(Upper_Case(fmt)))/='APPENDED' .or. &
+          if (E_IO == 0) call get_int(buffer=s_buffer,  attrib='offset', val=offs, E_IO=E_IO)
+          if (E_IO == 0) call get_char(buffer=s_buffer, attrib='format', val=fmt,  E_IO=E_IO)
+          if (E_IO == 0) call get_char(buffer=s_buffer, attrib='type', val=type,  E_IO=E_IO)
+          if (E_IO /= 0) then
+            E_IO = -1_I4P
+          elseif (trim(adjustlt(Upper_Case(fmt)))/='APPENDED' .or. &
               trim(adjustlt(Upper_Case(type)))/='FLOAT32') then
             E_IO = -1_I4P 
           else
@@ -6794,9 +6990,11 @@ contains
           NN = (nx2-nx1+1)*(ny2-ny1+1)*(nz2-nz1+1)
           E_IO = search(from=pos, inside='Points', to_find='DataArray', with_attribute='Name', of_value='Points', &
                         buffer=s_buffer,content=data)
-          call get_char(buffer=s_buffer, attrib='format', val=fmt,  E_IO=E_IO)
-          call get_char(buffer=s_buffer, attrib='type', val=type,  E_IO=E_IO)
-          if (trim(adjustlt(Upper_Case(fmt)))/='ASCII' .or. &
+          if (E_IO == 0) call get_char(buffer=s_buffer, attrib='format', val=fmt,  E_IO=E_IO)
+          if (E_IO == 0) call get_char(buffer=s_buffer, attrib='type', val=type,  E_IO=E_IO)
+          if (E_IO /= 0) then
+            E_IO = -1_I4P
+          elseif (trim(adjustlt(Upper_Case(fmt)))/='ASCII' .or. &
               trim(adjustlt(Upper_Case(type)))/='FLOAT64') then
             E_IO = -1_I4P 
           else
@@ -6820,9 +7018,11 @@ contains
           NN = (nx2-nx1+1)*(ny2-ny1+1)*(nz2-nz1+1)
           E_IO = search(from=pos, inside='Points', to_find='DataArray', with_attribute='Name', of_value='Points', &
                         buffer=s_buffer,content=data)
-          call get_char(buffer=s_buffer, attrib='format', val=fmt,  E_IO=E_IO)
-          call get_char(buffer=s_buffer, attrib='type', val=type,  E_IO=E_IO)
-          if (trim(adjustlt(Upper_Case(fmt)))/='BINARY' .or. &
+          if (E_IO == 0) call get_char(buffer=s_buffer, attrib='format', val=fmt,  E_IO=E_IO)
+          if (E_IO == 0) call get_char(buffer=s_buffer, attrib='type', val=type,  E_IO=E_IO)
+          if (E_IO /= 0) then
+            E_IO = -1_I4P
+          elseif (trim(adjustlt(Upper_Case(fmt)))/='BINARY' .or. &
               trim(adjustlt(Upper_Case(type)))/='FLOAT64') then
             E_IO = -1_I4P 
           else
@@ -6852,10 +7052,12 @@ contains
         if(E_IO == 0) then      
           NN = (nx2-nx1+1)*(ny2-ny1+1)*(nz2-nz1+1)
           E_IO = search(from=pos, inside='Points', to_find='DataArray', with_attribute='Name', of_value='Points', buffer=s_buffer)
-          call get_int(buffer=s_buffer,  attrib='offset', val=offs, E_IO=E_IO)
-          call get_char(buffer=s_buffer, attrib='format', val=fmt,  E_IO=E_IO)
-          call get_char(buffer=s_buffer, attrib='type', val=type,  E_IO=E_IO)
-          if (trim(adjustlt(Upper_Case(fmt)))/='APPENDED' .or. &
+          if (E_IO == 0) call get_int(buffer=s_buffer,  attrib='offset', val=offs, E_IO=E_IO)
+          if (E_IO == 0) call get_char(buffer=s_buffer, attrib='format', val=fmt,  E_IO=E_IO)
+          if (E_IO == 0) call get_char(buffer=s_buffer, attrib='type', val=type,  E_IO=E_IO)
+          if (E_IO /= 0) then
+            E_IO = -1_I4P
+          elseif (trim(adjustlt(Upper_Case(fmt)))/='APPENDED' .or. &
               trim(adjustlt(Upper_Case(type)))/='FLOAT64') then
             E_IO = -1_I4P 
           else
@@ -6918,31 +7120,37 @@ contains
         if(E_IO == 0) then      
           E_IO = search(from=pos, inside='Coordinates', to_find='DataArray', with_attribute='Name', of_value='X', &
                         buffer=s_buffer,content=data)
-          call get_char(buffer=s_buffer, attrib='format', val=fmt,  E_IO=E_IO)
-          call get_char(buffer=s_buffer, attrib='type',   val=type, E_IO=E_IO)
-          if (trim(adjustlt(Upper_Case(fmt)))/='ASCII' .or. &
+          if (E_IO == 0) call get_char(buffer=s_buffer, attrib='format', val=fmt,  E_IO=E_IO)
+          if (E_IO == 0) call get_char(buffer=s_buffer, attrib='type',   val=type, E_IO=E_IO)
+          if (E_IO /= 0) then
+            E_IO = -1_I4P
+          elseif (trim(adjustlt(Upper_Case(fmt)))/='ASCII' .or. &
               trim(adjustlt(Upper_Case(type)))/='FLOAT32') then
             E_IO = -1_I4P 
           else
             allocate(X(nx1:nx2), stat=E_IO)
             read(data, fmt=*, iostat=E_IO) (X(i), i=nx1,nx2) !get X ascii array
           endif
-          E_IO = search(from=pos, inside='Coordinates', to_find='DataArray', with_attribute='Name', of_value='Y', &
-                        buffer=s_buffer,content=data)
-          call get_char(buffer=s_buffer, attrib='format', val=fmt,  E_IO=E_IO)
-          call get_char(buffer=s_buffer, attrib='type',   val=type, E_IO=E_IO)
-          if (trim(adjustlt(Upper_Case(fmt)))/='ASCII' .or. &
+          if (E_IO == 0) E_IO = search(from=pos, inside='Coordinates', to_find='DataArray', with_attribute='Name', &
+                                       of_value='Y', buffer=s_buffer, content=data)
+          if (E_IO == 0) call get_char(buffer=s_buffer, attrib='format', val=fmt,  E_IO=E_IO)
+          if (E_IO == 0) call get_char(buffer=s_buffer, attrib='type',   val=type, E_IO=E_IO)
+          if (E_IO /= 0) then
+            E_IO = -1_I4P
+          elseif (trim(adjustlt(Upper_Case(fmt)))/='ASCII' .or. &
               trim(adjustlt(Upper_Case(type)))/='FLOAT32') then
             E_IO = -1_I4P 
           else
             allocate(Y(ny1:ny2), stat=E_IO)
             read(data, fmt=*, iostat=E_IO) (Y(i), i=ny1,ny2) !get Y ascii array
           endif
-          E_IO = search(from=pos, inside='Coordinates', to_find='DataArray', with_attribute='Name', of_value='Z', &
-                        buffer=s_buffer,content=data)
-          call get_char(buffer=s_buffer, attrib='format', val=fmt,  E_IO=E_IO)
-          call get_char(buffer=s_buffer, attrib='type',   val=type, E_IO=E_IO)
-          if (trim(adjustlt(Upper_Case(fmt)))/='ASCII' .or. &
+          if (E_IO == 0) E_IO = search(from=pos, inside='Coordinates', to_find='DataArray', with_attribute='Name', &
+                                       of_value='Z', buffer=s_buffer, content=data)
+          if (E_IO == 0) call get_char(buffer=s_buffer, attrib='format', val=fmt,  E_IO=E_IO)
+          if (E_IO == 0) call get_char(buffer=s_buffer, attrib='type',   val=type, E_IO=E_IO)
+          if (E_IO /= 0) then
+            E_IO = -1_I4P
+          elseif (trim(adjustlt(Upper_Case(fmt)))/='ASCII' .or. &
               trim(adjustlt(Upper_Case(type)))/='FLOAT32') then
             E_IO = -1_I4P 
           else
@@ -6964,9 +7172,11 @@ contains
         if(E_IO == 0) then      
           E_IO = search(from=pos, inside='Coordinates', to_find='DataArray', with_attribute='Name', of_value='X', &
                         buffer=s_buffer,content=data)
-          call get_char(buffer=s_buffer, attrib='format', val=fmt,  E_IO=E_IO)
-          call get_char(buffer=s_buffer, attrib='type',   val=type, E_IO=E_IO)
-          if (trim(adjustlt(Upper_Case(fmt)))/='BINARY' .or. &
+          if (E_IO == 0) call get_char(buffer=s_buffer, attrib='format', val=fmt,  E_IO=E_IO)
+          if (E_IO == 0) call get_char(buffer=s_buffer, attrib='type',   val=type, E_IO=E_IO)
+          if (E_IO /= 0) then
+            E_IO = -1_I4P
+          elseif (trim(adjustlt(Upper_Case(fmt)))/='BINARY' .or. &
               trim(adjustlt(Upper_Case(type)))/='FLOAT32') then
             E_IO = -1_I4P 
           else
@@ -6982,11 +7192,13 @@ contains
             X(nx1:nx2) = XYZp(:)
             if(allocated(XYZp)) deallocate(XYZp)
           endif
-          E_IO = search(from=pos, inside='Coordinates', to_find='DataArray', with_attribute='Name', of_value='Y', &
-                        buffer=s_buffer,content=data)
-          call get_char(buffer=s_buffer, attrib='format', val=fmt,  E_IO=E_IO)
-          call get_char(buffer=s_buffer, attrib='type',   val=type, E_IO=E_IO)
-          if (trim(adjustlt(Upper_Case(fmt)))/='BINARY' .or. &
+          if (E_IO == 0) E_IO = search(from=pos, inside='Coordinates', to_find='DataArray', with_attribute='Name', &
+                                       of_value='Y', buffer=s_buffer, content=data)
+          if (E_IO == 0) call get_char(buffer=s_buffer, attrib='format', val=fmt,  E_IO=E_IO)
+          if (E_IO == 0) call get_char(buffer=s_buffer, attrib='type',   val=type, E_IO=E_IO)
+          if (E_IO /= 0) then
+            E_IO = -1_I4P
+          elseif (trim(adjustlt(Upper_Case(fmt)))/='BINARY' .or. &
               trim(adjustlt(Upper_Case(type)))/='FLOAT32') then
             E_IO = -1_I4P 
           else
@@ -7002,11 +7214,13 @@ contains
             Y(ny1:ny2) = XYZp(:)
             if(allocated(XYZp)) deallocate(XYZp)
           endif
-          E_IO = search(from=pos, inside='Coordinates', to_find='DataArray', with_attribute='Name', of_value='Z', &
-                        buffer=s_buffer,content=data)
-          call get_char(buffer=s_buffer, attrib='format', val=fmt,  E_IO=E_IO)
-          call get_char(buffer=s_buffer, attrib='type',   val=type, E_IO=E_IO)
-          if (trim(adjustlt(Upper_Case(fmt)))/='BINARY' .or. &
+          if (E_IO == 0) E_IO = search(from=pos, inside='Coordinates', to_find='DataArray', with_attribute='Name', &
+                                       of_value='Z', buffer=s_buffer, content=data)
+          if (E_IO == 0) call get_char(buffer=s_buffer, attrib='format', val=fmt,  E_IO=E_IO)
+          if (E_IO == 0) call get_char(buffer=s_buffer, attrib='type',   val=type, E_IO=E_IO)
+          if (E_IO /= 0) then
+            E_IO = -1_I4P
+          elseif (trim(adjustlt(Upper_Case(fmt)))/='BINARY' .or. &
               trim(adjustlt(Upper_Case(type)))/='FLOAT32') then
             E_IO = -1_I4P 
           else
@@ -7034,18 +7248,21 @@ contains
       call get_char(buffer=s_buffer, attrib='Extent', val=aux, E_IO=E_IO)
       if(E_IO == 0) then      
         read(aux,*, iostat=E_IO) nx1,nx2,ny1,ny2,nz1,nz2
-        E_IO = search(from=pos, inside='Coordinates', to_find='DataArray', with_attribute='Name', of_value='X', buffer=s_buffer)
-        call get_int(buffer=s_buffer,  attrib='offset', val=offsX, E_IO=E_IO)
-        call get_char(buffer=s_buffer, attrib='format', val=fmtX,  E_IO=E_IO)
-        call get_char(buffer=s_buffer, attrib='type',   val=typeX, E_IO=E_IO)
-        E_IO = search(from=pos, inside='Coordinates', to_find='DataArray', with_attribute='Name', of_value='Y', buffer=s_buffer)
-        call get_int(buffer=s_buffer,  attrib='offset', val=offsY, E_IO=E_IO)
-        call get_char(buffer=s_buffer, attrib='format', val=fmtY,  E_IO=E_IO)
-        call get_char(buffer=s_buffer, attrib='type',   val=typeY, E_IO=E_IO)
-        E_IO = search(from=pos, inside='Coordinates', to_find='DataArray', with_attribute='Name', of_value='Z', buffer=s_buffer)
-        call get_int(buffer=s_buffer,  attrib='offset', val=offsZ, E_IO=E_IO)
-        call get_char(buffer=s_buffer, attrib='format', val=fmtZ,  E_IO=E_IO)
-        call get_char(buffer=s_buffer, attrib='type',   val=typeZ, E_IO=E_IO)
+        if (E_IO == 0) E_IO = search(from=pos, inside='Coordinates', to_find='DataArray', with_attribute='Name', &
+                                     of_value='X', buffer=s_buffer)
+        if (E_IO == 0) call get_int(buffer=s_buffer,  attrib='offset', val=offsX, E_IO=E_IO)
+        if (E_IO == 0) call get_char(buffer=s_buffer, attrib='format', val=fmtX,  E_IO=E_IO)
+        if (E_IO == 0) call get_char(buffer=s_buffer, attrib='type',   val=typeX, E_IO=E_IO)
+        if (E_IO == 0) E_IO = search(from=pos, inside='Coordinates', to_find='DataArray', with_attribute='Name', &
+                                     of_value='Y', buffer=s_buffer)
+        if (E_IO == 0) call get_int(buffer=s_buffer,  attrib='offset', val=offsY, E_IO=E_IO)
+        if (E_IO == 0) call get_char(buffer=s_buffer, attrib='format', val=fmtY,  E_IO=E_IO)
+        if (E_IO == 0) call get_char(buffer=s_buffer, attrib='type',   val=typeY, E_IO=E_IO)
+        if (E_IO == 0) E_IO = search(from=pos, inside='Coordinates', to_find='DataArray', with_attribute='Name', &
+                                     of_value='Z', buffer=s_buffer)
+        if (E_IO == 0) call get_int(buffer=s_buffer,  attrib='offset', val=offsZ, E_IO=E_IO)
+        if (E_IO == 0) call get_char(buffer=s_buffer, attrib='format', val=fmtZ,  E_IO=E_IO)
+        if (E_IO == 0) call get_char(buffer=s_buffer, attrib='type',   val=typeZ, E_IO=E_IO)
         if(E_IO == 0) then 
           if (trim(adjustlt(Upper_Case(fmtX)))/='APPENDED' .or. &
               trim(adjustlt(Upper_Case(fmtY)))/='APPENDED' .or. &
@@ -7115,31 +7332,37 @@ contains
         if(E_IO == 0) then      
           E_IO = search(from=pos, inside='Coordinates', to_find='DataArray', with_attribute='Name', of_value='X', &
                         buffer=s_buffer,content=data)
-          call get_char(buffer=s_buffer, attrib='format', val=fmt,  E_IO=E_IO)
-          call get_char(buffer=s_buffer, attrib='type',   val=type, E_IO=E_IO)
-          if (trim(adjustlt(Upper_Case(fmt)))/='ASCII' .or. &
+          if (E_IO == 0) call get_char(buffer=s_buffer, attrib='format', val=fmt,  E_IO=E_IO)
+          if (E_IO == 0) call get_char(buffer=s_buffer, attrib='type',   val=type, E_IO=E_IO)
+          if (E_IO /= 0) then
+            E_IO = -1_I4P
+          elseif (trim(adjustlt(Upper_Case(fmt)))/='ASCII' .or. &
               trim(adjustlt(Upper_Case(type)))/='FLOAT64') then
             E_IO = -1_I4P 
           else
             allocate(X(nx1:nx2), stat=E_IO)
             read(data, fmt=*, iostat=E_IO) (X(i), i=nx1,nx2) !get X ascii array
           endif
-          E_IO = search(from=pos, inside='Coordinates', to_find='DataArray', with_attribute='Name', of_value='Y', &
-                        buffer=s_buffer,content=data)
-          call get_char(buffer=s_buffer, attrib='format', val=fmt,  E_IO=E_IO)
-          call get_char(buffer=s_buffer, attrib='type',   val=type, E_IO=E_IO)
-          if (trim(adjustlt(Upper_Case(fmt)))/='ASCII' .or. &
+          if (E_IO == 0) E_IO = search(from=pos, inside='Coordinates', to_find='DataArray', with_attribute='Name', &
+                                       of_value='Y', buffer=s_buffer, content=data)
+          if (E_IO == 0) call get_char(buffer=s_buffer, attrib='format', val=fmt,  E_IO=E_IO)
+          if (E_IO == 0) call get_char(buffer=s_buffer, attrib='type',   val=type, E_IO=E_IO)
+          if (E_IO /= 0) then
+            E_IO = -1_I4P
+          elseif (trim(adjustlt(Upper_Case(fmt)))/='ASCII' .or. &
               trim(adjustlt(Upper_Case(type)))/='FLOAT64') then
             E_IO = -1_I4P 
           else
             allocate(Y(ny1:ny2), stat=E_IO)
             read(data, fmt=*, iostat=E_IO) (Y(i), i=ny1,ny2) !get Y ascii array
           endif
-          E_IO = search(from=pos, inside='Coordinates', to_find='DataArray', with_attribute='Name', of_value='Z', &
-                        buffer=s_buffer,content=data)
-          call get_char(buffer=s_buffer, attrib='format', val=fmt,  E_IO=E_IO)
-          call get_char(buffer=s_buffer, attrib='type',   val=type, E_IO=E_IO)
-          if (trim(adjustlt(Upper_Case(fmt)))/='ASCII' .or. &
+          if (E_IO == 0) E_IO = search(from=pos, inside='Coordinates', to_find='DataArray', with_attribute='Name', &
+                                       of_value='Z', buffer=s_buffer, content=data)
+          if (E_IO == 0) call get_char(buffer=s_buffer, attrib='format', val=fmt,  E_IO=E_IO)
+          if (E_IO == 0) call get_char(buffer=s_buffer, attrib='type',   val=type, E_IO=E_IO)
+          if (E_IO /= 0) then
+            E_IO = -1_I4P
+          elseif (trim(adjustlt(Upper_Case(fmt)))/='ASCII' .or. &
               trim(adjustlt(Upper_Case(type)))/='FLOAT64') then
             E_IO = -1_I4P 
           else
@@ -7162,9 +7385,11 @@ contains
         if(E_IO == 0) then      
           E_IO = search(from=pos, inside='Coordinates', to_find='DataArray', with_attribute='Name', of_value='X', &
                         buffer=s_buffer,content=data)
-          call get_char(buffer=s_buffer, attrib='format', val=fmt,  E_IO=E_IO)
-          call get_char(buffer=s_buffer, attrib='type',   val=type, E_IO=E_IO)
-          if (trim(adjustlt(Upper_Case(fmt)))/='BINARY' .or. &
+          if (E_IO == 0) call get_char(buffer=s_buffer, attrib='format', val=fmt,  E_IO=E_IO)
+          if (E_IO == 0) call get_char(buffer=s_buffer, attrib='type',   val=type, E_IO=E_IO)
+          if (E_IO /= 0) then
+            E_IO = -1_I4P
+          elseif (trim(adjustlt(Upper_Case(fmt)))/='BINARY' .or. &
               trim(adjustlt(Upper_Case(type)))/='FLOAT64') then
             E_IO = -1_I4P 
           else
@@ -7180,11 +7405,13 @@ contains
             X(nx1:nx2) = XYZp(:)
             if(allocated(XYZp)) deallocate(XYZp)
           endif
-          E_IO = search(from=pos, inside='Coordinates', to_find='DataArray', with_attribute='Name', of_value='Y', &
-                        buffer=s_buffer,content=data)
-          call get_char(buffer=s_buffer, attrib='format', val=fmt,  E_IO=E_IO)
-          call get_char(buffer=s_buffer, attrib='type',   val=type, E_IO=E_IO)
-          if (trim(adjustlt(Upper_Case(fmt)))/='BINARY' .or. &
+          if (E_IO == 0) E_IO = search(from=pos, inside='Coordinates', to_find='DataArray', with_attribute='Name', &
+                                       of_value='Y', buffer=s_buffer, content=data)
+          if (E_IO == 0) call get_char(buffer=s_buffer, attrib='format', val=fmt,  E_IO=E_IO)
+          if (E_IO == 0) call get_char(buffer=s_buffer, attrib='type',   val=type, E_IO=E_IO)
+          if (E_IO /= 0) then
+            E_IO = -1_I4P
+          elseif (trim(adjustlt(Upper_Case(fmt)))/='BINARY' .or. &
               trim(adjustlt(Upper_Case(type)))/='FLOAT64') then
             E_IO = -1_I4P 
           else
@@ -7200,11 +7427,13 @@ contains
             Y(ny1:ny2) = XYZp(:)
             if(allocated(XYZp)) deallocate(XYZp)
           endif
-          E_IO = search(from=pos, inside='Coordinates', to_find='DataArray', with_attribute='Name', of_value='Z', &
-                        buffer=s_buffer,content=data)
-          call get_char(buffer=s_buffer, attrib='format', val=fmt,  E_IO=E_IO)
-          call get_char(buffer=s_buffer, attrib='type',   val=type, E_IO=E_IO)
-          if (trim(adjustlt(Upper_Case(fmt)))/='BINARY' .or. &
+          if (E_IO == 0) E_IO = search(from=pos, inside='Coordinates', to_find='DataArray', with_attribute='Name', &
+                                       of_value='Z', buffer=s_buffer, content=data)
+          if (E_IO == 0) call get_char(buffer=s_buffer, attrib='format', val=fmt,  E_IO=E_IO)
+          if (E_IO == 0) call get_char(buffer=s_buffer, attrib='type',   val=type, E_IO=E_IO)
+          if (E_IO /= 0) then
+            E_IO = -1_I4P
+          elseif (trim(adjustlt(Upper_Case(fmt)))/='BINARY' .or. &
               trim(adjustlt(Upper_Case(type)))/='FLOAT64') then
             E_IO = -1_I4P 
           else
@@ -7232,18 +7461,21 @@ contains
       call get_char(buffer=s_buffer, attrib='Extent', val=aux, E_IO=E_IO)
       if(E_IO == 0) then      
         read(aux,*, iostat=E_IO) nx1,nx2,ny1,ny2,nz1,nz2
-        E_IO = search(from=pos, inside='Coordinates', to_find='DataArray', with_attribute='Name', of_value='X', buffer=s_buffer)
-        call get_int(buffer=s_buffer,  attrib='offset', val=offsX, E_IO=E_IO)
-        call get_char(buffer=s_buffer, attrib='format', val=fmtX,  E_IO=E_IO)
-        call get_char(buffer=s_buffer, attrib='type',   val=typeX, E_IO=E_IO)
-        E_IO = search(from=pos, inside='Coordinates', to_find='DataArray', with_attribute='Name', of_value='Y', buffer=s_buffer)
-        call get_int(buffer=s_buffer,  attrib='offset', val=offsY, E_IO=E_IO)
-        call get_char(buffer=s_buffer, attrib='format', val=fmtY,  E_IO=E_IO)
-        call get_char(buffer=s_buffer, attrib='type',   val=typeY, E_IO=E_IO)
-        E_IO = search(from=pos, inside='Coordinates', to_find='DataArray', with_attribute='Name', of_value='Z', buffer=s_buffer)
-        call get_int(buffer=s_buffer,  attrib='offset', val=offsZ, E_IO=E_IO)
-        call get_char(buffer=s_buffer, attrib='format', val=fmtZ,  E_IO=E_IO)
-        call get_char(buffer=s_buffer, attrib='type',   val=typeZ, E_IO=E_IO)
+        if (E_IO == 0) E_IO = search(from=pos, inside='Coordinates', to_find='DataArray', with_attribute='Name', &
+                                     of_value='X', buffer=s_buffer)
+        if (E_IO == 0) call get_int(buffer=s_buffer,  attrib='offset', val=offsX, E_IO=E_IO)
+        if (E_IO == 0) call get_char(buffer=s_buffer, attrib='format', val=fmtX,  E_IO=E_IO)
+        if (E_IO == 0) call get_char(buffer=s_buffer, attrib='type',   val=typeX, E_IO=E_IO)
+        if (E_IO == 0) E_IO = search(from=pos, inside='Coordinates', to_find='DataArray', with_attribute='Name', &
+                                     of_value='Y', buffer=s_buffer)
+        if (E_IO == 0) call get_int(buffer=s_buffer,  attrib='offset', val=offsY, E_IO=E_IO)
+        if (E_IO == 0) call get_char(buffer=s_buffer, attrib='format', val=fmtY,  E_IO=E_IO)
+        if (E_IO == 0) call get_char(buffer=s_buffer, attrib='type',   val=typeY, E_IO=E_IO)
+        if (E_IO == 0) E_IO = search(from=pos, inside='Coordinates', to_find='DataArray', with_attribute='Name', &
+                                     of_value='Z', buffer=s_buffer)
+        if (E_IO == 0) call get_int(buffer=s_buffer,  attrib='offset', val=offsZ, E_IO=E_IO)
+        if (E_IO == 0) call get_char(buffer=s_buffer, attrib='format', val=fmtZ,  E_IO=E_IO)
+        if (E_IO == 0) call get_char(buffer=s_buffer, attrib='type',   val=typeZ, E_IO=E_IO)
         if(E_IO == 0) then 
           if (trim(adjustlt(Upper_Case(fmtX)))/='APPENDED' .or. &
               trim(adjustlt(Upper_Case(fmtY)))/='APPENDED' .or. &
@@ -7293,10 +7525,13 @@ contains
   character(len=:), allocatable              :: aux
   integer(I4P)                               :: np, pos, of
   integer(I4P)                               :: x1,x2,y1,y2,z1,z2
+  integer(I4P)                               :: nc           !> NumberOfComponents as read
   !---------------------------------------------------------------------------------------------------------------------------------
 
   !---------------------------------------------------------------------------------------------------------------------------------
   E_IO = -1_I4P
+  ! NCOMP has a value on every return, 0 when the read stops before NumberOfComponents: the readers of vectors compare it
+  NCOMP = 0_I4P
   rf = f
   if (present(cf)) then
     rf = cf ; f = cf
@@ -7320,6 +7555,8 @@ contains
             if(present(ny1)) ny1=y1; if(present(ny2)) ny2=y2
             if(present(nz1)) nz1=z1; if(present(nz2)) nz2=z2
           endif
+          ! An Extent that is not there, or cannot be read, leaves the number of values unknown: the read is refused
+          if (E_IO /= 0) return
       end select
       E_IO = search(from=pos, inside='PointData', to_find='DataArray', with_attribute='Name', of_value=varname, &
                     buffer=s_buffer, content=aux)
@@ -7336,18 +7573,32 @@ contains
             if(present(ny1)) ny1=y1; if(present(ny2)) ny2=y2
             if(present(nz1)) nz1=z1; if(present(nz2)) nz2=z2
           endif
+          ! An Extent that is not there, or cannot be read, leaves the number of values unknown: the read is refused
+          if (E_IO /= 0) return
       end select
       E_IO = search(from=pos, inside='CellData', to_find='DataArray', with_attribute='Name', of_value=varname, &
                     buffer=s_buffer, content=aux)
       if(present(data)) data=aux
   end select
 
+  ! Each value is used only when it was read (E_IO = 0): one that is not read refuses the read.
+  ! NumberOfComponents that the start tag does not hold (get_int returns -1) is 1, as the reader of VTK 9.7.1 takes an
+  ! array without it (its writer leaves it out for an array of one component); one that cannot be read refuses the read.
+  ! The offset is that of the raw appended data, the only format whose arrays have one.
   if(E_IO == 0) then
-    call get_int(buffer=s_buffer, attrib='NumberOfComponents', val=NCOMP, E_IO=E_IO)
-    call get_int(buffer=s_buffer, attrib='offset', val=of, E_IO=E_IO)
-    if(present(offs)) offs= of
-    call get_char(buffer=s_buffer, attrib='format', val=fmt, E_IO=E_IO)
-    call get_char(buffer=s_buffer, attrib='type', val=type, E_IO=E_IO)
+    call get_int(buffer=s_buffer, attrib='NumberOfComponents', val=nc, E_IO=E_IO)
+    if (E_IO == 0) then
+      NCOMP = nc
+    elseif (E_IO == -1_I4P) then
+      NCOMP = 1_I4P
+      E_IO = 0_I4P
+    endif
+    if (E_IO == 0 .and. vtk(rf)%f == raw) then
+      call get_int(buffer=s_buffer, attrib='offset', val=of, E_IO=E_IO)
+      if (E_IO == 0 .and. present(offs)) offs = of
+    endif
+    if (E_IO == 0) call get_char(buffer=s_buffer, attrib='format', val=fmt, E_IO=E_IO)
+    if (E_IO == 0) call get_char(buffer=s_buffer, attrib='type', val=type, E_IO=E_IO)
   endif
   !---------------------------------------------------------------------------------------------------------------------------------
   end function
@@ -7384,6 +7635,9 @@ contains
 
   ! Read field headers
   E_IO = VTK_VAR_XML_HEADER_READ(var_location,varname,NC_NN,NCOMP,fmt=fmt,type=type,data=data,offs=offs,npiece=np,cf=rf)
+  ! A variable of a scalar field has one component (NumberOfComponents 1, or not given): an array of more is
+  ! refused, as the field holds one value per variable and cell
+  if (E_IO == 0 .and. NCOMP /= 1) E_IO = -1_I4P
 
   if(E_IO == 0) then
     allocate(var(NC_NN*NCOMP), stat=E_IO)
@@ -7460,6 +7714,9 @@ contains
 
   ! Read field headers
   E_IO = VTK_VAR_XML_HEADER_READ(var_location,varname,NC_NN,NCOMP,fmt=fmt,type=type,data=data,offs=offs,npiece=np,cf=rf)
+  ! A variable of a scalar field has one component (NumberOfComponents 1, or not given): an array of more is
+  ! refused, as the field holds one value per variable and cell
+  if (E_IO == 0 .and. NCOMP /= 1) E_IO = -1_I4P
 
   if(E_IO == 0) then
     allocate(var(NC_NN*NCOMP), stat=E_IO)
@@ -7536,6 +7793,9 @@ contains
 
   ! Read field headers
   E_IO = VTK_VAR_XML_HEADER_READ(var_location,varname,NC_NN,NCOMP,fmt=fmt,type=type,data=data,offs=offs,npiece=np,cf=rf)
+  ! A variable of a scalar field has one component (NumberOfComponents 1, or not given): an array of more is
+  ! refused, as the field holds one value per variable and cell
+  if (E_IO == 0 .and. NCOMP /= 1) E_IO = -1_I4P
 
   if(E_IO == 0) then
     allocate(var(NC_NN*NCOMP), stat=E_IO)
@@ -7612,6 +7872,9 @@ contains
 
   ! Read field headers
   E_IO = VTK_VAR_XML_HEADER_READ(var_location,varname,NC_NN,NCOMP,fmt=fmt,type=type,data=data,offs=offs,npiece=np,cf=rf)
+  ! A variable of a scalar field has one component (NumberOfComponents 1, or not given): an array of more is
+  ! refused, as the field holds one value per variable and cell
+  if (E_IO == 0 .and. NCOMP /= 1) E_IO = -1_I4P
 
   if(E_IO == 0) then
     allocate(var(NC_NN*NCOMP), stat=E_IO)
@@ -7688,6 +7951,9 @@ contains
 
   ! Read field headers
   E_IO = VTK_VAR_XML_HEADER_READ(var_location,varname,NC_NN,NCOMP,fmt=fmt,type=type,data=data,offs=offs,npiece=np,cf=rf)
+  ! A variable of a scalar field has one component (NumberOfComponents 1, or not given): an array of more is
+  ! refused, as the field holds one value per variable and cell
+  if (E_IO == 0 .and. NCOMP /= 1) E_IO = -1_I4P
 
   if(E_IO == 0) then
     allocate(var(NC_NN*NCOMP), stat=E_IO)
@@ -7764,6 +8030,9 @@ contains
 
   ! Read field headers
     E_IO = VTK_VAR_XML_HEADER_READ(var_location,varname,NC_NN,NCOMP,fmt=fmt,type=type,data=data,offs=offs,npiece=np,cf=rf)
+    ! A variable of a scalar field has one component (NumberOfComponents 1, or not given): an array of more is
+    ! refused, as the field holds one value per variable and cell
+    if (E_IO == 0 .and. NCOMP /= 1) E_IO = -1_I4P
 
   if(E_IO == 0) then
     allocate(var(NC_NN*NCOMP), stat=E_IO)
@@ -8811,6 +9080,9 @@ contains
       E_IO = VTK_VAR_XML_HEADER_READ(var_location,varname,NC_NN,NCOMP,&
                   nx1=nx1,nx2=nx2,ny1=ny1,ny2=ny2,nz1=nz1,nz2=nz2, &
                   fmt=fmt,type=type,data=data,offs=offs,npiece=np,cf=rf)
+      ! A variable of a scalar field has one component (NumberOfComponents 1, or not given): an array of more is
+      ! refused, as the field holds one value per variable and cell
+      if (E_IO == 0 .and. NCOMP /= 1) E_IO = -1_I4P
     
       if(E_IO == 0) then
         allocate(var(nx1:nx2,ny1:ny2,nz1:nz2), stat=E_IO)
@@ -8895,6 +9167,9 @@ contains
       E_IO = VTK_VAR_XML_HEADER_READ(var_location,varname,NC_NN,NCOMP,&
                   nx1=nx1,nx2=nx2,ny1=ny1,ny2=ny2,nz1=nz1,nz2=nz2, &
                   fmt=fmt,type=type,data=data,offs=offs,npiece=np,cf=rf)
+      ! A variable of a scalar field has one component (NumberOfComponents 1, or not given): an array of more is
+      ! refused, as the field holds one value per variable and cell
+      if (E_IO == 0 .and. NCOMP /= 1) E_IO = -1_I4P
     
       if(E_IO == 0) then
         allocate(var(nx1:nx2,ny1:ny2,nz1:nz2), stat=E_IO)
@@ -8979,6 +9254,9 @@ contains
       E_IO = VTK_VAR_XML_HEADER_READ(var_location,varname,NC_NN,NCOMP,&
                   nx1=nx1,nx2=nx2,ny1=ny1,ny2=ny2,nz1=nz1,nz2=nz2, &
                   fmt=fmt,type=type,data=data,offs=offs,npiece=np,cf=rf)
+      ! A variable of a scalar field has one component (NumberOfComponents 1, or not given): an array of more is
+      ! refused, as the field holds one value per variable and cell
+      if (E_IO == 0 .and. NCOMP /= 1) E_IO = -1_I4P
     
       if(E_IO == 0) then
         allocate(var(nx1:nx2,ny1:ny2,nz1:nz2), stat=E_IO)
@@ -9063,6 +9341,9 @@ contains
       E_IO = VTK_VAR_XML_HEADER_READ(var_location,varname,NC_NN,NCOMP,&
                   nx1=nx1,nx2=nx2,ny1=ny1,ny2=ny2,nz1=nz1,nz2=nz2, &
                   fmt=fmt,type=type,data=data,offs=offs,npiece=np,cf=rf)
+      ! A variable of a scalar field has one component (NumberOfComponents 1, or not given): an array of more is
+      ! refused, as the field holds one value per variable and cell
+      if (E_IO == 0 .and. NCOMP /= 1) E_IO = -1_I4P
     
       if(E_IO == 0) then
         allocate(var(nx1:nx2,ny1:ny2,nz1:nz2), stat=E_IO)
@@ -9147,6 +9428,9 @@ contains
       E_IO = VTK_VAR_XML_HEADER_READ(var_location,varname,NC_NN,NCOMP,&
                   nx1=nx1,nx2=nx2,ny1=ny1,ny2=ny2,nz1=nz1,nz2=nz2, &
                   fmt=fmt,type=type,data=data,offs=offs,npiece=np,cf=rf)
+      ! A variable of a scalar field has one component (NumberOfComponents 1, or not given): an array of more is
+      ! refused, as the field holds one value per variable and cell
+      if (E_IO == 0 .and. NCOMP /= 1) E_IO = -1_I4P
 
       if(E_IO == 0) then
         allocate(var(nx1:nx2,ny1:ny2,nz1:nz2), stat=E_IO)
@@ -9231,6 +9515,9 @@ contains
       E_IO = VTK_VAR_XML_HEADER_READ(var_location,varname,NC_NN,NCOMP,&
                   nx1=nx1,nx2=nx2,ny1=ny1,ny2=ny2,nz1=nz1,nz2=nz2, &
                   fmt=fmt,type=type,data=data,offs=offs,npiece=np,cf=rf)
+      ! A variable of a scalar field has one component (NumberOfComponents 1, or not given): an array of more is
+      ! refused, as the field holds one value per variable and cell
+      if (E_IO == 0 .and. NCOMP /= 1) E_IO = -1_I4P
     
       if(E_IO == 0) then
         allocate(var(nx1:nx2,ny1:ny2,nz1:nz2), stat=E_IO)
@@ -10402,9 +10689,11 @@ contains
                   buffer=s_buffer,content=data)
     if(E_IO==0) then
       call get_int(buffer=s_buffer, attrib='NumberOfTuples', val=nt, E_IO=E_IO)
-      call get_char(buffer=s_buffer, attrib='type', val=type, E_IO=E_IO)
-      call get_char(buffer=s_buffer, attrib='format', val=fmt, E_IO=E_IO)
-      if (trim(adjustlt(Upper_Case(fmt)))/='ASCII' .or. &
+      if (E_IO == 0) call get_char(buffer=s_buffer, attrib='type', val=type, E_IO=E_IO)
+      if (E_IO == 0) call get_char(buffer=s_buffer, attrib='format', val=fmt, E_IO=E_IO)
+      if (E_IO /= 0) then
+        E_IO = -1_I4P
+      elseif (trim(adjustlt(Upper_Case(fmt)))/='ASCII' .or. &
           trim(adjustlt(Upper_Case(type)))/='FLOAT64' .or. nt/=1) then        
           E_IO = -1_I4P
       else
@@ -10419,9 +10708,11 @@ contains
                   buffer=s_buffer,content=data)
     if(E_IO==0) then
       call get_int(buffer=s_buffer, attrib='NumberOfTuples', val=nt, E_IO=E_IO)
-      call get_char(buffer=s_buffer, attrib='type', val=type, E_IO=E_IO)
-      call get_char(buffer=s_buffer, attrib='format', val=fmt, E_IO=E_IO)
-      if (trim(adjustlt(Upper_Case(fmt)))/='BINARY' .or. &
+      if (E_IO == 0) call get_char(buffer=s_buffer, attrib='type', val=type, E_IO=E_IO)
+      if (E_IO == 0) call get_char(buffer=s_buffer, attrib='format', val=fmt, E_IO=E_IO)
+      if (E_IO /= 0) then
+        E_IO = -1_I4P
+      elseif (trim(adjustlt(Upper_Case(fmt)))/='BINARY' .or. &
           trim(adjustlt(Upper_Case(type)))/='FLOAT64' .or. nt/=1) then        
           E_IO = -1_I4P
       else
@@ -10442,10 +10733,12 @@ contains
                   buffer=s_buffer)
     if(E_IO==0) then
       call get_int(buffer=s_buffer, attrib='NumberOfTuples', val=nt, E_IO=E_IO)
-      call get_char(buffer=s_buffer, attrib='type', val=type, E_IO=E_IO)
-      call get_char(buffer=s_buffer, attrib='format', val=fmt, E_IO=E_IO)
-      call get_int(buffer=s_buffer, attrib='offset', val=offs, E_IO=E_IO)
-      if (trim(adjustlt(Upper_Case(fmt)))/='APPENDED' .or. &
+      if (E_IO == 0) call get_char(buffer=s_buffer, attrib='type', val=type, E_IO=E_IO)
+      if (E_IO == 0) call get_char(buffer=s_buffer, attrib='format', val=fmt, E_IO=E_IO)
+      if (E_IO == 0) call get_int(buffer=s_buffer, attrib='offset', val=offs, E_IO=E_IO)
+      if (E_IO /= 0) then
+        E_IO = -1_I4P
+      elseif (trim(adjustlt(Upper_Case(fmt)))/='APPENDED' .or. &
           trim(adjustlt(Upper_Case(type)))/='FLOAT64' .or. nt/=1) then        
           E_IO = -1_I4P
       else
@@ -10492,9 +10785,11 @@ contains
                   buffer=s_buffer,content=data)
     if(E_IO==0) then
       call get_int(buffer=s_buffer, attrib='NumberOfTuples', val=nt, E_IO=E_IO)
-      call get_char(buffer=s_buffer, attrib='type', val=type, E_IO=E_IO)
-      call get_char(buffer=s_buffer, attrib='format', val=fmt, E_IO=E_IO)
-      if (trim(adjustlt(Upper_Case(fmt)))/='ASCII' .or. &
+      if (E_IO == 0) call get_char(buffer=s_buffer, attrib='type', val=type, E_IO=E_IO)
+      if (E_IO == 0) call get_char(buffer=s_buffer, attrib='format', val=fmt, E_IO=E_IO)
+      if (E_IO /= 0) then
+        E_IO = -1_I4P
+      elseif (trim(adjustlt(Upper_Case(fmt)))/='ASCII' .or. &
           trim(adjustlt(Upper_Case(type)))/='FLOAT' .or. nt/=1) then        
           E_IO = -1_I4P
       else
@@ -10509,9 +10804,11 @@ contains
                   buffer=s_buffer,content=data)
     if(E_IO==0) then
       call get_int(buffer=s_buffer, attrib='NumberOfTuples', val=nt, E_IO=E_IO)
-      call get_char(buffer=s_buffer, attrib='type', val=type, E_IO=E_IO)
-      call get_char(buffer=s_buffer, attrib='format', val=fmt, E_IO=E_IO)
-      if (trim(adjustlt(Upper_Case(fmt)))/='BINARY' .or. &
+      if (E_IO == 0) call get_char(buffer=s_buffer, attrib='type', val=type, E_IO=E_IO)
+      if (E_IO == 0) call get_char(buffer=s_buffer, attrib='format', val=fmt, E_IO=E_IO)
+      if (E_IO /= 0) then
+        E_IO = -1_I4P
+      elseif (trim(adjustlt(Upper_Case(fmt)))/='BINARY' .or. &
           trim(adjustlt(Upper_Case(type)))/='FLOAT32' .or. nt/=1) then        
           E_IO = -1_I4P
       else
@@ -10532,10 +10829,12 @@ contains
                   buffer=s_buffer)
     if(E_IO==0) then
       call get_int(buffer=s_buffer, attrib='NumberOfTuples', val=nt, E_IO=E_IO)
-      call get_char(buffer=s_buffer, attrib='type', val=type, E_IO=E_IO)
-      call get_char(buffer=s_buffer, attrib='format', val=fmt, E_IO=E_IO)
-      call get_int(buffer=s_buffer, attrib='offset', val=offs, E_IO=E_IO)
-      if (trim(adjustlt(Upper_Case(fmt)))/='APPENDED' .or. &
+      if (E_IO == 0) call get_char(buffer=s_buffer, attrib='type', val=type, E_IO=E_IO)
+      if (E_IO == 0) call get_char(buffer=s_buffer, attrib='format', val=fmt, E_IO=E_IO)
+      if (E_IO == 0) call get_int(buffer=s_buffer, attrib='offset', val=offs, E_IO=E_IO)
+      if (E_IO /= 0) then
+        E_IO = -1_I4P
+      elseif (trim(adjustlt(Upper_Case(fmt)))/='APPENDED' .or. &
           trim(adjustlt(Upper_Case(type)))/='FLOAT32' .or. nt/=1) then        
           E_IO = -1_I4P
       else
@@ -10583,9 +10882,11 @@ contains
                   buffer=s_buffer,content=data)
     if(E_IO==0) then
       call get_int(buffer=s_buffer, attrib='NumberOfTuples', val=nt, E_IO=E_IO)
-      call get_char(buffer=s_buffer, attrib='type', val=type, E_IO=E_IO)
-      call get_char(buffer=s_buffer, attrib='format', val=fmt, E_IO=E_IO)
-      if (trim(adjustlt(Upper_Case(fmt)))/='ASCII' .or. &
+      if (E_IO == 0) call get_char(buffer=s_buffer, attrib='type', val=type, E_IO=E_IO)
+      if (E_IO == 0) call get_char(buffer=s_buffer, attrib='format', val=fmt, E_IO=E_IO)
+      if (E_IO /= 0) then
+        E_IO = -1_I4P
+      elseif (trim(adjustlt(Upper_Case(fmt)))/='ASCII' .or. &
           trim(adjustlt(Upper_Case(type)))/='INT64' .or. nt/=1) then        
         E_IO = -1_I4P
       else
@@ -10600,9 +10901,11 @@ contains
                   buffer=s_buffer,content=data)
     if(E_IO==0) then
       call get_int(buffer=s_buffer, attrib='NumberOfTuples', val=nt, E_IO=E_IO)
-      call get_char(buffer=s_buffer, attrib='type', val=type, E_IO=E_IO)
-      call get_char(buffer=s_buffer, attrib='format', val=fmt, E_IO=E_IO)
-      if (trim(adjustlt(Upper_Case(fmt)))/='BINARY' .or. &
+      if (E_IO == 0) call get_char(buffer=s_buffer, attrib='type', val=type, E_IO=E_IO)
+      if (E_IO == 0) call get_char(buffer=s_buffer, attrib='format', val=fmt, E_IO=E_IO)
+      if (E_IO /= 0) then
+        E_IO = -1_I4P
+      elseif (trim(adjustlt(Upper_Case(fmt)))/='BINARY' .or. &
           trim(adjustlt(Upper_Case(type)))/='INT64' .or. nt/=1) then        
           E_IO = -1_I4P
       else
@@ -10623,10 +10926,12 @@ contains
                   buffer=s_buffer)
     if(E_IO==0) then
       call get_int(buffer=s_buffer, attrib='NumberOfTuples', val=nt, E_IO=E_IO)
-      call get_char(buffer=s_buffer, attrib='type', val=type, E_IO=E_IO)
-      call get_char(buffer=s_buffer, attrib='format', val=fmt, E_IO=E_IO)
-      call get_int(buffer=s_buffer, attrib='offset', val=offs, E_IO=E_IO)
-      if (trim(adjustlt(Upper_Case(fmt)))/='APPENDED' .or. &
+      if (E_IO == 0) call get_char(buffer=s_buffer, attrib='type', val=type, E_IO=E_IO)
+      if (E_IO == 0) call get_char(buffer=s_buffer, attrib='format', val=fmt, E_IO=E_IO)
+      if (E_IO == 0) call get_int(buffer=s_buffer, attrib='offset', val=offs, E_IO=E_IO)
+      if (E_IO /= 0) then
+        E_IO = -1_I4P
+      elseif (trim(adjustlt(Upper_Case(fmt)))/='APPENDED' .or. &
           trim(adjustlt(Upper_Case(type)))/='INT64' .or. nt/=1) then        
         E_IO = -1_I4P
       else
@@ -10672,9 +10977,11 @@ contains
                   buffer=s_buffer,content=data)
     if(E_IO==0) then
       call get_int(buffer=s_buffer, attrib='NumberOfTuples', val=nt, E_IO=E_IO)
-      call get_char(buffer=s_buffer, attrib='type', val=type, E_IO=E_IO)
-      call get_char(buffer=s_buffer, attrib='format', val=fmt, E_IO=E_IO)
-      if (trim(adjustlt(Upper_Case(fmt)))/='ASCII' .or. &
+      if (E_IO == 0) call get_char(buffer=s_buffer, attrib='type', val=type, E_IO=E_IO)
+      if (E_IO == 0) call get_char(buffer=s_buffer, attrib='format', val=fmt, E_IO=E_IO)
+      if (E_IO /= 0) then
+        E_IO = -1_I4P
+      elseif (trim(adjustlt(Upper_Case(fmt)))/='ASCII' .or. &
           trim(adjustlt(Upper_Case(type)))/='INT32' .or. nt/=1) then        
           E_IO = -1_I4P
       else
@@ -10689,9 +10996,11 @@ contains
                   buffer=s_buffer,content=data)
     if(E_IO==0) then
       call get_int(buffer=s_buffer, attrib='NumberOfTuples', val=nt, E_IO=E_IO)
-      call get_char(buffer=s_buffer, attrib='type', val=type, E_IO=E_IO)
-      call get_char(buffer=s_buffer, attrib='format', val=fmt, E_IO=E_IO)
-      if (trim(adjustlt(Upper_Case(fmt)))/='BINARY' .or. &
+      if (E_IO == 0) call get_char(buffer=s_buffer, attrib='type', val=type, E_IO=E_IO)
+      if (E_IO == 0) call get_char(buffer=s_buffer, attrib='format', val=fmt, E_IO=E_IO)
+      if (E_IO /= 0) then
+        E_IO = -1_I4P
+      elseif (trim(adjustlt(Upper_Case(fmt)))/='BINARY' .or. &
           trim(adjustlt(Upper_Case(type)))/='INT32' .or. nt/=1) then        
           E_IO = -1_I4P
       else
@@ -10712,10 +11021,12 @@ contains
                   buffer=s_buffer)
     if(E_IO==0) then
       call get_int(buffer=s_buffer, attrib='NumberOfTuples', val=nt, E_IO=E_IO)
-      call get_char(buffer=s_buffer, attrib='type', val=type, E_IO=E_IO)
-      call get_char(buffer=s_buffer, attrib='format', val=fmt, E_IO=E_IO)
-      call get_int(buffer=s_buffer, attrib='offset', val=offs, E_IO=E_IO)
-      if (trim(adjustlt(Upper_Case(fmt)))/='APPENDED' .or. &
+      if (E_IO == 0) call get_char(buffer=s_buffer, attrib='type', val=type, E_IO=E_IO)
+      if (E_IO == 0) call get_char(buffer=s_buffer, attrib='format', val=fmt, E_IO=E_IO)
+      if (E_IO == 0) call get_int(buffer=s_buffer, attrib='offset', val=offs, E_IO=E_IO)
+      if (E_IO /= 0) then
+        E_IO = -1_I4P
+      elseif (trim(adjustlt(Upper_Case(fmt)))/='APPENDED' .or. &
           trim(adjustlt(Upper_Case(type)))/='INT32' .or. nt/=1) then        
           E_IO = -1_I4P
       else
@@ -10763,9 +11074,11 @@ contains
                   buffer=s_buffer,content=data)
     if(E_IO==0) then
       call get_int(buffer=s_buffer, attrib='NumberOfTuples', val=nt, E_IO=E_IO)
-      call get_char(buffer=s_buffer, attrib='type', val=type, E_IO=E_IO)
-      call get_char(buffer=s_buffer, attrib='format', val=fmt, E_IO=E_IO)
-      if (trim(adjustlt(Upper_Case(fmt)))/='ASCII' .or. &
+      if (E_IO == 0) call get_char(buffer=s_buffer, attrib='type', val=type, E_IO=E_IO)
+      if (E_IO == 0) call get_char(buffer=s_buffer, attrib='format', val=fmt, E_IO=E_IO)
+      if (E_IO /= 0) then
+        E_IO = -1_I4P
+      elseif (trim(adjustlt(Upper_Case(fmt)))/='ASCII' .or. &
           trim(adjustlt(Upper_Case(type)))/='INT16' .or. nt/=1) then        
           E_IO = -1_I4P
       else
@@ -10780,9 +11093,11 @@ contains
                   buffer=s_buffer,content=data)
     if(E_IO==0) then
       call get_int(buffer=s_buffer, attrib='NumberOfTuples', val=nt, E_IO=E_IO)
-      call get_char(buffer=s_buffer, attrib='type', val=type, E_IO=E_IO)
-      call get_char(buffer=s_buffer, attrib='format', val=fmt, E_IO=E_IO)
-      if (trim(adjustlt(Upper_Case(fmt)))/='BINARY' .or. &
+      if (E_IO == 0) call get_char(buffer=s_buffer, attrib='type', val=type, E_IO=E_IO)
+      if (E_IO == 0) call get_char(buffer=s_buffer, attrib='format', val=fmt, E_IO=E_IO)
+      if (E_IO /= 0) then
+        E_IO = -1_I4P
+      elseif (trim(adjustlt(Upper_Case(fmt)))/='BINARY' .or. &
           trim(adjustlt(Upper_Case(type)))/='INT16' .or. nt/=1) then        
           E_IO = -1_I4P
       else
@@ -10803,10 +11118,12 @@ contains
                   buffer=s_buffer)
     if(E_IO==0) then
       call get_int(buffer=s_buffer, attrib='NumberOfTuples', val=nt, E_IO=E_IO)
-      call get_char(buffer=s_buffer, attrib='type', val=type, E_IO=E_IO)
-      call get_char(buffer=s_buffer, attrib='format', val=fmt, E_IO=E_IO)
-      call get_int(buffer=s_buffer, attrib='offset', val=offs, E_IO=E_IO)
-      if (trim(adjustlt(Upper_Case(fmt)))/='APPENDED' .or. &
+      if (E_IO == 0) call get_char(buffer=s_buffer, attrib='type', val=type, E_IO=E_IO)
+      if (E_IO == 0) call get_char(buffer=s_buffer, attrib='format', val=fmt, E_IO=E_IO)
+      if (E_IO == 0) call get_int(buffer=s_buffer, attrib='offset', val=offs, E_IO=E_IO)
+      if (E_IO /= 0) then
+        E_IO = -1_I4P
+      elseif (trim(adjustlt(Upper_Case(fmt)))/='APPENDED' .or. &
           trim(adjustlt(Upper_Case(type)))/='INT16' .or. nt/=1) then        
           E_IO = -1_I4P
       else
@@ -10854,9 +11171,11 @@ contains
                   buffer=s_buffer,content=data)
     if(E_IO==0) then
       call get_int(buffer=s_buffer, attrib='NumberOfTuples', val=nt, E_IO=E_IO)
-      call get_char(buffer=s_buffer, attrib='type', val=type, E_IO=E_IO)
-      call get_char(buffer=s_buffer, attrib='format', val=fmt, E_IO=E_IO)
-      if (trim(adjustlt(Upper_Case(fmt)))/='ASCII' .or. &
+      if (E_IO == 0) call get_char(buffer=s_buffer, attrib='type', val=type, E_IO=E_IO)
+      if (E_IO == 0) call get_char(buffer=s_buffer, attrib='format', val=fmt, E_IO=E_IO)
+      if (E_IO /= 0) then
+        E_IO = -1_I4P
+      elseif (trim(adjustlt(Upper_Case(fmt)))/='ASCII' .or. &
           trim(adjustlt(Upper_Case(type)))/='INT8' .or. nt/=1) then        
           E_IO = -1_I4P
       else
@@ -10871,9 +11190,11 @@ contains
                   buffer=s_buffer,content=data)
     if(E_IO==0) then
       call get_int(buffer=s_buffer, attrib='NumberOfTuples', val=nt, E_IO=E_IO)
-      call get_char(buffer=s_buffer, attrib='type', val=type, E_IO=E_IO)
-      call get_char(buffer=s_buffer, attrib='format', val=fmt, E_IO=E_IO)
-      if (trim(adjustlt(Upper_Case(fmt)))/='BINARY' .or. &
+      if (E_IO == 0) call get_char(buffer=s_buffer, attrib='type', val=type, E_IO=E_IO)
+      if (E_IO == 0) call get_char(buffer=s_buffer, attrib='format', val=fmt, E_IO=E_IO)
+      if (E_IO /= 0) then
+        E_IO = -1_I4P
+      elseif (trim(adjustlt(Upper_Case(fmt)))/='BINARY' .or. &
           trim(adjustlt(Upper_Case(type)))/='INT8' .or. nt/=1) then        
           E_IO = -1_I4P
       else
@@ -10894,10 +11215,12 @@ contains
                   buffer=s_buffer)
     if(E_IO==0) then
       call get_int(buffer=s_buffer, attrib='NumberOfTuples', val=nt, E_IO=E_IO)
-      call get_char(buffer=s_buffer, attrib='type', val=type, E_IO=E_IO)
-      call get_char(buffer=s_buffer, attrib='format', val=fmt, E_IO=E_IO)
-      call get_int(buffer=s_buffer, attrib='offset', val=offs, E_IO=E_IO)
-      if (trim(adjustlt(Upper_Case(fmt)))/='APPENDED' .or. &
+      if (E_IO == 0) call get_char(buffer=s_buffer, attrib='type', val=type, E_IO=E_IO)
+      if (E_IO == 0) call get_char(buffer=s_buffer, attrib='format', val=fmt, E_IO=E_IO)
+      if (E_IO == 0) call get_int(buffer=s_buffer, attrib='offset', val=offs, E_IO=E_IO)
+      if (E_IO /= 0) then
+        E_IO = -1_I4P
+      elseif (trim(adjustlt(Upper_Case(fmt)))/='APPENDED' .or. &
           trim(adjustlt(Upper_Case(type)))/='INT8' .or. nt/=1) then        
           E_IO = -1_I4P
       else
@@ -11175,6 +11498,7 @@ contains
   integer(I4P)                      :: Nblocks,nn,nu,nc,n,ndir
   integer(I4P)                      :: nx1, nx2, ny1, ny2, nz1, nz2, ny1_real, ny2_real, nz1_real, nz2_real
   integer(I4P)                      :: err, start, start_pos, end_pos, pass
+  integer                           :: st             ! the status of attribute_value
   character(256), allocatable       :: varnames(:)
   character(256)                    :: name1          ! the first array name of a block file
   logical                           :: found1         ! the block file names an array
@@ -11239,8 +11563,20 @@ contains
       if (index(line,'</Block')>0) exit
       Nblocks = Nblocks+1
       if (pass==2) then
-        start_pos = index(line, 'file="') + len('file="')
-        end_pos = index(line, '.vts"')
+        ! The block file, the value of the attribute file of the DataSet without its extension .vts, as XML writes it
+        ! (attribute_value); none, or one without .vts, gives the name '', as before, and the read of the block stops
+        call attribute_value(line, 'file', start_pos, end_pos, st)
+        if (st == 0 .and. end_pos - start_pos >= 4) then
+          if (line(end_pos-3:end_pos) == '.vts') then
+            end_pos = end_pos - 3
+          else
+            start_pos = 1
+            end_pos = 1
+          endif
+        else
+          start_pos = 1
+          end_pos = 1
+        endif
         ! A listed file longer than the name of a block, path included: stop with an error, not with the name cut short
         if (end_pos-start_pos > len(orion%block(Nblocks)%name)) then
           err = 1
@@ -11266,6 +11602,12 @@ contains
     err = 1
     return
   endif
+  ! An array whose Name is not there or cannot be read (empty, or without its closing quote) has no name to be found by: the
+  ! field is refused, as for the other attributes that the reader needs
+  if (any(len_trim(varnames) == 0)) then
+    err = -1
+    return
+  endif
   ! The arrays of a block file are taken in the order in which vtk_write_structured_multiblock writes them, the Points first
   ! and then the variables. A block file that lists its data arrays before its Points, as VTK writes them, is refused before
   ! any block is read: every block file is read up to its first array name (a block file that cannot be opened has no names,
@@ -11273,6 +11615,12 @@ contains
   allocate(fields(1:Nblocks))
   do b = 1, Nblocks
     call first_array_name(trim(vtspath)//trim(orion%block(b)%name)//'.vts', name1, found1, fields(b), split)
+    ! A first array whose Name is not there or cannot be read, as the Points of a block file after the first one: refused
+    ! as the arrays of the first block file above
+    if (.not.split .and. found1 .and. len_trim(name1) == 0) then
+      err = -1
+      return
+    endif
     if (split .or. (found1 .and. trim(name1) /= 'Points')) then
       err = 1
       return

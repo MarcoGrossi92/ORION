@@ -26,13 +26,24 @@ program tecplot_write_multiblock
   integer            :: i, j, k                            !< Counter.
   integer :: checks = 0, failures = 0
 
-  ! The checks of the writer come first: without TecIO the binary writes below stop the program, with
-  ! exit status 0, so that only the checks that come before them run in every build.
+  ! The checks of the writer come first. The binary files are written only with TecIO: without it the writer stops the
+  ! program with error termination. The ASCII files that tecplot_read and the Python reader read back are written in every
+  ! build.
 #ifdef TECIO
   call surface_blocks
+  call precision_szplt
+  call binary_name
+  call binary_status
+  call extension_names
 #endif
   call variable_bounds
   call ascii_title_round_trip
+  call digits_ascii
+  call names_count
+  call mesh_only_counts
+  call nvars_range
+  call coordinates_per_block
+  call no_variables
   write(*,'(A,I0,A,I0,A)') 'tecplot_write: ', checks, ' checks, ', failures, ' failed'
   if (failures > 0) stop 1
 
@@ -85,11 +96,13 @@ program tecplot_write_multiblock
     enddo
   enddo
 
+#ifdef TECIO
   data%tec%format = 'binary'
   error = tec_write_structured_multiblock(orion=data,varnames='variable1 variable2',filename='tecfile.szplt')
 
   data%tec%format = 'binary'
   error = tec_write_structured_multiblock(orion=data,varnames='variable1 variable2',filename='tecfile.plt')
+#endif
 
   data%tec%format = 'ascii'
   error = tec_write_structured_multiblock(orion=data,varnames='"variable1"',filename='tecfile.tec',Nvars=1)
@@ -133,8 +146,10 @@ program tecplot_write_multiblock
     enddo
   enddo
 
+#ifdef TECIO
   data%tec%format = 'binary'
   error = tec_write_structured_multiblock(orion=data,varnames='variable1 variable2',filename='tec2D.szplt')
+#endif
 
   data%tec%format = 'ascii'
   error = tec_write_structured_multiblock(orion=data,varnames='"variable1"',filename='tec2D.tec',Nvars=1)
@@ -693,4 +708,604 @@ program tecplot_write_multiblock
   call check(index(line, 'T = Z1,') > 0, 'bounds_written_again_ascii.tec: the zone title Z1')
   call read_ascii_bounds('bounds_written_again_ascii.tec', 2, [3, 2, 0], .true.)
   end subroutine ascii_title_round_trip
+
+  subroutine digits_ascii
+  !---------------------------------------------------------------------------------------------------------------------------------
+  !< Every 64-bit real of an ASCII file comes back, bit for bit, when the file is read. A two-dimensional field of one block of
+  !< 3 x 2 cells with two variables at the cells and solutiontime = 0.1 + 0.2 is written to an ASCII file and read back with
+  !< tec_read_structured_multiblock: every coordinate, every value of the variables and the solution time must be the real
+  !< written (==). They are reals that 15 significant digits do not give back (hard_real).
+  !< Defect: the writer wrote 15 significant digits (format E23.15E3), and a real that needs more came back as another real: a
+  !< field written and read again, as a solution from which a run continues, was not the field written.
+  !< Basis: the Fortran API guide (the derivation of the 17 significant digits): the decimal numbers of n significant digits are
+  !< closer to one another than the 64-bit reals (53-bit significand) in every range when 10**(n-1) > 2**53, n >= 17, so the
+  !< nearest decimal number of 17 digits reads back as the real it was written from.
+  !---------------------------------------------------------------------------------------------------------------------------------
+  type(orion_data) :: w, r
+  integer          :: i, j, n, err
+  logical          :: same
+  !---------------------------------------------------------------------------------------------------------------------------------
+
+  allocate(w%block(1))
+  w%block(1)%name = 'B1'
+  w%block(1)%Ni = 3; w%block(1)%Nj = 2; w%block(1)%Nk = 0
+  allocate(w%block(1)%mesh(1:2,0:3,0:2,0:0), w%block(1)%vars(1:2,1:3,1:2,1:1))
+  n = 0
+  do j = 0, 2; do i = 0, 3
+    n = n + 1; w%block(1)%mesh(1,i,j,0) = hard_real(n)
+    n = n + 1; w%block(1)%mesh(2,i,j,0) = hard_real(n)
+  enddo; enddo
+  do j = 1, 2; do i = 1, 3
+    n = n + 1; w%block(1)%vars(1,i,j,1) = hard_real(n)
+    n = n + 1; w%block(1)%vars(2,i,j,1) = hard_real(n)
+  enddo; enddo
+  w%solutiontime = 0.1_R8P + 0.2_R8P
+  w%tec%node = .false.
+  w%tec%format = 'ascii'
+  err = tec_write_structured_multiblock(orion=w, varnames='a b', filename='digits.tec')
+  call check(err == 0, 'digits.tec: written without error')
+  r%tec%format = 'ascii'
+  err = tec_read_structured_multiblock(orion=r, filename='digits.tec')
+  call check(err == 0, 'digits.tec: read without error')
+  if (err /= 0) return
+  same = size(r%block) == 1
+  if (same) same = all(shape(r%block(1)%mesh) == shape(w%block(1)%mesh)) .and. &
+                   all(shape(r%block(1)%vars) == shape(w%block(1)%vars))
+  call check(same, 'digits.tec: one block of two coordinates and two variables at the cells')
+  if (.not.same) return
+  call check(all(r%block(1)%mesh == w%block(1)%mesh), 'digits.tec: every coordinate, bit for bit')
+  call check(all(r%block(1)%vars == w%block(1)%vars), 'digits.tec: every value of the variables, bit for bit')
+  call check(r%solutiontime == w%solutiontime, 'digits.tec: the solution time, bit for bit')
+  end subroutine digits_ascii
+
+#ifdef TECIO
+  subroutine precision_szplt
+  !---------------------------------------------------------------------------------------------------------------------------------
+  !< The precision of the values of a .szplt file follows orion%tec%double: a two-dimensional field of one block of 3 x 2 cells,
+  !< two variables at the cells, every coordinate and value 0.1*n + 1/3 (n = 1, 2, ..., none of them a 32-bit real), is written
+  !< with tec%double true and false and read back with tec_read_structured_multiblock: with true every real is the one written
+  !< (==); with false every real is the one written rounded to 32 bits, real(real(x, R4P), R8P), and not the one written.
+  !< Change of main checked (99e843a): the writer asks TecIO for 64-bit values when tec%double is true (VIsDouble = 1); before
+  !< it, every binary file held 32-bit values.
+  !< Basis: Tecplot 360 EX 2023 R1 Data Format Guide, TECINI142 (p. 45): VIsDouble is "the integer flag for specifying whether
+  !< field data generated in future calls to TECDAT142 are to be written in single or double precision. 0=Single 1=Double".
+  !---------------------------------------------------------------------------------------------------------------------------------
+  type(orion_data)              :: w, r
+  integer                       :: i, j, n, err, f
+  logical                       :: same, rounded, other
+  character(len=*), parameter   :: files(2) = ['precision_double.szplt', 'precision_single.szplt']
+  !---------------------------------------------------------------------------------------------------------------------------------
+
+  allocate(w%block(1))
+  w%block(1)%name = 'B1'
+  w%block(1)%Ni = 3; w%block(1)%Nj = 2; w%block(1)%Nk = 0
+  allocate(w%block(1)%mesh(1:2,0:3,0:2,0:0), w%block(1)%vars(1:2,1:3,1:2,1:1))
+  n = 0
+  do j = 0, 2; do i = 0, 3
+    n = n + 1; w%block(1)%mesh(1,i,j,0) = 0.1_R8P*n + 1._R8P/3._R8P
+    n = n + 1; w%block(1)%mesh(2,i,j,0) = 0.1_R8P*n + 1._R8P/3._R8P
+  enddo; enddo
+  do j = 1, 2; do i = 1, 3
+    n = n + 1; w%block(1)%vars(1,i,j,1) = 0.1_R8P*n + 1._R8P/3._R8P
+    n = n + 1; w%block(1)%vars(2,i,j,1) = 0.1_R8P*n + 1._R8P/3._R8P
+  enddo; enddo
+  w%tec%node = .false.
+  w%tec%format = 'binary'
+  do f = 1, 2
+    w%tec%double = (f == 1)
+    err = tec_write_structured_multiblock(orion=w, varnames='a b', filename=files(f))
+    call check(err == 0, files(f)//': written without error')
+    if (allocated(r%block)) deallocate(r%block)
+    r%tec%format = 'binary'
+    err = tec_read_structured_multiblock(orion=r, filename=files(f))
+    call check(err == 0, files(f)//': read without error')
+    if (err /= 0) cycle
+    same = size(r%block) == 1
+    if (same) same = all(shape(r%block(1)%mesh) == shape(w%block(1)%mesh)) .and. &
+                     all(shape(r%block(1)%vars) == shape(w%block(1)%vars))
+    call check(same, files(f)//': the shape of the field')
+    if (.not.same) cycle
+    if (f == 1) then
+      call check(all(r%block(1)%mesh == w%block(1)%mesh) .and. all(r%block(1)%vars == w%block(1)%vars), &
+                 files(f)//': every real as written (64 bits)')
+    else
+      rounded = all(r%block(1)%mesh == real(real(w%block(1)%mesh, R4P), R8P)) .and. &
+                all(r%block(1)%vars == real(real(w%block(1)%vars, R4P), R8P))
+      other = any(r%block(1)%vars /= w%block(1)%vars)
+      call check(rounded .and. other, files(f)//': every real rounded to 32 bits')
+    endif
+  enddo
+  end subroutine precision_szplt
+
+  subroutine binary_name
+  !---------------------------------------------------------------------------------------------------------------------------------
+  !< A binary Tecplot file is a .plt or a .szplt file: a two-dimensional field of one block of 2 x 1 cells with one variable at
+  !< the cells, asked for in the binary format under the name tecfile.bin, gives the return value 1 and no file.
+  !< Defect: the writer printed its message and returned without giving its result a value: the value returned was undefined
+  !< (-77 in a build where an integer without a value is -77), as that of the reader for a name without the extensions it reads.
+  !< Basis: Fortran 2018 (ISO/IEC 1539-1:2018, final draft J3/18-007r1), 15.6.2.2, paragraph 4 (p. 319): "If the function
+  !< result is not a pointer, its value shall be defined by the function".
+  !---------------------------------------------------------------------------------------------------------------------------------
+  type(orion_data) :: w
+  integer          :: i, j, err, u
+  logical          :: exists
+  !---------------------------------------------------------------------------------------------------------------------------------
+
+  allocate(w%block(1))
+  w%block(1)%name = 'B1'
+  w%block(1)%Ni = 2; w%block(1)%Nj = 1; w%block(1)%Nk = 0
+  allocate(w%block(1)%mesh(1:2,0:2,0:1,0:0), w%block(1)%vars(1:1,1:2,1:1,1:1))
+  do j = 0, 1; do i = 0, 2
+    w%block(1)%mesh(:,i,j,0) = [real(i, R8P), real(j, R8P)]
+  enddo; enddo
+  w%block(1)%vars(1,:,1,1) = [1._R8P, 2._R8P]
+  w%tec%node = .false.
+  w%tec%format = 'binary'
+  ! No file of that name from an earlier run, so that the check measures this write
+  inquire(file='tecfile.bin', exist=exists)
+  if (exists) then
+    open(newunit=u, file='tecfile.bin', status='old')
+    close(u, status='delete')
+  endif
+  err = tec_write_structured_multiblock(orion=w, varnames='a', filename='tecfile.bin')
+  write(*,'(A,I0)') 'tecfile.bin: return value ', err
+  call check(err == 1, 'tecfile.bin: a binary file name without .plt or .szplt refused with the return value 1')
+  inquire(file='tecfile.bin', exist=exists)
+  call check(.not.exists, 'tecfile.bin: no file written')
+  end subroutine binary_name
+
+  subroutine binary_status
+  !---------------------------------------------------------------------------------------------------------------------------------
+  !< A binary write that TecIO refuses is reported: a two-dimensional field of one block of 2 x 1 cells with one variable at the
+  !< cells and two named scalars, ok_name and mass-flow, is written to a .szplt and a .plt file. The writer takes both names
+  !< (aux_names_valid), but TecIO refuses mass-flow (TECAUXSTR142: a name begins with a letter or _ and goes on with letters,
+  !< digits, _ and ., in the TecIO of this repository, lib/TecIO/teciosrc/TecioSZL.cpp and TecioPLT.cpp), so the writer must
+  !< return a nonzero value. The same field with ok_name only is written with 0.
+  !< Defect: the writer kept the status of each TecIO call in its result and returned the last one, that of TECEND142, which
+  !< closes the file: a call that failed was forgotten, and the file, without the named scalar that TecIO refused, came back
+  !< with the return value 0.
+  !< Basis: Tecplot 360 EX 2023 R1 Data Format Guide, TECAUXSTR142 and TECDAT142 (p. 30), TECEND142 (p. 32), TECINI142 (p. 45),
+  !< TECZNE142 (p. 60): "Return Value: 0 if successful, -1 if unsuccessful."
+  !---------------------------------------------------------------------------------------------------------------------------------
+  type(orion_data)            :: w
+  integer                     :: i, j, err, f
+  character(len=*), parameter :: files(2) = ['binary_status.szplt', 'binary_status.plt  ']
+  !---------------------------------------------------------------------------------------------------------------------------------
+
+  allocate(w%block(1))
+  w%block(1)%name = 'B1'
+  w%block(1)%Ni = 2; w%block(1)%Nj = 1; w%block(1)%Nk = 0
+  allocate(w%block(1)%mesh(1:2,0:2,0:1,0:0), w%block(1)%vars(1:1,1:2,1:1,1:1))
+  do j = 0, 1; do i = 0, 2
+    w%block(1)%mesh(:,i,j,0) = [real(i, R8P), real(j, R8P)]
+  enddo; enddo
+  w%block(1)%vars(1,:,1,1) = [1._R8P, 2._R8P]
+  w%tec%node = .false.
+  w%tec%format = 'binary'
+  do f = 1, 2
+    err = tec_write_structured_multiblock(orion=w, varnames='a', filename=trim(files(f)), fldnames=['ok_name'], &
+                                          fldvalues=[1.5_R8P])
+    call check(err == 0, trim(files(f))//': the named scalar ok_name written with 0')
+    err = tec_write_structured_multiblock(orion=w, varnames='a', filename=trim(files(f)), fldnames=['ok_name  ', 'mass-flow'], &
+                                          fldvalues=[1.5_R8P, 2.5_R8P])
+    write(*,'(A,I0)') trim(files(f))//' with mass-flow: return value ', err
+    call check(err /= 0, trim(files(f))//': the named scalar mass-flow, which TecIO refuses, gives a nonzero return value')
+  enddo
+  end subroutine binary_status
+
+  subroutine extension_names
+  !---------------------------------------------------------------------------------------------------------------------------------
+  !< The format of a file is that of the extension of its name, the text after the last dot of its last component: a
+  !< two-dimensional field of one block of 2 x 1 cells with one variable at the cells is written in the binary format as
+  !< ext.dat.szplt and as ext.plt.szplt, and each file is read back, with 0, as the field written (a .szplt file); a binary
+  !< write and a read of ext.szplt/field, a name without an extension (ext.szplt is a directory name, not made), give the
+  !< return value 1, as a name without the extensions of the format.
+  !< Defect: the reader and the binary writer took the format from any part of the name: ext.dat.szplt went to the ASCII
+  !< reader, which refused it; the writer wrote a .plt file under the name ext.plt.szplt, which the .szplt reader could not
+  !< read; ext.szplt/field went to the .szplt reader and writer, which got the error of a file that cannot be opened.
+  !< Basis: the Fortran API guide, Reading Data: "ORION takes the format from the extension".
+  !---------------------------------------------------------------------------------------------------------------------------------
+  type(orion_data)            :: w, r
+  integer                     :: i, j, err, f
+  logical                     :: same
+  character(len=*), parameter :: files(2) = ['ext.dat.szplt', 'ext.plt.szplt']
+  !---------------------------------------------------------------------------------------------------------------------------------
+
+  allocate(w%block(1))
+  w%block(1)%name = 'B1'
+  w%block(1)%Ni = 2; w%block(1)%Nj = 1; w%block(1)%Nk = 0
+  allocate(w%block(1)%mesh(1:2,0:2,0:1,0:0), w%block(1)%vars(1:1,1:2,1:1,1:1))
+  do j = 0, 1; do i = 0, 2
+    w%block(1)%mesh(:,i,j,0) = [real(i, R8P), real(j, R8P)]
+  enddo; enddo
+  w%block(1)%vars(1,:,1,1) = [1._R8P, 2._R8P]
+  w%tec%node = .false.
+  w%tec%format = 'binary'
+  do f = 1, 2
+    err = tec_write_structured_multiblock(orion=w, varnames='a', filename=files(f))
+    call check(err == 0, files(f)//': written without error')
+    if (allocated(r%block)) deallocate(r%block)
+    r%tec%format = 'binary'
+    err = tec_read_structured_multiblock(orion=r, filename=files(f))
+    write(*,'(A,I0)') files(f)//': read with the return value ', err
+    call check(err == 0, files(f)//': read without error, a .szplt file')
+    if (err /= 0) cycle
+    same = size(r%block) == 1
+    if (same) same = all(shape(r%block(1)%mesh) == shape(w%block(1)%mesh)) .and. &
+                     all(shape(r%block(1)%vars) == shape(w%block(1)%vars))
+    if (same) same = all(r%block(1)%mesh == w%block(1)%mesh) .and. all(r%block(1)%vars == w%block(1)%vars)
+    call check(same, files(f)//': the field written')
+  enddo
+  err = tec_write_structured_multiblock(orion=w, varnames='a', filename='ext.szplt/field')
+  write(*,'(A,I0)') 'ext.szplt/field written: return value ', err
+  call check(err == 1, 'ext.szplt/field: a name without an extension refused by the binary writer with the return value 1')
+  if (allocated(r%block)) deallocate(r%block)
+  err = tec_read_structured_multiblock(orion=r, filename='ext.szplt/field')
+  write(*,'(A,I0)') 'ext.szplt/field read: return value ', err
+  call check(err == 1, 'ext.szplt/field: a name without an extension refused by the reader with the return value 1')
+  end subroutine extension_names
+#endif
+
+  subroutine names_count
+  !---------------------------------------------------------------------------------------------------------------------------------
+  !< The names of varnames are as many as the variables written: a two-dimensional field of one block of 2 x 1 cells with two
+  !< variables at the cells, written with one name (a) or three (a b c), gives the return value 1 and no file, in an ASCII file
+  !< and, with TecIO, in a .plt and a .szplt file; so does the field of two such blocks written to a .plt file with one name
+  !< (a). With TecIO the names a,b, separated by a comma, give a .szplt file read back with the variables x, y, a and b.
+  !< Defect: the writer did not count the names. TecIO takes the number of names, with the coordinates, as the number of values
+  !< of each zone: with one name too few it was handed more values than that, which in a .plt file it wrote past the end of
+  !< its buffers (the field of two blocks stopped the program on a corrupted heap) and in a .szplt file it refused; an ASCII
+  !< file got a VARIABLES line of fewer names than its values. TecIO splits a list with a comma at its commas, so the list
+  !< x y a,b was two names.
+  !< Basis: TecIO of this repository, lib/TecIO/teciosrc/TecioPLT.cpp (TECINI142: the number of variables is the number of
+  !< names, split at the line ends, or else the commas, or else the blanks of the list); Tecplot 360 EX 2023 R1 Data Format
+  !< Guide, TECDAT142 (p. 30): TECDAT142 writes the values of the variables of the zone, in the order of the variables.
+  !---------------------------------------------------------------------------------------------------------------------------------
+  type(orion_data)              :: w
+  integer                       :: i, j, err, f, n
+  character(len=*), parameter   :: lists(2) = ['a    ', 'a b c']
+  character(len=:), allocatable :: name
+#ifdef TECIO
+  type(orion_data)              :: r, w2
+  character(len=*), parameter   :: exts(3) = ['.tec  ', '.plt  ', '.szplt']
+#else
+  character(len=*), parameter   :: exts(1) = ['.tec  ']
+#endif
+  !---------------------------------------------------------------------------------------------------------------------------------
+
+  allocate(w%block(1))
+  w%block(1)%name = 'B1'
+  w%block(1)%Ni = 2; w%block(1)%Nj = 1; w%block(1)%Nk = 0
+  allocate(w%block(1)%mesh(1:2,0:2,0:1,0:0), w%block(1)%vars(1:2,1:2,1:1,1:1))
+  do j = 0, 1; do i = 0, 2
+    w%block(1)%mesh(:,i,j,0) = [real(i, R8P), real(j, R8P)]
+  enddo; enddo
+  w%block(1)%vars(1,:,1,1) = [1._R8P, 2._R8P]
+  w%block(1)%vars(2,:,1,1) = [3._R8P, 4._R8P]
+  w%tec%node = .false.
+  do f = 1, size(exts)
+    w%tec%format = merge('ascii ', 'binary', f == 1)
+    do n = 1, 2
+      name = 'names_'//trim(itoa(n))//trim(exts(f))
+      call remove_file(name)
+      err = tec_write_structured_multiblock(orion=w, varnames=trim(lists(n)), filename=name)
+      write(*,'(A,I0)') name//' ('//trim(lists(n))//' for 2 variables): return value ', err
+      call check(err == 1, name//': '//trim(lists(n))//' for 2 variables refused with the return value 1')
+      call check(.not.exists_file(name), name//': no file written')
+    enddo
+  enddo
+#ifdef TECIO
+  allocate(w2%block(2))
+  w2%block(1) = w%block(1)
+  w2%block(2) = w%block(1)
+  w2%block(2)%name = 'B2'
+  w2%tec = w%tec
+  w2%tec%format = 'binary'
+  call remove_file('names_two_blocks.plt')
+  err = tec_write_structured_multiblock(orion=w2, varnames='a', filename='names_two_blocks.plt')
+  write(*,'(A,I0)') 'names_two_blocks.plt (a for 2 variables, two blocks): return value ', err
+  call check(err == 1, 'names_two_blocks.plt: a for 2 variables of two blocks refused with the return value 1')
+  call check(.not.exists_file('names_two_blocks.plt'), 'names_two_blocks.plt: no file written')
+  w%tec%format = 'binary'
+  err = tec_write_structured_multiblock(orion=w, varnames='a,b', filename='names_comma.szplt')
+  call check(err == 0, 'names_comma.szplt: a,b for 2 variables written with 0')
+  r%tec%format = 'binary'
+  err = tec_read_structured_multiblock(orion=r, filename='names_comma.szplt')
+  call check(err == 0, 'names_comma.szplt: read without error')
+  if (err /= 0) return
+  call check(size(r%varnames) == 4, 'names_comma.szplt: four variables')
+  if (size(r%varnames) /= 4) return
+  call check(r%varnames(1) == 'x' .and. r%varnames(2) == 'y' .and. r%varnames(3) == 'a' .and. r%varnames(4) == 'b', &
+             'names_comma.szplt: the variables x, y, a and b')
+#endif
+  end subroutine names_count
+
+  subroutine mesh_only_counts
+  !---------------------------------------------------------------------------------------------------------------------------------
+  !< A block 1 without vars, a write of the mesh only, writes no variable: a two-dimensional field of one block of 2 x 1 cells
+  !< without vars, written with Nvars = 1 or Nvars = -1, or with varnames of two names (a b), gives the return value 1 and no
+  !< file, in an ASCII file and, with TecIO, in a .szplt file; written with Nvars = 0 it gives 0 and a file read back with the
+  !< two coordinates and no variable.
+  !< Defect: the writer did not count the names: a write of the mesh only with names wrote the mesh, with the return value 0,
+  !< and left the names out. It took Nvars as it came: a write of the mesh only with Nvars = 1 or Nvars = -1 wrote the mesh,
+  !< with the return value 0.
+  !< Basis: docs/user-guide/fortran-api.md, Names given to the writer: Nvars is from 0 to size(vars,1), 0 when block 1 has no
+  !< vars, and varnames holds as many names as the variables written, otherwise the return value 1 and no file.
+  !---------------------------------------------------------------------------------------------------------------------------------
+  type(orion_data)              :: w, r
+  integer                       :: i, j, err, f, n
+  integer, parameter            :: counts(2) = [1, -1]
+  character(len=:), allocatable :: name
+#ifdef TECIO
+  character(len=*), parameter   :: exts(2) = ['.tec  ', '.szplt']
+#else
+  character(len=*), parameter   :: exts(1) = ['.tec  ']
+#endif
+  !---------------------------------------------------------------------------------------------------------------------------------
+
+  allocate(w%block(1))
+  w%block(1)%name = 'B1'
+  w%block(1)%Ni = 2; w%block(1)%Nj = 1; w%block(1)%Nk = 0
+  allocate(w%block(1)%mesh(1:2,0:2,0:1,0:0))
+  do j = 0, 1; do i = 0, 2
+    w%block(1)%mesh(:,i,j,0) = [real(i, R8P), real(j, R8P)]
+  enddo; enddo
+  w%tec%node = .false.
+  do f = 1, size(exts)
+    w%tec%format = merge('ascii ', 'binary', f == 1)
+    do n = 1, 2
+      name = 'mesh_only_nvars_'//trim(itoa(n))//trim(exts(f))
+      call remove_file(name)
+      err = tec_write_structured_multiblock(orion=w, filename=name, Nvars=counts(n))
+      write(*,'(A,I0,A,I0)') name//' (no vars, Nvars = ', counts(n), '): return value ', err
+      call check(err == 1, name//': Nvars = '//trim(itoa(counts(n)))//' without vars refused with the return value 1')
+      call check(.not.exists_file(name), name//': no file written')
+    enddo
+    name = 'mesh_only_names'//trim(exts(f))
+    call remove_file(name)
+    err = tec_write_structured_multiblock(orion=w, varnames='a b', filename=name)
+    write(*,'(A,I0)') name//' (no vars, varnames a b): return value ', err
+    call check(err == 1 .and. .not.exists_file(name), name//': two names without vars refused with the return value 1, '// &
+               'no file written')
+    name = 'mesh_only_zero'//trim(exts(f))
+    call remove_file(name)
+    err = tec_write_structured_multiblock(orion=w, filename=name, Nvars=0)
+    call check(err == 0, name//': Nvars = 0 without vars written with 0')
+    r%tec%format = w%tec%format
+    err = tec_read_structured_multiblock(orion=r, filename=name)
+    call check(err == 0, name//': read back with 0')
+    if (err == 0) call check(size(r%block(1)%mesh,1) == 2 .and. size(r%varnames) == 2, &
+                             name//': two coordinates and no variable')
+  enddo
+  end subroutine mesh_only_counts
+
+  subroutine nvars_range
+  !---------------------------------------------------------------------------------------------------------------------------------
+  !< Nvars is a number of the variables that vars holds, from 0 to size(vars,1): a two-dimensional field of one block of 2 x 1
+  !< cells with two variables at the cells, written with Nvars = 3 (varnames a b c) or Nvars = -1, gives the return value 1
+  !< and no file, in an ASCII file and, with TecIO, in a .szplt file. So does a field of two such blocks whose second block
+  !< holds one variable only (vars(1:1,...)), written without Nvars (varnames a b).
+  !< Defect: the writer took Nvars as it came. Nvars = 3 read a third variable past the end of vars: the ASCII file got the
+  !< values that followed the array in memory, with the return value 0, and a build with bounds checking or AddressSanitizer
+  !< stopped there (index 3 of dimension 1 of vars above its upper bound 2; a heap-buffer-overflow read in tec_dat).
+  !< Nvars = -1 wrote past the end of the locations of the variables of a .szplt file (index 2 of tecvarloc, of 1 element), and
+  !< gave an ASCII file the location [3-1]=CELLCENTERED, with the return value 0. The writer checked the variables of block 1
+  !< only: the second block, of one variable, was read past the end of its vars for the second variable, in the ASCII and in
+  !< the .szplt file, with the return value 0.
+  !< Basis: Fortran 2018 (ISO/IEC 1539-1:2018, final draft J3/18-007r1), 9.5.3.1 (p. 128): a subscript within the bounds of its
+  !< dimension.
+  !---------------------------------------------------------------------------------------------------------------------------------
+  type(orion_data)              :: w, w2
+  integer                       :: i, j, err, f, n
+  integer, parameter            :: counts(2) = [3, -1]
+  character(len=:), allocatable :: name
+#ifdef TECIO
+  character(len=*), parameter   :: exts(2) = ['.tec  ', '.szplt']
+#else
+  character(len=*), parameter   :: exts(1) = ['.tec  ']
+#endif
+  !---------------------------------------------------------------------------------------------------------------------------------
+
+  allocate(w%block(1))
+  w%block(1)%name = 'B1'
+  w%block(1)%Ni = 2; w%block(1)%Nj = 1; w%block(1)%Nk = 0
+  allocate(w%block(1)%mesh(1:2,0:2,0:1,0:0), w%block(1)%vars(1:2,1:2,1:1,1:1))
+  do j = 0, 1; do i = 0, 2
+    w%block(1)%mesh(:,i,j,0) = [real(i, R8P), real(j, R8P)]
+  enddo; enddo
+  w%block(1)%vars(1,:,1,1) = [1._R8P, 2._R8P]
+  w%block(1)%vars(2,:,1,1) = [3._R8P, 4._R8P]
+  w%tec%node = .false.
+  do f = 1, size(exts)
+    w%tec%format = merge('ascii ', 'binary', f == 1)
+    do n = 1, 2
+      name = 'nvars_'//trim(itoa(n))//trim(exts(f))
+      call remove_file(name)
+      if (counts(n) == 3) then
+        err = tec_write_structured_multiblock(orion=w, varnames='a b c', filename=name, Nvars=counts(n))
+      else
+        err = tec_write_structured_multiblock(orion=w, filename=name, Nvars=counts(n))
+      endif
+      write(*,'(A,I0,A,I0)') name//' (Nvars = ', counts(n), ' for 2 variables): return value ', err
+      call check(err == 1, name//': Nvars = '//trim(itoa(counts(n)))//' for 2 variables refused with the return value 1')
+      call check(.not.exists_file(name), name//': no file written')
+    enddo
+  enddo
+  ! Two blocks, the second with one variable only
+  allocate(w2%block(2))
+  w2%block(1) = w%block(1)
+  w2%block(2) = w%block(1)
+  w2%block(2)%name = 'B2'
+  deallocate(w2%block(2)%vars)
+  allocate(w2%block(2)%vars(1:1,1:2,1:1,1:1))
+  w2%block(2)%vars(1,:,1,1) = [5._R8P, 6._R8P]
+  w2%tec = w%tec
+  do f = 1, size(exts)
+    w2%tec%format = merge('ascii ', 'binary', f == 1)
+    name = 'nvars_short_block'//trim(exts(f))
+    call remove_file(name)
+    err = tec_write_structured_multiblock(orion=w2, varnames='a b', filename=name)
+    write(*,'(A,I0)') name//' (block 2 with 1 of the 2 variables): return value ', err
+    call check(err == 1 .and. .not.exists_file(name), name//': a block with fewer variables than block 1 refused with the '// &
+               'return value 1, no file written')
+  enddo
+  end subroutine nvars_range
+
+  subroutine coordinates_per_block
+  !---------------------------------------------------------------------------------------------------------------------------------
+  !< Every block holds the coordinates of block 1: a field of two blocks of 2 x 1 cells with two variables at the cells, block 1
+  !< with three coordinates (x, y and z = 0) and block 2 with two (mesh(1:2,...)), gives the return value 1 and no file, in an
+  !< ASCII file and, with TecIO, in a .szplt file; so does the field with the coordinates the other way round (block 1 with
+  !< two, block 2 with three), in an ASCII file.
+  !< Defect: the writer took the number of coordinates from block 1 and wrote mesh(1:ndir,...) of every block: block 2, of two
+  !< coordinates, was read past the end of its mesh for the third, in the ASCII and in the .szplt file, with the return value
+  !< 0 (a build with bounds checks stops there); the other way round, the third coordinate of block 2 was left out, with 0.
+  !< Basis: Fortran 2018 (ISO/IEC 1539-1:2018, final draft J3/18-007r1), 9.5.3.1 (p. 128): a subscript within the bounds of its
+  !< dimension.
+  !---------------------------------------------------------------------------------------------------------------------------------
+  type(orion_data)              :: w
+  integer                       :: i, j, err, f, k
+  character(len=:), allocatable :: name
+#ifdef TECIO
+  character(len=*), parameter   :: exts(2) = ['.tec  ', '.szplt']
+#else
+  character(len=*), parameter   :: exts(1) = ['.tec  ']
+#endif
+  !---------------------------------------------------------------------------------------------------------------------------------
+
+  do k = 1, 2
+    if (allocated(w%block)) deallocate(w%block)
+    allocate(w%block(2))
+    w%block(1)%name = 'B1'; w%block(2)%name = 'B2'
+    w%block(1)%Ni = 2; w%block(1)%Nj = 1; w%block(1)%Nk = 0
+    w%block(2)%Ni = 2; w%block(2)%Nj = 1; w%block(2)%Nk = 0
+    ! k = 1: block 1 with three coordinates, block 2 with two; k = 2: the other way round
+    allocate(w%block(1)%mesh(1:merge(3, 2, k == 1),0:2,0:1,0:0), w%block(2)%mesh(1:merge(2, 3, k == 1),0:2,0:1,0:0))
+    w%block(1)%mesh = 0._R8P; w%block(2)%mesh = 0._R8P
+    do j = 0, 1; do i = 0, 2
+      w%block(1)%mesh(1:2,i,j,0) = [real(i, R8P), real(j, R8P)]
+      w%block(2)%mesh(1:2,i,j,0) = [real(i + 10, R8P), real(j, R8P)]
+    enddo; enddo
+    allocate(w%block(1)%vars(1:2,1:2,1:1,1:1), w%block(2)%vars(1:2,1:2,1:1,1:1))
+    w%block(1)%vars = 1._R8P; w%block(2)%vars = 2._R8P
+    w%tec%node = .false.
+    do f = 1, merge(size(exts), 1, k == 1)
+      w%tec%format = merge('ascii ', 'binary', f == 1)
+      name = 'coordinates_'//trim(itoa(k))//trim(exts(f))
+      call remove_file(name)
+      err = tec_write_structured_multiblock(orion=w, varnames='a b', filename=name)
+      write(*,'(A,I0)') name//' (block 1 with '//trim(itoa(size(w%block(1)%mesh,1)))//' coordinates, block 2 with '// &
+                        trim(itoa(size(w%block(2)%mesh,1)))//'): return value ', err
+      call check(err == 1 .and. .not.exists_file(name), name//': a block with another number of coordinates than block 1 '// &
+                 'refused with the return value 1, no file written')
+    enddo
+  enddo
+  end subroutine coordinates_per_block
+
+  subroutine no_variables
+  !---------------------------------------------------------------------------------------------------------------------------------
+  !< Nvars = 0 writes the coordinates alone: a two-dimensional field of one block of 2 x 1 cells with two variables at the
+  !< cells, written to an ASCII file with Nvars = 0 (and no varnames), gives 0, a zone header whose VARLOCATION names the two
+  !< coordinates only, ([1-2]=NODAL), and a file read back with the two coordinates and no variable.
+  !< Defect: the writer gave the variables at the cells the range [3-2] (VARLOCATION=([1-2]=NODAL,[3-2]=CELLCENTERED)), from
+  !< the first variable after the coordinates to the last one written, which comes before it.
+  !< Basis: Tecplot 360 EX 2023 R1 Data Format Guide, section 4-3.2: VARLOCATION=([set-of-vars]=<varlocation>, ...) (p. 124),
+  !< and the forms of a set of variables, such as [4-6,11] (p. 127), ranges from a variable to a later one.
+  !---------------------------------------------------------------------------------------------------------------------------------
+  type(orion_data)   :: w, r
+  integer            :: i, j, err, u, ios
+  character(len=512) :: line
+  !---------------------------------------------------------------------------------------------------------------------------------
+
+  allocate(w%block(1))
+  w%block(1)%name = 'B1'
+  w%block(1)%Ni = 2; w%block(1)%Nj = 1; w%block(1)%Nk = 0
+  allocate(w%block(1)%mesh(1:2,0:2,0:1,0:0), w%block(1)%vars(1:2,1:2,1:1,1:1))
+  do j = 0, 1; do i = 0, 2
+    w%block(1)%mesh(:,i,j,0) = [real(i, R8P), real(j, R8P)]
+  enddo; enddo
+  w%block(1)%vars = 1._R8P
+  w%tec%node = .false.
+  w%tec%format = 'ascii'
+  err = tec_write_structured_multiblock(orion=w, filename='no_variables.tec', Nvars=0)
+  call check(err == 0, 'no_variables.tec: written with 0')
+  line = ''
+  open(newunit=u, file='no_variables.tec', status='old', action='read', iostat=ios)
+  if (ios == 0) then
+    read(u,'(A)',iostat=ios) line
+    read(u,'(A)',iostat=ios) line
+    close(u)
+  endif
+  write(*,'(A)') 'no_variables.tec: '//trim(line)
+  call check(index(line, 'VARLOCATION=([1-2]=NODAL)') > 0 .and. index(line, 'CELLCENTERED') == 0, &
+             'no_variables.tec: the zone header locates the two coordinates only')
+  r%tec%format = 'ascii'
+  err = tec_read_structured_multiblock(orion=r, filename='no_variables.tec')
+  call check(err == 0, 'no_variables.tec: read back with 0')
+  if (err /= 0) return
+  call check(size(r%block(1)%mesh,1) == 2 .and. size(r%varnames) == 2, 'no_variables.tec: two coordinates and no variable')
+  end subroutine no_variables
+
+  function itoa(n) result(s)
+  !---------------------------------------------------------------------------------------------------------------------------------
+  !< The digits of n.
+  !---------------------------------------------------------------------------------------------------------------------------------
+  integer, intent(in) :: n
+  character(len=16)   :: s
+  !---------------------------------------------------------------------------------------------------------------------------------
+
+  write(s,'(I0)') n
+  end function itoa
+
+  subroutine remove_file(name)
+  !---------------------------------------------------------------------------------------------------------------------------------
+  !< Remove the file name if it is there, so that a check that no file is written measures the write that follows.
+  !---------------------------------------------------------------------------------------------------------------------------------
+  character(len=*), intent(in) :: name
+  integer                      :: u
+  !---------------------------------------------------------------------------------------------------------------------------------
+
+  if (.not.exists_file(name)) return
+  open(newunit=u, file=name, status='old')
+  close(u, status='delete')
+  end subroutine remove_file
+
+  logical function exists_file(name)
+  !---------------------------------------------------------------------------------------------------------------------------------
+  !< Is the file name there?
+  !---------------------------------------------------------------------------------------------------------------------------------
+  character(len=*), intent(in) :: name
+  !---------------------------------------------------------------------------------------------------------------------------------
+
+  inquire(file=name, exist=exists_file)
+  end function exists_file
+
+  pure function hard_real(n) result(x)
+  !---------------------------------------------------------------------------------------------------------------------------------
+  !< The n-th of a list of 64-bit reals that 15 significant digits do not give back: 0.1 + 0.2, the thirds, pi, the reals next to
+  !< 1, the smallest normal real, and multiples of 1/7 from about 1e-297 to 1e297, of both signs.
+  !---------------------------------------------------------------------------------------------------------------------------------
+  integer, intent(in) :: n
+  real(R8P)           :: x
+  !---------------------------------------------------------------------------------------------------------------------------------
+
+  select case(mod(n, 8))
+  case(0)
+    x = 0.1_R8P + 0.2_R8P
+  case(1)
+    x = 1._R8P/3._R8P
+  case(2)
+    x = -2._R8P/3._R8P
+  case(3)
+    x = acos(-1._R8P)
+  case(4)
+    x = nearest(1._R8P, 1._R8P)
+  case(5)
+    x = -nearest(1._R8P, -1._R8P)
+  case(6)
+    x = tiny(1._R8P)
+  case default
+    x = real(n, R8P)/7._R8P*10._R8P**(27*mod(n, 23) - 297)
+  end select
+  end function hard_real
 end program tecplot_write_multiblock
