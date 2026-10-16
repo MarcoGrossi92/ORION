@@ -130,7 +130,7 @@ contains
     enddo
     out%p3d%format = 'ascii'
     err = p3d_write_multiblock(orion=out,filename='case_writer.p3d')
-    err = p3d_read_multiblock(orion=in,filename='case_writer.p3d')
+    if (err == 0) err = p3d_read_multiblock(orion=in,filename='case_writer.p3d')
     if (err == 0 .and. same_blocks(in,lay)) then
       write(*,'(A,I0,A)') '  ok    ', ndir, 'D file of p3d_write_multiblock'
     else
