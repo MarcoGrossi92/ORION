@@ -9,9 +9,11 @@ ORION supports multiple scientific data formats commonly used in computational f
 | **Tecplot ASCII** | Text | `.dat`, `.tec` | ✅ | ✅ | Human-readable, slower I/O |
 | **Tecplot Binary** | Binary | `.plt`, `.szplt` | ✅¹ | ✅¹ | Compact, fast I/O |
 | **VTK** | Text/Binary | `.vtm`, `.vts`  | ✅ | ✅ | Open standard, widely supported |
-| **PLOT3D** | Text | `.p3d` | ✅ | ✅ | NASA legacy format |
+| **PLOT3D** | Text/Binary | any (`.p3d`, `.x`, `.xyz`, `.g`, ...) | ✅² | ✅³ | NASA legacy format, grids only |
 
 ¹ Requires building with `--use-tecio` flag
+² ASCII, Fortran unformatted and C binary; the layout is detected from the file (Fortran `p3d_read_multiblock`, Python `read_P3D`)
+³ ASCII only, Fortran API
 
 ## Tecplot Format
 
@@ -96,16 +98,33 @@ PLOT3D is a NASA-developed format for structured CFD data, still widely used in 
 
 ### File Structure
 
-**Grid File (.p3d):**
+**Grid file (multi-grid, 3D):**
 ```
 Number of blocks
-Block 1: I, J, K dimensions
-Block 2: I, J, K dimensions
-...
-X coordinates for all blocks
-Y coordinates for all blocks
-Z coordinates for all blocks
+I, J, K dimensions of each block
+For each block: X of all its nodes, then Y, then Z (I fastest), then IBLANK when present
 ```
+
+A single-grid file has no number of blocks; a 2D file has I, J dimensions and X, Y coordinates.
+
+### Layouts read
+
+ORION reads grid files in every common layout, detected from the file itself, whatever its extension. The Fortran (`p3d_read_multiblock`) and Python (`read_P3D`) readers apply the same rules:
+
+| Feature | Read |
+|---------|------|
+| ASCII, any number of values per line, repeat counts `r*c`, `D` exponents | ✅ |
+| Fortran unformatted (4- or 8-byte record markers, records over 2 GiB) | ✅ |
+| C binary (stream, no record markers) | ✅ |
+| Little or big endian | ✅ |
+| 4- or 8-byte integers, 4- or 8-byte reals | ✅ |
+| Multi-grid or single grid | ✅ |
+| 3D or 2D | ✅ |
+| IBLANK | ✅ (read past) |
+| Whole or planes (a Fortran record per K plane) | ✅ |
+| Solution (Q) and function files | ❌ |
+
+A file whose size fits no layout, or fits more than one, is refused with a message (see the Fortran API).
 
 ## Format Comparison
 
@@ -115,7 +134,7 @@ Z coordinates for all blocks
 |---------|---------|-----|--------|
 | **Multi-block** | ✅ | ✅ | ✅ |
 | **Grid + Solution** | ✅ | ✅ | ❌ |
-| **Binary I/O** | ✅ | ✅ | ❌ |
+| **Binary I/O** | ✅ | ✅ | Read only |
 | **Compression** | ✅ | ✅ | ❌ |
 | **Metadata** | ✅ | ✅ | ❌ |
 | **Time series** | ✅ | ✅ | ❌ |

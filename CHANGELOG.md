@@ -22,9 +22,49 @@ Changes on `main` since `v1.6.0`.
   binary Tecplot files (`.plt`, `.szplt`) are not covered -- the binary writer
   stores StrandID 0 for every zone and the `.szplt` reader does not store the
   zone time -- and need a separate change.
+- `p3d_read_multiblock` reads PLOT3D grid files of every common layout, detected
+  from the file itself (`orion%p3d%format` is no longer read): ASCII, Fortran
+  unformatted (4- or 8-byte record markers, records over 2 GiB in subrecords)
+  or C binary (stream); either byte order; 4- or 8-byte integers and reals;
+  multi-grid or single grid; 3D or 2D; with or without iblank (read past);
+  whole or planes. Each layout is checked against the size of the file (the
+  count of its values for ASCII) and, for a Fortran file, against its records;
+  the file is read only when exactly one layout matches. ASCII files are free
+  format: any number of values per line, the dimensions of all blocks on one
+  line, Fortran repeat counts `r*c`, `D` exponents, commas, CRLF line ends.
+  New optional argument `errmsg` returns the reason of a failure. Coordinates
+  read from an ASCII file are bit-identical to those of the previous reader.
+  Test: `p3d_read_formats` (38 layouts and refused files).
+- Python: `read_P3D(file_path)` reads PLOT3D grid files by the same rules as
+  `p3d_read_multiblock`, so both readers accept and refuse the same files, with
+  the same messages. It returns `xb, yb, zb`, lists with one `float64` array of
+  shape `(I, J, K)` per block, indexed `[i, j, k]` as in `read_TEC` (a 2D file
+  gives `(I, J, 1)` arrays and `zb = None`), and raises `ValueError` with the
+  reason when the file is refused. NumPy only. Test: `python_read_p3d`, which
+  writes the layouts of `p3d_read_formats` with a writer of its own; on 27
+  layouts both readers return the same coordinates, bit for bit, from the
+  files of either writer.
+
+### Changed
+
+- `p3d_read_multiblock` error codes: 1 now means that no PLOT3D layout matches
+  the file (it was a block count below 1; a node count below 1, formerly 2, is
+  included) and 2 that more than one does. A failed open or read still returns
+  its `iostat`. Blocks already in `orion` are replaced (an allocated
+  `orion%block` stopped the program), and none are left after a failure.
+- The Python tests are registered whenever CMake finds a Python 3 with NumPy:
+  `python_read_p3d` in every build, `python_read_tec` (which reads a file of
+  `tecplot_write`) still only with TecIO.
 
 ### Fixed
 
+- `p3d_read_multiblock` reads a PLOT3D ASCII file with several coordinates per
+  line. It issued one `read` per coordinate, and a list-directed `read` takes a
+  whole record, so only the first value of each line was kept and the reader
+  reached the end of the file inside an early block (`iostat = -1`: ATLAS
+  stopped with "mesh.p3d found, but failed to read it"). Only the one value per
+  line of `p3d_write_multiblock` was read. A 2-D file with the dimensions of
+  all blocks on one line was taken for 3-D and failed with a read error.
 - The Python reader `read_TEC` reads the Tecplot ASCII files that the Fortran
   writer of ORION 1.7.0 and later writes with the variable names without quotes
   (`VARIABLES = x y z rho(1)`). It found no names in them, and so returned the

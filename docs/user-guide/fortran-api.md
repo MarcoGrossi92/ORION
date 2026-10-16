@@ -71,6 +71,9 @@ logical :: node            ! Node or cell data location (default: .false.)
 character(6) :: format     ! 'binary' or 'ascii' (default: 'binary')
 ```
 
+`format` is an option of `p3d_write_multiblock`, which writes ASCII only (`'binary'` stops the program).
+`p3d_read_multiblock` does not use it: it detects the layout of the file (see *PLOT3D grids* below).
+
 ### Error Handling
 
 All I/O functions return an integer error code:
@@ -198,9 +201,22 @@ end program read_vtk_structured
   another name, or is cell-centred, is read with two coordinates; as in the ASCII reader, a two-dimensional
   file whose third variable is nodal and named `z` is read as a slice. `varnames` is filled with the names
   stored in the file, with the same convention as the ASCII reader (coordinates first).
-- **PLOT3D grids.** The first dimensions record decides the dimension of the whole file: two integers
-  (`Ni Nj`) give a two-dimensional grid (two coordinates, `Nk = 0`), three integers (`Ni Nj Nk`) a
-  three-dimensional one. Each block has its own dimensions record; a node count below 1 is refused.
+- **PLOT3D grids.** `p3d_read_multiblock` detects the layout of the file, whatever its name:
+    - encoding: ASCII, Fortran unformatted (record markers of 4 or 8 bytes; records over 2 GiB in
+      subrecords, as gfortran and ifx write them) or C binary (stream, no markers);
+    - binary numbers: either byte order, integers of 4 or 8 bytes, reals of 4 or 8 bytes;
+    - multi-grid (the file begins with the number of blocks) or single grid (it begins with the dimensions);
+    - 3D (`x`, `y`, `z`) or 2D (`x`, `y`: two coordinates, `Nk = 0`);
+    - with or without iblank (read past: ORION blocks have no blanking);
+    - whole (a block in one Fortran record) or planes (a record per `k` plane).
+
+  An ASCII file is free format: any number of values per line, the dimensions of all blocks on one line or
+  one block per line, Fortran repeat counts `r*c`, `D` exponents, commas, CRLF line ends. Each layout is
+  checked against the size of the file (the count of its values for ASCII) and, for a Fortran file, against
+  its records; the file is read only when exactly one layout matches. Otherwise `err` is 1 (no layout
+  matches: a truncated file, a dimension below 1, a character that is not part of a number) or 2 (more than
+  one does, which takes a degenerate file such as a single node), the optional `errmsg` tells why and
+  `orion%block` is left unallocated. Blocks already in `orion` are replaced.
 - **Solution time.** `solutiontime` is 0 in a new `orion_data`. The Tecplot ASCII reader stores the
   `SOLUTIONTIME` of the file, or -10 when its zone headers give none. The `.szplt` reader does not store the
   zone time of the file and leaves `solutiontime` as it was (0 for a new object); so does the PLOT3D reader,
@@ -241,23 +257,26 @@ end program read_vtk_structured
 
 ### PLOT3D Files
 
-PLOT3D typically uses separate grid and solution files. ORION is designed to handle just grids.
+PLOT3D typically uses separate grid and solution files. ORION is designed to handle just grids, in any
+of the layouts listed under *PLOT3D grids* above.
 
 ```fortran
 program read_plot3d
   use Lib_ORION_data
   use Lib_PLOT3D
   implicit none
-  
+
   type(orion_data) :: IOfield
+  character(len=:), allocatable :: msg
   integer :: E_IO
-  
-  ! Read both grid and solution files
-  E_IO = plot3d_read(filename='grid.p3d',orion=IOfield)
-  
+
+  ! Read a grid file: ASCII or binary, the layout is detected
+  E_IO = p3d_read_multiblock(orion=IOfield,filename='grid.x',errmsg=msg)
+
   if (E_IO == 0) then
-    print *, 'Successfully read PLOT3D files'
     print *, 'Number of blocks:', size(IOfield%block)
+  else
+    print *, 'Cannot read grid.x: ', msg
   endif
 end program read_plot3d
 ```
@@ -359,9 +378,10 @@ program write_plot3d
   
   type(ORION_data) :: IOfield
   integer :: E_IO
-  
-  ! Write grid and solution files
-  E_IO = plot3d_write(filename='output_grid.p3d',orion=IOfield)
+
+  ! Write the grid (ASCII, one value per line)
+  IOfield%p3d%format = 'ascii'
+  E_IO = p3d_write_multiblock(orion=IOfield,filename='output_grid.p3d')
 
 end program write_plot3d
 ```
