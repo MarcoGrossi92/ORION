@@ -85,14 +85,15 @@ program p3d_read
 
   subroutine counts_refused
   !---------------------------------------------------------------------------------------------------------------------------------
-  !< Files whose counts cannot be those of a grid are refused before any coordinate is read: a block count of 0 (return value
-  !< 1), and a dimensions record with a node count of 0, in 3-D and in 2-D (return value 2).
-  !< Changes of main checked (3ee1522, 9bd324e): the block count and the node counts are checked; before them, the reader
-  !< allocated the blocks of such counts and went on (a dimensions record of the one-line layout read from a coordinate).
+  !< Files whose counts cannot be those of a grid are refused before any coordinate is read: a block count of 0 and a
+  !< dimensions record with a node count of 0, in 3-D and in 2-D, all with return value 1 (no PLOT3D layout matches).
+  !< Change of main checked: error codes of p3d_read_multiblock, a node count below 1 is now included in return value 1
+  !< (formerly 2); before it, the reader allocated the blocks of such counts and went on (a dimensions record of the
+  !< one-line layout read from a coordinate).
   !< Basis: P: a grid has at least one block, and a block at least one node in each direction.
   !---------------------------------------------------------------------------------------------------------------------------------
   character(len=8),  parameter :: records(3) = [character(len=8) :: '0', '3 0 2', '3 0']
-  integer,           parameter :: expected(3) = [1, 2, 2]
+  integer,           parameter :: expected(3) = [1, 1, 1]
   character(len=40), parameter :: what(3) = [character(len=40) :: 'a block count of 0', &
                                              'a node count of 0 in a 3-D record', 'a node count of 0 in a 2-D record']
   type(orion_data) :: d

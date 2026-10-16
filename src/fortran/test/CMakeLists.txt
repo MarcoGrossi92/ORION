@@ -88,8 +88,7 @@ set_tests_properties(
     TIMEOUT 300
 )
 
-# The Python reader reads back the Tecplot ASCII file of tecplot_write. The
-# test needs a Python 3 with NumPy; without one it is not registered.
+# The Python tests need a Python 3 with NumPy; without one they are not registered.
 find_package(Python3 COMPONENTS Interpreter)
 if(Python3_Interpreter_FOUND)
   execute_process(
@@ -99,16 +98,30 @@ if(Python3_Interpreter_FOUND)
   )
 endif()
 if(Python3_Interpreter_FOUND AND NUMPY_IMPORT_RESULT EQUAL 0)
+  # read_P3D reads the PLOT3D layouts of p3d_read_formats, written by the test itself.
   add_test(
-    NAME ORION.python_read_tec
-    COMMAND ${Python3_EXECUTABLE} -B ${CMAKE_SOURCE_DIR}/src/python/test/read_tec.py
+    NAME ORION.python_read_p3d
+    COMMAND ${Python3_EXECUTABLE} -B ${CMAKE_SOURCE_DIR}/src/python/test/read_p3d.py
   )
   set_tests_properties(
-    ORION.python_read_tec
+    ORION.python_read_p3d
     PROPERTIES
       WORKING_DIRECTORY "${TEST_RUNTIME_DIR}"
-      DEPENDS ORION.tecplot_write
   )
+  # The Python reader reads back the Tecplot ASCII file of tecplot_write, which
+  # writes it only with TecIO (its binary writes come first).
+  if(USE_TECIO)
+    add_test(
+      NAME ORION.python_read_tec
+      COMMAND ${Python3_EXECUTABLE} -B ${CMAKE_SOURCE_DIR}/src/python/test/read_tec.py
+    )
+    set_tests_properties(
+      ORION.python_read_tec
+      PROPERTIES
+        WORKING_DIRECTORY "${TEST_RUNTIME_DIR}"
+        DEPENDS ORION.tecplot_write
+    )
+  endif()
 else()
-  message(STATUS "No Python 3 with NumPy: ORION.python_read_tec is not registered")
+  message(STATUS "No Python 3 with NumPy: the Python tests (ORION.python_*) are not registered")
 endif()

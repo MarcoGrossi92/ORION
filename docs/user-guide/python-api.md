@@ -1,6 +1,6 @@
 # Python API
 
-The Python API provides a convenient interface for reading and writing Tecplot ASCII files. It's designed for scripting, post-processing, and integration with scientific Python workflows.
+The Python API provides a convenient interface for reading and writing Tecplot ASCII files, and for reading PLOT3D grid files. It's designed for scripting, post-processing, and integration with scientific Python workflows.
 
 ## Installation
 
@@ -10,7 +10,7 @@ Install ORION via pip:
 pip install ORION
 ```
 
-This installs the Python package with support for Tecplot ASCII format.
+This installs the Python package with support for Tecplot ASCII and PLOT3D grid files. It needs only NumPy.
 
 ## Supported Formats
 
@@ -21,7 +21,7 @@ The Python API currently supports:
 | **Tecplot ASCII** | ✅ | ✅ | `.tec` files |
 | **Tecplot Binary** | ❌ | ❌ | Use Fortran API for `.plt`/`.szplt` |
 | **VTK** | ❌ | ❌ | Use Fortran API |
-| **PLOT3D** | ❌ | ❌ | Use Fortran API |
+| **PLOT3D** | ✅ | ❌ | Grid files, every common layout (ASCII and binary) |
 
 !!! note "Binary Format Support"
     For Tecplot binary formats and other file types, use the [Fortran API](fortran-api.md) or the command-line converter.
@@ -117,6 +117,48 @@ for iblock in range(nblocks):
         data = var[iblock][ivar]
         print(f"  {name}: [{data.min():.3e}, {data.max():.3e}]")
 ```
+
+## Reading PLOT3D Files
+
+`read_P3D` reads a PLOT3D grid file whatever its layout, which it detects from the file itself, by the
+rules of the Fortran reader `p3d_read_multiblock` (see [Supported Formats](supported-formats.md#plot3d-format)):
+ASCII, Fortran unformatted or C binary; either byte order; 4- or 8-byte integers and reals; multi-grid or
+single grid; 3D or 2D; with or without iblank; whole or planes.
+
+```python
+from ORION import read_P3D
+
+xb, yb, zb = read_P3D('grid.x')
+
+print(f"Blocks: {len(xb)}")
+for b, x in enumerate(xb):
+    print(f"Block {b+1}: {x.shape}")      # (I, J, K)
+```
+
+### Return Values
+
+`read_P3D` returns a tuple of three lists, with one NumPy array (`float64`) per block:
+
+1. **xb**: x-coordinates of each block, shape `(I, J, K)`, indexed `[i, j, k]` as in `read_TEC`
+2. **yb**: y-coordinates
+3. **zb**: z-coordinates; `None` for a 2D file, whose arrays have shape `(I, J, 1)`
+
+Coordinates of 4-byte reals are returned as `float64`. The iblank array of a file that has one is read
+past, as in the Fortran reader.
+
+### Errors
+
+The file is read only when exactly one PLOT3D layout matches its size (the count of its values for ASCII)
+and, for a Fortran unformatted file, its records. Otherwise `read_P3D` raises `ValueError` with the reason:
+
+```python
+try:
+    xb, yb, zb = read_P3D('grid.x')
+except ValueError as e:
+    print(e)    # grid.x: no PLOT3D layout matches the file: its Fortran records break at byte 985 (a truncated file?)
+```
+
+A file that cannot be opened raises `OSError` (`FileNotFoundError` for a missing file).
 
 ## Writing Tecplot Files
 

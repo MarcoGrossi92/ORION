@@ -72,6 +72,9 @@ logical :: node            ! Node or cell data location (default: .false.)
 character(6) :: format     ! 'binary' or 'ascii' (default: 'binary')
 ```
 
+`format` is an option of `p3d_write_multiblock`, which writes ASCII only (`'binary'` stops the program).
+`p3d_read_multiblock` does not use it: it detects the layout of the file (see *PLOT3D grids* below).
+
 ### Error Handling
 
 All I/O functions return an integer error code:
@@ -250,9 +253,14 @@ end program read_vtk_structured
   the cells of a zone with `IMax`, `JMax` or `KMax` = 1 (a surface, a line or a point, such as the faces of a volume
   block) one layer of cells in K at a time, or one row of cells in I at a time when `KMax` = 1: the TecIO reader
   gives some of them right only so.
-- **PLOT3D grids.** The first dimensions record decides the dimension of the whole file: two integers
-  (`Ni Nj`) give a two-dimensional grid (two coordinates, `Nk = 0`), three integers (`Ni Nj Nk`) a
-  three-dimensional one. Each block has its own dimensions record; a node count below 1 is refused.
+- **PLOT3D grids.** `p3d_read_multiblock` detects the layout of the file, whatever its name:
+    - encoding: ASCII, Fortran unformatted (record markers of 4 or 8 bytes; records over 2 GiB in
+      subrecords, as gfortran and ifx write them) or C binary (stream, no markers);
+    - binary numbers: either byte order, integers of 4 or 8 bytes, reals of 4 or 8 bytes;
+    - multi-grid (the file begins with the number of blocks) or single grid (it begins with the dimensions);
+    - 3D (`x`, `y`, `z`) or 2D (`x`, `y`: two coordinates, `Nk = 0`);
+    - with or without iblank (read past: ORION blocks have no blanking);
+    - whole (a block in one Fortran record) or planes (a record per `k` plane).
 - **VTK multi-block (`vtk_read_structured_multiblock`).** A block is read as two-dimensional when it has two node
   planes in k and every node has `z = 0`, the form in which `vtk_write_structured_multiblock` writes a
   two-dimensional mesh (two node planes with the same `x` and `y`, one layer of cells): `mesh` holds the two
@@ -415,23 +423,26 @@ end program read_vtk_structured
 
 ### PLOT3D Files
 
-PLOT3D typically uses separate grid and solution files. ORION is designed to handle just grids.
+PLOT3D typically uses separate grid and solution files. ORION is designed to handle just grids, in any
+of the layouts listed under *PLOT3D grids* above.
 
 ```fortran
 program read_plot3d
   use Lib_ORION_data
   use Lib_PLOT3D
   implicit none
-  
+
   type(orion_data) :: IOfield
+  character(len=:), allocatable :: msg
   integer :: E_IO
-  
-  ! Read both grid and solution files
-  E_IO = plot3d_read(filename='grid.p3d',orion=IOfield)
-  
+
+  ! Read a grid file: ASCII or binary, the layout is detected
+  E_IO = p3d_read_multiblock(orion=IOfield,filename='grid.x',errmsg=msg)
+
   if (E_IO == 0) then
-    print *, 'Successfully read PLOT3D files'
     print *, 'Number of blocks:', size(IOfield%block)
+  else
+    print *, 'Cannot read grid.x: ', msg
   endif
 end program read_plot3d
 ```
@@ -594,9 +605,10 @@ program write_plot3d
   
   type(ORION_data) :: IOfield
   integer :: E_IO
-  
-  ! Write grid and solution files
-  E_IO = plot3d_write(filename='output_grid.p3d',orion=IOfield)
+
+  ! Write the grid (ASCII, one value per line)
+  IOfield%p3d%format = 'ascii'
+  E_IO = p3d_write_multiblock(orion=IOfield,filename='output_grid.p3d')
 
 end program write_plot3d
 ```
