@@ -49,8 +49,8 @@ ORION provides three ways to work with scientific data:
 The fastest way to convert between formats without writing any code:
 
 ```bash
-ORION --input-format tecplot --input-file data.dat \
-      --output-format vtk --output-file output.vtk
+mkdir vtk
+ORION --in-file=data.tec --out-file=vtk/data.vtm
 ```
 
 **Best for:**
@@ -72,7 +72,7 @@ use Lib_Tecplot
 type(ORION_data) :: IOfield
 integer :: E_IO
 
-E_IO = tec_read_structured_multiblock(filename='data.dat', orion=IOfield)
+E_IO = tec_read_structured_multiblock(filename='data.tec', orion=IOfield)
 ```
 
 **Best for:**
@@ -90,11 +90,12 @@ Convenient Python interface for scripting and analysis:
 ```python
 from ORION import read_TEC
 
-x, y, z, var, varnames = read_TEC('data.dat')
+x, y, z, var, varnames = read_TEC('data.tec')
 ```
 
 !!! note "Limited IO"
-    Python API may be used only for **reading**.
+    The Python API **reads and writes** Tecplot ASCII files and **reads** PLOT3D grids. VTK and Tecplot binary files are
+    handled by the Fortran API and the converter.
 
 **Best for:**
 
@@ -110,9 +111,9 @@ ORION supports the following scientific data formats:
 | Format | Description | Fortran | Python | Command-line |
 |--------|-------------|---------|--------|--------------|
 | **Tecplot ASCII** | Text-based format | ✅ Read/Write | ✅ Read/Write | ✅ |
-| **Tecplot Binary** | Binary format | ✅ Read/Write¹ | ❌ | ✅¹ |
-| **VTK** | Visualization Toolkit format | ✅ Read/Write | ❌ | ✅ |
-| **PLOT3D** | NASA structured grid format | ✅ Read/Write | ❌ | ✅ |
+| **Tecplot Binary** | Binary format | ✅ Read `.szplt`, write `.szplt` and `.plt`¹ | ❌ | ✅¹ |
+| **VTK** | Visualization Toolkit XML multi-block (`.vtm`) | ✅ Read/Write | ❌ | ✅ |
+| **PLOT3D** | NASA structured grid format (grids) | ✅ Read/Write (ASCII) | ✅ Read | ✅ |
 
 ¹ Requires building with `--use-tecio` flag
 
@@ -125,18 +126,17 @@ ORION supports the following scientific data formats:
 All ORION interfaces support multi-block structured grids:
 
 - **Fortran:** Iterate over blocks with array indexing
-- **Python:** Index into block dimension of NumPy arrays
+- **Python:** Lists with one NumPy array per block (`x[iblock]`, `var[iblock][ivar]`)
 - **Converter:** Automatically handles multi-block files
 
 ## Troubleshooting
 
 ### Common Issues
 
-**"Format not supported"**
+**"unsupported input format" / "unsupported output format"**
 
-- Check that format is spelled correctly
-- Verify file extension matches format
-- For binary Tecplot, ensure TecIO is enabled
+- The format of a file is that of its extension: `.dat` `.tec` `.szplt` `.p3d` `.vtm`
+- For binary Tecplot (`.szplt`, `.plt`), ensure TecIO is enabled
 
 **"Out of memory"**
 
@@ -171,7 +171,7 @@ All ORION interfaces support multi-block structured grids:
 ## Additional Resources
 
 ### Examples
-- **Examples:** Complete working examples in `src/lib/test`
+- **Examples:** Complete working examples in `src/fortran/test` (Fortran) and `src/python/test` (Python)
 
 ### External Resources
 - [Tecplot File Format Guide](https://www.tecplot.com)

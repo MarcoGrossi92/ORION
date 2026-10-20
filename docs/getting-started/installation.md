@@ -7,9 +7,9 @@ This guide covers installing ORION for both Fortran and Python users.
 Before installing ORION, ensure you have the required dependencies:
 
 - **CMake** ≥ 3.13
-- **Fortran compiler**: Intel (`ifort`/`ifx`) or GNU (`gfortran`)
-- **C++ compiler**: Required for TecIO binary format support (optional)
-- **Python** ≥ 3.6: For Python interface (optional)
+- **Fortran compiler**: GNU (`gfortran`) or Intel (`ifx`, `ifort`)
+- **C++ compiler**: CMake enables C++ for the project, and TecIO (binary Tecplot support) is written in it
+- **Python** ≥ 3.6 with **NumPy**: for the Python interface (optional)
 
 ## Installation Methods
 
@@ -17,46 +17,48 @@ Choose the installation method that best fits your needs:
 
 === "From Source (Fortran)"
 
-    Build the Fortran library and command-line converter:
+    Build the Fortran library, the command-line converter and the tests:
 
     ```bash
     git clone https://github.com/MarcoGrossi92/ORION.git
     cd ORION
-    ./install.sh build --compiler=gnu --use-tecio
+    ./install.sh build --compilers=gnu --use-tecio
     ```
 
     This creates:
-    - Static library: `lib/libORION.a`
-    - Converter executable: `bin/app/ORION`
+
+    - Static library: `build/src/fortran/lib/libORION.a`, with its Fortran modules in `build/modules/`
+    - Converter executable: `bin/app/converter`
     - Test executables: `bin/test/`
 
-=== "Via pip (Python)"
+=== "Python"
 
-    Install the Python package:
+    Install the Python package from a clone of the repository:
 
     ```bash
-    pip install ORION
+    git clone https://github.com/MarcoGrossi92/ORION.git
+    cd ORION
+    pip install .
     ```
 
-    This provides Python bindings for Tecplot ASCII format only.
+    This installs NumPy, the only dependency, if it is missing, and provides Python reading and writing of Tecplot ASCII
+    files and reading of PLOT3D grid files.
 
 === "Both Fortran and Python"
 
-    Install Fortran library first, then Python package:
+    Build the Fortran library first, then install the Python package, from the ORION folder:
 
     ```bash
-    # Build Fortran library
     git clone https://github.com/MarcoGrossi92/ORION.git
     cd ORION
-    ./install.sh build --compiler=gnu --use-tecio
-    
-    # Install Python package
-    pip install ORION
+    ./install.sh build --compilers=gnu --use-tecio
+
+    pip install .
     ```
 
 ## Build Options
 
-The `install.sh` script provides flexible build configuration:
+The `install.sh` script provides the build configuration:
 
 ### Basic Syntax
 
@@ -68,13 +70,15 @@ The `install.sh` script provides flexible build configuration:
 
 | Option | Description |
 |--------|-------------|
+| `-h, --help` | Show the help message |
 | `-v, --verbose` | Enable verbose output for debugging |
 
 ### Commands
 
 **build**
 
-Perform a complete build from scratch:
+Perform a complete build from scratch, in `build/` (an existing `build/` is deleted): a Release build of the library, the
+converter and the tests. It also writes `CMakePresets.json`, which `scripts/compile.sh` uses (see below).
 
 ```bash
 ./install.sh build [OPTIONS]
@@ -84,41 +88,47 @@ Perform a complete build from scratch:
 
 | Option | Values | Description |
 |--------|--------|-------------|
-| `--compiler` | `gnu`, `intel` | Select compiler suite (default: `gnu`) |
-| `--use-tecio` | — | Enable TecIO for binary Tecplot formats |
+| `--compilers=<name>` | `gnu`, `intel` | Select the compiler suite: `gnu` uses `gfortran` and `g++`, `intel` uses `ifx` and `icpx`. Without it CMake chooses the compilers (the environment variables `FC` and `CXX` apply) |
+| `--use-tecio` | — | Build with TecIO, for binary Tecplot files. Without it the build has no binary Tecplot support |
 
 **Examples:**
 
 ```bash
-# Build with GNU compiler, no TecIO
-./install.sh build --compiler=gnu
+# Build with GNU compilers, no TecIO
+./install.sh build --compilers=gnu
 
-# Build with Intel compiler and TecIO support
-./install.sh build --compiler=intel --use-tecio
+# Build with Intel compilers and TecIO support
+./install.sh build --compilers=intel --use-tecio
 
 # Verbose build with all features
-./install.sh -v build --compiler=gnu --use-tecio
+./install.sh -v build --compilers=gnu --use-tecio
 ```
 
-**compile**
+!!! note "Calling CMake directly"
+    `install.sh` is a thin layer over CMake. When you run `cmake` yourself, the option `USE_TECIO` is **ON** by default
+    (`-DUSE_TECIO=OFF` turns it off), while `install.sh` builds without TecIO unless `--use-tecio` is given.
 
-Recompile using existing CMake configuration stored in `CMakePresets.json`:
+**Rebuilding**
+
+After modifying the source code, rebuild with the configuration stored in `CMakePresets.json`, without reconfiguring by
+hand:
 
 ```bash
-./install.sh compile
+./scripts/compile.sh      # add -v for verbose output
 ```
 
-Use this after modifying source code to avoid reconfiguring the build system.
+**Setting the converter command**
 
-**setvars**
-
-Set environment variables to use the converter from any directory:
+The converter is the executable `bin/app/converter`. To use it from any directory as the command `ORION`, source the
+script in your shell (bash):
 
 ```bash
-./install.sh setvars
+source scripts/setvars.sh
 ```
 
-After running this command, you can call `ORION` from any shell location.
+It sets `ORIONDIR` to the ORION folder and defines the shell function `ORION`, which runs `bin/app/converter`, for the
+current shell only: it does not modify your shell configuration files. The examples of this documentation use `ORION`.
+See [Environment Setup](#environment-setup) to make it permanent.
 
 ## Compiler-Specific Instructions
 
@@ -131,7 +141,7 @@ Most systems come with GNU compilers pre-installed:
 gfortran --version
 
 # Build ORION
-./install.sh build --compiler=gnu --use-tecio
+./install.sh build --compilers=gnu --use-tecio
 ```
 
 **Intel Compiler**
@@ -143,12 +153,13 @@ For Intel oneAPI compilers:
 source /opt/intel/oneapi/setvars.sh
 
 # Build ORION
-./install.sh build --compiler=intel --use-tecio
+./install.sh build --compilers=intel --use-tecio
 ```
 
 ## TecIO Support
 
-TecIO enables reading and writing binary Tecplot formats (`.plt`, `.szplt`). When you use `--use-tecio`, the build system automatically compiles TecIO and links it with ORION.
+TecIO enables reading and writing binary Tecplot files: ORION writes `.plt` and `.szplt` files and reads `.szplt` files.
+When you use `--use-tecio`, the build system automatically compiles TecIO and links it with ORION.
 
 TecIO is a C++ library built using `boost`. If a boost system installation is present, that one is used to build TecIO, otherwise, the boost files shipped with ORION will be used. TecIO building provides two folders in `lib/TecIO`:
 
@@ -170,39 +181,45 @@ After installation, verify everything works:
 **Test the Converter**
 
 ```bash
+source scripts/setvars.sh
+
 # Display help
 ORION --help
-
-# Test with sample data (if available)
-ORION --input-format tecplot --input-file test.dat \
-      --output-format vtk --output-file test.vtk
 ```
+
+[Quick Start](quick-start.md) converts a sample file step by step.
 
 **Run Test Suite**
 
 ```bash
-./scripts/test.sh
+ctest --test-dir build --output-on-failure
 ```
 
-This executes all Fortran unit tests and reports results.
+This runs the Fortran tests, which `install.sh build` has compiled (`ORION.<name>` in the list of `ctest`), and the Python
+tests, which are registered when CMake finds a Python 3 with NumPy. Run one test with `ctest --test-dir build -R tecplot_read`.
 
 **Test Python Installation**
 
 ```python
 # In Python shell
-import ORION
-print(ORION.__version__)
+from importlib.metadata import version
+print(version('ORION'))
 
 # Test reading a file
 from ORION import read_TEC
-# x, y, z, var, varnames = read_TEC('yourfile.dat')
+# x, y, z, var, varnames = read_TEC('yourfile.tec')
 ```
 
 ## Environment Setup
 
-To use the `ORION` converter from anywhere, add to your shell configuration:
+To have the `ORION` command in every new bash shell, add this line to `~/.bashrc`:
 
-**Bash/Zsh (~/.bashrc or ~/.zshrc):**
+```bash
+source /path/to/ORION/scripts/setvars.sh
+```
+
+Another way, for any shell, is to put the folder of the executable in your `PATH`; the command is then `converter`, not
+`ORION`:
 
 ```bash
 export PATH="/path/to/ORION/bin/app:$PATH"
@@ -214,26 +231,48 @@ Then reload your shell:
 source ~/.bashrc  # or source ~/.zshrc
 ```
 
-This operation should be performed by `setvars` command of `install.sh`.
-
 ## Library Linking (Advanced)
 
-To link ORION in external Fortran projects:
+**As a CMake subproject**
 
-```bash
-# Compile your program
-gfortran -I/path/to/ORION/include \
-         -L/path/to/ORION/lib \
-         -lORION \
-         your_program.f90 -o your_program
-```
-
-Or use CMake's `find_package`:
+This is how other projects use ORION. Add the ORION folder (a git submodule, for instance) and link the target `ORION`.
+When ORION is not the top-level project, CMake builds the library only, not the converter and the tests:
 
 ```cmake
-find_package(ORION REQUIRED)
-target_link_libraries(your_target ORION::ORION)
+project(your_project LANGUAGES Fortran CXX)
+
+add_subdirectory(path/to/ORION ORION)
+
+# ORION writes its Fortran modules to <top-level build directory>/modules
+set(CMAKE_Fortran_MODULE_DIRECTORY "${CMAKE_BINARY_DIR}/modules")
+
+add_executable(your_program your_program.f90)
+target_link_libraries(your_program ORION)
+target_include_directories(your_program PRIVATE ${CMAKE_Fortran_MODULE_DIRECTORY})
 ```
+
+The option `USE_TECIO` (default ON) applies to the subproject as well; set it before `add_subdirectory` to change it
+(`set(USE_TECIO OFF CACHE BOOL "" FORCE)`).
+
+**With a compiler command**
+
+Against a library built by `install.sh` without TecIO:
+
+```bash
+gfortran -I/path/to/ORION/build/modules your_program.f90 \
+         /path/to/ORION/build/src/fortran/lib/libORION.a -o your_program
+```
+
+With TecIO, add the TecIO library and the C++ runtime:
+
+```bash
+gfortran -I/path/to/ORION/build/modules your_program.f90 \
+         /path/to/ORION/build/src/fortran/lib/libORION.a \
+         /path/to/ORION/lib/TecIO/tecio-install-GNU/lib/libtecio.a \
+         -lstdc++ -lpthread -lm -o your_program
+```
+
+ORION has no `install` step, so it is not found with `find_package`.
 
 ## Troubleshooting
 
@@ -252,6 +291,10 @@ brew install cmake
 cmake --version
 ```
 
+**"Unknown option '--compiler=gnu'"**
+
+The option is `--compilers` (with an `s`), e.g. `./install.sh build --compilers=gnu`.
+
 **"Compiler not found" Error**
 
 Ensure your compiler is in PATH:
@@ -260,8 +303,8 @@ Ensure your compiler is in PATH:
 # For GNU
 which gfortran
 
-# For Intel (after sourcing setvars.sh)
-which ifort
+# For Intel (after sourcing oneAPI's setvars.sh)
+which ifx
 ```
 
 **TecIO Build Errors**
@@ -269,8 +312,12 @@ which ifort
 If TecIO compilation fails:
 
 1. Ensure C++ compiler is available: `which g++`
-2. Try building without TecIO first: `./install.sh build --compiler=gnu`
+2. Try building without TecIO first: `./install.sh build --compilers=gnu`
 3. Check compiler compatibility with TecIO documentation
+
+**"ORION: command not found"**
+
+The command exists in a shell after `source scripts/setvars.sh`; or call `bin/app/converter` directly.
 
 **Python Import Fails**
 
@@ -278,10 +325,12 @@ If TecIO compilation fails:
 # Ensure ORION is installed
 pip list | grep ORION
 
-# Reinstall if needed
+# Reinstall if needed, from the ORION folder
 pip uninstall ORION
-pip install ORION
+pip install .
 ```
+
+If the import of `numpy` fails, install NumPy: `pip install numpy` (`pip install .` installs it).
 
 ## Next Steps
 

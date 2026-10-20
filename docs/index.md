@@ -18,18 +18,22 @@ Scientific computing often requires handling data in various formats depending o
 
 | Format | Fortran Read | Fortran Write | Python Read | Python Write |
 |--------|--------------|---------------|-------------|--------------|
-| **Tecplot ASCII** | ✅ | ✅ | ✅ | ✅ |
-| **Tecplot Binary** (PLT/SZPLT) | ✅ | ✅ | ❌ | ❌ |
-| **VTK** | ✅ | ✅ | ❌ | ❌ |
-| **PLOT3D** | ✅ | ✅ | ❌ | ❌ |
+| **Tecplot ASCII** (`.dat`, `.tec`) | ✅ | ✅ | ✅ | ✅ |
+| **Tecplot Binary** (`.szplt`, `.plt`) | ✅ (`.szplt`)¹ | ✅ (`.szplt`, `.plt`)¹ | ❌ | ❌ |
+| **VTK** (`.vtm` + `.vts`) | ✅ | ✅ | ❌ | ❌ |
+| **PLOT3D** (grids) | ✅ | ✅ (ASCII) | ✅ | ❌ |
+
+¹ Requires building with TecIO (`--use-tecio`)
+
+See [Supported Formats](user-guide/supported-formats.md) for the details of each format.
 
 ## Quick Example
 
 Convert a Tecplot file to VTK format:
 
 ```bash
-ORION --input-format tecplot --input-file simulation.dat \
-      --output-format vtk --output-file visualization.vtk
+mkdir vtk
+ORION --in-file=simulation.tec --out-file=vtk/simulation.vtm
 ```
 
 Read the same data in Fortran:
@@ -41,7 +45,7 @@ use Lib_Tecplot
 type(ORION_data) :: IOfield
 integer :: E_IO
 
-E_IO = tec_read_structured_multiblock(filename='simulation.dat', orion=IOfield)
+E_IO = tec_read_structured_multiblock(filename='simulation.tec', orion=IOfield)
 if (E_IO == 0) print *, 'Variables:', IOfield%varnames
 ```
 
@@ -50,7 +54,7 @@ Or in Python:
 ```python
 from ORION import read_TEC
 
-x, y, z, var, varnames = read_TEC('simulation.dat')
+x, y, z, var, varnames = read_TEC('simulation.tec')
 print(f"Loaded {len(varnames)} variables: {varnames}")
 ```
 
@@ -58,7 +62,7 @@ print(f"Loaded {len(varnames)} variables: {varnames}")
 
 New to ORION? Follow these steps:
 
-1. **[Install ORION](getting-started/installation.md)** - Build from source or install via pip
+1. **[Install ORION](getting-started/installation.md)** - Build from source, and install the Python package with pip
 2. **[Quick Start Tutorial](getting-started/quick-start.md)** - Learn the basics with a hands-on example
 
 ## Documentation Structure

@@ -8,7 +8,7 @@ Before starting, ensure you have:
 
 - ✅ ORION installed ([Installation Guide](installation.md))
 - ✅ A terminal/command prompt
-- ✅ (Optional) Python 3.6+ for Python examples
+- ✅ (Optional) Python 3.6+ and the ORION package (`pip install .` in the ORION folder) for the Python example
 
 ## Your First Conversion
 
@@ -16,67 +16,118 @@ Let's start with the simplest use case: converting a file using the command-line
 
 ### Step 1: Verify Installation
 
-Check that ORION is accessible:
+Check that the converter is accessible. From the ORION folder, define the `ORION` command in your shell and ask for the
+help:
 
 ```bash
-# Check if converter is in PATH
+source scripts/setvars.sh
 ORION --help
-
-# If not found, use full path
-/path/to/ORION/bin/app/ORION --help
 ```
 
-You should see the help message with available options.
+You should see the help message with the available options:
 
-### Step 2: Download Sample Data
+```
+ File format converter. Supported formats: PLOT3D, Tecplot, VTK
 
-We'll use a simple Tecplot file for testing. Create a sample file:
+ Usage: ORION --in-file=<file> --out-file=<file> [options]
+   The format of a file is that of its extension: .dat .tec .szplt (Tecplot), .p3d (PLOT3D), .vtm (VTK)
+
+ Options:
+   -h, --help              Display this help message
+   ...
+```
+
+`ORION` runs the executable `bin/app/converter`; you can also call that executable directly (see
+[Environment Setup](installation.md#environment-setup)).
+
+### Step 2: Create Sample Data
+
+We'll use a small Tecplot file: one block of 5 x 5 x 5 nodes (4 x 4 x 4 cells) with a variable, `Temperature`, at the
+cells. The command below writes it with `awk`; any other way of writing the same lines is fine:
 
 ```bash
-cat > sample.dat << 'EOF'
-VARIABLES = "X", "Y", "Z", "Temperature"
-ZONE T="Sample Block", I=5, J=5, K=5
-0.0 0.0 0.0 300.0
-0.25 0.0 0.0 305.0
-0.5 0.0 0.0 310.0
-0.75 0.0 0.0 315.0
-1.0 0.0 0.0 320.0
-0.0 0.25 0.0 302.0
-0.25 0.25 0.0 307.0
-# ... (simplified for brevity)
-EOF
+awk 'BEGIN {
+  n = 5
+  print "VARIABLES = x y z Temperature"
+  printf "ZONE T=\"Sample\", I=%d, J=%d, K=%d, DATAPACKING=BLOCK, VARLOCATION=([4]=CELLCENTERED)\n", n, n, n
+  # the x, then the y, then the z of the nodes (i fastest), one value per line
+  for (c = 0; c < 3; c++) for (k = 0; k < n; k++) for (j = 0; j < n; j++) for (i = 0; i < n; i++)
+    print (c == 0 ? i : (c == 1 ? j : k)) / (n - 1)
+  # the temperature of the cells
+  for (k = 0; k < n - 1; k++) for (j = 0; j < n - 1; j++) for (i = 0; i < n - 1; i++)
+    print 300 + 5 * (i + j + k)
+}' > sample.tec
+```
+
+The file starts with:
+
+```
+VARIABLES = x y z Temperature
+ZONE T="Sample", I=5, J=5, K=5, DATAPACKING=BLOCK, VARLOCATION=([4]=CELLCENTERED)
+0
+0.25
 ```
 
 ### Step 3: Convert to VTK
 
-Now convert the Tecplot file to VTK format:
+Now convert the Tecplot file to VTK format. A VTK output is a `.vtm` file and one `.vts` file for each block, written next
+to it, so give it a directory of its own:
 
 ```bash
-ORION --input-format tecplot --input-file sample.tec \
-      --output-format vtk --output-file sample.vtk
+mkdir vtk
+ORION --in-file=sample.tec --out-file=vtk/sample.vtm
 ```
 
-You should see output like:
+The converter takes the formats from the extensions of the files and prints:
+
 ```
-Reading Tecplot file: sample.tec
-Writing VTK file: sample.vtk
-Conversion complete!
+ - Input file  : sample.tec
+ - Output file : vtk/sample.vtm
+
+
+ Done!
 ```
 
 ### Step 4: Verify Output
 
-Check that the output file was created:
+Check that the output files were created:
 
 ```bash
-ls -lh sample.vtk
-head -20 sample.vtk  # View file header
+ls vtk
+cat vtk/sample.vtm
 ```
 
-The VTK file should contain the same data in VTK format.
+```
+Block1.vts  sample.vtm
+<?xml version="1.0"?>
+<VTKFile type="vtkMultiBlockDataSet" version="1.0" byte_order="LittleEndian">
+  <vtkMultiBlockDataSet>
+    <Block index="0">
+      <DataSet index="0" file="Block1.vts"/>
+    </Block>
+  </vtkMultiBlockDataSet>
+</VTKFile>
+```
+
+`Temperature` was at the cells in the Tecplot file, so it is cell data in `Block1.vts`. The converter reads the VTK files
+back as well:
+
+```bash
+ORION --in-file=vtk/sample.vtm --out-file=back.tec
+head -2 back.tec
+```
+
+```
+ VARIABLES = x y z  Temperature
+ ZONE  T = Block1, I=5, J=5, K=5, DATAPACKING=BLOCK, VARLOCATION=([1-3]=NODAL,[4]=CELLCENTERED), SOLUTIONTIME=0.00000000000000000E+000, STRANDID=1
+```
+
+The variables keep their names (`Temperature` is the name of the array in `Block1.vts`) and the blocks are named `Block1`,
+`Block2`, .... See the [Converter guide](../user-guide/converter.md) for the other formats and options.
 
 ## Using the Fortran API
 
-Now let's write a simple Fortran program that reads and processes data.
+Now let's write a simple Fortran program that reads and processes the same data.
 
 ### Create a Fortran Program
 
@@ -87,66 +138,49 @@ program my_first_program
   use Lib_ORION_data
   use Lib_Tecplot
   implicit none
-  
-  type(ORION_data) :: IOfield
-  integer :: E_IO
-  real :: max_temp, min_temp
-  
-  ! Read the sample file
-  print *, '=== ORION Quick Start Example ==='
-  print *, 'Reading sample.dat...'
-  
-  E_IO = tec_read_structured_multiblock(filename='sample.dat', orion=IOfield)
-  
-  if (E_IO /= 0) then
-    print *, 'Error reading file!'
-    stop 1
-  endif
-  
-  ! Print file information
-  print *, 'Successfully read file!'
-  print *, 'Number of blocks:', IOfield%nblocks
-  print *, 'Variables:', trim(IOfield%varnames)
-  print *, 'Block 1 dimensions:', IOfield%blockdims(:, 1)
-  
-  ! Find min/max temperature (assuming it's the first variable)
-  if (allocated(IOfield%var(1)%values)) then
-    min_temp = minval(IOfield%var(1)%values(:,:,:,1))
-    max_temp = maxval(IOfield%var(1)%values(:,:,:,1))
-    
-    print *, 'Temperature range:', min_temp, 'to', max_temp
-  endif
-  
-  print *, '=== Done! ==='
-  
+
+  type(orion_data) :: IOfield
+  integer :: E_IO, i
+
+  E_IO = tec_read_structured_multiblock(filename='sample.tec', orion=IOfield)
+  if (E_IO /= 0) stop 'Error reading sample.tec'
+
+  print '(A,I0)', 'Number of blocks: ', size(IOfield%block)
+  print '(A,*(1X,A))', 'Variables:', (trim(IOfield%varnames(i)), i = 1, size(IOfield%varnames))
+  print '(A,3(1X,I0))', 'Cells of block 1 (Ni Nj Nk):', IOfield%block(1)%Ni, IOfield%block(1)%Nj, IOfield%block(1)%Nk
+  ! The first solution variable (after x, y and z) is vars(1,...), at the cells: vars(1,1:Ni,1:Nj,1:Nk)
+  print '(A,F6.1,A,F6.1)', 'Temperature range: ', minval(IOfield%block(1)%vars(1,:,:,:)), ' to ', &
+                                                  maxval(IOfield%block(1)%vars(1,:,:,:))
 end program my_first_program
 ```
 
 ### Compile and Run
 
-Compile the program:
+Compile the program against the library and its modules (`ORIONDIR`, the ORION folder, is set by `scripts/setvars.sh`;
+a library built without `--use-tecio` needs nothing else):
 
 ```bash
-# With GNU compiler
-gfortran -I/path/to/ORION/include \
-         -L/path/to/ORION/lib \
-         -lORION \
-         my_first_program.f90 -o my_first_program
+gfortran -I$ORIONDIR/build/modules my_first_program.f90 \
+         $ORIONDIR/build/src/fortran/lib/libORION.a -o my_first_program
 
-# Run it
 ./my_first_program
 ```
 
-Expected output:
+With a library built with `--use-tecio`, link TecIO as well:
+
+```bash
+gfortran -I$ORIONDIR/build/modules my_first_program.f90 \
+         $ORIONDIR/build/src/fortran/lib/libORION.a \
+         $ORIONDIR/lib/TecIO/tecio-install-GNU/lib/libtecio.a -lstdc++ -lpthread -lm -o my_first_program
 ```
-=== ORION Quick Start Example ===
-Reading sample.dat...
-Successfully read file!
+
+Expected output:
+
+```
 Number of blocks: 1
-Variables: Temperature
-Block 1 dimensions: 5 5 5
-Temperature range: 300.0 to 320.0
-=== Done! ===
+Variables: x y z Temperature
+Cells of block 1 (Ni Nj Nk): 4 4 4
+Temperature range:  300.0 to  345.0
 ```
 
 ## Using the Python API
@@ -158,34 +192,23 @@ Let's do the same thing with Python.
 Create `my_first_script.py`:
 
 ```python
-#!/usr/bin/env python3
-"""ORION Quick Start Example - Python"""
-
-from ORION import read_TEC
 import numpy as np
+from ORION import read_TEC
 
-print("=== ORION Quick Start Example (Python) ===")
-print("Reading sample.dat...")
+x, y, z, var, varnames = read_TEC('sample.tec')
 
-# Read the file
-x, y, z, var, varnames = read_TEC('sample.dat')
-
-print("Successfully read file!")
+print(f"Number of blocks: {len(x)}")
 print(f"Variables: {varnames}")
-print(f"Grid shape: {x.shape}")
+print(f"Nodes of block 1: {x[0].shape}")
 
-# Analyze temperature (first variable)
-temperature = var[0][0]  # Block 0, variable 0
+temperature = var[0][0]  # block 0, first variable after x, y and z: its values at the cells
+print(f"Cells of block 1: {temperature.shape}")
+print(f"Temperature range: {temperature.min():.1f} to {temperature.max():.1f}")
+print(f"Mean temperature: {temperature.mean():.1f}")
 
-print(f"Temperature range: {temperature.min():.2f} to {temperature.max():.2f}")
-print(f"Mean temperature: {temperature.mean():.2f}")
-
-# Find location of maximum temperature
-max_idx = np.unravel_index(temperature.argmax(), temperature.shape)
-print(f"Max temperature location: i={max_idx[0]}, j={max_idx[1]}, k={max_idx[2]}")
-print(f"Coordinates: x={x[0][max_idx]:.2f}, y={y[0][max_idx]:.2f}, z={z[0][max_idx]:.2f}")
-
-print("=== Done! ===")
+# The cell of the maximum, and its first node
+i, j, k = np.unravel_index(temperature.argmax(), temperature.shape)
+print(f"Maximum in cell i={i}, j={j}, k={k}; first node at x={x[0][i, j, k]:.2f}, y={y[0][i, j, k]:.2f}, z={z[0][i, j, k]:.2f}")
 ```
 
 ### Run the Script
@@ -195,62 +218,58 @@ python3 my_first_script.py
 ```
 
 Expected output:
+
 ```
-=== ORION Quick Start Example (Python) ===
-Reading sample.dat...
-Successfully read file!
-Variables: ['Temperature']
-Grid shape: (1, 5, 5, 5)
-Temperature range: 300.00 to 320.00
-Mean temperature: 310.00
-Max temperature location: i=4, j=4, k=4
-Coordinates: x=1.00, y=1.00, z=1.00
-=== Done! ===
+Number of blocks: 1
+Variables: ['x', 'y', 'z', 'Temperature']
+Nodes of block 1: (5, 5, 5)
+Cells of block 1: (4, 4, 4)
+Temperature range: 300.0 to 345.0
+Mean temperature: 322.5
+Maximum in cell i=3, j=3, k=3; first node at x=0.75, y=0.75, z=0.75
 ```
 
 ## Troubleshooting
 
 ### "ORION: command not found"
 
-**Solution:** Add ORION to your PATH or use the full path:
+**Solution:** The command exists in the shell where you ran `source scripts/setvars.sh`. Run it there (from the ORION folder),
+or call the executable by its path, or put its folder in your `PATH`:
 
 ```bash
-# Temporary
-export PATH="/path/to/ORION/bin/app:$PATH"
+/path/to/ORION/bin/app/converter --help
 
-# Permanent
-echo 'export PATH="/path/to/ORION/bin/app:$PATH"' >> ~/.bashrc
-source ~/.bashrc
+export PATH="/path/to/ORION/bin/app:$PATH"   # then the command is `converter`
 ```
 
-### "Error reading file"
+### An `ERROR` line from the converter
 
-**Solution:** Check that:
+**Solution:** The converter prints a line that begins with `ERROR`, and ends with the exit status 1, when it cannot read
+its input or write its output. Check that:
 
-1. File exists and is readable: `ls -l filename.dat`
-2. File format is correct: `file filename.dat`
-3. Format specification matches file type
+1. The file exists and is readable: `ls -l sample.tec`
+2. The extension of the file is that of its format (`.dat`, `.tec`, `.szplt`, `.p3d`, `.vtm`)
+3. The output directory exists (`mkdir vtk`)
 
-### "Module not found" (Fortran)
+The [Converter guide](../user-guide/converter.md#troubleshooting) lists the messages.
 
-**Solution:** Ensure you're linking correctly:
+### "Cannot open module file" (Fortran)
+
+**Solution:** Point the compiler to the modules of the library, and check that the library is there:
 
 ```bash
-# Verify library exists
-ls -l /path/to/ORION/lib/libORION.a
-
-# Check include path
-ls -l /path/to/ORION/include/
+ls $ORIONDIR/build/modules/lib_tecplot.mod
+ls $ORIONDIR/build/src/fortran/lib/libORION.a
 ```
 
 ### "ImportError: No module named ORION" (Python)
 
-**Solution:** Install the Python package:
+**Solution:** Install the Python package from the ORION folder (it installs NumPy if it is missing):
 
 ```bash
-pip install ORION
+pip install .
 
-# Or if already installed, verify
+# Verify
 pip list | grep ORION
 ```
 

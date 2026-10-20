@@ -10,7 +10,7 @@ Welcome to the ORION getting started guide! This section will help you install O
 
     ---
 
-    Build from source or install via pip
+    Build from source, and install the Python package with pip
 
     [:octicons-arrow-right-24: Install ORION](installation.md)
 

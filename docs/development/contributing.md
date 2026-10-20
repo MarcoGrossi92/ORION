@@ -32,11 +32,11 @@ cd ORION
 # Add upstream remote
 git remote add upstream https://github.com/MarcoGrossi92/ORION.git
 
-# Install development dependencies
-./install.sh build --compiler=gnu --use-tecio
+# Build the library, the converter and the tests
+./install.sh build --compilers=gnu --use-tecio
 
 # Run tests to verify setup
-./scripts/test.sh
+ctest --test-dir build --output-on-failure
 ```
 
 ### 4. Create a Branch
@@ -53,18 +53,20 @@ Use descriptive branch names:
 - `fix/tecplot-binary-crash`
 - `docs/improve-installation`
 
+Open the pull request against `main`.
+
 ## Development Workflow
 
 ### Making Changes
 
-1. **Write clear, focused commits:**
+1. **Write clear, focused commits:** the subject begins with the part of ORION that changes, the body says why
+   (see [Commit Messages](index.md#commit-messages)):
    ```bash
    git add file1.f90 file2.f90
-   git commit -m "Add support for HDF5 format reading
+   git commit -m "Tecplot writer: refuse a block with fewer variables than those written
    
-   - Implement HDF5 reader module
-   - Add tests for HDF5 functionality
-   - Update documentation"
+   The writer took vars(1:Nvar,...) of each block, so a block with fewer
+   variables was read past the end of its vars."
    ```
 
 2. **Follow coding standards:**
@@ -72,41 +74,29 @@ Use descriptive branch names:
    - Python: PEP 8 style guide
    - Use 2 spaces for indentation in Fortran, 4 in Python
 
-3. **Add tests for new features:**
-   ```fortran
-   ! In src/fortran/test/
-   program test_new_feature
-     use Lib_ORION_data
-     use Lib_NewFormat
-     
-     ! Test code here
-     
-   end program test_new_feature
-   ```
+3. **Add tests for new features:** a program in `src/fortran/test/` is compiled and registered with `ctest` by CMake,
+   with no other step (see [Writing Tests](index.md#writing-tests))
 
 4. **Update documentation:**
    - Add docstrings to new functions
-   - Update relevant .md files in `docs/`
+   - Update relevant .md files in `docs/`, and check their commands and examples against the code
    - Add examples if appropriate
+   - Describe the change under `[Unreleased]` in `CHANGELOG.md`
 
 ### Testing Your Changes
 
 Run the test suite before submitting:
 
 ```bash
-# Run all tests
-./scripts/test.sh
+# Run all tests (Fortran, and the Python ones when CMake finds Python 3 with NumPy)
+ctest --test-dir build --output-on-failure
 
 # Run specific test
-./bin/test/test_tecplot_read
+ctest --test-dir build -R tecplot_read
 ```
 
-For Python changes:
-
-```bash
-cd src/python
-python -m pytest test/
-```
+The Python tests are scripts in `src/python/test/`, which `ctest` runs (`ORION.python_read_tec`, `ORION.python_read_p3d`):
+rebuild first (`./scripts/compile.sh`) if you changed Fortran code that they read the output of.
 
 ### Keeping Your Fork Updated
 
@@ -165,8 +155,9 @@ Why is this change needed?
 How were these changes tested?
 
 ## Checklist
-- [ ] Tests pass
+- [ ] Tests pass (`ctest --test-dir build --output-on-failure`)
 - [ ] Documentation updated
+- [ ] `CHANGELOG.md` updated
 - [ ] Code follows style guidelines
 - [ ] Commit messages are clear
 ```
@@ -263,7 +254,7 @@ When reporting bugs, include:
 2. **Steps to reproduce:**
    ```bash
    # Exact commands that trigger the bug
-   ORION --input-format tecplot --input-file test.dat ...
+   ORION --in-file=test.dat --out-file=vtk/test.vtm
    ```
 
 3. **Expected vs actual behavior:**

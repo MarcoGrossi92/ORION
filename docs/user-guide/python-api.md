@@ -4,13 +4,13 @@ The Python API provides a convenient interface for reading and writing Tecplot A
 
 ## Installation
 
-Install ORION via pip:
+Install the Python package from a clone of the repository, in the ORION folder:
 
 ```bash
-pip install ORION
+pip install .
 ```
 
-This installs the Python package with support for Tecplot ASCII and PLOT3D grid files. It needs only NumPy.
+This installs the Python package with support for Tecplot ASCII and PLOT3D grid files, and NumPy, its only dependency.
 
 ## Supported Formats
 
@@ -18,13 +18,14 @@ The Python API currently supports:
 
 | Format | Read | Write | Notes |
 |--------|------|-------|-------|
-| **Tecplot ASCII** | ✅ | ✅ | `.tec` files |
-| **Tecplot Binary** | ❌ | ❌ | Use Fortran API for `.plt`/`.szplt` |
-| **VTK** | ❌ | ❌ | Use Fortran API |
+| **Tecplot ASCII** | ✅ | ✅ | `.dat`, `.tec` files, in the form described under *Return Values*; other forms are refused |
+| **Tecplot Binary** | ❌ | ❌ | Use the Fortran API or the converter for `.szplt`/`.plt` |
+| **VTK** | ❌ | ❌ | Use the Fortran API or the converter |
 | **PLOT3D** | ✅ | ❌ | Grid files, every common layout (ASCII and binary) |
 
 !!! note "Binary Format Support"
-    For Tecplot binary formats and other file types, use the [Fortran API](fortran-api.md) or the command-line converter.
+    For Tecplot binary formats and other file types, use the [Fortran API](fortran-api.md) or the
+    [command-line converter](converter.md).
 
 ## Reading Tecplot Files
 
@@ -64,6 +65,15 @@ one entry per zone (block):
     writes them), in single quotes, or bare (`rho(1)`, as the Fortran writer of ORION 1.7.0 and later writes
     them), and the three forms may be mixed in one list. Names are separated by blanks, tabs or commas; a name
     in quotes may contain them. An unclosed quote raises `ValueError`.
+
+!!! warning "Files that `read_TEC` does not read"
+    `read_TEC` reads the form described above and nothing else: three coordinates, `BLOCK` packing, one value per line, the
+    other variables at the cells. It checks the header of each zone and the number of its values, and raises a
+    `ValueError` that names the file, the zone and what is wrong for any other form: a `POINT` zone, a zone without `J` or
+    `K`, a file of one or two coordinates (its third variable at the cells), variables at the nodes (what the Fortran
+    writer writes with `orion%tec%node` set, and the converter for a field whose variables are at the nodes), several
+    values on a line, or a number of values that is not that of the zone. Read such files with the Fortran API, which
+    reads every form (see [Supported Formats](supported-formats.md#tecplot-format)).
 
 !!! note "Zone dimensions"
     `read_TEC` takes the dimensions of a zone from its `I=`, `J=` and `K=` keywords outside text in quotes
@@ -182,7 +192,11 @@ write_TEC('output.tec', x, y, z, var, varnames)
 ```
 
 `write_TEC` names the zones `Block1`, `Block2`, ...; without `varnames` it names the variables `x`, `y`, `z`, `v1`,
-`v2`, ...
+`v2`, ... It writes every value of the arrays it is given, for any shape of zone (a block, a plane, a line or a point of
+nodes: a direction with one plane of nodes has one layer of cells), and raises a `ValueError`, before it writes anything,
+when the arrays do not fit: coordinates of different shapes, a variable that is not of the shape of the cells of its
+block, blocks with different numbers of variables, or a number of names that is not that of the coordinates and
+variables.
 
 ### Creating Data from Scratch
 
