@@ -1166,6 +1166,7 @@ contains
           enddo
           if (err/=0) exit
         enddo
+        if (err/=0) exit
 
         if (.not.meshonly) then
           d = ndir + 1

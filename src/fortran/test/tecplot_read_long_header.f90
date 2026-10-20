@@ -8,6 +8,7 @@
 !< A last line without a line feed, whose length is a multiple of the pieces of read_whole_line
 !< (last_line_without_line_feed). Data lines longer than 1000 characters, up to the 32,000 of the
 !< Tecplot format, in BLOCK and POINT zones (long_data_lines).
+!< An error in the coordinates of a BLOCK zone ends the read (block_coordinate_errors).
 !< Stops with a non-zero code when a check fails.
 program tecplot_read_long_header
   use, intrinsic :: iso_fortran_env, only : iostat_end
@@ -25,6 +26,7 @@ program tecplot_read_long_header
   call long_names()
   call last_line_without_line_feed()
   call long_data_lines()
+  call block_coordinate_errors()
   if (nfail > 0) then
     write(*,'(A,I0,A)') 'tecplot_read_long_header: ', nfail, ' check(s) FAILED'
     error stop 1
@@ -640,4 +642,35 @@ contains
     enddo
     deallocate(x, v)
   end subroutine long_data_lines
+
+  ! Writes text to file byte by byte and reads it with tec_read_structured_multiblock: the read must end with the return
+  ! value 1.
+  subroutine check_refused(file, text, what)
+    character(len=*), intent(in) :: file, text, what
+    type(orion_data)             :: r
+    integer                      :: u, err
+    call open_bytes(file, u)
+    write(u) text
+    close(u)
+    err = tec_read_structured_multiblock(orion=r, filename=file)
+    write(*,'(A,I0)') '        return value: ', err
+    call check(err == 1, what//': refused with the return value 1')
+  end subroutine check_refused
+
+  ! An error in the coordinates of a BLOCK zone ends the read, as in a POINT zone: the return value must be 1. Files written
+  ! byte by byte, a BLOCK zone of 4 nodes with x and p: a token that is not a number among the coordinates (1 2 x3 4, then
+  ! 5 6 7 8); a file that ends among the coordinates (1 2 3).
+  ! Defect: the reader went on to read the variables of the zone. With the token that is not a number it took them from the
+  ! values that follow (4 5 6 7) and returned 0; at the end of the file it read past the end of the file, with a second
+  ! message, and with gfortran returned the status of that read (5001).
+  ! Basis: Fortran 2018, 12.3.4.3 (p. 214): the file shall not be positioned after the endfile record prior to data transfer.
+  subroutine block_coordinate_errors()
+    character(len=1), parameter :: lf = achar(10)
+    character(len=*), parameter :: head = ' VARIABLES = "x" "p"'//lf//' ZONE T="w", I=4, J=1, DATAPACKING=BLOCK'//lf
+    write(*,'(A)') 'an error in the coordinates of a BLOCK zone'
+    call check_refused('tec_block_coordinate_not_a_number.dat', head//'1 2 x3 4'//lf//'5 6 7 8'//lf, &
+                       'BLOCK zone, a token that is not a number among the coordinates')
+    call check_refused('tec_block_coordinates_end_of_file.dat', head//'1 2 3'//lf, &
+                       'BLOCK zone, the file ends among the coordinates')
+  end subroutine block_coordinate_errors
 end program tecplot_read_long_header

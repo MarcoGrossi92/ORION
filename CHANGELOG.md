@@ -25,6 +25,14 @@ Changes on `main` since `v2.0.0`.
   1.2345678901234567E+00). Files whose lines hold at most 1000 characters,
   such as those of `tec_write_structured_multiblock` (one value per line), are
   read as before.
+- The Tecplot ASCII reader stops at an error in the coordinates of a BLOCK
+  zone, as in a POINT zone, with one message and the return value of the error
+  (1 for a token that is not a number or is too long, and for the end of the
+  file). It went on to read the variables of the zone: a file with a token that
+  is not a number among the coordinates was read with the return value 0, the
+  variables taken from the values that follow; a token that is too long, or the
+  end of the file, among the coordinates gave a second, false message, and with
+  gfortran the end of the file gave the return value 5001 of a read past it.
 
 ## [2.0.0] - 2026-10-20
 
