@@ -36,7 +36,7 @@ OFF's Tecplot handling routines formed the basis for ORION's Tecplot ASCII suppo
 **Tecplot Binary Format Support**
 
 - **Provider:** Tecplot, Inc.
-- **Purpose:** Reading and writing Tecplot binary formats (.plt, .szplt)
+- **Purpose:** Reading and writing Tecplot binary formats (`.szplt` read and written, `.plt` written)
 - **License:** Tecplot License Agreement
 
 TecIO enables ORION to work with high-performance binary Tecplot formats, essential for large-scale CFD workflows.

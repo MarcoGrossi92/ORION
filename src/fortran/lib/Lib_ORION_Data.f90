@@ -25,7 +25,7 @@ module Lib_ORION_data
 
   ! Structure for P3D file format options
   type :: Type_p3d_Format
-    character(6):: format    = 'binary'  ! Binary or ascii file
+    character(6):: format    = 'ascii'   ! Format of the file written: ascii (the only one; the reader detects the layout)
   endtype Type_p3d_Format
 
   ! Structure representing a computational block

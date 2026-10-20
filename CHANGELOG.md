@@ -7,7 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-Changes on `main` since `v1.6.0`.
+Changes on `main` since `v2.0.0`.
+
+## [2.0.0] - 2026-10-20
 
 ### Added
 
@@ -51,6 +53,12 @@ Changes on `main` since `v1.6.0`.
   writes the layouts of `p3d_read_formats` with a writer of its own; on 27
   layouts both readers return the same coordinates, bit for bit, from the
   files of either writer.
+- The converter reads `.vtm` files: the block files (`.vts`) are looked for from
+  the directory of the `.vtm` file, their format (`ascii`, `binary` or `raw`)
+  is taken from the files, or given with `--in-format=`, and the variables stay
+  where the VTK files hold them (point data at the nodes, cell data at the
+  cells). It reads the files that ORION writes, so a VTK, a PLOT3D or a
+  Tecplot file converts to any of the other formats (to PLOT3D, the grid).
 
 ### Changed
 
@@ -113,6 +121,14 @@ Changes on `main` since `v1.6.0`.
   `E25.17E3` instead of `E23.15E3`), the fewest that give it back bit for bit
   when the file is read: every text file changes, each real taking two
   characters more, and `str` of a 64-bit real gives 17 digits.
+- The PLOT3D ASCII files of `p3d_write_multiblock` hold every coordinate with
+  the same 17 significant digits (`FR8P`, one coordinate per line as before)
+  instead of the digits of a list-directed `WRITE`, which the compiler
+  chooses: 17 with gfortran, 16 with ifx (`1PG24.15E3`, by its documentation;
+  not tested), so that a grid written with ifx did not always read back as
+  itself. With gfortran the files do not change in value, only in layout of
+  the digits (`E` notation for every coordinate). The test `p3d_read` writes
+  and reads back reals that 15 digits do not give back, bit for bit.
 - The Tecplot reader takes the format from the extension of the file name
   only: a name that holds `.dat` or `.tec` elsewhere, such as `grid.data`,
   `mesh.tecplot` or `field.tec.bak`, which it read as an ASCII file, is
@@ -126,9 +142,119 @@ Changes on `main` since `v1.6.0`.
 - The Python tests are registered whenever CMake finds a Python 3 with NumPy:
   `python_read_p3d` in every build, `python_read_tec` (which reads a file of
   `tecplot_write`) still only with TecIO.
+- The converter reads and writes a `.dat` file as it does a `.tec` file, in
+  ASCII, with `tec_read_structured_multiblock` and
+  `tec_write_structured_multiblock`: one, two or three coordinates and any
+  number of variables, in BLOCK or POINT packing when read, in BLOCK packing
+  when written (a `.dat` file was written in POINT packing, one point per
+  line). The variables stay where the input holds them, at the nodes (point
+  data in a `.vtm` file) or at the cells.
+- `--in-format=` and `--out-format=` of the converter apply to the file they
+  name whatever the order of the options (they were looked at when read, so
+  `--out-file=` had to come first), are checked (`ascii`, `binary` or `raw` for
+  a `.vtm` file, `ascii` for a `.p3d` output; another value ends the converter
+  with the exit status 1) and are no longer shared by an input and an output
+  `.vtm` file. A `.p3d` output in the format `binary`, which stopped the
+  program with the exit status 0 and no file, is refused with a message.
+  The converter says (`WARNING`) when a conversion to PLOT3D leaves the
+  variables out.
+- `p3d_write_multiblock` writes the grid of the meshes of the blocks
+  (`mesh(1:ndir,:,:,:)`, ndir of 2 or 3, the same in every block), not of `Nk`,
+  and refuses, with the return value 1, a message and no file, a mesh of one
+  coordinate, blocks with a different number of coordinates, a block without a
+  mesh and a format other than `ascii`. The format `binary` returns 1 with a
+  message, as the others: it stopped the program with the exit status 0. The
+  default of `orion%p3d%format` is `ascii`, the only format the writer writes
+  (it was `binary`, which every program had to change before a write).
+  A name without an extension gets `.p3d` by the last component of its path, not
+  by any dot of the path.
+- The converter takes the format of a file from its extension, the text after
+  the last dot of its name, not from any `.dat`, `.tec`, `.szplt`, `.p3d` or
+  `.vtm` of its path, and an option (`--in-file=` ...) is the whole argument
+  from its start. It keeps the names of the variables (those of the Tecplot
+  `VARIABLES` list and of the arrays of the VTK files, with the blanks, commas,
+  tabs and quotes replaced by underscores) in place of `var1`, `var2`, ....
+- `vtk_read_structured_multiblock` sets `orion%varnames`, as the Tecplot
+  readers do: `x`, `y` and `z` (as many as the coordinates), then the names of
+  the arrays of the block files.
+- Boundary condition cells (`orion%tec%bc`, variables at the cells): the arrays
+  of a block hold the layer of one cell around it (`mesh` from index -1), in
+  each direction in which the block has cells, and the writer writes it as it
+  is. It took the size of the block from the size of the arrays and added the
+  layer to it, so that it read past the arrays; a mesh without the layer is
+  refused now, with the return value 1 and a message. The option has no effect
+  on variables at the nodes.
+- Python: `from ORION import *` gives `read_TEC`, `write_TEC` and `read_P3D`
+  only (`__all__`); `read_geometry` and `read_field`
+  take the lines of the file instead of its name (`read_TEC` reads the file
+  once, it read it twice for each block); `count_lines_before_float`, which
+  nothing used, is gone. `read_TEC` raises `ValueError` for a file of a form it
+  does not read (see Fixed). The package declares its dependency, NumPy, which
+  `pip install .` installs.
+
+### Removed
+
+- `tec_write_points_multivars` and `tec_read_points_multivars`. They wrote and
+  read a line of points (`F=POINT`, one coordinate, the variables at the
+  points) with the indices `1:N` in `mesh(1:1,1:N,1:1,1:1)`, and no other
+  field. `tec_write_structured_multiblock` and `tec_read_structured_multiblock`
+  do the same for every field, a line of points included: the reader takes a
+  zone in POINT packing, and returns a line of `N` points as `Ni = N-1`,
+  `mesh(1:1,0:Ni,0:0,0:0)` and, at the nodes (`orion%tec%node` set),
+  `vars(:,0:Ni,0:0,0:0)`, as it returns any field; set `orion%tec%node` to
+  `.true.` to write such a field, in BLOCK packing. The reader of points read a
+  file in BLOCK packing without a message and returned scrambled values.
 
 ### Fixed
 
+- The writers report a file that cannot be written. `tec_write_structured_multiblock`
+  opened an ASCII file without `iostat`, so that a directory that does not exist
+  ended the program with a runtime error; it, `p3d_write_multiblock` and the VTK
+  writer return a nonzero value (and the first two print a message) for a file
+  that cannot be opened, and the first two for a write or a close that fails
+  (a full disk), where the last status overwrote the ones before.
+  `VTK_INI_XML` and `VTM_INI_XML` kept the status of `open` until the next
+  `write`, which wrote to the unit that was not connected (gfortran creates
+  `fort.N` for it), and `vtk_write_structured_multiblock` returned the status of
+  its last call: a block file that could not be written ended with the return
+  value 0. The converter ended with "Done!" and the exit status 0 having
+  written nothing, for a `.vtm` file in a directory that does not exist, and
+  with a backtrace for a `.tec` file; it ends with its `ERROR write` line and the
+  exit status 1 for every format.
+- The converter read a `.vtm` file in a directory named like a format
+  (`cases.dat/out.vtm`) with the reader of Tecplot files, and wrote the output
+  of a path with two such names with both writers.
+- Boundary condition cells (`orion%tec%bc`): the upper bound of the cells in i
+  was taken from `Nz` (`ci2 = Nz + gc`), and the layer was added in a direction
+  with one plane of nodes, so that a two-dimensional block was written as a zone
+  of three planes in k, read past its mesh.
+- Python `read_TEC` read as cell values the values of a file with its variables
+  at the nodes (the first `(I-1)(J-1)(K-1)` of each), and gave a `ValueError` or
+  an `IndexError` with no reason for a file of one or two coordinates or in
+  POINT packing. It checks the header of each zone (packing, `I`, `J` and `K`,
+  `VARLOCATION`) and the number of its values, and raises a `ValueError` that
+  names the file, the zone and what is wrong.
+- Python `write_TEC` wrote no value of the variables of a zone with one plane
+  or one line of nodes (`range(Nz-1)`), a header `[4-3]=CELLCENTERED` for a zone
+  without variables, and took any shape of array; it writes every value, the
+  header of the Fortran writer, and raises `ValueError`, before it writes, for
+  shapes or names that do not fit.
+- The converter converts a PLOT3D file to Tecplot (and `.dat`) files: it built
+  the names of the variables from the variables of the first block, which a
+  grid has not (the size of an unallocated array), and the Tecplot writer
+  refused the names. It read a PLOT3D file with the message `ERROR write
+  PLOT3D file` and without the reason; it now gives the reason of the reader.
+- `p3d_write_multiblock` writes a mesh of two coordinates read from a VTK file
+  (`Nk = 1`) as the two-dimensional grid it is: it took it for a
+  three-dimensional one and read a third coordinate and a second plane that the
+  mesh has not, past its bounds. A format other than `ascii` and `binary` left
+  the output unit unopened.
+- `--in-format=` of the converter dropped the first character of its value.
+- The converter writes the variables of a `.dat` file, which are at the points,
+  as point data of the `.vtm` file; it wrote them as cell data. A `.dat` file
+  of two or three coordinates was read as one coordinate and two variables,
+  and written with its first line of nodes only: the other lines and the other
+  coordinates were lost without a message.
 - `p3d_read_multiblock` reads a PLOT3D ASCII file with several coordinates per
   line. It issued one `read` per coordinate, and a list-directed `read` takes a
   whole record, so only the first value of each line was kept and the reader
@@ -256,9 +382,9 @@ Changes on `main` since `v1.6.0`.
 - The Tecplot ASCII reader reads a zone header without `J` as one node line,
   an I-ordered zone, as in the examples of the Tecplot Data Format Guide; it
   refused it as a zone of invalid dimensions.
-- The Tecplot ASCII readers, `tec_read_structured_multiblock` and
-  `tec_read_points_multivars`, give each block the title of its zone as its
-  name, as `tec_read_szplt` does; the names were undefined.
+- The Tecplot ASCII reader, `tec_read_structured_multiblock`, gives each block
+  the title of its zone as its name, as `tec_read_szplt` does; the names were
+  undefined.
 - Without TecIO, the Tecplot writer and reader stop a program that asks them
   for a binary file with error termination (`ERROR STOP`, a nonzero exit
   status): `STOP` gave the exit status 0, so the run passed for a success (the
@@ -277,8 +403,8 @@ Changes on `main` since `v1.6.0`.
   the strand (`strandid`) and every format option; it copied four of the
   options only, so the copy held the defaults of the others (`tec%node`,
   `tec%bc`, `tec%extension`, `vtk%node`), a time of 0 and the strand -1.
-- The Tecplot ASCII reader, `tec_read_points_multivars` and
-  `p3d_read_multiblock` read into an `orion_data` that already holds blocks:
+- The Tecplot ASCII reader and `p3d_read_multiblock` read into an
+  `orion_data` that already holds blocks:
   the blocks of the file take their place, as in the `.szplt` and VTK
   readers; they stopped the program (an allocated variable allocated again).
 - `tec_read_structured_multiblock` refuses, with a message and the return

@@ -15,7 +15,7 @@ A modular I/O toolkit for reading and writing structured, multi-block scientific
 - **Native Fortran API**: High-performance library for computational workflows
 - **Python Interface**: Convenient scripting and post-processing capabilities
 - **Command-line Converter**: Standalone utility for format conversion
-- **Cross-platform**: Tested on Linux and macOS with GNU and Intel compilers
+- **Cross-platform**: Linux and macOS, with GNU and Intel compilers (see the [platform support](https://MarcoGrossi92.github.io/ORION/#platform-support))
 
 ## License
 
@@ -30,10 +30,10 @@ Clone and build with a single command:
 ```bash
 git clone https://github.com/MarcoGrossi92/ORION.git
 cd ORION
-./install.sh build --compiler=gnu --use-tecio
+./install.sh build --compilers=gnu --use-tecio
 ```
 
-For Python support, use this command in the ORION folder:
+For Python support, use this command in the ORION folder (it installs NumPy, its only dependency):
 
 ```bash
 pip install .
@@ -44,9 +44,12 @@ pip install .
 **Convert files from command line:**
 
 ```bash
-ORION --input-format tecplot --input-file data.dat \
-      --output-format vtk --output-file output.vtk
+source scripts/setvars.sh        # defines the command ORION, which runs bin/app/converter
+mkdir vtk
+ORION --in-file=data.tec --out-file=vtk/data.vtm
 ```
+
+The format of each file is that of its extension (`.dat` `.tec` `.szplt` `.p3d` `.vtm`).
 
 **Read data in Fortran:**
 

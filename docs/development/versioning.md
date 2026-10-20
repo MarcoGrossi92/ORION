@@ -114,10 +114,10 @@ Increment when adding **backward-compatible** functionality:
 - Adding new command-line options
   ```bash
   # v1.0: Basic converter
-  ORION --input-format tecplot --input-file data.dat ...
+  ORION --in-file=data.tec --out-file=vtk/data.vtm
   
-  # v1.1: New --compress option (old commands still work)
-  ORION --compress --input-format tecplot ...
+  # v1.1: A new option, here an imaginary --compress (old commands still work)
+  ORION --in-file=data.tec --out-file=vtk/data.vtm --compress
   ```
 
 **When to do it:**
@@ -162,6 +162,28 @@ Increment when making **backward-compatible** bug fixes:
 - Documentation updates
 - Minor performance tweaks
 
+## How ORION Releases
+
+The version of ORION is written once, in `scripts/version.txt`; `setup.py` reads it, so it is also the version of the
+Python package. `CHANGELOG.md` lists the changes of each release, in the format of
+[Keep a Changelog](https://keepachangelog.com/en/1.1.0/): the changes that a user can see go under `[Unreleased]`, in
+*Added*, *Changed*, *Removed* and *Fixed*, as they are made, and become a section of the new version at the release.
+
+To release:
+
+1. Decide the kind of the release from the changes of `[Unreleased]`, by the rules above: *Removed* (a public function,
+   for instance) and incompatible *Changed* entries make it MAJOR, *Added* MINOR, *Fixed* alone PATCH.
+2. Bump the version with the script, which changes `scripts/version.txt` only:
+   ```bash
+   ./scripts/version_bump.sh --major   # or --minor, or --patch
+   ```
+   It creates no commit and no tag, and pushes nothing; it prints the git commands to run next.
+3. Turn `[Unreleased]` of `CHANGELOG.md` into the section of the new version, with its date, and add a new empty
+   `[Unreleased]`.
+4. Commit, then tag the release `vMAJOR.MINOR.PATCH` (`v1.7.0`, for instance) and push the commit and the tag, as the
+   script's output says.
+
 ## References
 
 - [Semantic Versioning Specification](https://semver.org/)
+- [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)

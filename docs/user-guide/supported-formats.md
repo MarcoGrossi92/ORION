@@ -7,18 +7,18 @@ ORION supports multiple scientific data formats commonly used in computational f
 | Format | Type | Extension(s) | Read | Write | Notes |
 |--------|------|--------------|------|-------|-------|
 | **Tecplot ASCII** | Text | `.dat`, `.tec` | ✅ | ✅ | Human-readable, slower I/O |
-| **Tecplot Binary** | Binary | `.plt`, `.szplt` | ✅¹ | ✅¹ | Compact, fast I/O |
-| **VTK** | Text/Binary | `.vtm`, `.vts`  | ✅ | ✅ | Open standard, widely supported |
-| **PLOT3D** | Text/Binary | any (`.p3d`, `.x`, `.xyz`, `.g`, ...) | ✅² | ✅³ | NASA legacy format, grids only |
+| **Tecplot Binary** | Binary | `.szplt`, `.plt` | ✅¹ (`.szplt`) | ✅¹ (`.szplt`, `.plt`) | Compact, fast I/O |
+| **VTK** | Text/Binary | `.vtm` + `.vts` | ✅² | ✅ | Open standard, widely supported |
+| **PLOT3D** | Text/Binary | any (`.p3d`, `.x`, `.xyz`, `.g`, ...) | ✅³ | ✅⁴ | NASA legacy format, grids only |
 
-¹ Requires building with `--use-tecio` flag
-² ASCII, Fortran unformatted and C binary; the layout is detected from the file (Fortran `p3d_read_multiblock`, Python `read_P3D`)
-³ ASCII only, Fortran API
+¹ Requires building with `--use-tecio`. `.szplt` files are read and written; `.plt` files are written only (the reader refuses them)
 
 ² Multi-block structured grids in the layout ORION writes them; block files written by VTK or ParaView, which list their
 data arrays before the points, are refused (see [VTK Format](#vtk-format))
 
-³ `.szplt` files only: `tec_read_structured_multiblock` does not read a `.plt` file (it returns 1, with a message)
+³ ASCII, Fortran unformatted and C binary; the layout is detected from the file (Fortran `p3d_read_multiblock`, Python `read_P3D`)
+
+⁴ ASCII only, Fortran API and converter
 
 ## Tecplot Format
 
@@ -30,22 +30,24 @@ Tecplot is a proprietary data visualization format widely used in aerospace and 
 
 **Recommendations:**
 - Use ASCII for small files and debugging
-- Use PLT for general production work
-- Use SZPLT for large datasets requiring compression
+- Use SZPLT for large datasets, and for any binary file that ORION must read back: a PLT file can be written but not read
+- Use PLT to hand a file to Tecplot that SZPLT does not suit
 
 ### File Structure
 
-**Header:**
+**Header** (as ORION writes it):
 ```
-VARIABLES = "X", "Y", "Z", "Pressure", "Temperature"
-ZONE T="Block 1", I=50, J=50, K=50, F=POINT
+VARIABLES = x y z u
+ZONE  T = Block1, I=50, J=50, K=50, DATAPACKING=BLOCK, VARLOCATION=([1-3]=NODAL,[4]=CELLCENTERED), SOLUTIONTIME=0.0E+000, STRANDID=1
 ```
 
 **Data:**
-- Point or cell-centered
-- Structured grids
-- Multi-block support
-- Time-dependent data
+- Variables at the nodes or at the cells, all at one of them in a file (`orion%tec%node`). ORION writes `DATAPACKING=BLOCK`
+  (all the values of a variable, then the next one, one value per line) and reads `BLOCK` and `POINT` packing (`F=POINT`,
+  one point per line, the coordinates and then the variables; a `POINT` zone needs all its variables at the nodes)
+- Structured (ordered) zones of one, two or three coordinates
+- Multi-block support: one zone per block
+- A solution time and a strand per file (`solutiontime`, `strandid`)
 
 ### Supported Features
 
@@ -53,18 +55,20 @@ ZONE T="Block 1", I=50, J=50, K=50, F=POINT
 |---------|-------|--------|-------|
 | **Structured grids** | ✅ | ✅ | IJK-ordered data |
 | **Multi-block** | ✅ | ✅ | Multiple zones |
-| **Variable data** | ✅ | ✅ | Scalar and vector fields |
-| **Time series** | ✅ | ✅ | Multiple solution times |
-| **Boundary conditions** | ❌ | ❌ | Not yet supported |
+| **Variable data** | ✅ | ✅ | Scalar variables, at the nodes or at the cells |
+| **Solution time** | ✅ | ✅ | `solutiontime`, with its sign; `strandid` of the last zone read from an ASCII file |
+| **Ghost cells** | Written | Written | With `orion%tec%bc` and variables at the cells, the arrays of a block hold a layer of cells around it (`mesh` from index `-1`) and the writer writes it; not read |
 | **Unstructured** | ❌ | ❌ | Not supported |
 
 ## VTK Format
 
 VTK (Visualization Toolkit) is an open-source data format used by ParaView, VisIt, and other visualization tools.
 
-**Format Types:**
-- **Legacy formats** - Text/Binary format (`.vtk`)
-- **XML formats** - Modern VTK formats (`.vtm`, `.vts`, `.vtu`)
+**What ORION handles:** multi-block structured grids as VTK XML files: a `.vtm` file (`vtkMultiBlockDataSet`) that lists
+one `.vts` file (`StructuredGrid`) for each block. `vtk_write_structured_multiblock` writes them and
+`vtk_read_structured_multiblock` reads them (both are used by the converter). The block files are written in one of three
+formats, `orion%vtk%format`: `ascii`, `binary` (base64, the default) or `raw` (appended data). The module `Lib_VTK` also
+holds the lower-level routines of Lib_VTK_IO that these two functions are built on.
 
 **Files that ORION reads:** `vtk_read_structured_multiblock` reads multi-block structured grids in the layout in which
 `vtk_write_structured_multiblock` writes them: a `.vtm` file whose `Block` element lists one `DataSet` per line, and `.vts`
@@ -76,28 +80,53 @@ before any block is read: files written by VTK or ParaView are not read (see the
 
 ### File Structure
 
-**Header:**
+**Multi-block file** (`.vtm`):
+```xml
+<?xml version="1.0"?>
+<VTKFile type="vtkMultiBlockDataSet" version="1.0" byte_order="LittleEndian">
+  <vtkMultiBlockDataSet>
+    <Block index="0">
+      <DataSet index="0" file="Block1.vts"/>
+    </Block>
+  </vtkMultiBlockDataSet>
+</VTKFile>
 ```
-# vtk DataFile Version 3.0
-ORION generated VTK file
-ASCII
-DATASET STRUCTURED_GRID
-DIMENSIONS 50 50 50
-POINTS 125000 float
+
+**Block file** (`.vts`, here in the `ascii` format, a block of 5 x 5 x 5 nodes with one variable, `Temperature`, at the
+cells; the values are left out):
+```xml
+<?xml version="1.0"?>
+<VTKFile type="StructuredGrid" version="0.1" byte_order="LittleEndian">
+  <StructuredGrid WholeExtent="+0 +4 +0 +4 +0 +4">
+    <Piece Extent="+0 +4 +0 +4 +0 +4">
+      <Points>
+        <DataArray type="Float64" NumberOfComponents="3" Name="Points" format="ascii">
+          ...
+        </DataArray>
+      </Points>
+      <CellData>
+        <DataArray type="Float64" Name="Temperature" NumberOfComponents="1" format="ascii">
+          ...
+        </DataArray>
+      </CellData>
+    </Piece>
+  </StructuredGrid>
+</VTKFile>
 ```
 
 **Data:**
-- Structured and unstructured grids
-- Point and cell data
-- Multiple scalar/vector fields
+- Structured grids of one, two or three coordinates (a mesh of two coordinates is written as two planes of nodes with
+  `z = 0`, one of one coordinate as lines with `y = z = 0`; the reader takes them back)
+- Variables at the nodes (`PointData`) or at the cells (`CellData`), one component each
+- A time (`TIME`), a step number (`CYCLE`) and named real scalars, as field data of every block file
 
 ### Supported Grid Types
 
 | Grid Type | Support | VTK Dataset Type |
 |-----------|---------|------------------|
-| **Structured grid** | ✅ | `STRUCTURED_GRID` |
-| **Rectilinear grid** | ✅ | `RECTILINEAR_GRID` |
-| **Polydata** | ❌ | `POLYDATA` (not implemented) |
+| **Structured grid** | ✅ | `StructuredGrid` (`.vts`) |
+| **Rectilinear grid** | Low-level routines of `Lib_VTK` only | `RectilinearGrid` |
+| **Polydata, unstructured grid** | ❌ | not implemented |
 
 ## PLOT3D Format
 
@@ -143,14 +172,16 @@ A file whose size fits no layout, or fits more than one, is refused with a messa
 
 ### Feature Matrix
 
+What ORION does with each format:
+
 | Feature | Tecplot | VTK | PLOT3D |
 |---------|---------|-----|--------|
 | **Multi-block** | ✅ | ✅ | ✅ |
 | **Grid + Solution** | ✅ | ✅ | ❌ |
 | **Binary I/O** | ✅ | ✅ | Read only |
-| **Compression** | ✅ | ✅ | ❌ |
-| **Metadata** | ✅ | ✅ | ❌ |
-| **Time series** | ✅ | ✅ | ❌ |
+| **Compression** | ✅ (`.szplt`) | ❌ (ORION writes none) | ❌ |
+| **Metadata** (names, time, step, named scalars) | ✅ | ✅ | ❌ |
+| **Solution time** | ✅ | ✅ | ❌ |
 | **Open format** | ❌ | ✅ | ✅ |
 
 ### Use Case Recommendations
@@ -176,8 +207,7 @@ A file whose size fits no layout, or fits more than one, is refused with a messa
 
 **Example Tecplot → VTK:**
 ```bash
-ORION --input-format tecplot --input-file data.dat \
-      --output-format vtk --output-file output.vtk
+converter --in-file=data.dat --out-file=vtk/data.vtm
 ```
 
 See the [converter guide](converter.md) for more details

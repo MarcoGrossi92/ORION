@@ -36,6 +36,8 @@ ORION builds upon the work of:
 - **OFF** developers
 - The broader Fortran and scientific computing community
 
-See [Acknowledgements](acknowledgements.md) for full credits.
+The authors and contributors of ORION are listed in
+[AUTHORS.md](https://github.com/MarcoGrossi92/ORION/blob/main/AUTHORS.md). See [Acknowledgements](acknowledgements.md)
+for full credits.
 
 ---

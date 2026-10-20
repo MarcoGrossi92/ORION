@@ -51,7 +51,7 @@
   call check(d%tec%extension == '.tec' .and. d%tec%format == 'binary' .and. .not.d%tec%node .and. .not.d%tec%bc .and. &
              d%tec%double, 'defaults: the Tecplot options')
   call check(d%vtk%format == 'binary' .and. .not.d%vtk%node, 'defaults: the VTK options')
-  call check(d%p3d%format == 'binary', 'defaults: the PLOT3D options')
+  call check(d%p3d%format == 'ascii', 'defaults: the PLOT3D options')
   end subroutine defaults
 
   subroutine copy_every_member
@@ -72,7 +72,7 @@
   a%strandid = 3
   a%tec%extension = '.dat'; a%tec%format = 'ascii'; a%tec%node = .true.; a%tec%bc = .true.; a%tec%double = .false.
   a%vtk%format = 'raw'; a%vtk%node = .true.
-  a%p3d%format = 'ascii'
+  a%p3d%format = 'binary'
   allocate(a%varnames(3))
   a%varnames = ['x', 'y', 'u']
   allocate(a%block(1))

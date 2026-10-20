@@ -54,8 +54,8 @@ git remote add upstream https://github.com/MarcoGrossi92/ORION.git
 git checkout -b feature/my-new-feature
 
 # Build and test
-./install.sh build --compiler=gnu --use-tecio
-./scripts/test.sh
+./install.sh build --compilers=gnu --use-tecio
+ctest --test-dir build --output-on-failure
 
 # Make changes, commit, and push
 git add .
@@ -73,17 +73,22 @@ Understanding ORION's organization:
 ORION/
 ├── src/                    # Source code
 │   ├── fortran/            # Fortran implementation
-│   │   ├── lib/            # Core libraries
-│   │   ├── app/            # Applications (converter)
-│   │   └── test/           # Test suite
+│   │   ├── lib/            # Core libraries (Lib_Tecplot, Lib_VTK, Lib_PLOT3D, Lib_ORION_Data, ...)
+│   │   ├── app/            # Applications (the converter)
+│   │   └── test/           # Test programs (one executable and one ctest test per .f90 file)
 │   └── python/             # Python interface
 │       ├── ORION/          # Python package
-│       └── test/           # Python tests
+│       └── test/           # Python tests (scripts that ctest runs)
 ├── cmake/                  # CMake configuration
-├── scripts/                # Build and utility scripts
-├── docs/                   # Documentation source
+├── scripts/                # Utility scripts (setvars.sh, compile.sh, version_bump.sh, version.txt)
+├── docs/                   # Documentation source (built by zensical.toml)
 ├── lib/                    # External libraries (TecIO)
-└── bin/                    # Compiled executables
+├── .github/workflows/      # Continuous integration (tests) and documentation deployment
+├── install.sh              # Build script
+├── setup.py                # Python package
+├── CHANGELOG.md            # Changes of each release, and the unreleased ones
+├── build/                  # Build directory (created by install.sh, not versioned)
+└── bin/                    # Compiled executables: bin/app/converter, bin/test/ (not versioned)
 ```
 
 ## Development Workflow
@@ -110,89 +115,105 @@ Use descriptive branch names:
 
 ### Commit Messages
 
-Follow conventional commit format:
+Start the subject with the part of ORION that changes, then say what changes; the body says why:
 
 ```
-type(scope): Brief description
+area: What changes, in one line
 
-Detailed explanation if needed.
+Why the change is needed, and what it changes for a user.
 
 Fixes #123
 ```
 
-**Types:** `feat`, `fix`, `docs`, `style`, `refactor`, `test`, `chore`
-
 **Examples:**
 ```
-feat(tecplot): Add support for binary SZPLT format
-fix(vtk): Resolve crash with unstructured meshes
-docs(api): Add examples for multi-block processing
-test(plot3d): Add test cases for binary files
+Tecplot writer: refuse a block with fewer variables than those written
+tec_read_szplt: return the status of the TecIO call that fails
+vtk_read_structured_multiblock: field data on one line
+Guides: why 17 significant digits are the fewest
 ```
+
+Record every change that a user can see in `CHANGELOG.md`, under `[Unreleased]` (see [Versioning](versioning.md)).
 
 ## Testing
 
 ### Running Tests
 
+`install.sh build` compiles the tests with the library. Run them with `ctest`:
+
 ```bash
-# Fortran tests
-./scripts/test.sh
+# All tests: the Fortran ones (ORION.<name>) and, when CMake finds Python 3 with NumPy, the Python ones
+ctest --test-dir build --output-on-failure
 
-# Specific test
-./bin/test/test_tecplot_read
-
-# Python tests
-cd src/python
-pytest test/
+# A test by name
+ctest --test-dir build -R tecplot_read
 ```
+
+The test programs are in `bin/test/`. Their working directory is `build/test-runtime`, where tests that read the files of
+another one find them (`ctest` runs them in the right order). The tests of the binary Tecplot formats are built only
+with TecIO (`--use-tecio`). GitHub Actions runs the tests, built with `gfortran` and TecIO on Ubuntu, on every push and
+every pull request to `main`.
 
 ### Writing Tests
 
-Every new feature or bug fix should include tests:
+Every new feature or bug fix should include tests.
 
-**Fortran test:**
+**Fortran test:** put a program in `src/fortran/test/`. CMake compiles every `.f90` file of that folder into an executable
+of the same name in `bin/test/` and registers it as the ctest test `ORION.<name>`; the test fails when the program stops
+with a nonzero code. The existing tests follow this pattern:
+
 ```fortran
-program test_new_feature
+program tecplot_new_feature
+  use Lib_Tecplot
   use Lib_ORION_data
-  use Lib_NewFormat
-  
-  type(orion_data) :: test_data
-  integer :: error_code
-  
-  ! Test case 1: Basic functionality
-  error_code = new_format_read('test_file.dat', test_data)
-  if (error_code /= 0) then
-    print *, 'FAIL: Could not read file'
-    stop 1
+  implicit none
+  integer :: nfail
+
+  nfail = 0
+  call round_trip()
+  if (nfail > 0) then
+    write(*,'(A,I0,A)') 'tecplot_new_feature: ', nfail, ' check(s) FAILED'
+    error stop 1
   endif
-  
-  ! Test case 2: Validate data
-  if (size(test_data%block) /= 1) then
-    print *, 'FAIL: Expected 1 block'
-    stop 1
-  endif
-  
-  print *, 'PASS: All tests passed'
-end program test_new_feature
+  write(*,'(A)') 'tecplot_new_feature: all checks passed'
+
+contains
+
+  subroutine check(ok, what)
+    logical,          intent(in) :: ok
+    character(len=*), intent(in) :: what
+    if (ok) then
+      write(*,'(A)') '  ok    '//what
+    else
+      write(*,'(A)') '  FAIL  '//what
+      nfail = nfail + 1
+    endif
+  end subroutine check
+
+  subroutine round_trip()
+    type(orion_data) :: w, r
+    integer :: err
+    ! ... fill w, write it with tec_write_structured_multiblock, read it back into r
+    err = 0
+    call check(err == 0, 'written and read without error')
+    ! ... compare r with w
+  end subroutine round_trip
+
+end program tecplot_new_feature
 ```
 
-**Python test:**
+**Python test:** a script in `src/python/test/` that ends with a nonzero exit status when a check fails (an unhandled
+exception does), registered with `add_test` in `src/fortran/test/CMakeLists.txt` next to `ORION.python_read_p3d`:
+
 ```python
-import pytest
 from ORION import read_TEC
 
-def test_read_tecplot_basic():
-    """Test basic Tecplot file reading."""
-    x, y, z, var, varnames = read_TEC('test_data.dat')
-    
-    assert x.shape[0] == 1  # Single block
-    assert len(varnames) == 3  # Three variables
-    assert varnames[0] == 'pressure'
+x, y, z, var, varnames = read_TEC('tecfile.tec')   # written by the Fortran test tecplot_write
 
-def test_read_tecplot_missing_file():
-    """Test error handling for missing file."""
-    with pytest.raises(FileNotFoundError):
-        read_TEC('nonexistent.dat')
+assert len(x) == 2, 'two blocks'                    # x, y, z and var have one entry per block
+assert varnames == ['x', 'y', 'z', 'variable1']
+# the nodes of a block, and the cells of its variable: one less in each direction
+assert all(n == c + 1 for n, c in zip(x[0].shape, var[0][0].shape))
 ```
 
 ## Documentation
@@ -206,9 +227,12 @@ pip install -r docs/requirements.txt
 # Serve locally with live reload
 zensical serve
 
-# Build static site into site/
-zensical build
+# Build static site into site/, as the documentation workflow does (broken links are errors)
+zensical build --strict
 ```
+
+Check the commands and the code of the pages you change against the code: the pages are not tested, and the converter
+options, the file formats and the function names change.
 
 ---
 

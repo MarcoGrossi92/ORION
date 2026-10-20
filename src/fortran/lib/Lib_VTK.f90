@@ -1279,6 +1279,9 @@ contains
     vtk(rf)%f = ascii
     open(unit=Get_Unit(vtk(rf)%u),file=trim(filename),form='FORMATTED',&
          access='SEQUENTIAL',action='WRITE',status='REPLACE',iostat=E_IO)
+    ! A file that cannot be opened (no such directory, no permission) is the error of the call: nothing is written to
+    ! its unit, which is not connected
+    if (E_IO /= 0) return
     ! writing header of file
     write(unit=vtk(rf)%u,fmt='(A)',iostat=E_IO)'<?xml version="1.0"?>'
     if (endian==endianL) then
@@ -1300,6 +1303,9 @@ contains
     if (trim(Upper_Case(output_format))=='BINARY-APPENDED') vtk(rf)%f = bin_app
     open(unit=Get_Unit(vtk(rf)%u),file=trim(filename),&
          form='UNFORMATTED',access='STREAM',action='WRITE',status='REPLACE',iostat=E_IO)
+    ! A file that cannot be opened (no such directory, no permission) is the error of the call: nothing is written to
+    ! its unit, which is not connected
+    if (E_IO /= 0) return
     ! writing header of file
     write(unit=vtk(rf)%u,iostat=E_IO)'<?xml version="1.0"?>'//end_rec
     if (endian==endianL) then
@@ -1318,11 +1324,18 @@ contains
     write(unit=vtk(rf)%u,iostat=E_IO)trim(s_buffer)//end_rec ; vtk(rf)%indent = vtk(rf)%indent + 2
     ! opening the SCRATCH file used for appending raw binary data
     open(unit=Get_Unit(vtk(rf)%ua), form='UNFORMATTED', access='STREAM', action='READWRITE', status='SCRATCH', iostat=E_IO)
+    if (E_IO /= 0) then
+      close(unit=vtk(rf)%u)
+      return
+    endif
     vtk(rf)%ioffset = 0 ! initializing offset pointer
   case('BINARY')
     vtk(rf)%f = binary
     open(unit=Get_Unit(vtk(rf)%u),file=trim(filename),&
          form='UNFORMATTED',access='STREAM',action='WRITE',status='REPLACE',iostat=E_IO)
+    ! A file that cannot be opened (no such directory, no permission) is the error of the call: nothing is written to
+    ! its unit, which is not connected
+    if (E_IO /= 0) return
     ! writing header of file
     write(unit=vtk(rf)%u,iostat=E_IO)'<?xml version="1.0"?>'//end_rec
     if (endian==endianL) then
@@ -4762,6 +4775,7 @@ contains
     s_buffer='<VTKFile type="vtkMultiBlockDataSet" version="1.0" byte_order="BigEndian">'
   endif
   open(unit=Get_Unit(vtm%u),file=trim(filename),form='FORMATTED',access='SEQUENTIAL',action='WRITE',status='REPLACE',iostat=E_IO)
+  if (E_IO /= 0) return
   write(unit=vtm%u,fmt='(A)',iostat=E_IO)'<?xml version="1.0"?>'
   write(unit=vtm%u,fmt='(A)',iostat=E_IO)trim(s_buffer) ; vtm%indent = 2
   write(unit=vtm%u,fmt='(A)',iostat=E_IO)repeat(' ',vtm%indent)//'<vtkMultiBlockDataSet>' ; vtm%indent = vtm%indent + 2
@@ -11280,6 +11294,7 @@ contains
   integer(I4P)                      :: nb,nn,nnvar,Nvar,ndir,ny2,nz2
   integer(I4P)                      :: ci, cj, ck   ! cells of a surface block in each direction
   integer(I4P)                      :: E_IO 
+  integer(I4P)                      :: ierr        ! the first status of the calls of the library that is not 0
   logical                           :: meshonly
   logical                           :: surface      ! a block with one plane of nodes in a direction, written as a surface
   character(len=4)                  :: location
@@ -11334,6 +11349,7 @@ contains
   if (orion%vtk%node) location = 'node'
   call parse(varnames,' ',varname(1:Nvar))
   ! Block writing
+  ierr = 0
   do b = 1, nb
     associate (nx2 => orion%block(b)%Ni)
     ! A 3-D mesh is written as it is; a 2-D mesh (x, y) as two planes of nodes in k with z = 0, one layer of cells in k; a 1-D
@@ -11364,16 +11380,27 @@ contains
     endif
     E_IO = VTK_INI_XML(cf=mf,output_format=orion%vtk%format, filename=trim(vtspath)//trim(orion%block(b)%name)//'.vts', &
                        mesh_topology='StructuredGrid', nx1=0, nx2=nx2, ny1=0, ny2=ny2, nz1=0, nz2=nz2)
+    ! A file that cannot be opened is the error of the call: nothing is open, and the next blocks are not written
+    if (E_IO /= 0) return
     if (present(time) .or. present(cycle) .or. present(fldnames)) then
       E_IO = VTK_FLD_XML(fld_action='open')
-      if (present(time)) E_IO = VTK_FLD_XML(fld=time,fname='TIME')
-      if (present(cycle)) E_IO = VTK_FLD_XML(fld=cycle,fname='CYCLE')
+      call note(E_IO)
+      if (present(time)) then
+        E_IO = VTK_FLD_XML(fld=time,fname='TIME')
+        call note(E_IO)
+      endif
+      if (present(cycle)) then
+        E_IO = VTK_FLD_XML(fld=cycle,fname='CYCLE')
+        call note(E_IO)
+      endif
       if (present(fldnames)) then
         do ifld = 1, size(fldnames)
           E_IO = VTK_FLD_XML(fld=fldvalues(ifld),fname=trim(fldnames(ifld)))
+          call note(E_IO)
         enddo
       endif
       E_IO = VTK_FLD_XML(fld_action='close')
+      call note(E_IO)
     endif
     ! Use real Z if ndir==3, else set Z=0.0
     allocate(X(nn)); allocate(Y(nn)); allocate(Z(nn))
@@ -11403,28 +11430,36 @@ contains
     endif
     E_IO = VTK_GEO_XML(cf=mf,nx1=0, nx2=nx2, ny1=0, ny2=ny2, nz1=0, nz2=nz2, NN=nn, &
                        X=X,  Y=Y, Z=Z)
+    call note(E_IO)
     deallocate(X); deallocate(Y); deallocate(Z)
     if (.not.meshonly) then
       E_IO = VTK_DAT_XML(cf=mf,var_location = location, var_block_action = 'open')
+      call note(E_IO)
       do s = 1, Nvar
         if (surface) then
           E_IO = VTK_VAR_XML(cf=mf,NC_NN = nnvar, varname = trim(varname(s)), &
                              var = reshape(orion%block(b)%vars(s,1:ci,1:cj,1:ck),[nnvar]))
+          call note(E_IO)
         elseif (orion%vtk%node) then
           ! One value per node, vars(s,0:Ni,0:Nj,0:Nk); the node plane of a 2-D block, vars(s,0:Ni,0:Nj,0:0) as the readers
           ! return it, goes to both planes of nodes of its file, and the node line of a 1-D block, vars(s,0:Ni,0:0,0:0), to the
           ! four lines of nodes of its file, as their coordinates: reshape repeats them from pad
           E_IO = VTK_VAR_XML(cf=mf,NC_NN = nnvar, varname = trim(varname(s)), &
                              var = reshape(orion%block(b)%vars(s,0:nx2,:,:),[nnvar],pad=orion%block(b)%vars(s,0:nx2,:,:)))
+          call note(E_IO)
         else
           E_IO = VTK_VAR_XML(cf=mf,NC_NN = nnvar, varname = trim(varname(s)), &
                              var = reshape(orion%block(b)%vars(s,1:nx2,:,:),[nnvar]))
+          call note(E_IO)
         endif
       enddo
       E_IO = VTK_DAT_XML(cf=mf,var_location = location, var_block_action = 'close')
+      call note(E_IO)
     endif
     E_IO = VTK_GEO_XML(cf=mf)
+    call note(E_IO)
     E_IO = VTK_END_XML()
+    call note(E_IO)
     endassociate
   enddo
 
@@ -11437,10 +11472,25 @@ contains
   enddo
 
   E_IO = VTM_INI_XML(trim(vtmpath)//'.vtm')
+  if (E_IO /= 0) return
   E_IO = VTM_BLK_XML(block_action='open')
+  call note(E_IO)
   E_IO = VTM_WRF_XML(flist=vtsfiles)
+  call note(E_IO)
   E_IO = VTM_BLK_XML(block_action='close')
+  call note(E_IO)
   E_IO = VTM_END_XML()
+  call note(E_IO)
+  ! The status of the call is the first that failed, not that of the last call
+  E_IO = ierr
+
+  contains
+
+    subroutine note(status)
+      integer(I4P), intent(in) :: status
+      if (status /= 0 .and. ierr == 0) ierr = status
+    end subroutine note
+
   !---------------------------------------------------------------------------------------------------------------------------------
   end function vtk_write_structured_multiblock
 
@@ -11722,6 +11772,19 @@ contains
     ! Each block file is closed once read: a field may have more blocks than the files a process can keep open
     err = VTK_END_XML_READ()
     if (err /= 0) return
+  enddo
+
+  ! The names of the variables, as the Tecplot readers return them: those of the coordinates first (x, y and z: the files hold
+  ! none), then those of the arrays of the block files after their Points. The names of the first block file are those of all
+  ! (the reader takes the variables of every block file by the names of the first), cut to the 32 characters of a name.
+  if (allocated(orion%varnames)) deallocate(orion%varnames)
+  ndir = size(orion%block(1)%mesh,1)
+  allocate(orion%varnames(ndir+size(varnames)-1))
+  do s = 1, ndir
+    orion%varnames(s) = achar(iachar('x') + s - 1)
+  enddo
+  do s = 1, size(varnames)-1
+    orion%varnames(ndir+s) = trim(varnames(s+1))
   enddo
 
   contains

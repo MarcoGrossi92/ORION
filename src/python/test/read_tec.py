@@ -28,7 +28,14 @@ of header, the names being read as the Fortran reader reads them:
 10. a dimension that is not a number on a ZONE record, I=*** in the first
     zone and J=*** in the second, as a Fortran writer leaves them when the
     number does not fit its field: read_TEC raises a ValueError that names
-    the file, the zone and the keyword.
+    the file, the zone and the keyword;
+11. files of a form that read_TEC does not read are refused with the reason, not read as other values: variables at the
+    nodes (with VARLOCATION and without it), POINT packing, a coordinate at the cells (a file of two coordinates), a zone
+    without J and K, several values on a line, a zone with a value missing; and the data set auxiliary data records
+    after the last zone are not values;
+12. write_TEC writes every value it is given, whatever the shape of the zone (a block, a plane, a line and a point of
+    nodes, a zone without variables), and refuses with a ValueError the shapes and the names that do not fit, writing
+    nothing.
 
 Exit status 0 when every check passes, 1 otherwise.
 """
@@ -189,7 +196,7 @@ def expect_error(path, *parts):
     except Exception as error:
         check(False, '{}: read_TEC raised {} instead of ValueError: {}'.format(path, type(error).__name__, error))
         return
-    check(False, '{}: read_TEC raised no error for a zone whose size is not a number'.format(path))
+    check(False, '{}: read_TEC raised no error for a file that it does not read'.format(path))
 
 
 # 10. A dimension that is not a number: I=*** in zone 1, J=*** in zone 2 (whose J is 4).
@@ -204,6 +211,98 @@ check(text.count('J=4') == 1, '{}: the second zone header was not written as exp
 with open(path, 'w') as f:
     f.write(text.replace('J=4', 'J=***'))
 expect_error(path, path, 'zone 2 (T = Block2)', "J = '***'")
+
+
+
+# 11. Files of another form are refused, with the reason that names what is wrong.
+def write_form(path, variables, zone, count, per_line=1, tail=''):
+    """A file of the VARIABLES list and the ZONE record given, with count values 0.5 (per_line on each line)."""
+    with open(path, 'w') as f:
+        f.write(' VARIABLES = {}\n ZONE T = z, {}\n'.format(variables, zone))
+        values = ['0.5'] * count
+        for i in range(0, count, per_line):
+            f.write(' '.join(values[i:i + per_line]) + '\n')
+        f.write(tail)
+
+
+cc = ', VARLOCATION=([1-3]=NODAL,[4]=CELLCENTERED)'
+good = 'I=3, J=2, K=2, DATAPACKING=BLOCK' + cc          # 12 nodes, 2 cells: 3 * 12 + 2 values
+
+path = 'python_read_tec_form_ok.tec'
+write_form(path, 'x y z u', good, 3 * 12 + 2)
+data = read(path)
+check(data is not None and data[3][0][0].shape == (2, 1, 1), '{}: the form of the files that ORION writes'.format(path))
+path = 'python_read_tec_form_aux.tec'
+write_form(path, 'x y z u', good, 3 * 12 + 2, tail=' DATASETAUXDATA CYCLE = "5"\n DATASETAUXDATA a = "1.5"\n')
+data = read(path)
+check(data is not None and data[3][0][0].shape == (2, 1, 1), '{}: auxiliary data records are not values'.format(path))
+
+path = 'python_read_tec_form_nodes.tec'
+write_form(path, 'x y z u', 'I=3, J=2, K=2, DATAPACKING=BLOCK, VARLOCATION=([1-4]=NODAL)', 4 * 12)
+expect_error(path, path, 'zone 1', 'variables at the nodes')
+path = 'python_read_tec_form_no_location.tec'
+write_form(path, 'x y z u', 'I=3, J=2, K=2, DATAPACKING=BLOCK', 4 * 12)
+expect_error(path, path, 'zone 1', 'variables at the nodes')
+path = 'python_read_tec_form_point.tec'
+write_form(path, 'x y z u', 'I=3, J=2, K=2, F=POINT', 4 * 12)
+expect_error(path, path, 'zone 1', 'POINT packing')
+path = 'python_read_tec_form_point_title.tec'            # POINT in a title is not the packing
+write_form(path, 'x y z u', 'I=3, J=2, K=2, DATAPACKING=BLOCK' + cc, 3 * 12 + 2)
+with open(path) as f:
+    text = f.read()
+with open(path, 'w') as f:
+    f.write(text.replace('T = z', 'T = "POINT F=POINT"'))
+data = read(path)
+check(data is not None, '{}: a title that holds POINT'.format(path))
+path = 'python_read_tec_form_xy.tec'
+write_form(path, 'x y u v', 'I=3, J=2, K=1, DATAPACKING=BLOCK, VARLOCATION=([1-2]=NODAL,[3-4]=CELLCENTERED)', 2 * 6 + 2 * 2)
+expect_error(path, path, 'zone 1', 'coordinate at the cells')
+path = 'python_read_tec_form_no_jk.tec'
+write_form(path, 'x y z u', 'I=4, DATAPACKING=BLOCK' + cc, 3 * 4 + 3)
+expect_error(path, path, 'zone 1', 'I, J and K')
+path = 'python_read_tec_form_several.tec'
+write_form(path, 'x y z u', good, 3 * 12 + 2, per_line=4)
+expect_error(path, path, 'zone 1', 'one value per line')
+path = 'python_read_tec_form_short.tec'
+write_form(path, 'x y z u', good, 3 * 12 + 1)
+expect_error(path, path, 'zone 1', '37 lines of values', 'not the 38')
+
+
+# 12. write_TEC and read_TEC give each other back, for every shape of zone.
+rng = np.random.default_rng(7)
+for shape in ((4, 3, 3), (4, 3, 1), (4, 1, 1), (1, 1, 1)):
+    path = 'python_write_tec_{}x{}x{}.tec'.format(*shape)
+    i, j, k = np.meshgrid(*[np.arange(n, dtype=float) for n in shape], indexing='ij')
+    cell_shape = tuple(max(n - 1, 1) for n in shape)
+    u, w = rng.standard_normal(cell_shape), rng.standard_normal(cell_shape)
+    write_TEC(path, [i / 3.0], [j * 0.1], [k * 1.0e-3], [[u, w]], ['x', 'y', 'z', 'u', 'w'])
+    compare(path, read(path), ['x', 'y', 'z', 'u', 'w'], [i / 3.0], [j * 0.1], [k * 1.0e-3], [[u, w]])
+path = 'python_write_tec_no_variables.tec'
+write_TEC(path, [i], [j], [k], [[]])
+compare(path, read(path), ['x', 'y', 'z'], [i], [j], [k], [[]])
+path = 'python_write_tec_default_names.tec'
+write_TEC(path, [i], [j], [k], [[rng.standard_normal(cell_shape)]])
+check(read(path)[4] == ['x', 'y', 'z', 'v1'], '{}: the default names'.format(path))
+
+nodes_a, nodes_b = np.zeros((3, 2, 2)), np.zeros((2, 2, 2))     # 2 x 1 x 1 cells, and 1 x 1 x 1
+cells_a = np.zeros((2, 1, 1))
+for what, args in (('a variable of the wrong shape', ([nodes_a], [nodes_a], [nodes_a], [[nodes_b]])),
+                   ('coordinates of different shapes', ([nodes_a], [nodes_b], [nodes_a], [[]])),
+                   ('lists of different lengths', ([nodes_a, nodes_a], [nodes_a], [nodes_a], [[]])),
+                   ('blocks with different numbers of variables',
+                    ([nodes_a, nodes_a], [nodes_a, nodes_a], [nodes_a, nodes_a], [[cells_a], []])),
+                   ('names that are not those of the variables',
+                    ([nodes_a], [nodes_a], [nodes_a], [[cells_a]], ['x', 'y', 'z']))):
+    path = 'python_write_tec_refused.tec'
+    if os.path.exists(path):
+        os.remove(path)
+    try:
+        write_TEC(path, *args)
+        check(False, 'write_TEC wrote {}'.format(what))
+    except ValueError:
+        check(not os.path.exists(path), 'write_TEC refused {} but left a file'.format(what))
+    except Exception as error:
+        check(False, 'write_TEC raised {} instead of ValueError for {}'.format(type(error).__name__, what))
 
 if failures:
     print('read_TEC: {} of {} checks failed:'.format(len(failures), checks))

@@ -49,17 +49,6 @@ task() {
     echo -e "\033[1;38;5;186m==> $1\033[0m"
 }
 
-
-function download_extra () {
-  [[ -f doxygen ]] && return
-  if [[ $1 == linux ]]; then
-    url=https://www.doxygen.nl/files/doxygen-1.10.0.linux.bin.tar.gz
-    curl -O $url
-    tar zxf *.tgz
-  fi
-}
-
-
 # Create default CMakePresets.json if it doesn't exist
 function write_presets() {
   FC=$(grep '^CMAKE_Fortran_COMPILER:FILEPATH=' "$BUILD_DIR/CMakeCache.txt" | cut -d= -f2-)
@@ -185,7 +174,6 @@ case "$COMMAND" in
         log "[OK] CMakePresets.json created"
 
         task "Defining environment variables"
-        define_path
         log "[OK] Environment variables defined"
         ;;
     *)
