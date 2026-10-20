@@ -5,11 +5,17 @@
 !< every value. The reader keeps at most 512 names: 512 names are read, 513 are refused.
 !< Zone headers longer than 1000 characters too: block names of 600 and 4096 characters in the zone
 !< titles of ASCII and POINT files, and a title of 3000 characters (long_names).
+!< A last line without a line feed, whose length is a multiple of the pieces of read_whole_line
+!< (last_line_without_line_feed). Data lines longer than 1000 characters, up to the 32,000 of the
+!< Tecplot format, in BLOCK and POINT zones (long_data_lines).
+!< An error in the coordinates of a BLOCK zone ends the read (block_coordinate_errors).
 !< Stops with a non-zero code when a check fails.
 program tecplot_read_long_header
+  use, intrinsic :: iso_fortran_env, only : iostat_end
   use Lib_Tecplot
   use Lib_ORION_data
   use IR_Precision
+  use strings, only : read_whole_line
   implicit none
   integer :: nfail
 
@@ -18,6 +24,9 @@ program tecplot_read_long_header
   call names_512()
   call names_513()
   call long_names()
+  call last_line_without_line_feed()
+  call long_data_lines()
+  call block_coordinate_errors()
   if (nfail > 0) then
     write(*,'(A,I0,A)') 'tecplot_read_long_header: ', nfail, ' check(s) FAILED'
     error stop 1
@@ -372,4 +381,296 @@ contains
     call check(r%tec%node, what//': the variables at the nodes')
     call check(same_field(w, r), what//': read as one zone of 5 points, with its coordinates and values')
   end subroutine points
+
+  ! A new file, written byte by byte (stream access): the lines are ended by the line feeds that the caller writes.
+  subroutine open_bytes(file, u)
+    character(len=*), intent(in)  :: file
+    integer,          intent(out) :: u
+    open(newunit=u, file=file, access='stream', form='unformatted', status='replace', action='write')
+  end subroutine open_bytes
+
+  ! Block b of r is a line of nodes with one coordinate, x, and the variables v(1:nv,1:n) at its n nodes, as written.
+  logical function line_block(r, b, x, v) result(same)
+    type(orion_data), intent(in) :: r
+    integer,          intent(in) :: b
+    real(R8P),        intent(in) :: x(:), v(:,:)
+    same = allocated(r%block)
+    if (same) same = size(r%block) >= b
+    if (.not.same) return
+    same = allocated(r%block(b)%mesh) .and. allocated(r%block(b)%vars)
+    if (same) same = all(shape(r%block(b)%mesh) == [1, size(x), 1, 1]) .and. &
+                     all(shape(r%block(b)%vars) == [size(v,1), size(x), 1, 1])
+    if (same) same = all(reshape(r%block(b)%mesh, [size(x)]) == x) .and. &
+                     all(reshape(r%block(b)%vars, [size(v,1), size(x)]) == v)
+  end function line_block
+
+  ! The last line of a file, without a line feed. read_whole_line reads a line 512 characters at a time; with gfortran the
+  ! read after the last whole piece of a last line whose length is a multiple of 512 gives the end of the file, not the end
+  ! of the record. Files written byte by byte: a line of 512 characters with a line feed, then a last line of 1024 without
+  ! one; a last line of 512 characters with its line feed. read_whole_line must return each line whole with iostat 0, then
+  ! iostat_end. On a unit connected for formatted stream access, a last line of 512 characters without a line feed:
+  ! read_whole_line must give iostat_end, after that line, whole, at most once. A Tecplot ASCII file whose only data line,
+  ! x and p of a zone of 4 nodes, is its last line, of 512 characters without a line feed, must be read with every value
+  ! as written.
+  ! Defect: with gfortran read_whole_line returned the end of the file instead of the last line of 1024 characters, and
+  ! tec_read_structured_multiblock, which reads the first data line of a zone with read_whole_line, refused the Tecplot file.
+  ! Basis: Fortran 2018, 12.3.4.3 (p. 214): after the end of the file, a BACKSPACE statement may reposition the file;
+  ! 12.8.2 (p. 244): it is positioned before the endfile record. A stream file has no endfile record (12.2.4, p. 211), and
+  ! BACKSPACE would put it back before its last line (12.8.2), which every next read would return again.
+  subroutine last_line_without_line_feed()
+    character(len=1), parameter   :: lf = achar(10)
+    character(len=:), allocatable :: a, b, line
+    type(orion_data)              :: r
+    integer                       :: u, ios, err
+    logical                       :: ok
+    write(*,'(A)') 'last line without a line feed'
+    a = long_name(512, 'a')
+    b = long_name(1024, 'b')
+    ! A line of 512 characters with its line feed, then the last line, of 1024 characters, without one
+    call open_bytes('rwl_512_1024_no_lf.txt', u)
+    write(u) a//lf//b
+    close(u)
+    open(newunit=u, file='rwl_512_1024_no_lf.txt', status='old', action='read')
+    call read_whole_line(u, line, ios)
+    call check(ios == 0 .and. len(line) == 512 .and. line == a, 'read_whole_line: a line of 512 characters, whole')
+    call read_whole_line(u, line, ios)
+    call check(ios == 0 .and. len(line) == 1024 .and. line == b, &
+               'read_whole_line: the last line, 1024 characters without a line feed, whole')
+    if (ios == 0) then
+      call read_whole_line(u, line, ios)
+      call check(ios == iostat_end, 'read_whole_line: then the end of the file')
+    endif
+    close(u)
+    ! The last line, of 512 characters, with its line feed: one line, then the end of the file
+    call open_bytes('rwl_512_lf.txt', u)
+    write(u) a//lf
+    close(u)
+    open(newunit=u, file='rwl_512_lf.txt', status='old', action='read')
+    call read_whole_line(u, line, ios)
+    call check(ios == 0 .and. len(line) == 512 .and. line == a, &
+               'read_whole_line: the last line, 512 characters with a line feed, whole')
+    if (ios == 0) then
+      call read_whole_line(u, line, ios)
+      call check(ios == iostat_end, 'read_whole_line: then the end of the file')
+    endif
+    close(u)
+    ! The last line, of 512 characters, without a line feed, on a unit connected for formatted stream access: the end of the
+    ! file, after that line, whole, at most once
+    call open_bytes('rwl_512_no_lf_stream.txt', u)
+    write(u) a
+    close(u)
+    open(newunit=u, file='rwl_512_no_lf_stream.txt', access='stream', form='formatted', status='old', action='read')
+    call read_whole_line(u, line, ios)
+    ok = ios == iostat_end
+    if (ios == 0) then
+      ok = len(line) == 512 .and. line == a
+      call read_whole_line(u, line, ios)
+      ok = ok .and. ios == iostat_end
+    endif
+    close(u)
+    call check(ok, 'read_whole_line, formatted stream access, the last line, 512 characters without a line feed: '// &
+                   'the end of the file, after the line at most once')
+    ! A Tecplot file whose only data line is the last one, of 512 characters, without a line feed
+    call open_bytes('tec_last_line_512_no_lf.dat', u)
+    write(u) ' VARIABLES = "x" "p"'//lf//' ZONE T="u", I=4, J=1, DATAPACKING=BLOCK'//lf//repeat(' ', 497)//'1 2 3 4 5 6 7 8'
+    close(u)
+    err = tec_read_structured_multiblock(orion=r, filename='tec_last_line_512_no_lf.dat')
+    call check(err == 0, 'Tecplot file whose only data line is the last, 512 characters without a line feed: read')
+    if (err /= 0) return
+    call check(line_block(r, 1, [1._R8P, 2._R8P, 3._R8P, 4._R8P], reshape([5._R8P, 6._R8P, 7._R8P, 8._R8P], [1, 4])), &
+               'Tecplot file whose only data line is the last, 512 characters without a line feed: every value as written')
+  end subroutine last_line_without_line_feed
+
+  ! A token of 25 characters: ES25.16E3, two blanks before a positive value.
+  function tok25(v) result(s)
+    real(R8P), intent(in) :: v
+    character(len=25)     :: s
+    write(s,'(ES25.16E3)') v
+  end function tok25
+
+  ! A token of 23 characters: ES23.16E2, a blank before a positive value below 1E+100.
+  function tok23(v) result(s)
+    real(R8P), intent(in) :: v
+    character(len=23)     :: s
+    write(s,'(ES23.16E2)') v
+  end function tok23
+
+  ! Reads file with tec_read_structured_multiblock: it must give size(x,2) blocks, block b a line of nodes with the coordinate
+  ! x(:,b) and the variables v(:,:,b) at its nodes, as written.
+  subroutine check_lines_file(file, what, x, v)
+    character(len=*), intent(in) :: file, what
+    real(R8P),        intent(in) :: x(:,:), v(:,:,:)
+    type(orion_data)             :: r
+    integer                      :: err, b
+    logical                      :: same
+    err = tec_read_structured_multiblock(orion=r, filename=file)
+    call check(err == 0, what//': read')
+    if (err /= 0) return
+    same = size(r%block) == size(x,2)
+    do b = 1, size(x,2)
+      if (same) same = line_block(r, b, x(:,b), v(:,:,b))
+    enddo
+    call check(same, what//': every value as written')
+  end subroutine check_lines_file
+
+  ! Data lines longer than 1000 characters, which the Tecplot format allows up to 32,000. Every file is written a token at a
+  ! time (stream access), its values exact in the format (whole numbers, halves and quarters), and every value read must be
+  ! the value written:
+  ! - two BLOCK zones of 100 nodes, x and p each on one line of 100 values of 25 characters (2500 characters);
+  ! - a BLOCK zone of 43 nodes whose x line has 1001 characters, its last value, 123456.75, ending at column 1001;
+  ! - a BLOCK zone of 1391 nodes, x on a line of 31,998 characters and p on one of 32,000;
+  ! - a POINT zone of 3 nodes, x and 49 variables, each node on one line of 1150 characters;
+  ! - two zones of 4 nodes, x and p, whose last data line, not the first one of the zone, has no line feed and 512 or 1024
+  !   characters.
+  ! Defect: the reader kept the first 1000 characters of each data line, so it refused these files, or read the value that
+  ! crosses column 1000 as 1.2345675, with the return value 0.
+  ! Basis: Tecplot 360 EX 2023 R1 Data Format Guide, section 4-2 (p. 119): "The maximum length of a line in a data file is
+  ! 32,000 characters"; Fortran 2018, 13.7.4 (p. 269): an A edit descriptor without a width reads as many characters as the
+  ! variable holds, and 12.3.4.2 (p. 214): an advancing read leaves the file after the record, so the rest of a longer line
+  ! was lost.
+  subroutine long_data_lines()
+    character(len=1), parameter   :: lf = achar(10)
+    real(R8P), allocatable        :: x(:,:), v(:,:,:)
+    character(len=:), allocatable :: names
+    integer                       :: u, i, s, b
+    write(*,'(A)') 'data lines longer than 1000 characters'
+
+    ! Two BLOCK zones of 100 nodes, x and p each on one line of 2500 characters
+    allocate(x(100,2), v(1,100,2))
+    do b = 1, 2
+      do i = 1, 100
+        x(i,b) = real(i + 1000*(b - 1), R8P) + 0.25_R8P
+        v(1,i,b) = real(10*i + 5000*b, R8P) + 0.5_R8P
+      enddo
+    enddo
+    call open_bytes('tec_data_lines_2500.dat', u)
+    write(u) ' VARIABLES = "x" "p"'//lf
+    do b = 1, 2
+      write(u) ' ZONE T="z'//itoa(b)//'", I=100, J=1, DATAPACKING=BLOCK'//lf
+      do i = 1, 100
+        write(u) tok25(x(i,b))
+      enddo
+      write(u) lf
+      do i = 1, 100
+        write(u) tok25(v(1,i,b))
+      enddo
+      write(u) lf
+    enddo
+    close(u)
+    call check_lines_file('tec_data_lines_2500.dat', 'two BLOCK zones, x and p on lines of 2500 characters', x, v)
+    deallocate(x, v)
+
+    ! A BLOCK zone of 43 nodes: x on one line of 12 blanks and 43 values of 23 characters (1001), the last one,
+    ! 1.2345675000000000E+05, ending at column 1001; p one value per line
+    allocate(x(43,1), v(1,43,1))
+    do i = 1, 43
+      x(i,1) = real(i, R8P) + 0.5_R8P
+      v(1,i,1) = real(100 + i, R8P)
+    enddo
+    x(43,1) = 123456.75_R8P
+    call open_bytes('tec_data_line_1001.dat', u)
+    write(u) ' VARIABLES = "x" "p"'//lf//' ZONE T="c", I=43, J=1, DATAPACKING=BLOCK'//lf//repeat(' ', 12)
+    do i = 1, 43
+      write(u) tok23(x(i,1))
+    enddo
+    write(u) lf
+    do i = 1, 43
+      write(u) itoa(100 + i)//lf
+    enddo
+    close(u)
+    call check_lines_file('tec_data_line_1001.dat', 'BLOCK zone, a value of the x line ending at column 1001', x, v)
+    deallocate(x, v)
+
+    ! A BLOCK zone of 1391 nodes: x on one line of 5 blanks and 1391 values of 23 characters (31,998), p on one of 7 blanks
+    ! and 1391 values (32,000, the longest line of the Data Format Guide)
+    allocate(x(1391,1), v(1,1391,1))
+    do i = 1, 1391
+      x(i,1) = real(i, R8P) + 0.25_R8P
+      v(1,i,1) = real(1000*i, R8P) + 0.5_R8P
+    enddo
+    call open_bytes('tec_data_lines_32000.dat', u)
+    write(u) ' VARIABLES = "x" "p"'//lf//' ZONE T="d", I=1391, J=1, DATAPACKING=BLOCK'//lf//repeat(' ', 5)
+    do i = 1, 1391
+      write(u) tok23(x(i,1))
+    enddo
+    write(u) lf//repeat(' ', 7)
+    do i = 1, 1391
+      write(u) tok23(v(1,i,1))
+    enddo
+    write(u) lf
+    close(u)
+    call check_lines_file('tec_data_lines_32000.dat', 'BLOCK zone, x and p on lines of 31,998 and 32,000 characters', x, v)
+    deallocate(x, v)
+
+    ! A POINT zone of 3 nodes, x and 49 variables, each node on one line of 50 values of 23 characters (1150)
+    allocate(x(3,1), v(49,3,1))
+    names = ' VARIABLES = "x"'
+    do s = 1, 49
+      names = names//' "v'//itoa(s)//'"'
+    enddo
+    do i = 1, 3
+      x(i,1) = real(i, R8P) + 0.75_R8P
+      do s = 1, 49
+        v(s,i,1) = real(100*s + i, R8P) + 0.25_R8P
+      enddo
+    enddo
+    call open_bytes('tec_data_lines_point_1150.dat', u)
+    write(u) names//lf//' ZONE T="e", I=3, J=1, DATAPACKING=POINT'//lf
+    do i = 1, 3
+      write(u) tok23(x(i,1))
+      do s = 1, 49
+        write(u) tok23(v(s,i,1))
+      enddo
+      write(u) lf
+    enddo
+    close(u)
+    call check_lines_file('tec_data_lines_point_1150.dat', 'POINT zone, x and 49 variables on lines of 1150 characters', x, v)
+    deallocate(x, v)
+
+    ! A zone of 4 nodes, x and p: x on the first data line, p on the last line, without a line feed, of 512 and of 1024
+    ! characters
+    allocate(x(4,1), v(1,4,1))
+    x(:,1) = [1._R8P, 2._R8P, 3._R8P, 4._R8P]
+    v(1,:,1) = [5._R8P, 6._R8P, 7._R8P, 8._R8P]
+    do i = 1, 2
+      call open_bytes('tec_data_last_line_'//itoa(512*i)//'_no_lf.dat', u)
+      write(u) ' VARIABLES = "x" "p"'//lf//' ZONE T="u", I=4, J=1, DATAPACKING=BLOCK'//lf//'1 2 3 4'//lf// &
+               repeat(' ', 512*i - 7)//'5 6 7 8'
+      close(u)
+      call check_lines_file('tec_data_last_line_'//itoa(512*i)//'_no_lf.dat', &
+                            'BLOCK zone, its last data line of '//itoa(512*i)//' characters without a line feed', x, v)
+    enddo
+    deallocate(x, v)
+  end subroutine long_data_lines
+
+  ! Writes text to file byte by byte and reads it with tec_read_structured_multiblock: the read must end with the return
+  ! value 1.
+  subroutine check_refused(file, text, what)
+    character(len=*), intent(in) :: file, text, what
+    type(orion_data)             :: r
+    integer                      :: u, err
+    call open_bytes(file, u)
+    write(u) text
+    close(u)
+    err = tec_read_structured_multiblock(orion=r, filename=file)
+    write(*,'(A,I0)') '        return value: ', err
+    call check(err == 1, what//': refused with the return value 1')
+  end subroutine check_refused
+
+  ! An error in the coordinates of a BLOCK zone ends the read, as in a POINT zone: the return value must be 1. Files written
+  ! byte by byte, a BLOCK zone of 4 nodes with x and p: a token that is not a number among the coordinates (1 2 x3 4, then
+  ! 5 6 7 8); a file that ends among the coordinates (1 2 3).
+  ! Defect: the reader went on to read the variables of the zone. With the token that is not a number it took them from the
+  ! values that follow (4 5 6 7) and returned 0; at the end of the file it read past the end of the file, with a second
+  ! message, and with gfortran returned the status of that read (5001).
+  ! Basis: Fortran 2018, 12.3.4.3 (p. 214): the file shall not be positioned after the endfile record prior to data transfer.
+  subroutine block_coordinate_errors()
+    character(len=1), parameter :: lf = achar(10)
+    character(len=*), parameter :: head = ' VARIABLES = "x" "p"'//lf//' ZONE T="w", I=4, J=1, DATAPACKING=BLOCK'//lf
+    write(*,'(A)') 'an error in the coordinates of a BLOCK zone'
+    call check_refused('tec_block_coordinate_not_a_number.dat', head//'1 2 x3 4'//lf//'5 6 7 8'//lf, &
+                       'BLOCK zone, a token that is not a number among the coordinates')
+    call check_refused('tec_block_coordinates_end_of_file.dat', head//'1 2 3'//lf, &
+                       'BLOCK zone, the file ends among the coordinates')
+  end subroutine block_coordinate_errors
 end program tecplot_read_long_header

@@ -804,7 +804,8 @@ contains
 
     ! Persistent tokenizer state. This is deliberately line-based only at the lexical
     ! level: next_value() returns the next numeric token, irrespective of line breaks.
-    character(1000) :: data_line
+    ! The data line being read is held whole, whatever its length (read with read_whole_line).
+    character(len=:), allocatable :: data_line
     integer :: data_pos
     integer :: physical_line_number
     integer :: data_line_number
@@ -818,6 +819,10 @@ contains
     solutiontime = -huge(1._R8P)
     strandid = -1
     err = 0
+    ! data_line is allocated before any use: next_value may evaluate len_trim(data_line) also when have_data_line
+    ! is false, as Fortran does not fix which operands of .or. are evaluated (by ALLOCATE: an assignment here makes
+    ! gfortran -Wall warn that its length may be used uninitialized)
+    allocate(character(len=0) :: data_line)
 
     ! Open file
     open(newunit=tecunit,file=trim(filename),status='old',action='read',iostat=err)
@@ -1161,6 +1166,7 @@ contains
           enddo
           if (err/=0) exit
         enddo
+        if (err/=0) exit
 
         if (.not.meshonly) then
           d = ndir + 1
@@ -1350,7 +1356,6 @@ contains
       real(R8P), intent(out) :: x
       integer, intent(out) :: istat
 
-      character(1000) :: t
       character(100)  :: tok
       integer :: p, q, L, ios_, token_len
 
@@ -1360,10 +1365,11 @@ contains
         ! -----------------------------------------------------------------------
         ! Fetch another physical line only when the current line has no more
         ! numeric tokens. Tecplot ASCII data are whitespace-separated; line
-        ! breaks have no semantic meaning for the numerical data stream.
+        ! breaks have no semantic meaning for the numerical data stream. The
+        ! line is read whole, whatever its length.
         ! -----------------------------------------------------------------------
         if (.not.have_data_line .or. data_pos > len_trim(data_line)) then
-          read(unit,'(A)',iostat=ios_) t
+          call read_whole_line(unit,data_line,ios_)
 
           if (ios_ == iostat_end) then
             write(stderr,'(/,A)') &
@@ -1410,7 +1416,6 @@ contains
 
           physical_line_number = physical_line_number + 1
           data_line_number = physical_line_number
-          data_line = t
           data_pos = 1
           have_data_line = .true.
         endif
