@@ -6,7 +6,8 @@
 !< Zone headers longer than 1000 characters too: block names of 600 and 4096 characters in the zone
 !< titles of ASCII and POINT files, and a title of 3000 characters (long_names).
 !< A last line without a line feed, whose length is a multiple of the pieces of read_whole_line
-!< (last_line_without_line_feed).
+!< (last_line_without_line_feed). Data lines longer than 1000 characters, up to the 32,000 of the
+!< Tecplot format, in BLOCK and POINT zones (long_data_lines).
 !< Stops with a non-zero code when a check fails.
 program tecplot_read_long_header
   use, intrinsic :: iso_fortran_env, only : iostat_end
@@ -23,6 +24,7 @@ program tecplot_read_long_header
   call names_513()
   call long_names()
   call last_line_without_line_feed()
+  call long_data_lines()
   if (nfail > 0) then
     write(*,'(A,I0,A)') 'tecplot_read_long_header: ', nfail, ' check(s) FAILED'
     error stop 1
@@ -476,4 +478,166 @@ contains
     call check(line_block(r, 1, [1._R8P, 2._R8P, 3._R8P, 4._R8P], reshape([5._R8P, 6._R8P, 7._R8P, 8._R8P], [1, 4])), &
                'Tecplot file whose only data line is the last, 512 characters without a line feed: every value as written')
   end subroutine last_line_without_line_feed
+
+  ! A token of 25 characters: ES25.16E3, two blanks before a positive value.
+  function tok25(v) result(s)
+    real(R8P), intent(in) :: v
+    character(len=25)     :: s
+    write(s,'(ES25.16E3)') v
+  end function tok25
+
+  ! A token of 23 characters: ES23.16E2, a blank before a positive value below 1E+100.
+  function tok23(v) result(s)
+    real(R8P), intent(in) :: v
+    character(len=23)     :: s
+    write(s,'(ES23.16E2)') v
+  end function tok23
+
+  ! Reads file with tec_read_structured_multiblock: it must give size(x,2) blocks, block b a line of nodes with the coordinate
+  ! x(:,b) and the variables v(:,:,b) at its nodes, as written.
+  subroutine check_lines_file(file, what, x, v)
+    character(len=*), intent(in) :: file, what
+    real(R8P),        intent(in) :: x(:,:), v(:,:,:)
+    type(orion_data)             :: r
+    integer                      :: err, b
+    logical                      :: same
+    err = tec_read_structured_multiblock(orion=r, filename=file)
+    call check(err == 0, what//': read')
+    if (err /= 0) return
+    same = size(r%block) == size(x,2)
+    do b = 1, size(x,2)
+      if (same) same = line_block(r, b, x(:,b), v(:,:,b))
+    enddo
+    call check(same, what//': every value as written')
+  end subroutine check_lines_file
+
+  ! Data lines longer than 1000 characters, which the Tecplot format allows up to 32,000. Every file is written a token at a
+  ! time (stream access), its values exact in the format (whole numbers, halves and quarters), and every value read must be
+  ! the value written:
+  ! - two BLOCK zones of 100 nodes, x and p each on one line of 100 values of 25 characters (2500 characters);
+  ! - a BLOCK zone of 43 nodes whose x line has 1001 characters, its last value, 123456.75, ending at column 1001;
+  ! - a BLOCK zone of 1391 nodes, x on a line of 31,998 characters and p on one of 32,000;
+  ! - a POINT zone of 3 nodes, x and 49 variables, each node on one line of 1150 characters;
+  ! - two zones of 4 nodes, x and p, whose last data line, not the first one of the zone, has no line feed and 512 or 1024
+  !   characters.
+  ! Defect: the reader kept the first 1000 characters of each data line, so it refused these files, or read the value that
+  ! crosses column 1000 as 1.2345675, with the return value 0.
+  ! Basis: Tecplot 360 EX 2023 R1 Data Format Guide, section 4-2 (p. 119): "The maximum length of a line in a data file is
+  ! 32,000 characters"; Fortran 2018, 13.7.4 (p. 269): an A edit descriptor without a width reads as many characters as the
+  ! variable holds, and 12.3.4.2 (p. 214): an advancing read leaves the file after the record, so the rest of a longer line
+  ! was lost.
+  subroutine long_data_lines()
+    character(len=1), parameter   :: lf = achar(10)
+    real(R8P), allocatable        :: x(:,:), v(:,:,:)
+    character(len=:), allocatable :: names
+    integer                       :: u, i, s, b
+    write(*,'(A)') 'data lines longer than 1000 characters'
+
+    ! Two BLOCK zones of 100 nodes, x and p each on one line of 2500 characters
+    allocate(x(100,2), v(1,100,2))
+    do b = 1, 2
+      do i = 1, 100
+        x(i,b) = real(i + 1000*(b - 1), R8P) + 0.25_R8P
+        v(1,i,b) = real(10*i + 5000*b, R8P) + 0.5_R8P
+      enddo
+    enddo
+    call open_bytes('tec_data_lines_2500.dat', u)
+    write(u) ' VARIABLES = "x" "p"'//lf
+    do b = 1, 2
+      write(u) ' ZONE T="z'//itoa(b)//'", I=100, J=1, DATAPACKING=BLOCK'//lf
+      do i = 1, 100
+        write(u) tok25(x(i,b))
+      enddo
+      write(u) lf
+      do i = 1, 100
+        write(u) tok25(v(1,i,b))
+      enddo
+      write(u) lf
+    enddo
+    close(u)
+    call check_lines_file('tec_data_lines_2500.dat', 'two BLOCK zones, x and p on lines of 2500 characters', x, v)
+    deallocate(x, v)
+
+    ! A BLOCK zone of 43 nodes: x on one line of 12 blanks and 43 values of 23 characters (1001), the last one,
+    ! 1.2345675000000000E+05, ending at column 1001; p one value per line
+    allocate(x(43,1), v(1,43,1))
+    do i = 1, 43
+      x(i,1) = real(i, R8P) + 0.5_R8P
+      v(1,i,1) = real(100 + i, R8P)
+    enddo
+    x(43,1) = 123456.75_R8P
+    call open_bytes('tec_data_line_1001.dat', u)
+    write(u) ' VARIABLES = "x" "p"'//lf//' ZONE T="c", I=43, J=1, DATAPACKING=BLOCK'//lf//repeat(' ', 12)
+    do i = 1, 43
+      write(u) tok23(x(i,1))
+    enddo
+    write(u) lf
+    do i = 1, 43
+      write(u) itoa(100 + i)//lf
+    enddo
+    close(u)
+    call check_lines_file('tec_data_line_1001.dat', 'BLOCK zone, a value of the x line ending at column 1001', x, v)
+    deallocate(x, v)
+
+    ! A BLOCK zone of 1391 nodes: x on one line of 5 blanks and 1391 values of 23 characters (31,998), p on one of 7 blanks
+    ! and 1391 values (32,000, the longest line of the Data Format Guide)
+    allocate(x(1391,1), v(1,1391,1))
+    do i = 1, 1391
+      x(i,1) = real(i, R8P) + 0.25_R8P
+      v(1,i,1) = real(1000*i, R8P) + 0.5_R8P
+    enddo
+    call open_bytes('tec_data_lines_32000.dat', u)
+    write(u) ' VARIABLES = "x" "p"'//lf//' ZONE T="d", I=1391, J=1, DATAPACKING=BLOCK'//lf//repeat(' ', 5)
+    do i = 1, 1391
+      write(u) tok23(x(i,1))
+    enddo
+    write(u) lf//repeat(' ', 7)
+    do i = 1, 1391
+      write(u) tok23(v(1,i,1))
+    enddo
+    write(u) lf
+    close(u)
+    call check_lines_file('tec_data_lines_32000.dat', 'BLOCK zone, x and p on lines of 31,998 and 32,000 characters', x, v)
+    deallocate(x, v)
+
+    ! A POINT zone of 3 nodes, x and 49 variables, each node on one line of 50 values of 23 characters (1150)
+    allocate(x(3,1), v(49,3,1))
+    names = ' VARIABLES = "x"'
+    do s = 1, 49
+      names = names//' "v'//itoa(s)//'"'
+    enddo
+    do i = 1, 3
+      x(i,1) = real(i, R8P) + 0.75_R8P
+      do s = 1, 49
+        v(s,i,1) = real(100*s + i, R8P) + 0.25_R8P
+      enddo
+    enddo
+    call open_bytes('tec_data_lines_point_1150.dat', u)
+    write(u) names//lf//' ZONE T="e", I=3, J=1, DATAPACKING=POINT'//lf
+    do i = 1, 3
+      write(u) tok23(x(i,1))
+      do s = 1, 49
+        write(u) tok23(v(s,i,1))
+      enddo
+      write(u) lf
+    enddo
+    close(u)
+    call check_lines_file('tec_data_lines_point_1150.dat', 'POINT zone, x and 49 variables on lines of 1150 characters', x, v)
+    deallocate(x, v)
+
+    ! A zone of 4 nodes, x and p: x on the first data line, p on the last line, without a line feed, of 512 and of 1024
+    ! characters
+    allocate(x(4,1), v(1,4,1))
+    x(:,1) = [1._R8P, 2._R8P, 3._R8P, 4._R8P]
+    v(1,:,1) = [5._R8P, 6._R8P, 7._R8P, 8._R8P]
+    do i = 1, 2
+      call open_bytes('tec_data_last_line_'//itoa(512*i)//'_no_lf.dat', u)
+      write(u) ' VARIABLES = "x" "p"'//lf//' ZONE T="u", I=4, J=1, DATAPACKING=BLOCK'//lf//'1 2 3 4'//lf// &
+               repeat(' ', 512*i - 7)//'5 6 7 8'
+      close(u)
+      call check_lines_file('tec_data_last_line_'//itoa(512*i)//'_no_lf.dat', &
+                            'BLOCK zone, its last data line of '//itoa(512*i)//' characters without a line feed', x, v)
+    enddo
+    deallocate(x, v)
+  end subroutine long_data_lines
 end program tecplot_read_long_header

@@ -17,6 +17,14 @@ Changes on `main` since `v2.0.0`.
   of the file and was lost, and the Tecplot ASCII reader, which reads the first
   data line of each zone with `read_whole_line`, refused a file whose only data
   line was such a last line.
+- The Tecplot ASCII reader reads the data lines of a structured zone whole,
+  whatever their length. It kept the first 1000 characters of each line: a
+  file with longer lines, which the Tecplot format allows (up to 32,000
+  characters), was refused, or, when the last number of a line crossed column
+  1000, read with a wrong value and no message (1.2345678901234567E+05 read as
+  1.2345678901234567E+00). Files whose lines hold at most 1000 characters,
+  such as those of `tec_write_structured_multiblock` (one value per line), are
+  read as before.
 
 ## [2.0.0] - 2026-10-20
 

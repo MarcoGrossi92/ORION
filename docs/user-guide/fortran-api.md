@@ -433,8 +433,9 @@ end program read_vtk_structured
   the ASCII reader warns when it shortens one, the `.szplt` reader shortens it without a message.
 - **Zone headers and data lines.** The ASCII readers read each line whatever its length and join the lines of a zone
   header whatever their length, so a zone header holds a block name of any length (`T =`, the title of the zone, is
-  the name of the block in the files that ORION writes). Each data line of a structured zone must fit in 1000
-  characters. `tec_write_structured_multiblock` writes one value per line (BLOCK packing); a POINT zone, written by
+  the name of the block in the files that ORION writes). The data lines are read whole too, whatever their length
+  (the Tecplot Data Format Guide, section 4-2, allows lines of up to 32,000 characters), and so is a last line
+  without a line feed. `tec_write_structured_multiblock` writes one value per line (BLOCK packing); a POINT zone, written by
   another program, has one point per line, with all its variables on that line. Tecplot keeps the first 128 characters of a zone title (Tecplot
   360 EX Data Format Guide, section 4-3.2), and TecIO writes only those in a `.szplt` file (a `.plt` file gets the
   whole title). The readers return the title of each zone as the name of its block: the `.szplt` reader the title
