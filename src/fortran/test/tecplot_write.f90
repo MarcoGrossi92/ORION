@@ -44,6 +44,8 @@ program tecplot_write_multiblock
   call nvars_range
   call coordinates_per_block
   call no_variables
+  call unwritable_ascii
+  call ghost_cells
   write(*,'(A,I0,A,I0,A)') 'tecplot_write: ', checks, ' checks, ', failures, ' failed'
   if (failures > 0) stop 1
 
@@ -708,6 +710,101 @@ program tecplot_write_multiblock
   call check(index(line, 'T = Z1,') > 0, 'bounds_written_again_ascii.tec: the zone title Z1')
   call read_ascii_bounds('bounds_written_again_ascii.tec', 2, [3, 2, 0], .true.)
   end subroutine ascii_title_round_trip
+
+  subroutine unwritable_ascii
+  !---------------------------------------------------------------------------------------------------------------------------------
+  !< An ASCII file that cannot be written. A field written to a directory that does not exist gives a nonzero return value, with
+  !< a message on the standard error, and no file: the program goes on, and no file fort.N is left in the current directory.
+  !< Defect: the writer opened the file without IOSTAT=, so that a directory that does not exist ended the program with a
+  !< runtime error and a backtrace.
+  !< Basis: Fortran 2018 (ISO/IEC 1539-1:2018, final draft J3/18-007r1), 12.11.5, paragraph 1 (p. 233): a failed OPEN with
+  !< IOSTAT= gives a nonzero value to the variable and does not end the program.
+  !---------------------------------------------------------------------------------------------------------------------------------
+  type(orion_data) :: w
+  integer          :: err, es
+  !---------------------------------------------------------------------------------------------------------------------------------
+
+  allocate(w%block(1))
+  w%block(1)%name = 'b'
+  w%block(1)%Ni = 2; w%block(1)%Nj = 1; w%block(1)%Nk = 1
+  allocate(w%block(1)%mesh(1:3,0:2,0:1,0:1), w%block(1)%vars(1:1,1:2,1:1,1:1))
+  w%block(1)%mesh = 1._R8P
+  w%block(1)%vars = 2._R8P
+  w%tec%format = 'ascii'
+  err = tec_write_structured_multiblock(orion=w, varnames='u', filename='no_such_dir/unwritable.tec')
+  call check(err /= 0, 'ASCII file in a directory that does not exist: a nonzero return value')
+  call execute_command_line('ls fort.* > /dev/null 2>&1', exitstat=es)
+  call check(es /= 0, 'ASCII file in a directory that does not exist: no file fort.N')
+  end subroutine unwritable_ascii
+
+  subroutine ghost_cells
+  !---------------------------------------------------------------------------------------------------------------------------------
+  !< Boundary condition cells (orion%tec%bc) of variables at the cells. A block of 3 x 2 x 1 cells with a layer of ghost cells
+  !< (mesh(:,-1:4,-1:3,-1:2), vars(:,0:4,0:3,0:2)) is written with the zone of 6 x 5 x 4 nodes and 5 x 4 x 3 cells around
+  !< them: the file holds 3 * 120 + 60 values. A block of two coordinates, 3 x 2 cells, with its layer in i and j
+  !< (mesh(:,-1:4,-1:3,0:0), vars(:,0:4,0:3,1:1)) is written as a zone of 6 x 5 x 1 nodes with 5 x 4 cells: 2 * 30 + 20
+  !< values, a plane of nodes and cells in k, without a layer.
+  !< Defect: the upper bound of the cells in i was taken from Nz (ci2 = Nz + gc), so that a block with Ni /= Nk wrote the wrong
+  !< number of values; and the layer was added in k to a block with one plane of nodes there, the zone had 3 planes and the
+  !< writer read mesh(:,:,:,-1:1) past the bounds of a mesh of 0:0.
+  !< Basis: P, by construction: a layer of gc = 1 cells around the block in each direction in which it has cells.
+  !---------------------------------------------------------------------------------------------------------------------------------
+  type(orion_data)  :: w
+  character(len=400):: line
+  integer           :: err, n
+  !---------------------------------------------------------------------------------------------------------------------------------
+
+  ! three coordinates
+  allocate(w%block(1))
+  w%block(1)%name = 'g3'
+  w%block(1)%Ni = 3; w%block(1)%Nj = 2; w%block(1)%Nk = 1
+  allocate(w%block(1)%mesh(1:3,-1:4,-1:3,-1:2), w%block(1)%vars(1:1,0:4,0:3,0:2))
+  w%block(1)%mesh = 1._R8P
+  w%block(1)%vars = 2._R8P
+  w%tec%format = 'ascii'; w%tec%node = .false.; w%tec%bc = .true.
+  err = tec_write_structured_multiblock(orion=w, varnames='u', filename='ghost_3d.tec')
+  call check(err == 0, 'ghost cells, three coordinates: written')
+  call count_and_header('ghost_3d.tec', n, line)
+  call check(index(line, 'I=6, J=5, K=4') > 0, 'ghost cells, three coordinates: the zone of 6 x 5 x 4 nodes')
+  call check(n == 3*120 + 60, 'ghost cells, three coordinates: 3 * 120 + 60 values')
+  ! two coordinates
+  deallocate(w%block(1)%mesh, w%block(1)%vars)
+  w%block(1)%name = 'g2'
+  w%block(1)%Nk = 0
+  allocate(w%block(1)%mesh(1:2,-1:4,-1:3,0:0), w%block(1)%vars(1:1,0:4,0:3,1:1))
+  w%block(1)%mesh = 1._R8P
+  w%block(1)%vars = 2._R8P
+  err = tec_write_structured_multiblock(orion=w, varnames='u', filename='ghost_2d.tec')
+  call check(err == 0, 'ghost cells, two coordinates: written')
+  call count_and_header('ghost_2d.tec', n, line)
+  call check(index(line, 'I=6, J=5, K=1') > 0, 'ghost cells, two coordinates: the zone of 6 x 5 x 1 nodes')
+  call check(n == 2*30 + 20, 'ghost cells, two coordinates: 2 * 30 + 20 values')
+  end subroutine ghost_cells
+
+  subroutine count_and_header(file, nvalues, zone)
+  !---------------------------------------------------------------------------------------------------------------------------------
+  !< The number of lines of values of an ASCII file of one zone (all but the VARIABLES line and the ZONE record), and the ZONE
+  !< record.
+  !---------------------------------------------------------------------------------------------------------------------------------
+  character(len=*), intent(in)  :: file
+  integer,          intent(out) :: nvalues
+  character(len=*), intent(out) :: zone
+  character(len=400)            :: text
+  integer                       :: u, ios, nl
+  !---------------------------------------------------------------------------------------------------------------------------------
+
+  zone = ''
+  nl = 0
+  open(newunit=u, file=file, status='old', action='read')
+  do
+    read(u,'(A)',iostat=ios) text
+    if (ios /= 0) exit
+    nl = nl + 1
+    if (nl == 2) zone = text
+  enddo
+  close(u)
+  nvalues = nl - 2
+  end subroutine count_and_header
 
   subroutine digits_ascii
   !---------------------------------------------------------------------------------------------------------------------------------

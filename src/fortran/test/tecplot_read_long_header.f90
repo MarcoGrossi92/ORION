@@ -189,13 +189,14 @@ contains
   ! values. A file written by hand, whose zone header has a title of 3000 characters, in quotes, on
   ! its first line and I, J and K on the next one, and whose last line has no line feed, is read.
   ! Last, as a reader that loses the dimensions of a zone can stop the program, a zone of 5 points
-  ! is written with tec_write_points_multivars, with the two names, and read back with
-  ! tec_read_points_multivars. Every coordinate and value is an integer, a half or a quarter, exact
-  ! in every format.
+  ! (F=POINT, x u v on each line) with a name of 600 and of 4096 characters is written by hand, with
+  ! the header that the writer of points had (ZONE  T = name, I=5, F=POINT), and read with
+  ! tec_read_structured_multiblock. Every coordinate and value is an integer, a half or a quarter,
+  ! exact in every format.
   ! Defect: the writers built the zone header in 500 characters and the ASCII readers read each line
-  ! in 1000, so a longer zone header lost I, J and K and the file was refused;
-  ! tec_read_points_multivars split the zone header into pieces of 100 characters and wrote past the
-  ! end of one.
+  ! in 1000, so a longer zone header lost I, J and K and the file was refused; the reader of points
+  ! that tec_read_structured_multiblock replaced split the zone header into pieces of 100 characters
+  ! and wrote past the end of one.
   ! Basis: Fortran 2018, 10.2.1.3 (p. 162): an assignment to a character variable of fixed length
   ! truncates the value; Tecplot 360 EX 2023 R1 Data Format Guide, section 4-3.2 (p. 123): T is the
   ! zone title.
@@ -333,37 +334,42 @@ contains
     call check(same_field(w, r), what//': read with its dimensions, coordinates and values')
   end subroutine ascii_by_hand
 
-  ! A zone of 5 points with a name of n characters, written with tec_write_points_multivars and read back with
-  ! tec_read_points_multivars.
+  ! A zone of 5 points with a name of n characters, in a POINT file written by hand (one point per line: x u v) and read with
+  ! tec_read_structured_multiblock: a line of nodes, one coordinate and two variables at the nodes,
+  ! mesh(1:1,0:4,0:0,0:0) and vars(1:2,0:4,0:0,0:0).
   subroutine points(n)
     integer, intent(in)           :: n
     type(orion_data)              :: w, r
-    character(len=:), allocatable :: name, file, what
-    integer                       :: err, i
-    logical                       :: one_zone
+    character(len=:), allocatable :: name, file, what, text
+    character(len=1), parameter   :: lf = achar(10)
+    character(len=80)             :: line
+    integer                       :: err, i, u
     name = long_name(n, 'p')
     file = 'tec_long_name_points_'//itoa(n)//'.dat'
     what = 'POINT file, zone name of '//itoa(n)//' characters'
     allocate(w%block(1))
     w%block(1)%name = name
-    w%block(1)%Ni = 5; w%block(1)%Nj = 1; w%block(1)%Nk = 1
-    allocate(w%block(1)%mesh(1:1,1:5,1:1,1:1), w%block(1)%vars(1:2,1:5,1:1,1:1))
-    do i = 1, 5
-      w%block(1)%mesh(1,i,1,1) = 0.25_R8P*i
-      w%block(1)%vars(:,i,1,1) = [10._R8P*i, -0.5_R8P*i]
+    w%block(1)%Ni = 4; w%block(1)%Nj = 0; w%block(1)%Nk = 0
+    allocate(w%block(1)%mesh(1:1,0:4,0:0,0:0), w%block(1)%vars(1:2,0:4,0:0,0:0))
+    text = ' VARIABLES = "x" "u" "v"'//lf//' ZONE  T = '//name//', I=5, F=POINT'
+    do i = 0, 4
+      w%block(1)%mesh(1,i,0,0) = 0.25_R8P*(i + 1)
+      w%block(1)%vars(:,i,0,0) = [10._R8P*(i + 1), -0.5_R8P*(i + 1)]
+      write(line,'(3ES24.16)') w%block(1)%mesh(1,i,0,0), w%block(1)%vars(:,i,0,0)
+      text = text//lf//trim(line)
     enddo
-    err = tec_write_points_multivars(orion=w, varnames='"x" "u" "v"', filename=file)
-    call check(err == 0, what//': written without error')
-    call check(index(file_text(file), ' ZONE  T = '//name//', I=5, F=POINT') > 0, &
-               what//': the zone header holds the whole name and I')
-    err = tec_read_points_multivars(orion=r, nvar=2, filename=file)
-    call check(err == 0, what//': read back without error')
-    one_zone = allocated(r%block)
-    if (one_zone) one_zone = size(r%block) == 1
-    if (one_zone) one_zone = r%block(1)%Ni == 5 .and. r%block(1)%Nj == 1 .and. r%block(1)%Nk == 1
-    call check(one_zone, what//': read back as one zone of 5 points')
-    if (.not.one_zone) return
-    call check(all(r%block(1)%mesh(1,:,1,1) == w%block(1)%mesh(1,:,1,1)) .and. &
-               all(r%block(1)%vars(:,:,1,1) == w%block(1)%vars(:,:,1,1)), what//': read back with its coordinates and values')
+    open(newunit=u, file=file, access='stream', form='unformatted', status='replace', action='write')
+    write(u) text//lf
+    close(u)
+    err = tec_read_structured_multiblock(orion=r, filename=file)
+    call check(err == 0, what//': read without error')
+    if (err /= 0) return
+    call check(allocated(r%block), what//': blocks read')
+    if (.not.allocated(r%block)) return
+    call check(size(r%block) == 1, what//': read as one zone')
+    if (size(r%block) /= 1) return
+    call check(r%block(1)%name == name, what//': the whole name read back')
+    call check(r%tec%node, what//': the variables at the nodes')
+    call check(same_field(w, r), what//': read as one zone of 5 points, with its coordinates and values')
   end subroutine points
 end program tecplot_read_long_header

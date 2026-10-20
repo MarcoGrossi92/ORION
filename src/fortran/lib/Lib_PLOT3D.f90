@@ -40,61 +40,115 @@ module Lib_PLOT3D
 
 contains
 
-  ! Write ORION mesh data to a PLOT3D multiblock ASCII file.
+  ! Write ORION mesh data to a PLOT3D multiblock ASCII file. Every coordinate is written with 17 significant digits (FR8P of
+  ! IR_Precision, as in the Tecplot and VTK text files), so that the reader gives back the 64-bit real written, bit for bit.
+  ! The grid has the coordinates and the nodes of the mesh of each block, mesh(1:ndir,:,:,:): two or three coordinates, the same
+  ! in every block (Ni, Nj and Nk are not used: a block read from a VTK file has two coordinates and Nk = 1). The variables of
+  ! the blocks are not written: a PLOT3D grid file holds the grid only.
   ! [in]  orion    ORION data structure containing mesh blocks to write.
   ! [in]  filename Name of the output PLOT3D file.
-  ! [out] err         Error code (0 if successful, nonzero otherwise).
+  ! [out] err         Error code (0 if successful; 1, with a message on the standard error and before any file is opened, for
+  !                   a mesh that a grid cannot hold (no mesh, one coordinate, blocks with a different number of coordinates)
+  !                   and for a format other than 'ascii', since a PLOT3D file is written in ASCII only; the iostat of a
+  !                   failed open, write or close, with a message).
+  ! A name with no extension gets the extension .p3d.
   function p3d_write_multiblock(orion,filename) result(err)
     implicit none
     type(orion_data), intent(in)              :: orion
     character(len=*), intent(in)              :: filename
     integer :: err
-    integer :: unit, b, d, k, j, i, Nblocks, ndir
-    
+    integer :: unit, b, d, k, j, i, Nblocks, ndir, ni1, ni2, nj1, nj2, nk1, nk2, cerr
+    character(len=:), allocatable :: name
+
     Nblocks = size(orion%block)
 
-    ! initializing file
-    select case(orion%p3d%format)
-    case('binary')
-      stop "You can not write in binary P3D format"
-    case('ascii')
-      if (index(filename,'.')==0) then
-        open(newunit=unit,file=trim(filename)//".p3d",iostat=err)
-      else
-        open(newunit=unit,file=trim(filename),iostat=err)
+    ! The number of coordinates is that of the mesh of the first block, and the grid is written only when every block has it
+    err = 1
+    ndir = 0
+    do b = 1, Nblocks
+      if (.not.allocated(orion%block(b)%mesh)) then
+        write(stderr,'(A,I0,A)') 'PLOT3D WRITE ERROR: block ', b, ' has no mesh. Nothing is written.'
+        return
       endif
-    end select
+      if (b == 1) ndir = size(orion%block(1)%mesh,1)
+      if (size(orion%block(b)%mesh,1) /= ndir) then
+        write(stderr,'(A,I0,A,I0,A,I0,A)') 'PLOT3D WRITE ERROR: block ', b, ': number of coordinates in mesh: ', &
+          size(orion%block(b)%mesh,1), '; number of coordinates of block 1: ', ndir, '. Nothing is written.'
+        return
+      endif
+    enddo
+    if (ndir < 2 .or. ndir > 3) then
+      write(stderr,'(A,I0,A)') 'PLOT3D WRITE ERROR: a PLOT3D grid has two or three coordinates; the mesh has ', ndir, &
+        '. Nothing is written.'
+      return
+    endif
 
-    if (orion%block(1)%Nk==0) then
-      ndir = 2
-    else
-      ndir = 3
+    ! initializing file
+    if (orion%p3d%format /= 'ascii') then
+      write(stderr,'(A)') 'PLOT3D WRITE ERROR: the format "'//trim(orion%p3d%format)//'" cannot be written: a PLOT3D file '// &
+        'is written in ascii only. Nothing is written.'
+      return
+    endif
+    ! A name with no extension (the extension of the file, not a dot of a directory of the path) gets .p3d
+    name = trim(filename)
+    if (index(name(index(name,'/',back=.true.)+1:),'.') == 0) name = name//'.p3d'
+    open(newunit=unit,file=name,iostat=err)
+    if (err /= 0) then
+      write(stderr,'(A,I0,A)') 'PLOT3D WRITE ERROR: cannot open the file (iostat = ', err, '). Nothing is written.'
+      write(stderr,'(A)') 'File: '//name
+      return
     endif
 
     ! writing data blocks
     write(unit,*,iostat=err) Nblocks
-    
+    if (err /= 0) then
+      call write_failed()
+      return
+    endif
+
     do b = 1, Nblocks
-      if (orion%block(b)%Nk==0) then
-        write(unit,*,iostat=err) orion%block(b)%Ni+1, orion%block(b)%Nj+1
+      if (ndir == 2) then
+        write(unit,*,iostat=err) size(orion%block(b)%mesh,2), size(orion%block(b)%mesh,3)
       else
-        write(unit,*,iostat=err) orion%block(b)%Ni+1, orion%block(b)%Nj+1, orion%block(b)%Nk+1
+        write(unit,*,iostat=err) size(orion%block(b)%mesh,2), size(orion%block(b)%mesh,3), size(orion%block(b)%mesh,4)
+      endif
+      if (err /= 0) then
+        call write_failed()
+        return
       endif
     enddo
 
+    ! FR8P (17 significant digits), one coordinate per line: a list-directed WRITE takes its digits from the compiler
+    ! (ifx gives 16), too few to read every 64-bit real back as itself. A two-dimensional grid takes the first plane of k.
     do b = 1, Nblocks
+      ni1 = lbound(orion%block(b)%mesh,2); ni2 = ubound(orion%block(b)%mesh,2)
+      nj1 = lbound(orion%block(b)%mesh,3); nj2 = ubound(orion%block(b)%mesh,3)
+      nk1 = lbound(orion%block(b)%mesh,4); nk2 = merge(ubound(orion%block(b)%mesh,4), nk1, ndir == 3)
       do d = 1, ndir
-        do k = 0, orion%block(b)%Nk
-          do j = 0, orion%block(b)%Nj
-            do i = 0, orion%block(b)%Ni
-              write(unit,*,iostat=err) orion%block(b)%mesh(d,i,j,k)
-            enddo
-          enddo
-        enddo
+        write(unit,FR8P,iostat=err) (((orion%block(b)%mesh(d,i,j,k),i=ni1,ni2),j=nj1,nj2),k=nk1,nk2)
+        if (err /= 0) then
+          call write_failed()
+          return
+        endif
       enddo
     enddo
 
-    close(unit)
+    ! The last buffered data reach the file when it is closed: a full disk shows here
+    close(unit,iostat=cerr)
+    if (cerr /= 0) then
+      err = cerr
+      write(stderr,'(A,I0,A)') 'PLOT3D WRITE ERROR: cannot close the file (iostat = ', err, ').'
+      write(stderr,'(A)') 'File: '//name
+    endif
+
+  contains
+
+    ! A WRITE failed (err is its iostat): say so, and close the file
+    subroutine write_failed()
+      write(stderr,'(A,I0,A)') 'PLOT3D WRITE ERROR: cannot write to the file (iostat = ', err, '). The file is incomplete.'
+      write(stderr,'(A)') 'File: '//name
+      close(unit)
+    end subroutine write_failed
 
   endfunction p3d_write_multiblock
 

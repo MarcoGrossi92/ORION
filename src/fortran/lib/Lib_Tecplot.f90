@@ -21,14 +21,15 @@ module Lib_Tecplot
 
   public:: tec_write_structured_multiblock
   public:: tec_read_structured_multiblock
-  public:: tec_write_points_multivars
-  public:: tec_read_points_multivars
 
 
 contains
 
   !> \brief Compute domain dimensions for Tecplot output.
   !> \details Calculates dimension bounds for node-centered and cell-centered data based on block size and boundary conditions.
+  !> The boundary condition cells (bc) are a layer of gc cells around the block in each direction in which it has cells
+  !> (N > 0), and only for variables at the cells (node false): a direction with one plane of nodes, such as k of a
+  !> two-dimensional block, has no such layer.
   !> \param[in] node Whether data is node-centered (.true.) or cell-centered (.false.)
   !> \param[in] bc Whether boundary conditions are included
   !> \param[in] Nx, Ny, Nz Block dimensions in each direction
@@ -42,6 +43,7 @@ contains
     integer, intent(IN) :: Nx, Ny, Nz, gc          ! Block-level data.
     integer, intent(OUT):: ni1,ni2,nj1,nj2,nk1,nk2 ! Bounds of dimensions of node-centered data.
     integer, intent(OUT):: ci1,ci2,cj1,cj2,ck1,ck2 ! Bounds of dimensions of cell-centered data.
+    integer :: gi, gj, gk                          ! Width of the layer of ghost cells in each direction.
     if (node) then
       ni1 = 0 ; ni2 = Nx
       nj1 = 0 ; nj2 = Ny
@@ -51,23 +53,19 @@ contains
       cj1 = 0 ; cj2 = Ny
       ck1 = 0 ; ck2 = Nz
     else
+      gi = 0 ; gj = 0 ; gk = 0
       if (bc) then
-        ni1 = 0 - gc ; ni2 = Nx + gc
-        nj1 = 0 - gc ; nj2 = Ny + gc
-        nk1 = 0 - gc ; nk2 = Nz + gc
-
-        ci1 = 1 - gc ; ci2 = Nz + gc
-        cj1 = 1 - gc ; cj2 = Ny + gc
-        ck1 = 1 - gc ; ck2 = Nz + gc
-      else
-        ni1 = 0      ; ni2 = Nx
-        nj1 = 0      ; nj2 = Ny
-        nk1 = 0      ; nk2 = Nz
-
-        ci1 = 1      ; ci2 = Nx
-        cj1 = 1      ; cj2 = Ny
-        ck1 = 1      ; ck2 = Nz
+        if (Nx > 0) gi = gc
+        if (Ny > 0) gj = gc
+        if (Nz > 0) gk = gc
       endif
+      ni1 = 0 - gi ; ni2 = Nx + gi
+      nj1 = 0 - gj ; nj2 = Ny + gj
+      nk1 = 0 - gk ; nk2 = Nz + gk
+
+      ci1 = 1 - gi ; ci2 = Nx + gi
+      cj1 = 1 - gj ; cj2 = Ny + gj
+      ck1 = 1 - gk ; ck2 = Nz + gk
     endif
     ! If 2D domain -> nk = 0; ck = 1 
     if (nk1+nk2==0) then
@@ -114,8 +112,9 @@ contains
                                       teczne142,    &     ! | Tecplot external functions.
                                       tecdatd142,   &     ! |
                                       tecend142           ! |
-# endif
     character(1), parameter:: tecendrec = char(0) !< End-character for binary-record end.
+    integer::                 fileFormat          !< 0 == PLT, 1 == SZPLT
+# endif
     character(32768)::        tecvarname          !< Variables name for tecplot header file.
     character(len=:), allocatable:: teczoneheader !< Tecplot string of zone header, of any length: the block name is in it.
     character(500)::          tecvarform          !< Format for variables for tecplot file.
@@ -126,12 +125,12 @@ contains
     integer::                 Debug      = 0
     integer::                 VIsDouble  = 0
     integer::                 FileType   = 0
-    integer::                 fileFormat ! 0 == PLT, 1 == SZPLT
     integer::                 Nvar                !< Internal number of variables saved.
     integer::                 nv1                 !< Number of the variables of block 1 (0 when it has no vars).
     integer::                 ndir                !< Internal number of dimensions.
     integer::                 Nblocks             !< Number of blocks.
     integer::                 b                   !< Counter.
+    integer::                 d, n                !< Counters of the directions of the mesh, and nodes in one.
     integer::                 nvb                 !< Number of the variables of a block.
     integer::                 ncb                 !< Number of the coordinates of a block.
     integer::                 NvarTot
@@ -225,6 +224,27 @@ contains
     Nblocks = size(orion%block)
     ndir = size(orion%block(1)%mesh, 1)
     gc = 1
+    ! Boundary condition cells (variables at the cells only): the mesh of each block holds the layer of gc cells around the
+    ! block, from index -gc, in each direction in which it has more than one plane of nodes; the writer writes it whole, so that
+    ! a mesh without the layer would be read past its bounds
+    if (orion%tec%bc .and. .not.orion%tec%node) then
+      do b = 1, Nblocks
+        do d = 2, 4
+          n = size(orion%block(b)%mesh,d)
+          if (n > 1) then
+            if (n < 2*gc+2 .or. lbound(orion%block(b)%mesh,d) /= -gc) then
+              write(stderr,'(A,I0,A,I0,A)') 'TECPLOT WRITE ERROR: block ', b, ': orion%tec%bc is set, and index ', d-1, &
+                ' of its mesh does not hold the layer of boundary condition cells:'
+              write(stderr,'(A)') 'it must run from -1 over 4 nodes or more.'
+              write(stderr,'(A)') 'Nothing is written.'
+              write(stderr,'(A)') 'File: '//trim(filename)
+              err = 1
+              return
+            endif
+          endif
+        enddo
+      enddo
+    endif
     ! allocating dynamic arrays
     allocate(tecvarloc(1:ndir+Nvar))
     allocate(tecnull(1:ndir+Nvar))
@@ -275,14 +295,28 @@ contains
       error stop "You can not write in binary format without compiling against TecIO"
 #   endif
     case('ascii')
-      open(newunit=tecunit,file=trim(filename))
+      ! A file that cannot be opened (a directory that does not exist, no permission) is an error of the call, not of the program
+      open(newunit=tecunit,file=trim(filename),iostat=err)
+      if (err /= 0) then
+        write(stderr,'(A,I0,A)') 'TECPLOT WRITE ERROR: cannot open the file (iostat = ', err, '). Nothing is written.'
+        write(stderr,'(A)') 'File: '//trim(filename)
+        return
+      endif
       write(tecunit,'(A)',iostat=err)trim(tecvarname)
+      if (err /= 0) then
+        call ascii_failed()
+        return
+      endif
     end select
     ! writing data blocks
     do b=1,Nblocks
       err = tec_blk_data(b = b)
       ! The TecIO call of the block that failed has ended the write of a binary file and closed it
       if (err /= 0 .and. orion%tec%format == 'binary') return
+      if (err /= 0) then
+        call ascii_failed()
+        return
+      endif
     enddo
     ! finalizing tecplot file
     select case(orion%tec%format)
@@ -297,20 +331,41 @@ contains
       if (present(cycle)) then
         write(auxvalue,'(I0)') cycle
         write(tecunit,'(A)',iostat=err)'DATASETAUXDATA CYCLE = "'//trim(auxvalue)//'"'
+        if (err /= 0) then
+          call ascii_failed()
+          return
+        endif
       endif
       if (present(fldnames)) then
         do ifld = 1, size(fldnames)
           write(auxvalue,FR_P) fldvalues(ifld)
           write(tecunit,'(A)',iostat=err)'DATASETAUXDATA '//trim(adjustl(fldnames(ifld)))//' = "'//trim(adjustl(auxvalue))//'"'
+          if (err /= 0) then
+            call ascii_failed()
+            return
+          endif
         enddo
       endif
-      close(tecunit)
+      ! The last buffered data reach the file when it is closed: a full disk shows here
+      close(tecunit,iostat=err)
+      if (err /= 0) then
+        write(stderr,'(A,I0,A)') 'TECPLOT WRITE ERROR: cannot close the file (iostat = ', err, ').'
+        write(stderr,'(A)') 'File: '//trim(filename)
+        return
+      endif
     end select
     ! deallocating dynamic arrays
     deallocate(tecvarloc)
     deallocate(tecnull)
 
   contains
+    ! A WRITE to the ASCII file failed (err is its iostat): say so, and close the file
+    subroutine ascii_failed()
+      write(stderr,'(A,I0,A)') 'TECPLOT WRITE ERROR: cannot write to the file (iostat = ', err, '). The file is incomplete.'
+      write(stderr,'(A)') 'File: '//trim(filename)
+      close(tecunit)
+    end subroutine ascii_failed
+
     subroutine tec_init()
       implicit none
       integer  :: s ! Counter.
@@ -393,12 +448,19 @@ contains
       integer:: ci1,ci2,cj1,cj2,ck1,ck2 ! Bounds of dimensions of cell-centered data.
       integer:: vi1,vi2,vj1,vj2,vk1,vk2 ! Bounds of the variables as they are written (vars(s,vi1+start:vi2,...)).
       integer:: nnode,ncell             ! Number of nodes and cells.
-      integer:: i,j,k,s                 ! Counters.
+      integer:: i,j,k,s,d               ! Counters.
       integer:: Nx, Ny, Nz
       integer:: start
       character(DR_P):: timestr          ! The solution time as written in an ASCII zone header.
 
       Nx = size(orion%block(b)%mesh,2)-1; Ny = size(orion%block(b)%mesh,3)-1; Nz = size(orion%block(b)%mesh,4)-1
+      ! With boundary condition cells the arrays hold their layer around the block, in each direction in which they have more
+      ! than one plane of nodes: the block is what the layer encloses
+      if (orion%tec%bc .and. .not.orion%tec%node) then
+        if (Nx > 0) Nx = Nx - 2*gc
+        if (Ny > 0) Ny = Ny - 2*gc
+        if (Nz > 0) Nz = Nz - 2*gc
+      endif
       ! initialize the zone dimensions
       call compute_dimensions(node=orion%tec%node,bc=orion%tec%bc,             &
                               Nx=Nx,Ny=Ny,Nz=Nz,gc=gc,                         &
@@ -487,14 +549,15 @@ contains
         teczoneheader = trim(teczoneheader)//', SOLUTIONTIME='//trim(adjustl(timestr))
         if (time_accurate) teczoneheader = trim(teczoneheader)//', STRANDID='//trim(str(.true.,b))
         write(tecunit,'(A)',iostat=err)trim(teczoneheader)
-        write(tecunit,FR_P,iostat=err)(((orion%block(b)%mesh(1,i,j,k),i=ni1,ni2),j=nj1,nj2),k=nk1,nk2)
-        if (ndir>1) &
-          write(tecunit,FR_P,iostat=err)(((orion%block(b)%mesh(2,i,j,k),i=ni1,ni2),j=nj1,nj2),k=nk1,nk2)
-        if (ndir>2) &
-          write(tecunit,FR_P,iostat=err)(((orion%block(b)%mesh(3,i,j,k),i=ni1,ni2),j=nj1,nj2),k=nk1,nk2)
+        if (err /= 0) return
+        do d=1,ndir
+          write(tecunit,FR_P,iostat=err)(((orion%block(b)%mesh(d,i,j,k),i=ni1,ni2),j=nj1,nj2),k=nk1,nk2)
+          if (err /= 0) return
+        enddo
         if (.not.meshonly) then
           do s=1,Nvar
             write(tecunit,FR_P,iostat=err)(((orion%block(b)%vars(s,i,j,k),i=vi1+start,vi2),j=vj1+start,vj2),k=vk1+start,vk2)
+            if (err /= 0) return
           enddo
         endif
       end select
@@ -598,91 +661,6 @@ contains
 #   endif
 
   endfunction tec_write_structured_multiblock
-
-
-  !> \brief Write ORION point data to Tecplot file.
-  !> \details Exports ORION point data in Tecplot point format.
-  !> Each block is written as a separate zone with point values.
-  !> \param[in] orion ORION data structure containing blocks to write
-  !> \param[in] varnames Variable names string (optional)
-  !> \param[in] filename Output file name
-  !> \param[in] Nvars Number of variables to write (optional)
-  !> \return err Error code (0 if successful)
-  function tec_write_points_multivars(orion,varnames,filename,Nvars) result(err)
-    implicit none
-    type(orion_data), intent(in)              :: orion
-    character(len=*), intent(in), optional    :: varnames
-    character(len=*), intent(in)              :: filename
-    integer, intent(in), optional             :: Nvars
-    integer :: err
-    character(32768)::        tecvarname          !< Variables name for tecplot header file.
-    character(len=:), allocatable:: teczoneheader !< Tecplot string of zone header, of any length: the block name is in it.
-    character(500)::          tecvarform          !< Format for variables for tecplot file.
-    integer::                 tecunit             !< Free logic unit of tecplot file.
-    integer::                 Nvar                !< Internal number of variables saved.
-    integer::                 Nblocks             !< Number of blocks.
-    integer::                 b                   !< Counter.
-  
-    ! Preliminary operations
-    if (allocated(orion%block(1)%vars) .and. .not.present(Nvars)) then
-      Nvar = size(orion%block(1)%vars,1)
-    elseif (allocated(orion%block(1)%vars) .and. present(Nvars)) then
-      Nvar = Nvars
-    elseif (.not.allocated(orion%block(1)%vars)) then
-      err = 1
-      return
-    endif
-    Nblocks = size(orion%block)
-
-    ! initializing tecplot variables
-    call tec_init()
-
-    ! initializing tecplot file
-    open(newunit=tecunit,file=trim(filename))
-    write(tecunit,'(A)',iostat=err)trim(tecvarname)
-    ! writing data blocks
-    do b=1,Nblocks
-      err = tec_blk_data(b = b)
-    enddo
-    ! finalizing tecplot file
-    close(tecunit)
-
-  contains
-    subroutine tec_init()
-      implicit none
-      integer  :: s ! Counter.
-      ! header variables names
-      tecvarname = ' VARIABLES ='
-      if (present(varnames)) then
-        tecvarname = trim(tecvarname)//' '//trim(varnames)
-      else
-        do s = 1, Nvar
-          tecvarname = trim(tecvarname)//' "var'//trim(str(.true.,s))//'"'
-        enddo
-      endif
-      ! variables output format
-      write(tecvarform,'(A)')'('//trim(str(no_sign=.true.,n=Nvar))//'('//FR_P//',1X))'
-    endsubroutine tec_init
-
-    function tec_blk_data(b) result(err)
-      implicit none
-      integer, intent(IN):: b           ! Block number.
-      integer:: err                     ! Error trapping flag: 0 no errors, >0 error occurs.
-      integer:: i
-      integer:: Nx
-
-      Nx = size(orion%block(b)%mesh,2)
-      ! tecplot zone header
-      teczoneheader = ' ZONE  T = '//trim(orion%block(b)%name)//     &
-                      ', I='//trim(str(no_sign=.true.,n=Nx))//       &
-                      ', F=POINT'
-      write(tecunit,'(A)',iostat=err)trim(teczoneheader)
-      do i = 1, Nx
-        write(tecunit,*,iostat=err) orion%block(b)%mesh(1,i,1,1), orion%block(b)%vars(1:nvar,i,1,1)
-      enddo
-    endfunction tec_blk_data
-
-  endfunction tec_write_points_multivars
 
 
   !> \brief Read ORION structured multiblock data from Tecplot file.
@@ -1613,7 +1591,7 @@ contains
 
   end function tec_read_ascii
 
-  ! Keywords and titles of a zone header: tec_read_ascii and tec_read_points_multivars
+  ! Keywords and titles of a zone header: tec_read_ascii
 
   ! Position of the value of `key` (name without '=') in a header line, or 0 if
   ! absent. The key must be a whole word outside quoted strings, followed by
@@ -1797,110 +1775,6 @@ contains
   end subroutine aux_item
 
 
-  !> \brief Read ORION point data from Tecplot file.
-  !> \details Reads Tecplot point format files into ORION data structure.
-  !> Each zone is treated as a separate block.
-  !> \param[inout] orion ORION data structure to fill with data
-  !> \param[in] nvar Number of variables in file
-  !> \param[in] filename Input file name
-  !> \return err Error code (0 if successful)
-  function tec_read_points_multivars(orion,nvar,filename) result(err)
-    use, intrinsic :: iso_fortran_env, only : iostat_end
-    use strings, only: getvals, parse
-    implicit none
-    type(orion_data), intent(inout)  :: orion
-    character(len=*), intent(in)     :: filename
-    integer, intent(in)              :: nvar
-    real(R8P) :: dummy_float
-    integer :: err
-    integer :: tecunit, ios, ios_prev
-    integer :: i, j, k, b
-    integer :: Nzones, nlines
-    integer, allocatable :: nskip(:)
-    character(len=:), allocatable :: line   ! a line of any length (read with read_whole_line): a zone header holds the block name
-    character(len=:), allocatable :: args(:), subargs(:)   ! pieces of a zone header, as long as its line
-
-    ! Open file
-    open(newunit=tecunit,file=trim(filename),iostat=err,action='read',status='old')
-    if (err/=0) return
-    
-    ! Count blocks and allocate data
-    ios = 0; Nzones = 0; nlines = -1
-    do while(ios==0)
-      call read_whole_line(tecunit,line,ios)
-      nlines = nlines+1
-      if (index(line,"ZONE")>0 .and. index(line,"ZONETYPE")==0) then
-        Nzones = Nzones+1
-      elseif (index(line,"Zone")>0) then
-        Nzones = Nzones+1
-      elseif (index(line,"ZONE T")>0) then
-        Nzones = Nzones+1
-      endif
-    enddo
-    ! The blocks of an earlier read into the same object give way to those of the file, as in the .szplt and VTK readers
-    if (allocated(orion%block)) deallocate(orion%block)
-    allocate(orion%block(1:Nzones))
-    rewind(tecunit)
-
-    ! Read blocks size
-    ios = 0; b = 0
-    do
-      do while (index(line,'I=')==0 .and. ios/=iostat_end)
-      call read_whole_line(tecunit,line,ios)
-      enddo
-      if (ios==iostat_end) exit
-      b = b+1
-      ! The block takes the title of its zone as its name (on the line of I=), as in tec_read_ascii
-      orion%block(b)%name = zone_title(line)
-      ! parse copies each piece whole (split writes it character by character), so the pieces get the length of the line:
-      ! the first one holds the block name
-      if (allocated(args)) deallocate(args, subargs)
-      allocate(character(len=len(line)) :: args(20), subargs(2))
-      call parse(line,',',args)
-      do i = 1, 2
-        if (index(args(i),'I=')>0) then
-          call parse(args(i),'=',subargs)
-          read(subargs(2),'(I8)') orion%block(b)%Ni
-          orion%block(b)%Ni = orion%block(b)%Ni
-          orion%block(b)%Nj = 1
-          orion%block(b)%Nk = 1
-        endif
-      enddo
-      line = 'here we go'
-    enddo
-    rewind(tecunit)
-
-    ! Count not-floating lines
-    allocate(nskip(Nzones))
-    nskip = 0; ios = 0; b = 1; ios_prev = 0
-    do
-      call read_whole_line(tecunit,line,ios)
-      if (ios==iostat_end) exit
-      read(line,*,iostat=ios) dummy_float
-      if ((ios==0 .and. index(line,'DATA')>0) .or. ios/=0) then
-        nskip(b) = nskip(b)+1
-        ios = 1
-      endif
-      if (ios==0 .and. ios_prev/=0) b = b+1
-      ios_prev = ios
-    enddo
-    rewind(tecunit)
-
-    ! Read all
-    do b = 1, Nzones
-      allocate(orion%block(b)%mesh(1:1,1:orion%block(b)%Ni,1:orion%block(b)%Nj,1:orion%block(b)%Nk))
-      allocate(orion%block(b)%vars(1:nvar,1:orion%block(b)%Ni,1:orion%block(b)%Nj,1:orion%block(b)%Nk))
-      call skip(tecunit,nskip(b))
-      do k = 1, orion%block(b)%Nk; do j = 1, orion%block(b)%Nj; do i = 1, orion%block(b)%Ni
-            read(tecunit,*,iostat=err) orion%block(b)%mesh(1,i,j,k), orion%block(b)%vars(1:nvar,i,j,k)
-      enddo; enddo; enddo
-    enddo
-
-    close(tecunit)
-
-  end function tec_read_points_multivars
-
-
   !> \\brief Extract variable names from a Tecplot VARIABLES declaration.
   !> \\details Robust parser for quoted and unquoted variable names.
   !> Supports both single and double quotes, comma/blank/tab separators,
@@ -2062,43 +1936,7 @@ contains
   end subroutine append_variable_name
 
 
-  !> \\brief Split a string into whitespace/comma-separated tokens.
-  !> \\details Legacy helper retained for source compatibility.
-  subroutine split_tokens(str, tokens, ntok)
-    implicit none
-    character(len=*), intent(in)  :: str
-    character(len=32), intent(out):: tokens(:)
-    integer,          intent(out) :: ntok
-    integer :: i, L, s
-    logical :: in_tok
-
-    ntok = 0
-    in_tok = .false.
-    s = 1
-    L = len(str)
-    do i = 1, L
-      if (str(i:i) == ' ' .or. str(i:i) == ',' .or. str(i:i) == char(9)) then
-        if (in_tok) then
-          if (ntok < size(tokens)) then
-            ntok = ntok + 1
-            tokens(ntok) = str(s:i-1)
-          endif
-          in_tok = .false.
-        endif
-      else
-        if (.not.in_tok) then
-          s = i
-          in_tok = .true.
-        endif
-      endif
-    enddo
-    if (in_tok .and. ntok < size(tokens)) then
-      ntok = ntok + 1
-      tokens(ntok) = str(s:L)
-    endif
-  end subroutine split_tokens
-
-
+# if defined(TECIO)
   !> \brief Convert C character array to Fortran string.
   !> \details Convenience routine for converting C pointers to Fortran strings in TecIO operations.
   !> The string has the length of the array and its characters only, with no C_NULL_CHAR after them: it is kept as a
@@ -2123,9 +1961,8 @@ contains
         string(i:i) = charPointer(i)
     enddo
 
-  end
+  end subroutine copyCharArrayToString
 
-# if defined(TECIO)
   !> \brief Read ORION structured multiblock data from Tecplot binary file (SZplt format).
   !> \details Uses TecIO library to read compressed Tecplot binary format (.szplt).
   !> Only compiled if TECIO is defined.
@@ -2712,17 +2549,6 @@ contains
 
   end function tec_read_szplt
 # endif
-
-
-  !> \brief Skip n lines in file unit u.
-  !> \param[in] u File unit number
-  !> \param[in] n Number of lines to skip
-  subroutine skip(u,n)
-    implicit none
-    integer, intent(in) :: u, n
-    integer :: i
-    do i = 1, n; read(u,*); enddo
-  end subroutine skip
 
 
   end module Lib_Tecplot

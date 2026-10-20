@@ -100,6 +100,8 @@
   call relative_paths
   call dataset_indices
   call one_coordinate
+  call unwritable_output
+  call variable_names
 
   write(*,'(A,I0,A,I0,A)') 'vtk_write_wrapper: ', checks, ' checks, ', failures, ' failed'
   if (failures > 0) stop 1
@@ -120,6 +122,109 @@
     write(*,'(A)') '  FAIL: '//message
   endif
   end subroutine check
+
+  subroutine small_field(o)
+  !---------------------------------------------------------------------------------------------------------------------------------
+  !< One block of 2 x 2 x 2 cells with two variables at the cells, named Block1.
+  !---------------------------------------------------------------------------------------------------------------------------------
+  type(orion_data), intent(out) :: o
+  integer                       :: ii, jj, kk
+  !---------------------------------------------------------------------------------------------------------------------------------
+
+  allocate(o%block(1))
+  o%block(1)%name = 'Block1'
+  o%block(1)%Ni = 2; o%block(1)%Nj = 2; o%block(1)%Nk = 2
+  allocate(o%block(1)%mesh(1:3,0:2,0:2,0:2), o%block(1)%vars(1:2,1:2,1:2,1:2))
+  do kk = 0, 2; do jj = 0, 2; do ii = 0, 2
+    o%block(1)%mesh(:,ii,jj,kk) = [real(ii, R8P), real(jj, R8P), real(kk + 1, R8P)]
+  enddo; enddo; enddo
+  o%block(1)%vars(1,:,:,:) = 1._R8P
+  o%block(1)%vars(2,:,:,:) = 2._R8P
+  end subroutine small_field
+
+  subroutine unwritable_output
+  !---------------------------------------------------------------------------------------------------------------------------------
+  !< Output that cannot be written. A field written to a directory that does not exist (the block files, vtspath, or the .vtm
+  !< file, vtmpath) gives a nonzero return value in each format, and no file: neither an unconnected unit written to (a file
+  !< fort.N in the current directory) nor a block file written by the calls that follow the failed one.
+  !< Defect: VTK_INI_XML and VTM_INI_XML kept the status of the OPEN only until the next WRITE, which wrote to the unit
+  !< that was not connected (gfortran created fort.N for it), and vtk_write_structured_multiblock returned the status of
+  !< its last call, that of the .vtm file: a block file that could not be written ended with the return value 0.
+  !< Basis: Fortran 2018 (ISO/IEC 1539-1:2018, final draft J3/18-007r1), 12.11.5, paragraph 1 (p. 233): a failed OPEN with
+  !< IOSTAT= gives a nonzero value to the variable; 12.5.6.16 does not make the next statement replace it.
+  !---------------------------------------------------------------------------------------------------------------------------------
+  character(len=6), parameter :: formats(3) = ['ascii ', 'binary', 'raw   ']
+  type(orion_data)            :: o
+  character(len=10)           :: names
+  integer                     :: f, err, es
+  !---------------------------------------------------------------------------------------------------------------------------------
+
+  do f = 1, 3
+    call small_field(o)
+    o%vtk%format = formats(f)
+    names = 'var1 var2'
+    err = vtk_write_structured_multiblock(orion=o, vtspath='no_such_dir/', vtmpath='no_such_dir/x', varnames=names)
+    call check(err /= 0, trim(o%vtk%format)//': the block files in a directory that does not exist: a nonzero return value')
+    call execute_command_line('ls fort.* > /dev/null 2>&1', exitstat=es)
+    call check(es /= 0, trim(o%vtk%format)//': the block files in a directory that does not exist: no file fort.N')
+    err = vtk_write_structured_multiblock(orion=o, vtspath='', vtmpath='no_such_dir/x', varnames=names)
+    call check(err /= 0, trim(o%vtk%format)//': the .vtm file in a directory that does not exist: a nonzero return value')
+    call execute_command_line('ls fort.* > /dev/null 2>&1', exitstat=es)
+    call check(es /= 0, trim(o%vtk%format)//': the .vtm file in a directory that does not exist: no file fort.N')
+  enddo
+  end subroutine unwritable_output
+
+  subroutine variable_names
+  !---------------------------------------------------------------------------------------------------------------------------------
+  !< The names of the variables come back with the field. A field of two variables written with the names alpha and beta, in
+  !< each format, is read back with varnames = x y z alpha beta (the names of the coordinates, as the Tecplot readers return
+  !< them, then those of the variables), and a field of two coordinates with x y alpha beta.
+  !< Defect: the VTK reader left varnames undefined, so that a conversion from a VTK file lost the names of its variables.
+  !< Basis: P, by construction: the names are those of the arrays of the block files.
+  !---------------------------------------------------------------------------------------------------------------------------------
+  character(len=6), parameter :: formats(3) = ['ascii ', 'binary', 'raw   ']
+  type(orion_data)            :: o, r
+  character(len=10)           :: names
+  integer                     :: f, err
+  !---------------------------------------------------------------------------------------------------------------------------------
+
+  do f = 1, 3
+    call small_field(o)
+    o%vtk%format = formats(f)
+    names = 'alpha beta'
+    err = vtk_write_structured_multiblock(orion=o, vtspath='', vtmpath='names_field', varnames=names)
+    call check(err == 0, trim(o%vtk%format)//': names: written')
+    r%vtk%format = o%vtk%format
+    err = vtk_read_structured_multiblock(orion=r, vtspath='', vtmpath='names_field')
+    call check(err == 0, trim(o%vtk%format)//': names: read back')
+    if (err /= 0) cycle
+    call check(allocated(r%varnames), trim(o%vtk%format)//': names: varnames set')
+    if (.not.allocated(r%varnames)) cycle
+    call check(size(r%varnames) == 5, trim(o%vtk%format)//': names: three coordinates and two variables')
+    if (size(r%varnames) == 5) call check(all(r%varnames == ['x    ', 'y    ', 'z    ', 'alpha', 'beta ']), &
+                                          trim(o%vtk%format)//': names: x y z alpha beta')
+  enddo
+  ! a field of two coordinates
+  call small_field(o)
+  deallocate(o%block(1)%mesh)
+  allocate(o%block(1)%mesh(1:2,0:2,0:2,0:0))
+  o%block(1)%mesh(1,:,:,0) = 1._R8P; o%block(1)%mesh(2,:,:,0) = 2._R8P
+  deallocate(o%block(1)%vars)
+  allocate(o%block(1)%vars(1:2,1:2,1:2,1:1))
+  o%block(1)%vars = 3._R8P
+  o%vtk%format = 'ascii'
+  names = 'alpha beta'
+  err = vtk_write_structured_multiblock(orion=o, vtspath='', vtmpath='names_field2d', varnames=names)
+  r%vtk%format = 'ascii'
+  err = err + vtk_read_structured_multiblock(orion=r, vtspath='', vtmpath='names_field2d')
+  call check(err == 0, 'names, two coordinates: written and read back')
+  if (err == 0 .and. allocated(r%varnames)) &
+    call check(size(r%varnames) == 4, 'names, two coordinates: two coordinates and two variables')
+  if (err == 0 .and. allocated(r%varnames)) then
+    if (size(r%varnames) == 4) call check(all(r%varnames == ['x    ', 'y    ', 'alpha', 'beta ']), &
+                                          'names, two coordinates: x y alpha beta')
+  endif
+  end subroutine variable_names
 
   subroutine many_blocks
   !---------------------------------------------------------------------------------------------------------------------------------

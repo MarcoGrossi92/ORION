@@ -118,11 +118,11 @@ contains
   ! title in double quotes that holds blanks, a comma and the text I=9 J=9, the keywords separated
   ! by blanks; a title without quotes, after the keyword in lower case (t=); a zone without a title,
   ! whose block gets a blank name. Two zones of points, named pt_A and with a name of 600
-  ! characters, are written with tec_write_points_multivars and their names read back with
-  ! tec_read_points_multivars, which also reads a file of points written by hand, with a title in
-  ! quotes that holds blanks and a zone without a title.
-  ! Defect: tec_read_ascii and tec_read_points_multivars never set the names of the blocks, which
-  ! held what the memory held.
+  ! characters, are written (as lines of nodes, BLOCK packing) with tec_write_structured_multiblock
+  ! and their names read back with tec_read_structured_multiblock, which also reads a file of points
+  ! (F=POINT) written by hand, with a title in quotes that holds blanks and a zone without a title.
+  ! Defect: tec_read_ascii and the reader of points that tec_read_structured_multiblock replaced
+  ! never set the names of the blocks, which held what the memory held.
   ! Basis: Fortran 2018, 19.6.6 (p. 514): a component without default initialization becomes
   ! undefined when the object is allocated; Tecplot 360 EX 2023 R1 Data Format Guide, section 4-3.2
   ! (p. 123): T is the zone title, and section 4-2 (p. 120): double quotes enclose strings with
@@ -210,8 +210,8 @@ contains
     call check(r%block(3)%name == '', 'ASCII file written by hand: a blank name for the zone without a title')
   end subroutine written_by_hand
 
-  ! Two zones of points named pt_A and with a name of 600 characters, written with tec_write_points_multivars and read back with
-  ! tec_read_points_multivars.
+  ! Two zones of points (lines of nodes: one coordinate, two variables at the nodes) named pt_A and with a name of 600
+  ! characters, written with tec_write_structured_multiblock and read back with tec_read_structured_multiblock.
   subroutine points_written_and_read
     type(orion_data)            :: w, r
     character(len=*), parameter :: file = 'tec_block_names_points.dat'
@@ -221,16 +221,18 @@ contains
     allocate(w%block(2))
     do b = 1, 2
       w%block(b)%name = names(b)
-      w%block(b)%Ni = 3; w%block(b)%Nj = 1; w%block(b)%Nk = 1
-      allocate(w%block(b)%mesh(1:1,1:3,1:1,1:1), w%block(b)%vars(1:2,1:3,1:1,1:1))
-      do i = 1, 3
-        w%block(b)%mesh(1,i,1,1) = 0.5_R8P*i + b
-        w%block(b)%vars(:,i,1,1) = [real(10*b + i, R8P), -0.25_R8P*i]
+      w%block(b)%Ni = 2; w%block(b)%Nj = 0; w%block(b)%Nk = 0
+      allocate(w%block(b)%mesh(1:1,0:2,0:0,0:0), w%block(b)%vars(1:2,0:2,0:0,0:0))
+      do i = 0, 2
+        w%block(b)%mesh(1,i,0,0) = 0.5_R8P*i + b
+        w%block(b)%vars(:,i,0,0) = [real(10*b + i, R8P), -0.25_R8P*i]
       enddo
     enddo
-    err = tec_write_points_multivars(orion=w, varnames='"x" "u" "v"', filename=file)
+    w%tec%node = .true.
+    w%tec%format = 'ascii'
+    err = tec_write_structured_multiblock(orion=w, varnames='u v', filename=file)
     call check(err == 0, 'file of points: written without error')
-    err = tec_read_points_multivars(orion=r, nvar=2, filename=file)
+    err = tec_read_structured_multiblock(orion=r, filename=file)
     call check(err == 0, 'file of points: read back without error')
     if (err /= 0) return
     call check(size(r%block) == 2, 'file of points: two zones read back')
@@ -239,8 +241,9 @@ contains
     call check(r%block(2)%name == long_name(600), 'file of points: the name of 600 characters read back')
   end subroutine points_written_and_read
 
-  ! A file of points written by hand: a zone of 3 points with a title in quotes that holds blanks, a zone of 2 points without a
-  ! title.
+  ! A file of points written by hand (F=POINT, one point per line: x u v): a zone of 3 points with a title in quotes that holds
+  ! blanks, a zone of 2 points without a title. The zones are lines of nodes: one coordinate, the variables at the nodes,
+  ! mesh(1:1,0:N,0:0,0:0) and vars(1:2,0:N,0:0,0:0) with N the points less one.
   subroutine points_by_hand
     type(orion_data)            :: r
     character(len=*), parameter :: file = 'tec_block_names_points_by_hand.dat'
@@ -251,19 +254,32 @@ contains
              ' ZONE T="Line one with blanks", I=3, F=POINT'//lf//' 0.0 1.0 2.0'//lf//' 0.5 1.5 2.5'//lf//' 1.0 2.0 3.0'//lf// &
              ' ZONE I=2, F=POINT'//lf//' 2.0 3.0 4.0'//lf//' 2.5 3.5 4.5'//lf
     close(u)
-    err = tec_read_points_multivars(orion=r, nvar=2, filename=file)
+    err = tec_read_structured_multiblock(orion=r, filename=file)
     call check(err == 0, 'file of points written by hand: read without error')
     if (err /= 0) return
     call check(size(r%block) == 2, 'file of points written by hand: two zones read')
     if (size(r%block) /= 2) return
     call check(r%block(1)%name == 'Line one with blanks', 'file of points written by hand: the title in quotes as the name')
     call check(r%block(2)%name == '', 'file of points written by hand: a blank name for the zone without a title')
+    call check(r%tec%node, 'file of points written by hand: the variables at the nodes')
+    call check(r%block(1)%Ni == 2 .and. r%block(2)%Ni == 1 .and. all(shape(r%block(1)%mesh) == [1, 3, 1, 1]) .and. &
+               all(shape(r%block(1)%vars) == [2, 3, 1, 1]), &
+               'file of points written by hand: lines of nodes, one coordinate, two variables')
+    if (.not.(r%block(1)%Ni == 2 .and. r%block(2)%Ni == 1)) return
+    call check(all(r%block(1)%mesh(1,0:2,0,0) == [0.0_R8P, 0.5_R8P, 1.0_R8P]) .and. &
+               all(r%block(1)%vars(1,0:2,0,0) == [1.0_R8P, 1.5_R8P, 2.0_R8P]) .and. &
+               all(r%block(1)%vars(2,0:2,0,0) == [2.0_R8P, 2.5_R8P, 3.0_R8P]), &
+               'file of points written by hand: the points of the first zone, one line each')
+    call check(all(r%block(2)%mesh(1,0:1,0,0) == [2.0_R8P, 2.5_R8P]) .and. &
+               all(r%block(2)%vars(1,0:1,0,0) == [3.0_R8P, 3.5_R8P]) .and. &
+               all(r%block(2)%vars(2,0:1,0,0) == [4.0_R8P, 4.5_R8P]), &
+               'file of points written by hand: the points of the second zone')
   end subroutine points_by_hand
 
   ! A file read into an orion_data that already holds the blocks of another one, with tec_read_structured_multiblock (an ASCII
-  ! file of two zones, then one of one zone) and with tec_read_points_multivars (two zones of points, then one): each second
-  ! read returns 0 and gives the blocks of its file.
-  ! Defect: the two ASCII readers allocated the blocks of the file over those already allocated, and the program stopped with
+  ! file of two zones, then one of one zone; the same with two files of points, F=POINT): each second read returns 0 and gives the
+  ! blocks of its file.
+  ! Defect: the ASCII readers allocated the blocks of the file over those already allocated, and the program stopped with
   ! "Attempting to allocate already allocated variable"; the .szplt and VTK readers deallocate them first.
   ! Basis: Fortran 2018 (ISO/IEC 1539-1:2018, final draft J3/18-007r1), 9.7.1.3, paragraph 1 (p. 135): an allocated
   ! variable "may be referenced, defined, or deallocated; allocating it causes an error condition in the ALLOCATE statement".
@@ -296,10 +312,10 @@ contains
     open(newunit=u, file='tec_read_again_one.dat', access='stream', form='unformatted', status='replace', action='write')
     write(u) ' VARIABLES = "x" "u"'//lf//' ZONE T="Q1", I=3, F=POINT'//lf//' 0.0 1.0'//lf//' 0.5 2.0'//lf//' 1.0 3.0'//lf
     close(u)
-    err = tec_read_points_multivars(orion=p, nvar=1, filename='tec_read_again_two.dat')
+    err = tec_read_structured_multiblock(orion=p, filename='tec_read_again_two.dat')
     call check(err == 0 .and. allocated(p%block), 'read again: the file of two zones of points read')
     if (allocated(p%block)) call check(size(p%block) == 2, 'read again: two zones of points')
-    err = tec_read_points_multivars(orion=p, nvar=1, filename='tec_read_again_one.dat')
+    err = tec_read_structured_multiblock(orion=p, filename='tec_read_again_one.dat')
     call check(err == 0, 'read again: the file of one zone of points read into the same object, without error')
     if (err == 0 .and. allocated(p%block)) call check(size(p%block) == 1 .and. p%block(1)%name == 'Q1', &
                                                        'read again: the zone of the second file of points')
