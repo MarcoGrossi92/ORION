@@ -12,17 +12,16 @@ def read_version():
 
 # Package meta-data.
 NAME = 'ORION'
-DESCRIPTION = 'Reader of Tecplot ascii files containing structured multi-block fields'
+DESCRIPTION = 'Python interface of ORION: reads and writes Tecplot ASCII files and reads PLOT3D grid files of structured multi-block fields'
 URL = 'https://github.com/MarcoGrossi92/ORION'
 EMAIL = 'marco.grossi@uniroma1.it'
 AUTHOR = 'Marco Grossi'
 REQUIRES_PYTHON = '>=3.6.0'
 VERSION = read_version()
-install_requires=['numpy', 're']
 
 # What packages are required for this module to be executed?
 REQUIRED = [
-    # 'requests', 'maya', 'records',
+    'numpy',
 ]
 
 # What packages are optional?

@@ -1,27 +1,7 @@
 import re
 import numpy as np
 
-def count_lines_before_float(file_path):
-    line_count = 0
-
-    with open(file_path, 'r') as file:
-        for line in file:
-            line_count += 1
-
-            # Check if the line contains only a floating-point number
-            try:
-                float_value = float(line.strip())
-                # If we successfully convert the line to a float, we've found a line with a sole floating number
-                break
-            except ValueError:
-                # The line does not contain a floating-point number, continue to the next line
-
-                # Additionally, if the line starts with a keyword (e.g., "VARIABLES", "Zone T"),
-                # we consider it a non-data line and continue searching for the floating-point number
-                if line.strip().startswith(("VARIABLES", "Zone T", "SOLUTIONTIME", "DATAPACKING", "VARLOCATION")):
-                    continue
-
-    return line_count
+__all__ = ['read_TEC', 'write_TEC']
 
 
 # One variable name of a VARIABLES list, after any blanks, tabs and commas that
@@ -113,63 +93,26 @@ def read_dimensions(file_path):
     return dim
 
 
-def read_geometry(file_path,Nx,Ny,Nz,jumpline):
-    MESH = open(file_path,"r")
-    MESH = MESH.readlines()
-
-    Ni = Nx+1; Nj = Ny+1; Nk = Nz+1
-
-    line = jumpline-2
-    xn = np.zeros((Ni, Nj, Nk))
-    yn = np.zeros((Ni, Nj, Nk))
-    zn = np.zeros((Ni, Nj, Nk))
-
-    for k in range(Nk):
-        for j in range(Nj):
-            for i in range(Ni):
-                line += 1
-                xn[i,j,k] = float(MESH[line])
-
-    for k in range(Nk):
-        for j in range(Nj):
-            for i in range(Ni):
-                line += 1
-                yn[i,j,k] = float(MESH[line])
-
-    for k in range(Nk):
-        for j in range(Nj):
-            for i in range(Ni):
-                line += 1
-                zn[i,j,k] = float(MESH[line])
-
-    # xc = np.zeros((Nx, Ny, Nz))
-    # yc = np.zeros((Nx, Ny, Nz))
-    # zc = np.zeros((Nx, Ny, Nz))
-    # for k in range(Nz):
-    #     for j in range(Ny):
-    #         for i in range(Nx):
-    #             xc[i,j,k] = 0.125*(xn[i,j,k]+xn[i+1,j,k]+xn[i,j+1,k]+xn[i,j,k+1]+xn[i+1,j+1,k]+xn[i+1,j,k+1]+xn[i,j+1,k+1]+xn[i+1,j+1,k+1])
-    #             yc[i,j,k] = 0.125*(yn[i,j,k]+yn[i+1,j,k]+yn[i,j+1,k]+yn[i,j,k+1]+yn[i+1,j+1,k]+yn[i+1,j,k+1]+yn[i,j+1,k+1]+yn[i+1,j+1,k+1])
-    #             zc[i,j,k] = 0.125*(zn[i,j,k]+zn[i+1,j,k]+zn[i,j+1,k]+zn[i,j,k+1]+zn[i+1,j+1,k]+zn[i+1,j,k+1]+zn[i,j+1,k+1]+zn[i+1,j+1,k+1])
-
-    return xn, yn, zn
+def read_geometry(lines, Nx, Ny, Nz, jumpline):
+    """x, y and z of the (Nx+1) x (Ny+1) x (Nz+1) nodes of a zone, from the lines of the file (one value per line, i
+    fastest, the x of all the nodes and then the y and the z). jumpline is the 1-based number of the line of the first
+    value."""
+    shape = (Nx + 1, Ny + 1, Nz + 1)
+    n = shape[0] * shape[1] * shape[2]
+    first = jumpline - 1
+    return tuple(np.array(lines[first + c * n:first + (c + 1) * n], dtype=np.float64).reshape(shape, order='F')
+                 for c in range(3))
 
 
-def read_field(file_path,N,Nx,Ny,Nz,jumpline):
-    MESH = open(file_path,"r")
-    MESH = MESH.readlines()
-
-    var = [np.zeros((max(Nx,1), max(Ny,1), max(Nz,1))) for _ in range(N)]
-    line = jumpline-2
-
-    for v in range(N):
-        for k in range(max(Nz,1)):
-            for j in range(max(Ny,1)):
-                for i in range(max(Nx,1)):
-                    line += 1
-                    var[v][i,j,k] = float(MESH[line])
-
-    return var
+def read_field(lines, N, Nx, Ny, Nz, jumpline):
+    """N variables at the cells of a zone of Nx x Ny x Nz cells (one layer of cells where a direction has one plane of
+    nodes), from the lines of the file, in the form of read_geometry. jumpline is the 1-based number of the line of the
+    first value."""
+    shape = (max(Nx, 1), max(Ny, 1), max(Nz, 1))
+    n = shape[0] * shape[1] * shape[2]
+    first = jumpline - 1
+    return [np.array(lines[first + v * n:first + (v + 1) * n], dtype=np.float64).reshape(shape, order='F')
+            for v in range(N)]
 
 
 def zone_data_starts(file_path):
@@ -203,17 +146,82 @@ def zone_data_starts(file_path):
     return starts
 
 
-def read_TEC(file_path):
+def _location_cells(header, count):
+    """The indices (1-based) of the variables that the VARLOCATION of a zone header lists as CELLCENTERED, among the first
+    count; none when the header has no VARLOCATION. A variable that it does not list is at the nodes."""
+    match = re.search(r'VARLOCATION\s*=\s*\((.*?)\)', header)
+    cells = set()
+    if not match:
+        return cells
+    for ranges, place in re.findall(r'\[([^\]]*)\]\s*=\s*(NODAL|CELLCENTERED)', match.group(1)):
+        if place != 'CELLCENTERED':
+            continue
+        for part in ranges.split(','):
+            first, _, last = part.strip().partition('-')
+            if first.strip().isdigit():
+                cells.update(range(int(first), int(last or first) + 1))
+    return {i for i in cells if i <= count}
 
+
+def _check_form(file_path, lines, nvariables, dimensions, data_starts):
+    """Refuse the zones that read_TEC does not read, with the reason. It reads only the form of the files that ORION
+    writes: BLOCK packing, x, y and z at the nodes and the other variables at the cells, one value per line. The check
+    is on the header of each zone and on the number of its values, so that a file of another form (POINT packing, one or
+    two coordinates, variables at the nodes, several values per line) is refused, not read as the wrong values."""
+    zone_lines = [i for i, line in enumerate(lines) if re.match(r'\s*ZONE\b', line, re.IGNORECASE)]
+    if len(zone_lines) != len(data_starts) or len(dimensions) != len(data_starts):
+        raise ValueError('{}: {} ZONE records and {} lines with I= : the zones cannot be told'.format(
+            file_path, len(zone_lines), len(data_starts)))
+    for b, (z, start) in enumerate(zip(zone_lines, data_starts)):
+        first = start - 1
+        header = re.sub(r'"[^"]*"', '""', ' '.join(lines[z:first])).upper()
+        where = '{}: zone {}'.format(file_path, b + 1)
+        if re.search(r'\b(?:DATAPACKING|F)\s*=\s*POINT\b', header):
+            raise ValueError('{} is in POINT packing: read_TEC reads BLOCK packing only'.format(where))
+        if len(dimensions[b]) != 3:
+            raise ValueError('{} has {} of I, J and K: read_TEC reads zones of three coordinates, with the three'.format(
+                where, len(dimensions[b])))
+        if nvariables > 3:
+            cells = _location_cells(header, nvariables)
+            if cells & {1, 2, 3}:
+                raise ValueError('{} has a coordinate at the cells: a file of one or two coordinates, whose third variable is '
+                                 'a solution variable at the cells? read_TEC reads x, y and z at the nodes'.format(where))
+            if cells != set(range(4, nvariables + 1)):
+                raise ValueError('{} has variables at the nodes: read_TEC reads x, y and z at the nodes and the other '
+                                 'variables at the cells, as VARLOCATION says '
+                                 '(VARLOCATION=([1-3]=NODAL,[4-{}]=CELLCENTERED))'.format(where, nvariables))
+        # the values of the zone: up to the next ZONE record or the first data set auxiliary data record
+        end = zone_lines[b + 1] if b + 1 < len(zone_lines) else len(lines)
+        for i in range(first, end):
+            if lines[i].lstrip().upper().startswith('DATASETAUXDATA'):
+                end = i
+                break
+        found = sum(1 for line in lines[first:end] if line.strip())
+        ni, nj, nk = dimensions[b]
+        nodes = ni * nj * nk
+        cells = max(ni - 1, 1) * max(nj - 1, 1) * max(nk - 1, 1)
+        expected = 3 * nodes + max(nvariables - 3, 0) * cells
+        if found != expected:
+            raise ValueError('{} has {} lines of values, not the {} of 3 coordinates of {} nodes and {} variables of {} '
+                             'cells: read_TEC reads one value per line, and this form only'.format(
+                                 where, found, expected, nodes, max(nvariables - 3, 0), cells))
+
+
+def read_TEC(file_path):
+    """Read a Tecplot ASCII file of the form that ORION writes: zones in BLOCK packing, with x, y and z at the nodes and
+    the other variables at the cells, one value per line.
+
+    Returns xb, yb, zb, vb, names: lists with one entry per zone (the arrays of the nodes, of shape (I, J, K), and for each
+    zone the list of its variables at the cells, of shape (max(I-1,1), max(J-1,1), max(K-1,1))), and the names of the
+    VARIABLES list. Raises ValueError, with the reason, for a file of another form (POINT packing, one or two
+    coordinates, variables at the nodes, several values per line), and OSError when it cannot be read.
+    """
     variables = read_variables(file_path)
     dimensions = read_dimensions(file_path)
     data_starts = zone_data_starts(file_path)
-
-    # Displaying the result
-    # print("Number of Variables:", variables['number'])
-    # print("Variables:", variables['name'])
-    # print("Block Dimensions:", dimensions)
-    # print()
+    with open(file_path, 'r') as file:
+        lines = file.readlines()
+    _check_form(file_path, lines, variables['number'], dimensions, data_starts)
 
     xb = []; yb = []; zb = []; vb = []
 
@@ -228,51 +236,61 @@ def read_TEC(file_path):
         # Geometry (X, Y, Z) begins at this zone's first data line; the field
         # variables follow immediately after in BLOCK packing.
         geom_jump = data_starts[b]
-        [xn,yn,zn] = read_geometry(file_path,Nx,Ny,Nz,geom_jump)
+        xn, yn, zn = read_geometry(lines, Nx, Ny, Nz, geom_jump)
         xb.append(xn); yb.append(yn); zb.append(zn)
 
         field_jump = geom_jump + 3*(Nx+1)*(Ny+1)*(Nz+1)
-        var = read_field(file_path,Nvar,Nx,Ny,Nz,field_jump)
-        vb.append(var)
+        vb.append(read_field(lines, Nvar, Nx, Ny, Nz, field_jump))
 
     return xb, yb, zb, vb, variables['name']
 
 
 def write_TEC(file_path, xb, yb, zb, vb, var_names=None):
+    """Write a Tecplot ASCII file in the form that read_TEC reads: one zone per block, in BLOCK packing, with x, y and z at
+    the nodes and the variables at the cells, one value per line.
 
+    xb, yb, zb: lists with one array per block, of shape (I, J, K), the coordinates of its nodes. vb: for each block, the
+    list of its variables, arrays of shape (max(I-1,1), max(J-1,1), max(K-1,1)), the values at its cells (one layer of
+    cells where a direction has one plane of nodes). var_names: the names of the VARIABLES list, the coordinates first
+    (default x, y, z, v1, v2, ...). The zones are named Block1, Block2, ... Raises ValueError for arrays whose shapes do
+    not fit, and for a number of names that is not that of the variables, before it writes anything.
+    """
+    Nb = len(xb)
+    if not (len(yb) == len(zb) == len(vb) == Nb) or Nb == 0:
+        raise ValueError('write_TEC: xb, yb, zb and vb must be lists of the same length, one entry per block (at least one)')
+    xb = [np.asarray(a, dtype=np.float64) for a in xb]
+    yb = [np.asarray(a, dtype=np.float64) for a in yb]
+    zb = [np.asarray(a, dtype=np.float64) for a in zb]
+    vb = [[np.asarray(a, dtype=np.float64) for a in block] for block in vb]
+    Nv = len(vb[0])
+    for b in range(Nb):
+        if xb[b].ndim != 3 or xb[b].shape != yb[b].shape or xb[b].shape != zb[b].shape:
+            raise ValueError('write_TEC: block {}: x, y and z must be arrays of the same shape (I, J, K)'.format(b + 1))
+        cells = tuple(max(n - 1, 1) for n in xb[b].shape)
+        if len(vb[b]) != Nv:
+            raise ValueError('write_TEC: block {} has {} variables, block 1 has {}'.format(b + 1, len(vb[b]), Nv))
+        for v, a in enumerate(vb[b]):
+            if a.shape != cells:
+                raise ValueError('write_TEC: block {}, variable {}: shape {}, not {}, the cells of its {} nodes'.format(
+                    b + 1, v + 1, a.shape, cells, xb[b].shape))
+    if var_names is None:
+        var_names = ['x', 'y', 'z'] + ['v{}'.format(v + 1) for v in range(Nv)]
+    elif len(var_names) != 3 + Nv:
+        raise ValueError('write_TEC: {} names for 3 coordinates and {} variables'.format(len(var_names), Nv))
+
+    if Nv == 0:
+        location = '[1-3]=NODAL'
+    elif Nv == 1:
+        location = '[1-3]=NODAL,[4]=CELLCENTERED'
+    else:
+        location = '[1-3]=NODAL,[4-{}]=CELLCENTERED'.format(3 + Nv)
     with open(file_path, 'w') as file:
-        Nv = len(vb[0])
-        if var_names is None:
-            var_names = ['"x"', '"y"', '"z"'] + [f'"v{v+1}"' for v in range(Nv)]
-        else:
-            var_names = [f'"{name}"' for name in var_names]
-        file.write("VARIABLES = " + " ".join(var_names) + "\n")
-
-        Nb = len(vb)
+        file.write('VARIABLES = ' + ' '.join('"{}"'.format(name) for name in var_names) + '\n')
         for b in range(Nb):
             Nx, Ny, Nz = xb[b].shape
-            if Nv == 1:
-                file.write(f'ZONE T="Block{b+1}", I={Nx}, J={Ny}, K={Nz}, DATAPACKING=BLOCK, VARLOCATION=([1-3]=NODAL,[4]=CELLCENTERED)\n')
-            else:
-                file.write(f'ZONE T="Block{b+1}", I={Nx}, J={Ny}, K={Nz}, DATAPACKING=BLOCK, VARLOCATION=([1-3]=NODAL,[4-{3+Nv}]=CELLCENTERED)\n')
-            for k in range(Nz):
-                for j in range(Ny):
-                    for i in range(Nx):
-                        val = xb[b][i, j, k]
-                        file.write(f"{val}\n")
-            for k in range(Nz):
-                for j in range(Ny):
-                    for i in range(Nx):
-                        val = yb[b][i, j, k]
-                        file.write(f"{val}\n")
-            for k in range(Nz):
-                for j in range(Ny):
-                    for i in range(Nx):
-                        val = zb[b][i, j, k]
-                        file.write(f"{val}\n")
-            for v in range(Nv):
-                for k in range(Nz-1):
-                    for j in range(Ny-1):
-                        for i in range(Nx-1):
-                            val = vb[b][v][i, j, k]
-                            file.write(f"{val}\n")
+            file.write('ZONE T="Block{}", I={}, J={}, K={}, DATAPACKING=BLOCK, VARLOCATION=({})\n'.format(
+                b + 1, Nx, Ny, Nz, location))
+            for a in [xb[b], yb[b], zb[b]] + vb[b]:
+                # i fastest, as the Fortran writer: the values of the array in Fortran order, in the shortest form that
+                # gives them back
+                file.write(''.join('{!r}\n'.format(value) for value in a.flatten(order='F').tolist()))
