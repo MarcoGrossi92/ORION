@@ -5,11 +5,15 @@
 !< every value. The reader keeps at most 512 names: 512 names are read, 513 are refused.
 !< Zone headers longer than 1000 characters too: block names of 600 and 4096 characters in the zone
 !< titles of ASCII and POINT files, and a title of 3000 characters (long_names).
+!< A last line without a line feed, whose length is a multiple of the pieces of read_whole_line
+!< (last_line_without_line_feed).
 !< Stops with a non-zero code when a check fails.
 program tecplot_read_long_header
+  use, intrinsic :: iso_fortran_env, only : iostat_end
   use Lib_Tecplot
   use Lib_ORION_data
   use IR_Precision
+  use strings, only : read_whole_line
   implicit none
   integer :: nfail
 
@@ -18,6 +22,7 @@ program tecplot_read_long_header
   call names_512()
   call names_513()
   call long_names()
+  call last_line_without_line_feed()
   if (nfail > 0) then
     write(*,'(A,I0,A)') 'tecplot_read_long_header: ', nfail, ' check(s) FAILED'
     error stop 1
@@ -372,4 +377,103 @@ contains
     call check(r%tec%node, what//': the variables at the nodes')
     call check(same_field(w, r), what//': read as one zone of 5 points, with its coordinates and values')
   end subroutine points
+
+  ! A new file, written byte by byte (stream access): the lines are ended by the line feeds that the caller writes.
+  subroutine open_bytes(file, u)
+    character(len=*), intent(in)  :: file
+    integer,          intent(out) :: u
+    open(newunit=u, file=file, access='stream', form='unformatted', status='replace', action='write')
+  end subroutine open_bytes
+
+  ! Block b of r is a line of nodes with one coordinate, x, and the variables v(1:nv,1:n) at its n nodes, as written.
+  logical function line_block(r, b, x, v) result(same)
+    type(orion_data), intent(in) :: r
+    integer,          intent(in) :: b
+    real(R8P),        intent(in) :: x(:), v(:,:)
+    same = allocated(r%block)
+    if (same) same = size(r%block) >= b
+    if (.not.same) return
+    same = allocated(r%block(b)%mesh) .and. allocated(r%block(b)%vars)
+    if (same) same = all(shape(r%block(b)%mesh) == [1, size(x), 1, 1]) .and. &
+                     all(shape(r%block(b)%vars) == [size(v,1), size(x), 1, 1])
+    if (same) same = all(reshape(r%block(b)%mesh, [size(x)]) == x) .and. &
+                     all(reshape(r%block(b)%vars, [size(v,1), size(x)]) == v)
+  end function line_block
+
+  ! The last line of a file, without a line feed. read_whole_line reads a line 512 characters at a time; with gfortran the
+  ! read after the last whole piece of a last line whose length is a multiple of 512 gives the end of the file, not the end
+  ! of the record. Files written byte by byte: a line of 512 characters with a line feed, then a last line of 1024 without
+  ! one; a last line of 512 characters with its line feed. read_whole_line must return each line whole with iostat 0, then
+  ! iostat_end. On a unit connected for formatted stream access, a last line of 512 characters without a line feed:
+  ! read_whole_line must give iostat_end, after that line, whole, at most once. A Tecplot ASCII file whose only data line,
+  ! x and p of a zone of 4 nodes, is its last line, of 512 characters without a line feed, must be read with every value
+  ! as written.
+  ! Defect: with gfortran read_whole_line returned the end of the file instead of the last line of 1024 characters, and
+  ! tec_read_structured_multiblock, which reads the first data line of a zone with read_whole_line, refused the Tecplot file.
+  ! Basis: Fortran 2018, 12.3.4.3 (p. 214): after the end of the file, a BACKSPACE statement may reposition the file;
+  ! 12.8.2 (p. 244): it is positioned before the endfile record. A stream file has no endfile record (12.2.4, p. 211), and
+  ! BACKSPACE would put it back before its last line (12.8.2), which every next read would return again.
+  subroutine last_line_without_line_feed()
+    character(len=1), parameter   :: lf = achar(10)
+    character(len=:), allocatable :: a, b, line
+    type(orion_data)              :: r
+    integer                       :: u, ios, err
+    logical                       :: ok
+    write(*,'(A)') 'last line without a line feed'
+    a = long_name(512, 'a')
+    b = long_name(1024, 'b')
+    ! A line of 512 characters with its line feed, then the last line, of 1024 characters, without one
+    call open_bytes('rwl_512_1024_no_lf.txt', u)
+    write(u) a//lf//b
+    close(u)
+    open(newunit=u, file='rwl_512_1024_no_lf.txt', status='old', action='read')
+    call read_whole_line(u, line, ios)
+    call check(ios == 0 .and. len(line) == 512 .and. line == a, 'read_whole_line: a line of 512 characters, whole')
+    call read_whole_line(u, line, ios)
+    call check(ios == 0 .and. len(line) == 1024 .and. line == b, &
+               'read_whole_line: the last line, 1024 characters without a line feed, whole')
+    if (ios == 0) then
+      call read_whole_line(u, line, ios)
+      call check(ios == iostat_end, 'read_whole_line: then the end of the file')
+    endif
+    close(u)
+    ! The last line, of 512 characters, with its line feed: one line, then the end of the file
+    call open_bytes('rwl_512_lf.txt', u)
+    write(u) a//lf
+    close(u)
+    open(newunit=u, file='rwl_512_lf.txt', status='old', action='read')
+    call read_whole_line(u, line, ios)
+    call check(ios == 0 .and. len(line) == 512 .and. line == a, &
+               'read_whole_line: the last line, 512 characters with a line feed, whole')
+    if (ios == 0) then
+      call read_whole_line(u, line, ios)
+      call check(ios == iostat_end, 'read_whole_line: then the end of the file')
+    endif
+    close(u)
+    ! The last line, of 512 characters, without a line feed, on a unit connected for formatted stream access: the end of the
+    ! file, after that line, whole, at most once
+    call open_bytes('rwl_512_no_lf_stream.txt', u)
+    write(u) a
+    close(u)
+    open(newunit=u, file='rwl_512_no_lf_stream.txt', access='stream', form='formatted', status='old', action='read')
+    call read_whole_line(u, line, ios)
+    ok = ios == iostat_end
+    if (ios == 0) then
+      ok = len(line) == 512 .and. line == a
+      call read_whole_line(u, line, ios)
+      ok = ok .and. ios == iostat_end
+    endif
+    close(u)
+    call check(ok, 'read_whole_line, formatted stream access, the last line, 512 characters without a line feed: '// &
+                   'the end of the file, after the line at most once')
+    ! A Tecplot file whose only data line is the last one, of 512 characters, without a line feed
+    call open_bytes('tec_last_line_512_no_lf.dat', u)
+    write(u) ' VARIABLES = "x" "p"'//lf//' ZONE T="u", I=4, J=1, DATAPACKING=BLOCK'//lf//repeat(' ', 497)//'1 2 3 4 5 6 7 8'
+    close(u)
+    err = tec_read_structured_multiblock(orion=r, filename='tec_last_line_512_no_lf.dat')
+    call check(err == 0, 'Tecplot file whose only data line is the last, 512 characters without a line feed: read')
+    if (err /= 0) return
+    call check(line_block(r, 1, [1._R8P, 2._R8P, 3._R8P, 4._R8P], reshape([5._R8P, 6._R8P, 7._R8P, 8._R8P], [1, 4])), &
+               'Tecplot file whose only data line is the last, 512 characters without a line feed: every value as written')
+  end subroutine last_line_without_line_feed
 end program tecplot_read_long_header

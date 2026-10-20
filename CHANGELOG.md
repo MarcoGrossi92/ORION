@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Changes on `main` since `v2.0.0`.
 
+### Fixed
+
+- `read_whole_line` (module `strings`) reads whole the last line of a file
+  connected for sequential access also when it has no line feed. With gfortran
+  such a line, of a length that is a multiple of 512 characters, gave the end
+  of the file and was lost, and the Tecplot ASCII reader, which reads the first
+  data line of each zone with `read_whole_line`, refused a file whose only data
+  line was such a last line.
+
 ## [2.0.0] - 2026-10-20
 
 ### Added

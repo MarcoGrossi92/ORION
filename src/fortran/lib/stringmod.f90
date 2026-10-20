@@ -546,27 +546,63 @@ subroutine read_whole_line(unit,line,ios)
 
 ! Reads the next line from unit, whole, whatever its length: a piece at a time, by nonadvancing input
 ! (Fortran 2003), up to the end of the record. ios is 0, or the code of the end of file or of the error of
-! the read; nothing of a piece read before an end of file or an error is kept.
+! the read; nothing of the read that ends in an end of file or an error is used (its buffer and its size).
+! unit is connected for formatted sequential or stream access, the two that allow nonadvancing input
+! (Fortran 2018, C1221, p. 226), with pad mode YES, the default of OPEN (12.5.6.13, p. 222); ORION opens its
+! files for sequential access, with the default pad mode.
+! Sequential access: the last line of the file is read whole also when it has no line feed. gfortran ends
+! such a line with the end of the record, as any other, unless its length is a multiple of the piece: then
+! the read after its last whole piece gives the end of the file. The pieces read make up that last line:
+! it is returned, and BACKSPACE puts the file back before its endfile record (12.3.4.3, p. 214, and 12.8.2,
+! p. 244), so that the next read gives the end of the file, as after any other last line. A pipe or the
+! standard input may not allow the BACKSPACE: if it fails, ios is its code and line holds the line.
+! Stream access: a last line without a line feed is an incomplete record, and a read that needs more characters than it
+! holds gives the end of the file (12.3.3.4, p. 213, and 12.6.4.5.3, p. 235), also inside the line: the characters of that
+! read are undefined (12.11.3, p. 254), so the pieces read may be only part of the line, and the end of the file is
+! returned. gfortran (13.2 and 7.5) and ifx (2024.1) end such a line with the end of the record, as any other, unless its
+! length is a multiple of the piece: that line is lost. Such a file has no endfile record (12.2.4, p. 211, and 12.11.1,
+! p. 253): BACKSPACE would put it back before its last line (12.8.2), which every next call would return again, so it is
+! not used there.
+! The first piece is assigned to line and the others appended to it, so a line shorter than a piece is
+! allocated once.
 
-use, intrinsic :: iso_fortran_env, only : iostat_eor
+use, intrinsic :: iso_fortran_env, only : iostat_eor, iostat_end
 implicit none
 integer, intent(in) :: unit
 character(len=:), allocatable, intent(out) :: line
 integer, intent(out) :: ios
 character(len=512) :: buffer
+character(len=10) :: acc   ! the access of unit: SEQUENTIAL or STREAM
 integer :: sz
+logical :: first   ! the next piece read is the first of the line
 
-line = ''
+first = .true.
 do
   read(unit, '(A)', advance='no', size=sz, iostat=ios) buffer
   if (ios == iostat_eor) then
-    line = line // buffer(:sz)
+    if (first) then
+      line = buffer(:sz)
+    else
+      line = line // buffer(:sz)
+    endif
     ios = 0
     return
+  elseif (ios == iostat_end .and. .not.first) then
+    ! The end of the file after whole pieces: the last line, without a line feed (see above); with stream
+    ! access, the end of the file
+    inquire(unit=unit, access=acc)
+    if (acc == 'SEQUENTIAL') backspace(unit, iostat=ios)
+    return
   elseif (ios /= 0) then
+    if (first) line = ''
     return
   endif
-  line = line // buffer
+  if (first) then
+    line = buffer
+  else
+    line = line // buffer
+  endif
+  first = .false.
 end do
 
 end subroutine read_whole_line
