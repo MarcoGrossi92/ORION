@@ -850,7 +850,7 @@
   !< sizes and every variable. Every value is an integer, so it reads back bit for bit in every format.
   !< Defect: the reader took a block whose z add up to 0 for a 2-D one (sum(z) == 0) and dropped z.
   !< Basis: VTK File Formats, Points (p. 14): the points of a StructuredGrid have three coordinates and nothing marks a block
-  !< as 2-D; Fortran 2018, 10.1.5.2.4 (p. 147): mathematically equivalent expressions can give different floating-point
+  !< as 2-D; Fortran 2018, 10.1.5.2.4 (p. 148): mathematically equivalent expressions can give different floating-point
   !< results, so sum(z) == 0 tests no geometry.
   !---------------------------------------------------------------------------------------------------------------------------------
   character(len=6), parameter :: formats(3) = ['ascii ', 'binary', 'raw   ']
