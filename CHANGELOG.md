@@ -7,7 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-Changes on `main` since `v2.0.0`.
+Changes on `main` since `v2.1.0`.
+
+## [2.1.0] - 2026-10-29
+
+### Added
+
+- CMake option `ORION_TECIO_DIR` (a path, empty by default): the folder of the
+  TecIO builds, `tecio-build-<compilers>` and `tecio-install-<compilers>`
+  (`teciompi-` with MPI), in place of `lib/TecIO`, so that several builds of
+  ORION share one TecIO build. Empty, TecIO is built in `lib/TecIO` as before.
 
 ### Fixed
 
