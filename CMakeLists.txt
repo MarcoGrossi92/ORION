@@ -28,19 +28,27 @@ INCLUDE(${CMAKE_MODULE_PATH}/SetCompilerID.cmake)
 
 # TecIO
 OPTION(USE_TECIO "Use TecIO" ON)
+# The folder of the TecIO builds, <basename>-build-<compilers> and <basename>-install-<compilers>: by default lib/TecIO
+# of these sources. A folder outside them lets several builds of ORION share one TecIO build
+set(ORION_TECIO_DIR "" CACHE PATH "Folder of the TecIO builds (empty: lib/TecIO of ORION's sources)")
 if (USE_TECIO)
   if (USE_MPI)
     set(basename "teciompi")
   else()
     set(basename "tecio")
   endif()
-  set(TECIO_INSTALL_DIR "${CMAKE_CURRENT_SOURCE_DIR}/lib/TecIO/${basename}-install-${COMPILER_SUFFIX}")
+  if (ORION_TECIO_DIR)
+    set(TECIO_BUILDS_DIR "${ORION_TECIO_DIR}")
+  else()
+    set(TECIO_BUILDS_DIR "${CMAKE_CURRENT_SOURCE_DIR}/lib/TecIO")
+  endif()
+  set(TECIO_INSTALL_DIR "${TECIO_BUILDS_DIR}/${basename}-install-${COMPILER_SUFFIX}")
   if(NOT EXISTS "${TECIO_INSTALL_DIR}")
     message(STATUS "TecIO not installed, building and installing it...")
 
     # Build TecIO in a temporary build directory
     execute_process(COMMAND ${CMAKE_COMMAND} -S ${CMAKE_CURRENT_SOURCE_DIR}/lib/TecIO/${basename}src
-                                           -B ${CMAKE_CURRENT_SOURCE_DIR}/lib/TecIO/${basename}-build-${COMPILER_SUFFIX}
+                                           -B ${TECIO_BUILDS_DIR}/${basename}-build-${COMPILER_SUFFIX}
                                            -DCMAKE_INSTALL_PREFIX=${TECIO_INSTALL_DIR}
                                            -DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER}
                                            -DCMAKE_Fortran_COMPILER=${CMAKE_Fortran_COMPILER}
@@ -49,12 +57,12 @@ if (USE_TECIO)
         message(FATAL_ERROR "Failed to configure TecIO")
     endif()
 
-    execute_process(COMMAND ${CMAKE_COMMAND} --build ${CMAKE_CURRENT_SOURCE_DIR}/lib/TecIO/${basename}-build-${COMPILER_SUFFIX}
+    execute_process(COMMAND ${CMAKE_COMMAND} --build ${TECIO_BUILDS_DIR}/${basename}-build-${COMPILER_SUFFIX}
                     RESULT_VARIABLE BUILD_RESULT)
     if(NOT BUILD_RESULT EQUAL 0)
         message(FATAL_ERROR "Failed to build TecIO")
     endif()
-    execute_process(COMMAND ${CMAKE_COMMAND} --install ${CMAKE_CURRENT_SOURCE_DIR}/lib/TecIO/${basename}-build-${COMPILER_SUFFIX}
+    execute_process(COMMAND ${CMAKE_COMMAND} --install ${TECIO_BUILDS_DIR}/${basename}-build-${COMPILER_SUFFIX}
                     RESULT_VARIABLE INSTALL_RESULT)
     if(NOT INSTALL_RESULT EQUAL 0)
         message(FATAL_ERROR "Failed to install TecIO")
