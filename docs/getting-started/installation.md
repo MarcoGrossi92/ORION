@@ -168,6 +168,9 @@ TecIO is a C++ library built using `boost`. If a boost system installation is pr
 
 TecIO will not rebuilt unless these folders are removed by the user or the compilers are changed when recompiling ORION. 
 
+`-DORION_TECIO_DIR=<folder>` puts the two folders in `<folder>` instead of `lib/TecIO`, so that several builds of ORION
+share one TecIO build. The rule above applies to them there.
+
 !!! note "C++ Compiler Required"
     TecIO requires a C++ compiler. Ensure `g++` or Intel C++ compiler is available.
 
@@ -202,9 +205,6 @@ tests, which are registered when CMake finds a Python 3 with NumPy. Run one test
 
 ```python
 # In Python shell
-from importlib.metadata import version
-print(version('ORION'))
-
 # Test reading a file
 from ORION import read_TEC
 # x, y, z, var, varnames = read_TEC('yourfile.tec')
@@ -235,8 +235,8 @@ source ~/.bashrc  # or source ~/.zshrc
 
 **As a CMake subproject**
 
-This is how other projects use ORION. Add the ORION folder (a git submodule, for instance) and link the target `ORION`.
-When ORION is not the top-level project, CMake builds the library only, not the converter and the tests:
+A CMake project adds the ORION folder as a subproject and links the target `ORION`. When ORION is not the top-level
+project, CMake builds the library only, not the converter and the tests:
 
 ```cmake
 project(your_project LANGUAGES Fortran CXX)
@@ -251,8 +251,8 @@ target_link_libraries(your_program ORION)
 target_include_directories(your_program PRIVATE ${CMAKE_Fortran_MODULE_DIRECTORY})
 ```
 
-The option `USE_TECIO` (default ON) applies to the subproject as well; set it before `add_subdirectory` to change it
-(`set(USE_TECIO OFF CACHE BOOL "" FORCE)`).
+The options `USE_TECIO` (default ON) and `ORION_TECIO_DIR` (see [TecIO Support](#tecio-support)) apply to the
+subproject as well; set them before `add_subdirectory` to change them (`set(USE_TECIO OFF CACHE BOOL "" FORCE)`).
 
 **With a compiler command**
 
