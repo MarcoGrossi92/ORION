@@ -151,6 +151,12 @@ program read_tecplot_ascii
 end program read_tecplot_ascii
 ```
 
+A zone holds exactly the values its header announces: `I`, `J` and `K` times the variables. The line breaks don't
+matter, so a row may wrap onto several lines. After the last value of a zone, only blank lines, the next `ZONE`
+record, `DATASETAUXDATA` records or the end of the file may follow. Anything else is refused with the return value 1
+and a message that gives the file, the zone, the line and what was found: text after the last row, more rows than the
+header announces, or a row with one value too many.
+
 Binary Format (with TecIO)
 
 For `.szplt` files, use the same function: ORION takes the format from the extension, the text after the last dot of

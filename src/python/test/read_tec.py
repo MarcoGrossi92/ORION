@@ -31,8 +31,8 @@ of header, the names being read as the Fortran reader reads them:
     the file, the zone and the keyword;
 11. files of a form that read_TEC does not read are refused with the reason, not read as other values: variables at the
     nodes (with VARLOCATION and without it), POINT packing, a coordinate at the cells (a file of two coordinates), a zone
-    without J and K, several values on a line, a zone with a value missing; and the data set auxiliary data records
-    after the last zone are not values;
+    without J and K, several values on a line, a zone with a value missing, a value too many, text after the values or
+    after the data set auxiliary data records; and those records after the last zone are not values;
 12. write_TEC writes every value it is given, whatever the shape of the zone (a block, a plane, a line and a point of
     nodes, a zone without variables), and refuses with a ValueError the shapes and the names that do not fit, writing
     nothing.
@@ -266,6 +266,17 @@ expect_error(path, path, 'zone 1', 'one value per line')
 path = 'python_read_tec_form_short.tec'
 write_form(path, 'x y z u', good, 3 * 12 + 1)
 expect_error(path, path, 'zone 1', '37 lines of values', 'not the 38')
+# Data that the zone header does not announce: a value too many, text after the values (line 41), and text after the
+# auxiliary data records (line 43)
+path = 'python_read_tec_form_long.tec'
+write_form(path, 'x y z u', good, 3 * 12 + 3)
+expect_error(path, path, 'zone 1', '39 lines of values', 'not the 38')
+path = 'python_read_tec_form_end.tec'
+write_form(path, 'x y z u', good, 3 * 12 + 2, tail='END\n')
+expect_error(path, path, 'zone 1, line 41', "'END'")
+path = 'python_read_tec_form_aux_end.tec'
+write_form(path, 'x y z u', good, 3 * 12 + 2, tail=' DATASETAUXDATA CYCLE = "5"\n\n END\n')
+expect_error(path, path, 'zone 1, line 43', "'END'", 'DATASETAUXDATA')
 
 
 # 12. write_TEC and read_TEC give each other back, for every shape of zone.
