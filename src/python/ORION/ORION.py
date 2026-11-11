@@ -163,6 +163,10 @@ def _location_cells(header, count):
     return {i for i in cells if i <= count}
 
 
+# A data set auxiliary data record: a line whose first word is DATASETAUXDATA (any case).
+_AUX_RECORD = re.compile(r'\s*DATASETAUXDATA(?![A-Za-z0-9_])', re.IGNORECASE)
+
+
 def _check_form(file_path, lines, nvariables, dimensions, data_starts):
     """Refuse the zones that read_TEC does not read, with the reason. It reads only the form of the files that ORION
     writes: BLOCK packing, x, y and z at the nodes and the other variables at the cells, one value per line. The check
@@ -190,13 +194,29 @@ def _check_form(file_path, lines, nvariables, dimensions, data_starts):
                 raise ValueError('{} has variables at the nodes: read_TEC reads x, y and z at the nodes and the other '
                                  'variables at the cells, as VARLOCATION says '
                                  '(VARLOCATION=([1-3]=NODAL,[4-{}]=CELLCENTERED))'.format(where, nvariables))
-        # the values of the zone: up to the next ZONE record or the first data set auxiliary data record
-        end = zone_lines[b + 1] if b + 1 < len(zone_lines) else len(lines)
-        for i in range(first, end):
-            if lines[i].lstrip().upper().startswith('DATASETAUXDATA'):
+        # the values of the zone: up to the next ZONE record or the first data set auxiliary data record; after that record
+        # only blank lines and other such records, up to the next ZONE record or the end of the file
+        next_zone = zone_lines[b + 1] if b + 1 < len(zone_lines) else len(lines)
+        end = next_zone
+        for i in range(first, next_zone):
+            if _AUX_RECORD.match(lines[i]):
                 end = i
                 break
-        found = sum(1 for line in lines[first:end] if line.strip())
+        for i in range(end, next_zone):
+            if lines[i].strip() and not _AUX_RECORD.match(lines[i]):
+                raise ValueError('{}, line {}: {!r} after the DATASETAUXDATA records of the zone: only blank lines, '
+                                 'DATASETAUXDATA records and the next ZONE record may follow'.format(
+                                     where, i + 1, lines[i].strip()))
+        found = 0
+        for i in range(first, end):
+            if not lines[i].strip():
+                continue
+            try:
+                float(lines[i])
+            except ValueError:
+                raise ValueError('{}, line {}: {!r} is not one number: read_TEC reads one value per line'.format(
+                    where, i + 1, lines[i].strip())) from None
+            found += 1
         ni, nj, nk = dimensions[b]
         nodes = ni * nj * nk
         cells = max(ni - 1, 1) * max(nj - 1, 1) * max(nk - 1, 1)

@@ -810,7 +810,9 @@ contains
     integer :: physical_line_number
     integer :: data_line_number
     integer(kind=8) :: data_value_number
+    integer(kind=8) :: zone_first_value      ! data_value_number before the first value of the zone being read
     logical :: have_data_line
+    logical :: next_zone                     ! line holds the header of the next zone, read after the data of a zone
 
     meshonly = .false.
     orion%tec%node = .true.
@@ -910,6 +912,7 @@ contains
     rewind(tecunit)
     b = 0
     ios = 0
+    physical_line_number = 0
     do while (ios==0)
       call read_whole_line(tecunit,line,ios)
       if (ios/=0) exit
@@ -1083,9 +1086,12 @@ contains
     !   X3
     !   X4
     !
+    ! After the values that its header announces, a zone is followed only by blank lines, the next ZONE record, data set
+    ! auxiliary data records or the end of the file (end_of_zone_data); anything else is refused.
     ! -----------------------------------------------------------------------------
     rewind(tecunit)
     have_data_line = .false.
+    next_zone = .false.
     data_pos = 1
     physical_line_number = 0
     data_line_number = 0
@@ -1094,21 +1100,30 @@ contains
     ios = 0
 
     do while (ios==0 .and. b<Nblocks)
-      call read_whole_line(tecunit,line,ios)
-      if (ios/=0) exit
+      ! The header of the next zone may have been read already, after the data of the previous one
+      if (next_zone) then
+        next_zone = .false.
+      else
+        call read_whole_line(tecunit,line,ios)
+        if (ios/=0) exit
+        physical_line_number = physical_line_number + 1
+      endif
       if (.not.is_zone_header(line)) cycle
 
       b = b + 1
       header = trim(line)
+      zone_first_value = data_value_number
 
       ! Find the first data line for this zone while collecting continuation header lines.
       do
         call read_whole_line(tecunit,line,ios)
         if (ios/=0) exit
+        physical_line_number = physical_line_number + 1
         if (line_is_numeric_start(line)) then
           data_line = line
           data_pos = 1
           have_data_line = .true.
+          data_line_number = physical_line_number
           exit
         endif
         header = trim(header)//' '//trim(line)
@@ -1189,7 +1204,12 @@ contains
 
       if (err/=0) exit
 
-      ! Reset lexical state before searching for the next ZONE header.
+      ! Nothing but blank lines, the next ZONE record, data set auxiliary data records or the end of the file after the values
+      ! of the zone
+      call end_of_zone_data(err)
+      if (err/=0) exit
+
+      ! Reset lexical state before the next ZONE header.
       have_data_line = .false.
       data_pos = 1
     enddo
@@ -1519,6 +1539,92 @@ contains
         return
       enddo
     endsubroutine next_value
+
+    ! After the values that the header of zone b announces, the rest of the last data line holds only separators (blanks, tabs,
+    ! commas) and the lines that follow are blank or data set auxiliary data records, up to the next ZONE record (left in line,
+    ! with next_zone set) or the end of the file. Anything else is data that the header does not announce: text after the last
+    ! row, more rows than I, J and K give, a row with more values than the variables. It is refused (istat = 1) with a message
+    ! that gives the file, the zone, the line and what was found. A row may wrap onto several lines: only the count of the
+    ! values matters, not where the lines break.
+    subroutine end_of_zone_data(istat)
+      use, intrinsic :: iso_fortran_env, only : iostat_end
+      integer, intent(out) :: istat
+      character(len=*), parameter :: separators = ' ,'//char(9)//char(13)
+      integer :: p, ios_
+      istat = 0
+      if (have_data_line) then
+        p = verify(data_line(min(data_pos,len(data_line)+1):), separators)
+        if (p > 0) then
+          call extra_data(data_line_number, data_line(data_pos+p-1:))
+          istat = 1
+          return
+        endif
+      endif
+      have_data_line = .false.
+      do
+        call read_whole_line(tecunit,line,ios_)
+        if (ios_ == iostat_end) return
+        if (ios_ /= 0) then
+          write(stderr,'(/,A)') 'TECPLOT ASCII READ ERROR: failure reading a line after the data of a zone.'
+          write(stderr,'(A)')   'File               : '//trim(filename)
+          write(stderr,'(A,I0)') 'Zone               : ', b
+          write(stderr,'(A,I0)') 'Physical line      : ', physical_line_number + 1
+          write(stderr,'(A,I0)') 'Fortran IOSTAT     : ', ios_
+          istat = 1
+          return
+        endif
+        physical_line_number = physical_line_number + 1
+        if (verify(line, separators) == 0) cycle
+        if (is_zone_header(line)) then
+          next_zone = .true.
+          return
+        endif
+        if (is_aux_record(line)) cycle
+        call extra_data(physical_line_number, adjustl(line))
+        istat = 1
+        return
+      enddo
+    endsubroutine end_of_zone_data
+
+    ! The message of end_of_zone_data: found is the text from the first character that is not part of zone b, on line n.
+    subroutine extra_data(n, found)
+      integer,          intent(in) :: n
+      character(len=*), intent(in) :: found
+      integer, parameter :: shown = 80   ! characters of found in the message
+      write(stderr,'(/,A)') &
+        '=============================================================='
+      write(stderr,'(A)') &
+        'TECPLOT ASCII READ ERROR: data that the zone header does not announce.'
+      write(stderr,'(A)')   'File               : '//trim(filename)
+      write(stderr,'(A,I0)') 'Zone               : ', b
+      write(stderr,'(A,A)') 'Packing            : ', merge('POINT','BLOCK',zone_point(b))
+      write(stderr,'(A,I0,A,I0,A,I0)') 'Header             : I=', Ni(b), ' J=', Nj(b), ' K=', Nk(b)
+      write(stderr,'(A,I0)') 'Values announced   : ', data_value_number - zone_first_value
+      write(stderr,'(A,I0)') 'Physical line      : ', n
+      if (len_trim(found) > shown) then
+        write(stderr,'(A)') 'Found              : "'//found(1:shown)//'..."'
+      else
+        write(stderr,'(A)') 'Found              : "'//trim(found)//'"'
+      endif
+      write(stderr,'(A)') &
+        'After the values of a zone only blank lines, a ZONE record, DATASETAUXDATA records or the end of the file may'
+      write(stderr,'(A)') &
+        'follow: the zone holds more values than I, J, K and the variables give (more rows, or a row with more values).'
+      write(stderr,'(A)') &
+        '=============================================================='
+    endsubroutine extra_data
+
+    ! A data set auxiliary data record: a line whose first word is DATASETAUXDATA (any case)
+    logical function is_aux_record(text)
+      character(len=*), intent(in) :: text
+      character(len=:), allocatable :: u
+      u = adjustl(upper_case(text))
+      is_aux_record = .false.
+      if (len(u) < 14) return
+      if (u(1:14) /= 'DATASETAUXDATA') return
+      if (len(u) > 14) is_aux_record = .not.is_word_char(u(15:15))
+      if (len(u) == 14) is_aux_record = .true.
+    endfunction is_aux_record
 
     ! Is text (a variable name) the coordinate name c ('X', 'Y' or 'Z'), in any case?
     logical function is_coordinate_name(text,c)

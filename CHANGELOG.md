@@ -7,7 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-Changes on `main` since `v2.1.0`.
+Changes on `main` since `v2.2.0`.
+
+## [2.2.0] - 2026-11-11
+
+### Changed
+
+- The Tecplot ASCII reader refuses data that a zone header does not announce,
+  with a message giving the file, zone and line. So does `read_TEC`.
 
 ## [2.1.0] - 2026-10-29
 
